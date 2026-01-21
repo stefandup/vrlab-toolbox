@@ -30,6 +30,23 @@ GetWindowTextW = user32.GetWindowTextW
 IsWindowVisible = user32.IsWindowVisible
 GetWindowThreadProcessId = user32.GetWindowThreadProcessId
 
+# Window resizing APIs
+class RECT(ctypes.Structure):
+    _fields_ = [
+        ("left", ctypes.c_long),
+        ("top", ctypes.c_long),
+        ("right", ctypes.c_long),
+        ("bottom", ctypes.c_long),
+    ]
+
+GetWindowRect = user32.GetWindowRect
+GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(RECT)]
+GetWindowRect.restype = wintypes.BOOL
+
+MoveWindow = user32.MoveWindow
+MoveWindow.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, wintypes.BOOL]
+MoveWindow.restype = wintypes.BOOL
+
 # ShowWindow can change a window's state (minimize/maximize/restore/etc.)
 ShowWindow = user32.ShowWindow
 ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
@@ -40,8 +57,15 @@ SetForegroundWindow = user32.SetForegroundWindow
 SetForegroundWindow.argtypes = [wintypes.HWND]
 SetForegroundWindow.restype = wintypes.BOOL
 
+# GetSystemMetrics gets screen dimensions and other system metrics
+GetSystemMetrics = user32.GetSystemMetrics
+GetSystemMetrics.argtypes = [ctypes.c_int]
+GetSystemMetrics.restype = ctypes.c_int
+
 SW_MINIMIZE = 6
 SW_RESTORE = 9
+SM_CXSCREEN = 0  # Screen width in pixels
+SM_CYSCREEN = 1  # Screen height in pixels
 
 # ---------------------------------------------------------------------------
 # Window management helpers
@@ -86,6 +110,20 @@ def minimize_window(hwnd: wintypes.HWND) -> bool:
         # Debug: check if window handle is valid
         error = ctypes.get_last_error()
         print(f"ShowWindow failed, error code: {error}, HWND: {hwnd}")
+    return bool(result)
+
+def resize_window(hwnd: wintypes.HWND, width: int, height: int) -> bool:
+    """Resize a window by its handle while preserving its current top-left position."""
+    rect = RECT()
+    if not GetWindowRect(hwnd, ctypes.byref(rect)):
+        error = ctypes.get_last_error()
+        print(f"GetWindowRect failed, error code: {error}, HWND: {hwnd}")
+        return False
+
+    result = MoveWindow(hwnd, rect.left, rect.top, width, height, True)
+    if not result:
+        error = ctypes.get_last_error()
+        print(f"MoveWindow failed, error code: {error}, HWND: {hwnd}")
     return bool(result)
 
 
@@ -195,6 +233,8 @@ def main() -> None:
                 # Minimize the first matching window
                 if window_handle:
                     minimize_window(window_handle[0])
+            else:
+                resize_window(window_handle[0],width=800,height=600)
 
     #list_all_windows()
 
