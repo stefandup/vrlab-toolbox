@@ -94,6 +94,10 @@ def get_window_pid(hwnd: wintypes.HWND) -> int:
     GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
     return int(pid.value)
 
+def bring_window_to_front(hwnd: wintypes.HWND):
+    ShowWindow(hwnd, SW_RESTORE)
+    SetForegroundWindow(hwnd)
+    
 
 def minimize_window(hwnd: wintypes.HWND) -> bool:
     """
@@ -125,6 +129,73 @@ def resize_window(hwnd: wintypes.HWND, width: int, height: int) -> bool:
         error = ctypes.get_last_error()
         print(f"MoveWindow failed, error code: {error}, HWND: {hwnd}")
     return bool(result)
+
+
+def get_screen_size() -> tuple[int, int]:
+    """Return screen width and height in pixels as (width, height)."""
+    width = GetSystemMetrics(SM_CXSCREEN)
+    height = GetSystemMetrics(SM_CYSCREEN)
+    return (width, height)
+
+
+def move_window(hwnd: wintypes.HWND, x: int, y: int) -> bool:
+    """Move a window by its handle to position (x, y) while preserving its current size."""
+    rect = RECT()
+    if not GetWindowRect(hwnd, ctypes.byref(rect)):
+        error = ctypes.get_last_error()
+        print(f"GetWindowRect failed, error code: {error}, HWND: {hwnd}")
+        return False
+
+    # Calculate current width and height
+    width = rect.right - rect.left
+    height = rect.bottom - rect.top
+
+    result = MoveWindow(hwnd, x, y, width, height, True)
+    if not result:
+        error = ctypes.get_last_error()
+        print(f"MoveWindow failed, error code: {error}, HWND: {hwnd}")
+    return bool(result)
+
+def place_window(hwnd: wintypes.HWND, left: int, top: int, width: int, height: int) -> bool:
+    """Move + resize a window by handle in one call."""
+    result = MoveWindow(hwnd, left, top, width, height, True)
+    if not result:
+        error = ctypes.get_last_error()
+        print(f"MoveWindow failed, error code: {error}, HWND: {hwnd}")
+    return bool(result)
+
+
+def layout_row(
+    hwnds: list[wintypes.HWND],
+    *,
+    margin: int = 20,
+    gap: int = 10,
+    height_ratio: float = 0.5,
+) -> None:
+    """
+    Lay out windows in a single row across the screen using screen-relative sizing.
+    - margin: space from the screen edge (px)
+    - gap: space between windows (px)
+    - height_ratio: window height as a fraction of screen height (0..1)
+    """
+    if not hwnds:
+        return
+
+    screen_w, screen_h = get_screen_size()
+    usable_w = max(0, screen_w - 2 * margin)
+    usable_h = max(0, screen_h - 2 * margin)
+
+    n = len(hwnds)
+    total_gap = gap * (n - 1)
+    win_w = max(50, (usable_w - total_gap) // n)
+    win_h = max(50, int(usable_h * height_ratio))
+
+    x = margin
+    y = margin
+    for hwnd in hwnds:
+        
+        place_window(hwnd, x, y, win_w, win_h)
+        x += win_w + gap
 
 
 def minimize_windows_by_pid(pid: int) -> int:
@@ -223,6 +294,11 @@ def main() -> None:
         "Example Python Window 3",
         "python.exe"
     ]
+    
+    print(f"Screensize is: {get_screen_size()[0]} by {get_screen_size()[1]}")
+    
+    window_handles = []
+
     for window_search_title in window_search_titles:
         
         window_handle = find_windows_by_title(window_search_title)
@@ -234,9 +310,13 @@ def main() -> None:
                 if window_handle:
                     minimize_window(window_handle[0])
             else:
-                resize_window(window_handle[0],width=800,height=600)
+                window_handles.append(window_handle[0])
 
     #list_all_windows()
+    for window_handle in window_handles:
+        bring_window_to_front(window_handle)
+        
+    layout_row(window_handles)
 
 
 if __name__ == "__main__":
