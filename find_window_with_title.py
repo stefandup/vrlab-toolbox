@@ -30,6 +30,19 @@ GetWindowTextW = user32.GetWindowTextW
 IsWindowVisible = user32.IsWindowVisible
 GetWindowThreadProcessId = user32.GetWindowThreadProcessId
 
+# ShowWindow can change a window's state (minimize/maximize/restore/etc.)
+ShowWindow = user32.ShowWindow
+ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+ShowWindow.restype = wintypes.BOOL
+
+# SetForegroundWindow brings a window to the front (may be needed before minimizing)
+SetForegroundWindow = user32.SetForegroundWindow
+SetForegroundWindow.argtypes = [wintypes.HWND]
+SetForegroundWindow.restype = wintypes.BOOL
+
+SW_MINIMIZE = 6
+SW_RESTORE = 9
+
 # ---------------------------------------------------------------------------
 # Window management helpers
 # ---------------------------------------------------------------------------
@@ -58,6 +71,46 @@ def get_window_pid(hwnd: wintypes.HWND) -> int:
     return int(pid.value)
 
 
+def minimize_window(hwnd: wintypes.HWND) -> bool:
+    """
+    Minimize a window by its handle. Returns True if successful.
+    Restores the window first if needed, then minimizes it.
+    """
+    # Try to bring window to foreground first (helps with some windows)
+    SetForegroundWindow(hwnd)
+    # First, try to restore if it's minimized/maximized (SW_RESTORE = 9)
+    ShowWindow(hwnd, SW_RESTORE)
+    # Then minimize it
+    result = ShowWindow(hwnd, SW_MINIMIZE)
+    if not result:
+        # Debug: check if window handle is valid
+        error = ctypes.get_last_error()
+        print(f"ShowWindow failed, error code: {error}, HWND: {hwnd}")
+    return bool(result)
+
+
+def minimize_windows_by_pid(pid: int) -> int:
+    """
+    Minimize all visible top-level windows owned by `pid`.
+    Returns the number of windows minimized.
+    """
+    minimized = 0
+
+    def handle_window(hwnd: wintypes.HWND) -> bool:
+        nonlocal minimized
+        if not is_window_visible(hwnd):
+            return True
+
+        if get_window_pid(hwnd) == pid:
+            ShowWindow(hwnd, SW_MINIMIZE)
+            minimized += 1
+
+        return True
+
+    enumerate_windows(handle_window)
+    return minimized
+
+
 def enumerate_windows(on_window: Callable[[wintypes.HWND], bool]) -> None:
     """
     Call `on_window(hwnd)` for each top-level window.
@@ -72,12 +125,33 @@ def enumerate_windows(on_window: Callable[[wintypes.HWND], bool]) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Example: find windows by (partial) title
+# Debug: list all visible windows
+# ---------------------------------------------------------------------------
+
+def list_all_windows() -> None:
+    """Print all visible windows with their PID and title (useful for debugging)."""
+    def handle_window(hwnd: wintypes.HWND) -> bool:
+        if not is_window_visible(hwnd):
+            return True
+
+        title = get_window_title(hwnd)
+        if not title:
+            return True
+
+        pid = get_window_pid(hwnd)
+        print(f"PID={pid:6} | TITLE='{title}'")
+        return True
+
+    enumerate_windows(handle_window)
+
+
+# ---------------------------------------------------------------------------
+# Example: find windows by exact title match
 # ---------------------------------------------------------------------------
 
 def find_windows_by_title(search_text: str) -> list[wintypes.HWND]:
     """
-    Return a list of visible window handles (HWND) whose title contains search_text
+    Return a list of visible window handles (HWND) whose title exactly matches search_text
     (case-insensitive).
     """
     search_lower = search_text.lower()
@@ -91,7 +165,7 @@ def find_windows_by_title(search_text: str) -> list[wintypes.HWND]:
         if not title:
             return True
 
-        # Case-insensitive substring match against the window title.
+        # Case-insensitive exact match against the window title.
         if search_lower in title.lower():
             pid = get_window_pid(hwnd)
             print(f"PID={pid} | TITLE='{title}'")
@@ -104,9 +178,25 @@ def find_windows_by_title(search_text: str) -> list[wintypes.HWND]:
 
 
 def main() -> None:
-    window_handle = find_windows_by_title("Example Python Window")
-    if window_handle:
-        print(f"Window handle is: {window_handle}")
+
+    window_search_titles = [
+        "Example Python Window 1",
+        "Example Python Window 2",
+        "Example Python Window 3",
+        "python.exe"
+    ]
+    for window_search_title in window_search_titles:
+        
+        window_handle = find_windows_by_title(window_search_title)
+        
+        if window_handle:
+            print(f"Window handle is: {window_handle}")
+            if window_search_title == "python.exe":
+                # Minimize the first matching window
+                if window_handle:
+                    minimize_window(window_handle[0])
+
+    #list_all_windows()
 
 
 if __name__ == "__main__":
