@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "windows": [
+    {
+      "hwnd": 2493906,
+      "left": -7,
+      "top": 0,
+      "width": 974,
+      "height": 523
+    },
+    {
+      "hwnd": 463320,
+      "left": -7,
+      "top": 516,
+      "width": 974,
+      "height": 523
+    },
+    {
+      "hwnd": 789990,
+      "left": 953,
+      "top": 0,
+      "width": 974,
+      "height": 523
+    },
+    {
+      "hwnd": 11079120,
+      "left": 953,
+      "top": 516,
+      "width": 974,
+      "height": 523
+    }
+  ]
+}

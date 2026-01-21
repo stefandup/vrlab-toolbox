@@ -1,6 +1,8 @@
 import ctypes
 from ctypes import wintypes
 from typing import Callable
+import json
+from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # Win32 API bindings (user32.dll)
@@ -156,6 +158,20 @@ def move_window(hwnd: wintypes.HWND, x: int, y: int) -> bool:
         print(f"MoveWindow failed, error code: {error}, HWND: {hwnd}")
     return bool(result)
 
+def get_window_rect(hwnd: wintypes.HWND) -> tuple[int, int, int, int] | None:
+    """Return (left, top, width, height) for a window handle, or None on failure."""
+    rect = RECT()
+    if not GetWindowRect(hwnd, ctypes.byref(rect)):
+        error = ctypes.get_last_error()
+        print(f"GetWindowRect failed, error code: {error}, HWND: {hwnd}")
+        return None
+
+    left = int(rect.left)
+    top = int(rect.top)
+    width = int(rect.right - rect.left)
+    height = int(rect.bottom - rect.top)
+    return (left, top, width, height)
+
 def place_window(hwnd: wintypes.HWND, left: int, top: int, width: int, height: int) -> bool:
     """Move + resize a window by handle in one call."""
     result = MoveWindow(hwnd, left, top, width, height, True)
@@ -196,6 +212,46 @@ def layout_row(
         
         place_window(hwnd, x, y, win_w, win_h)
         x += win_w + gap
+
+def save_layout(hwnds: list[wintypes.HWND], config_path: str | Path = "window_layout.json") -> None:
+    """
+    Save current positions/sizes for the given window handles to a JSON file.
+    Layout is stored by list index, so load with the same handle list ordering.
+    """
+    path = Path(config_path)
+    windows: list[dict[str, int]] = []
+    for hwnd in hwnds:
+        rect = get_window_rect(hwnd)
+        if rect is None:
+            continue
+        left, top, width, height = rect
+        windows.append(
+            {
+                "hwnd": int(hwnd),  # informational only
+                "left": left,
+                "top": top,
+                "width": width,
+                "height": height,
+            }
+        )
+
+    payload = {"version": 1, "windows": windows}
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def load_layout(hwnds: list[wintypes.HWND], config_path: str | Path = "window_layout.json") -> None:
+    """
+    Load a JSON layout file and apply it to the given window handles by list index.
+    """
+    path = Path(config_path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    windows = payload.get("windows", [])
+
+    for i, hwnd in enumerate(hwnds):
+        if i >= len(windows):
+            break
+        w = windows[i]
+        place_window(hwnd, int(w["left"]), int(w["top"]), int(w["width"]), int(w["height"]))
 
 
 def minimize_windows_by_pid(pid: int) -> int:
@@ -315,9 +371,8 @@ def main() -> None:
     #list_all_windows()
     for window_handle in window_handles:
         bring_window_to_front(window_handle)
-        
-    layout_row(window_handles)
 
+    layout_row(window_handles)
 
 if __name__ == "__main__":
     main()
