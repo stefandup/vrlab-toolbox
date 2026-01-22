@@ -38,10 +38,12 @@
     }
   ],
   "titles": [
-    "Example Python Window 1",
-    "Example Python Window 2",
-    "Example Python Window 3",
-    "python.exe",
-    "Ubuntu"
+    "Lab Recorder",
+    "DSI2LSL",
+    "DSI-Streamer-v.1.08.120",
+    "Neon Scene Camera Recorder",
+    "Audio & Video Recorder",
+    "powershell.exe",
+    "AxioBiofeedback"
   ]
 }

@@ -19,14 +19,37 @@ from python_window_management import (
     load_layout,
     save_layout,
 )
+import json
 
 
-WINDOW_SEARCH_TITLES: list[str] = [
-    "Example Python Window 1",
-    "Example Python Window 2",
-    "Example Python Window 3",
-    "python.exe",
-]
+def load_window_titles(config_path: Path | None = None) -> list[str]:
+    """
+    Load window titles from JSON config file.
+    Falls back to default titles if file doesn't exist or doesn't have titles.
+    Defaults to window_layout.json if config_path is not provided.
+    """
+    if config_path is None:
+        config_path = Path("window_layout.json")
+    
+    default_titles = [
+        "Example Python Window 1",
+        "Example Python Window 2",
+        "Example Python Window 3",
+        "python.exe",
+    ]
+    
+    if not config_path.exists():
+        return default_titles
+    
+    try:
+        payload = json.loads(config_path.read_text(encoding="utf-8"))
+        titles = payload.get("titles")
+        if titles and isinstance(titles, list):
+            return titles
+    except (json.JSONDecodeError, KeyError):
+        pass
+    
+    return default_titles
 
 
 def _resolve_hwnds_by_titles(titles: list[str]) -> list[int]:
@@ -47,10 +70,23 @@ def _resolve_hwnds_by_titles(titles: list[str]) -> list[int]:
 
 
 def save_mode(config_path: Path) -> None:
-    hwnds = _resolve_hwnds_by_titles(WINDOW_SEARCH_TITLES)
+    titles = load_window_titles(config_path)
+    hwnds = _resolve_hwnds_by_titles(titles)
     if not hwnds:
         raise SystemExit("No windows found; nothing to save.")
+    
+    # Save layout (save_layout preserves existing titles)
     save_layout(hwnds, config_path)
+    
+    # Ensure titles are saved if they don't exist yet
+    try:
+        payload = json.loads(config_path.read_text(encoding="utf-8"))
+        if "titles" not in payload:
+            payload["titles"] = titles
+            config_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    except (json.JSONDecodeError, KeyError):
+        pass
+    
     print(f"[OK] Saved layout for {len(hwnds)} window(s) to: {config_path}")
 
 
@@ -58,7 +94,8 @@ def apply_mode(config_path: Path) -> None:
     if not config_path.exists():
         raise SystemExit(f"Config not found: {config_path}")
 
-    hwnds = _resolve_hwnds_by_titles(WINDOW_SEARCH_TITLES)
+    titles = load_window_titles(config_path)
+    hwnds = _resolve_hwnds_by_titles(titles)
     if not hwnds:
         raise SystemExit("No windows found; nothing to apply.")
 

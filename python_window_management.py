@@ -217,6 +217,7 @@ def save_layout(hwnds: list[wintypes.HWND], config_path: str | Path = "window_la
     """
     Save current positions/sizes for the given window handles to a JSON file.
     Layout is stored by list index, so load with the same handle list ordering.
+    Preserves any existing 'titles' field in the JSON file.
     """
     path = Path(config_path)
     windows: list[dict[str, int]] = []
@@ -235,7 +236,18 @@ def save_layout(hwnds: list[wintypes.HWND], config_path: str | Path = "window_la
             }
         )
 
+    # Preserve existing titles if the file exists
+    titles = None
+    if path.exists():
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8"))
+            titles = existing.get("titles")
+        except (json.JSONDecodeError, KeyError):
+            pass
+
     payload = {"version": 1, "windows": windows}
+    if titles is not None:
+        payload["titles"] = titles
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
