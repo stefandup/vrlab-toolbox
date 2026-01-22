@@ -2,32 +2,32 @@
   "version": 1,
   "windows": [
     {
-      "hwnd": 2493906,
-      "left": -7,
-      "top": 0,
-      "width": 974,
-      "height": 523
-    },
-    {
-      "hwnd": 463320,
+      "hwnd": 459316,
       "left": -7,
       "top": 516,
       "width": 974,
       "height": 523
     },
     {
-      "hwnd": 789990,
+      "hwnd": 264220,
       "left": 953,
       "top": 0,
       "width": 974,
       "height": 523
     },
     {
-      "hwnd": 11079120,
-      "left": 953,
-      "top": 516,
+      "hwnd": 134120,
+      "left": -7,
+      "top": 0,
       "width": 974,
       "height": 523
+    },
+    {
+      "hwnd": 526264,
+      "left": -1804,
+      "top": 55,
+      "width": 1249,
+      "height": 665
     }
   ]
 }

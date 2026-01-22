@@ -343,6 +343,8 @@ def find_windows_by_title(search_text: str) -> list[wintypes.HWND]:
 
 
 def main() -> None:
+    # This `main` function provides an example of how to use the window management 
+    # functions defined above.
 
     window_search_titles = [
         "Example Python Window 1",
