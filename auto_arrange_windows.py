@@ -17,6 +17,7 @@ from python_window_management import (
     bring_window_to_front,
     find_windows_by_title,
     load_layout,
+    minimize_window,
     save_layout,
 )
 import json
@@ -94,6 +95,11 @@ def apply_mode(config_path: Path) -> None:
     if not config_path.exists():
         raise SystemExit(f"Config not found: {config_path}")
 
+    # Minimize default windows (e.g., powershell) first
+    minimized = minimize_default_windows()
+    if minimized > 0:
+        print(f"[OK] Minimized {minimized} default window(s)")
+
     titles = load_window_titles(config_path)
     hwnds = _resolve_hwnds_by_titles(titles)
     if not hwnds:
@@ -105,6 +111,29 @@ def apply_mode(config_path: Path) -> None:
 
     load_layout(hwnds, config_path)
     print(f"[OK] Applied layout from: {config_path} to {len(hwnds)} window(s)")
+
+
+def minimize_default_windows(window_titles: list[str] | None = None) -> int:
+    """
+    Minimize a set of default windows by title search.
+    
+    Args:
+        window_titles: List of window title search strings. Defaults to ["powershell"].
+    
+    Returns:
+        Number of windows successfully minimized.
+    """
+    if window_titles is None:
+        window_titles = ["powershell"]
+    
+    minimized_count = 0
+    for title in window_titles:
+        matches = find_windows_by_title(title)
+        for hwnd in matches:
+            if minimize_window(hwnd):
+                minimized_count += 1
+    
+    return minimized_count
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
