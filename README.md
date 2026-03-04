@@ -12,12 +12,14 @@ The codebase is organized into submodules (e.g. `window_manager`, `processing`, 
 
 ## Window manager: `auto_arrange_windows.py`
 
-Lives under `src/mooi_toolbox/window_manager/`. It has two modes:
+Lives under `src/mooi_toolbox/window_manager/`. It is meant as an **automated and easily adjustable** way to manage window positions **across multiple monitors**: define which windows to control via a JSON file, save a layout, then reapply it anytime.
+
+It has two modes:
 
 - **save** — Capture current positions and sizes of selected windows into a JSON file.
 - **apply** — Read that JSON and move/resize the matching windows to the saved layout.
 
-It uses helpers from `python_window_management.py`, which is intended to be reusable in other projects.
+It uses helpers from **`python_window_management.py`**, which is intended as a **general, transportable window management library** for use in this project or others.
 
 ### JSON layout file
 
