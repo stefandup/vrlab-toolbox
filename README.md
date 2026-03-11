@@ -4,6 +4,16 @@
 
 ---
 
+## Setup
+
+From the project root, install the package in editable mode so imports like `mooi_toolbox` work in scripts and notebooks:
+
+```bash
+pip install -e .
+```
+
+---
+
 ## Submodules
 
 The codebase is organized into submodules (e.g. `window_manager`, `processing`, …) that can be reused and, when ready, published as standalone or combined public packages. What stays private vs. public is decided later.
