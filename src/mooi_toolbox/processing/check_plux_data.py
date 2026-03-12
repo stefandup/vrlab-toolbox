@@ -5,17 +5,25 @@ from rich import print
 import matplotlib.pyplot as plt
 import neurokit2 as nk
 from IPython import display
+import sys
 
+# Get xdf_fn from first command-line argument, if provided
+if len(sys.argv) > 1:
+    xdf_fn_cli = sys.argv[1]
+    if not os.path.isabs(xdf_fn_cli):
+        # If the path is relative, join it with the current working directory
+        xdf_fn = os.path.join(os.getcwd(), xdf_fn_cli)
+    else:
+        xdf_fn = xdf_fn_cli
+else:
+    xdf_fn_rel = r"local_MOBI_data\\sub-00003\\ses-S001\\philani\\sub-00003_ses-S001_task-Default_run-001_philani.xdf"
+    work_dir = os.getcwd()
+    xdf_fn = os.path.join(work_dir,xdf_fn_rel)
 
-example_data = r"local_MOBI_data\\sub-00003\\ses-S001\\philani\\sub-00003_ses-S001_task-Default_run-001_philani.xdf"
-work_dir = os.getcwd()
+if not os.path.exists(xdf_fn):
+    print(f"ERROR: {xdf_fn} does not exist")
 
-example_data_fn = os.path.join(work_dir,example_data)
-
-if not os.path.exists(example_data):
-    print(f"ERROR: {example_data} does not exist")
-
-streams, header = pyxdf.load_xdf(example_data_fn)
+streams, header = pyxdf.load_xdf(xdf_fn)
 
 # Print information about the streams
 print("-" * 40)
@@ -157,8 +165,8 @@ plt.tight_layout()
 plt.show()
 
 # Re doing again TODO: Choose pipeline or look at out DFs Might not be needed even
-print("Reprocessing...")
-ecg_process_df,ecg_info = nk.ecg_process(ecg_raw, sampling_rate=biosignals_df['sampling_rate'].mean(), method='neurokit')
+#print("Reprocessing...")
+#ecg_process_df,ecg_info = nk.ecg_process(ecg_raw, sampling_rate=biosignals_df['sampling_rate'].mean(), method='neurokit')
 
-# TODO: Fix ECG plots
-nk.ecg_plot(ecg_process_df)
+# TODO: Fix ECG plots if needed
+#nk.ecg_plot(ecg_process_df)
