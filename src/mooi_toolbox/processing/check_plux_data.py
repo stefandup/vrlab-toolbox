@@ -4,10 +4,11 @@ from mooi_toolbox.read_mobi_xdf import xdf_io
 from rich import print
 import matplotlib.pyplot as plt
 import neurokit2 as nk
+from IPython import display
+
 
 example_data = r"local_MOBI_data\\sub-00003\\ses-S001\\philani\\sub-00003_ses-S001_task-Default_run-001_philani.xdf"
 work_dir = os.getcwd()
-
 
 example_data_fn = os.path.join(work_dir,example_data)
 
@@ -38,7 +39,6 @@ biosignals_df, biosignals_stream = xdf_io.extract_single_stream(streams, 'OpenSi
 biosignals_df = xdf_io.add_column_names(biosignals_df, biosignals_stream)
 print(biosignals_df.head(5))
 
-
 ### Biosignals sampling rate 
 
 # Calcuate time difference between consecutive samples 
@@ -57,56 +57,17 @@ print(f"Max sampling rate: {biosignals_df['sampling_rate'].max():.2f} Hz")
 print("-"*40)
 # print("timestamp min:", biosignals_df['time_stamps'].min())
 # print("timestamp max:", biosignals_df['time_stamps'].max())
-bio_duration = (biosignals_df['time_stamps'].max() - biosignals_df['time_stamps'].min()) / 60
-print(f"Duration of Biosignals Data: {bio_duration} mins")
-
-print("-"*40)
-
-# Plot sampling rate over time as a line graph
-plt.figure()
-plt.plot(biosignals_df['time_stamps'], biosignals_df['sampling_rate'], linestyle='-', marker=None)
-plt.title('Biosignals Sampling Rate Over Time')
-plt.ylabel('Sampling Rate (Hz)')
-plt.xlabel('Time (seconds)')
-plt.ylim(900, 1100)
-plt.show()
-
-# ECG
-plt.figure(figsize=(10, 4))
-plt.plot(biosignals_df['time_stamps'], biosignals_df['ECG1'], label='signals', alpha=0.7)
-plt.title('Signal Over Time: ECG')
-plt.xlabel('Time Stamps')
-plt.ylabel('Signal')
-plt.legend()
-plt.show()
-
-# EDA
-plt.figure(figsize=(10, 4))
-plt.plot(biosignals_df['time_stamps'], biosignals_df['EDA0'], label='signals', alpha=0.7)
-plt.title('Signal Over Time: EDA')
-plt.xlabel('Time Stamps')
-plt.ylabel('Signal')
-plt.legend()
-plt.show()
+bio_duration_mins = (biosignals_df['time_stamps'].max() - biosignals_df['time_stamps'].min()) / 60
+print(f"Duration of Biosignals Data: {bio_duration_mins} mins")
 
 eda_raw = biosignals_df['EDA0'].values
 eda_clean_methods = ['biosppy', 'neurokit']
 
-fig, axs = plt.subplots(1, len(eda_clean_methods), figsize=(12, 4), sharey=True)
-
-if len(eda_clean_methods) == 1:
-    axs = [axs]
 eda_cleaned = {}
+
+# Clean EDA with available methods. Biosppy seems consistently better, so using that as default.
 for i, method in enumerate(eda_clean_methods):
     eda_cleaned[method] = nk.eda_clean(eda_raw, sampling_rate=biosignals_df['sampling_rate'].mean(), method=method)
-    axs[i].plot(biosignals_df['time_stamps'], eda_cleaned[method], label=f'EDA Cleaned ({method})')
-    axs[i].set_title(f'EDA Cleaned - {method}')
-    axs[i].set_xlabel('Time (s)')
-    axs[i].set_ylabel('Amplitude')
-    axs[i].legend()
-plt.tight_layout()
-plt.show()
-
 
 eda_decomposed = nk.eda_phasic(eda_cleaned['biosppy'], sampling_rate=biosignals_df['sampling_rate'].mean())
     
@@ -120,9 +81,84 @@ for m in eda_peak_methods:
         eda_peaks_info = nk.eda_peaks(eda_decomposed["EDA_Phasic"], sampling_rate=biosignals_df['sampling_rate'].mean(), method=m)
         scr_peak_times = eda_peaks_info[1]['SCR_Peaks']
         peak_times_dict[m] = len(scr_peak_times)
-        print(f"Method: {m}, N peaks per min: {len(scr_peak_times)/bio_duration}")
+        print(f"Method: {m}, N peaks per min: {len(scr_peak_times)/bio_duration_mins}")
     except Exception as e:
         print(f"Method: {m} failed with error: {e}")
         peak_times_dict[m] = None
 
 print("-" * 50)
+
+#Process ECG TODO: Clean up warnings
+
+ecg_raw = biosignals_df['ECG1'].values
+ecg_clean_methods = ['neurokit', 'biosppy', 'pantompkins1985', 'hamilton2002', 'elgendi2010', 'engzeemod2012', 'templateconvolution', 'vg']
+
+ecg_cleaned = {}
+
+for i,method in enumerate(ecg_clean_methods):
+    ecg_cleaned[method] = nk.ecg_clean(ecg_raw, sampling_rate=biosignals_df['sampling_rate'].mean(), method=method)
+
+peak_info = nk.ecg_findpeaks(ecg_cleaned['biosppy'],biosignals_df['sampling_rate'].mean(),method='neurokit',show=False)
+
+waves,signals = nk.ecg_delineate(ecg_cleaned['biosppy'],
+                                 peak_info['ECG_R_Peaks'],
+                                 sampling_rate=biosignals_df['sampling_rate'].mean(),
+                                 method='peak',
+                                 show=True,
+                                 show_type='peaks',
+                                 check=True)
+#display(waves)
+tot_q_peak_count = (waves["ECG_Q_Peaks"] == 1).sum()
+
+print(f"Avg Hr per min (Based on Q Peaks): {tot_q_peak_count/bio_duration_mins}")
+
+# Compute HRV
+
+hrv_df = nk.hrv(peak_info,sampling_rate=biosignals_df['sampling_rate'].mean(),show=True)
+
+fig, axs = plt.subplots(1, len(eda_clean_methods), figsize=(12, 4), sharey=True)
+
+if len(eda_clean_methods) == 1:
+    axs = [axs]
+
+for i, method in enumerate(eda_clean_methods):
+    axs[i].plot(biosignals_df['time_stamps'], eda_cleaned[method], label=f'EDA Cleaned ({method})')
+    axs[i].set_title(f'EDA Cleaned - {method}')
+    axs[i].set_xlabel('Time (s)')
+    axs[i].set_ylabel('Amplitude')
+    axs[i].legend()
+plt.tight_layout()
+plt.show()
+
+# Combine sampling rate, ECG, and EDA into separate subplots of a single figure
+fig, axs = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
+
+# TODO: Organize output
+# Plot sampling rate over time
+axs[0].plot(biosignals_df['time_stamps'], biosignals_df['sampling_rate'], linestyle='-', marker=None)
+axs[0].set_title('Biosignals Sampling Rate Over Time')
+axs[0].set_ylabel('Sampling Rate (Hz)')
+axs[0].set_ylim(900, 1100)
+
+# Plot ECG signal over time
+axs[1].plot(biosignals_df['time_stamps'], biosignals_df['ECG1'], label='ECG signal', alpha=0.7)
+axs[1].set_title('Signal Over Time: ECG')
+axs[1].set_ylabel('ECG Signal')
+axs[1].legend()
+
+# Plot EDA signal over time
+axs[2].plot(biosignals_df['time_stamps'], biosignals_df['EDA0'], label='EDA signal', alpha=0.7)
+axs[2].set_title('Signal Over Time: EDA')
+axs[2].set_xlabel('Time (seconds)')
+axs[2].set_ylabel('EDA Signal')
+axs[2].legend()
+
+plt.tight_layout()
+plt.show()
+
+# Re doing again TODO: Choose pipeline or look at out DFs Might not be needed even
+print("Reprocessing...")
+ecg_process_df,ecg_info = nk.ecg_process(ecg_raw, sampling_rate=biosignals_df['sampling_rate'].mean(), method='neurokit')
+
+# TODO: Fix ECG plots
+nk.ecg_plot(ecg_process_df)
