@@ -1,6 +1,32 @@
 import pandas as pd
 import numpy as np
 
+def create_intervals_from_df(marker_df): 
+    return [(marker_df["time_stamps"].iloc[i], marker_df["time_stamps"].iloc[i + 1])
+    for i in range(len(marker_df) - 1)]
+
+def cut_df_per_interval(start_end_in: tuple,df_in):
+    start, end = start_end_in
+
+    mask = (df_in["time_stamps"] >= start) & (df_in["time_stamps"] <= end)
+
+    return df_in.loc[mask]
+
+def divide_df_into_blocks(time_in_seconds,df_in):
+    df_list_out = []
+    t_min = df_in["time_stamps"].min()
+    t_max = df_in["time_stamps"].max()
+
+    time_markers = np.arange(t_min,t_max,time_in_seconds)
+
+    for i in range(len(time_markers)):
+        start = time_markers[i]
+        end = time_markers[i + 1] if i + 1 < len(time_markers) else t_max
+        mask = (df_in["time_stamps"] >= start) & (df_in["time_stamps"] <= end)
+        df_list_out.append(df_in.loc[mask])
+    
+    return df_list_out
+
 def print_column_names(stream):
         channels = stream['info']['desc'][0]['channels'][0]['channel']
         column_names = [channel['label'][0] for channel in channels]
