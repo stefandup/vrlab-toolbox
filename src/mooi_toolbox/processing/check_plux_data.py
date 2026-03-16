@@ -13,10 +13,11 @@ from pandas.errors import SettingWithCopyWarning
 
 plot_data = True
 
-def run_eda_processing(nominal_sample_rate,biosignals_df,plot_data=False):
+def run_eda_processing(nominal_sample_rate,biosignals_df,plot_data=False,data_label=''):
 
     eda_raw = biosignals_df['EDA0'].values
-
+    bio_duration_mins = (biosignals_df['time_stamps'].max() - biosignals_df['time_stamps'].min()) / 60
+    
     print(type(eda_raw))
 
     eda_clean_methods = ['biosppy', 'neurokit']
@@ -43,12 +44,20 @@ def run_eda_processing(nominal_sample_rate,biosignals_df,plot_data=False):
         except Exception as e:
             print(f"Method: {m} failed with error: {e}")
             peak_times_dict[m] = None
+            return
+            
 
     print("-" * 50)
+
+    single_subject_eda_df_out = pd.DataFrame({
+        f'{data_label}Tonic_mean': [eda_decomposed['EDA_Tonic'].mean()],
+        f'{data_label}SCR_per_min': [peak_times_dict['vanhalem2020'] / bio_duration_mins]
+    })
+
     # TODO: Fix EDA plotting
     if plot_data:
         # Plot all EDA subplots on one figure
-        fig, axs = plt.subplots(1, len(eda_clean_methods) + 1, figsize=(16, 4), sharey=True)
+        fig, axs = plt.subplots(1, len(eda_clean_methods) + 2, figsize=(20, 4), sharey=True)
         
         # Plot each cleaned EDA signal
         for i, method in enumerate(eda_clean_methods):
@@ -58,16 +67,25 @@ def run_eda_processing(nominal_sample_rate,biosignals_df,plot_data=False):
             axs[i].set_ylabel('Amplitude')
             axs[i].legend()
         
-        # Plot raw EDA signal in final subplot
-        axs[-1].plot(biosignals_df['time_stamps'], biosignals_df['EDA0'], label='EDA signal', alpha=0.7)
-        axs[-1].set_title('Signal Over Time: EDA')
+        # Plot raw EDA signal and decomposed tonic component in the second-to-last subplot
+        axs[-2].plot(biosignals_df['time_stamps'], biosignals_df['EDA0'], label='Raw EDA signal', alpha=0.7)
+        axs[-2].plot(biosignals_df['time_stamps'], eda_decomposed['EDA_Tonic'], label='EDA Tonic', alpha=0.7)
+        axs[-2].set_title('Signal Over Time: EDA')
+        axs[-2].set_xlabel('Time (seconds)')
+        axs[-2].set_ylabel('EDA Signal')
+        axs[-2].legend()
+
+        # Plot decomposed phasic component in the last subplot
+        axs[-1].plot(biosignals_df['time_stamps'], eda_decomposed['EDA_Phasic'], label='EDA Phasic', alpha=0.7, color='orange')
+        axs[-1].set_title('EDA Phasic Component')
         axs[-1].set_xlabel('Time (seconds)')
-        axs[-1].set_ylabel('EDA Signal')
+        axs[-1].set_ylabel('EDA Phasic')
         axs[-1].legend()
-        
+
         plt.tight_layout()
         plt.show()
 
+    return single_subject_eda_df_out
 
 def run_ecg_processing(nominal_sample_rate,biosignals_df,plot_data=False):
     ecg_raw = biosignals_df['ECG1'].values
@@ -208,7 +226,38 @@ if plot_data:
 
 nominal_sample_rate=float(biosignals_stream['info']['nominal_srate'][0])
 
-run_eda_processing(nominal_sample_rate,biosignals_df,plot_data=plot_data)
+#Overall plots
+run_eda_processing(nominal_sample_rate,biosignals_df,plot_data=plot_data,data_label=f'Block{i}_')
+
+biosignal_blocks_dfs = xdf_io.divide_df_into_blocks(300,biosignals_df)
+eda_parts = []
+
+for i, biosignal_blocks_df in enumerate(biosignal_blocks_dfs):
+    eda_parts.append(
+        run_eda_processing(
+            nominal_sample_rate,
+            biosignal_blocks_df,
+            plot_data=False,
+            data_label=f'Block{i}_'
+        )
+    )
+
+eda_df_out = pd.concat(eda_parts, axis=1)
+
+print(eda_df_out)
+
+# Bar plots
+print(eda_df_out['Block0_SCR_per_min'])
+plt.bar(["Basline","Stress","Recovery"],
+        [eda_df_out['Block0_SCR_per_min'][0],
+         eda_df_out['Block1_SCR_per_min'][0],
+         eda_df_out['Block2_SCR_per_min'][0]])
+plt.xlabel("Timepoints")
+plt.ylabel("SCR per min")
+plt.title("FOH EDA")
+plt.tight_layout()
+plt.show()
+
 run_ecg_processing(nominal_sample_rate,biosignals_df,plot_data=plot_data)
 
 
