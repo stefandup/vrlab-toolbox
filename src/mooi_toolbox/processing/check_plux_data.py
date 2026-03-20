@@ -143,12 +143,15 @@ if len(sys.argv) > 1:
 else:
     #xdf_fn_rel = r"local_MOBI_data\\sub-00003\\ses-S001\\philani\\sub-00003_ses-S001_task-Default_run-001_philani.xdf"
     xdf_fn_rel = r"local_MOBI_data\sub-00007\ses-S001\eeg\sub-00007_ses-S001_task-Default_run-001_eeg.xdf"
+    
+
     work_dir = os.getcwd()
     xdf_fn = os.path.join(work_dir,xdf_fn_rel)
 
 if not os.path.exists(xdf_fn):
-    print(f"ERROR: {xdf_fn} does not exist")
+    raise ValueError(f"ERROR: {xdf_fn} does not exist")
 
+print(f"Loading {xdf_fn}...")
 streams, header = pyxdf.load_xdf(xdf_fn)
 
 # Print information about the streams
@@ -171,13 +174,21 @@ for stream in streams:
 print("-"*40)
 print("[blue]Stream: BIOSIGNALS[/blue]")
 print("-"*40)
-vr_marker_df, vr_marker_stream = xdf_io.extract_single_stream(streams,'VR_markers')
-vr_marker_df = xdf_io.add_column_names(vr_marker_df, vr_marker_stream)
+try:
+    vr_marker_df, vr_marker_stream = xdf_io.extract_single_stream(streams, 'VR_markers')
+    vr_marker_df = xdf_io.add_column_names(vr_marker_df, vr_marker_stream)
+
+except Exception as e:
+    raise ValueError("Failed to extract the 'VR_markers' stream from XDF data.") from e
+
 print(vr_marker_df.head(5))
 
-biosignals_df, biosignals_stream = xdf_io.extract_single_stream(streams, 'OpenSignals')
-biosignals_df = xdf_io.add_column_names(biosignals_df, biosignals_stream)
-print(biosignals_df.head(5))
+try:
+    biosignals_df, biosignals_stream = xdf_io.extract_single_stream(streams, 'OpenSignals')
+    biosignals_df = xdf_io.add_column_names(biosignals_df, biosignals_stream)
+    print(biosignals_df.head(5))
+except Exception as e:
+    raise ValueError("No opensignals data found.") from e
 
 biosignal_interval_dfs = []
 
