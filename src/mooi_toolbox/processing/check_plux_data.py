@@ -18,6 +18,11 @@ plot_data = False
 def run_eda_processing(nominal_sample_rate,biosignals_df,plot_data=False,data_label=''):
 
     eda_raw = biosignals_df['EDA0'].values
+
+    if eda_raw is None or eda_raw.size == 0:
+        print("No values for this timeframe. Skipping...")
+        return 
+
     bio_duration_mins = (biosignals_df['time_stamps'].max() - biosignals_df['time_stamps'].min()) / 60
     
     print(type(eda_raw))
@@ -134,6 +139,108 @@ def run_ecg_processing(nominal_sample_rate,biosignals_df,plot_data=False):
         plt.tight_layout()
         plt.show()
 
+def run_target_processing(FOH_target_df):
+    #target_csvdata_df = pd.read_csv(FOH_target_df["FOH_target"])
+    lines = FOH_target_df["FOH_target"].dropna().astype(str).tolist()
+    #print(f"Header: {lines[0]}")
+    #print(f"Fields: {lines[1].split(",")}")
+
+    csv_text = "\n".join(lines)
+    #print(csv_text)
+
+    target_csvdata_df = pd.read_csv(io.StringIO(csv_text), header=0)
+    # Remove rows where 'FOH_target' is any unwanted header string or is empty
+    unwanted_rows = ["TimeSpawned,TimeHit,HitLatency,TargetType", ""]
+    filtered_FOH_target_df = FOH_target_df[~FOH_target_df["FOH_target"].isin(unwanted_rows)]
+    filtered_FOH_target_df = filtered_FOH_target_df[~FOH_target_df["FOH_target"].isna()]
+    filtered_FOH_target_df[["time_stamps"]]
+
+    # Concatenate target_csvdata_df with FOH_target_df["time_stamps"] horizontally
+
+    target_csvdata_df = pd.concat(
+        [target_csvdata_df, filtered_FOH_target_df[["time_stamps"]].reset_index(drop=True)],
+        axis=1
+    )
+
+    print(target_csvdata_df)
+
+    for interval_id,interval in vr_intervals.items():
+
+        if interval_id == "Complete":
+            print(f"Skipping {interval_id}")
+            continue
+
+        print(f"Trial is {interval_id} if Time Stamp between {interval[0]} and {interval[1]}")
+
+        idx =  (
+            (target_csvdata_df["time_stamps"] >= interval[0]) & 
+            (target_csvdata_df["time_stamps"] <= interval[1])
+            )
+        
+        target_csvdata_df.loc[idx,"TrialType"] = interval_id
+
+    print(target_csvdata_df)
+
+    # Summarize Target info
+
+    order = ["Short","Medium", "Long"]
+    df = target_csvdata_df.copy()
+
+    # Arrange in order
+    df["TargetType"] = pd.Categorical(df["TargetType"],categories=order,ordered=True)
+
+    df2 = df.copy()
+
+    # Additional Baseline labels
+
+    Baseline_mask = df2["TrialType"].eq("Baseline")
+    df2["Baseline_idx"] = np.nan
+    df2.loc[Baseline_mask, "Baseline_idx"] = (
+        df2.loc[Baseline_mask].groupby("TargetType").cumcount()
+    )
+
+    df2["Baseline_idx"] = df2["Baseline_idx"].astype("Int64")
+
+    # Additional Stress labels
+
+    stress_mask = df2["TrialType"].eq("Stress")
+    df2["stress_idx"] = np.nan
+    df2.loc[stress_mask, "stress_idx"] = (
+        df2.loc[stress_mask].groupby("TargetType").cumcount()
+    )
+
+    df2["stress_idx"] = df2["stress_idx"].astype("Int64")
+
+    # start with normal labels
+    df2["wide_col"] = df2["TrialType"] + "_" + df2["TargetType"].astype(str) + "_Target"
+
+    # overwrite only Baseline rows
+    Baseline_mask = df2["TrialType"].eq("Baseline")
+    df2.loc[Baseline_mask, "wide_col"] = (
+        "Baseline_"
+        + df2.loc[Baseline_mask, "Baseline_idx"].astype("Int64").astype(str)
+        + "_"
+        + df2.loc[Baseline_mask, "TargetType"].astype(str)
+        + "_Target"
+    )
+
+    # overwrite only stress rows
+    stress_mask = df2["TrialType"].eq("Stress")
+    df2.loc[stress_mask, "wide_col"] = (
+        "Stress_"
+        + df2.loc[stress_mask, "stress_idx"].astype("Int64").astype(str)
+        + "_"
+        + df2.loc[stress_mask, "TargetType"].astype(str)
+        + "_Target"
+    )
+    print(df2)
+
+    # Wide (single row)
+    target_wide = df2.pivot_table(index=None, columns="wide_col", values="HitLatency", aggfunc="first")
+    target_data_out = target_wide.reset_index(drop=True)
+
+    return target_data_out
+
 # Get xdf_fn from first command-line argument, if provided
 if len(sys.argv) > 1:
     xdf_fn_cli = sys.argv[1]
@@ -145,7 +252,10 @@ if len(sys.argv) > 1:
 else:
     #xdf_fn_rel = r"local_MOBI_data\\sub-00003\\ses-S001\\philani\\sub-00003_ses-S001_task-Default_run-001_philani.xdf"
     #xdf_fn_rel = r"local_MOBI_data\sub-00007\ses-S001\eeg\sub-00007_ses-S001_task-Default_run-001_eeg.xdf"
-    xdf_fn_rel = r"local_lsl_data\sub-TestZuk\ses-S001\eeg\sub-TestZuk_ses-S001_task-Default_run-001_eeg.xdf"
+    #xdf_fn_rel = r"local_lsl_data\sub-TestZuk\ses-S001\eeg\sub-TestZuk_ses-S001_task-Default_run-001_eeg.xdf"
+    #xdf_fn_rel = r"local_lsl_data\sub-TargetTest\ses-S001\eeg\sub-TargetTest_ses-S001_task-Default_run-001_eeg.xdf"
+    xdf_fn_rel = r"local_lsl_data\sub-TestTarget2\ses-S001\eeg\sub-TestTarget2_ses-S001_task-Default_run-001_eeg.xdf"
+
 
     work_dir = os.getcwd()
     xdf_fn = os.path.join(work_dir,xdf_fn_rel)
@@ -172,9 +282,8 @@ for stream in streams:
     print("Dictionary Keys:", stream.keys())
     print("-"*40)
 
-
 print("-"*40)
-print("[blue]Stream: BIOSIGNALS[/blue]")
+print("[blue]Stream: VR TRIAL EVENTS[/blue]")
 print("-"*40)
 
 try:
@@ -204,15 +313,6 @@ print(f"Loaded VR marker stream with {len(vr_markers_df)} events spanning {vr_to
 print(f"VR task started at: {vr_start_time}")
 print(f"VR tasks ended at {vr_end_time}")
 
-
-try:
-    biosignals_df, biosignals_stream = xdf_io.extract_single_stream(streams, 'OpenSignals')
-    biosignals_df = xdf_io.add_column_names(biosignals_df, biosignals_stream)
-    print(biosignals_df.head(5))
-except Exception as e:
-    raise ValueError("No opensignals data found.") from e
-
-
 # Create list of start/end times
 vr_intervals = {}
 
@@ -233,96 +333,114 @@ print(f"Stress: {RaiseMainPlatform_time} to {MainPlatformLowering_time} (Duratio
 
 vr_intervals.update({"Stress" : (RaiseMainPlatform_time,MainPlatformLowering_time)})
 
-SafetyPlatformAtMin_time = VR_trial_events_df["time_stamps"][VR_trial_events_df["VR_trial"] == "SafetyPlatformAtMin"].iloc[0]
+LastDoSTDQuestions_time = VR_trial_events_df["time_stamps"][VR_trial_events_df["VR_trial"] == "DoSTDQuestions"].iloc[-1]
 RunFOHQuestions_time = VR_trial_events_df["time_stamps"][VR_trial_events_df["VR_trial"] == "RunFOHQuestions"].iloc[0]
 
-recovery_duration_min = (RunFOHQuestions_time - SafetyPlatformAtMin_time) / 60
-print(f"Recovery: {SafetyPlatformAtMin_time} to {RunFOHQuestions_time} (Duration: {recovery_duration_min:.2f} minutes)")
+recovery_duration_min = (RunFOHQuestions_time - LastDoSTDQuestions_time) / 60
+print(f"Recovery: {LastDoSTDQuestions_time} to {RunFOHQuestions_time} (Duration: {recovery_duration_min:.2f} minutes)")
 
-vr_intervals.update({"Recovery" : (SafetyPlatformAtMin_time,RunFOHQuestions_time)})
+vr_intervals.update({"Recovery" : (LastDoSTDQuestions_time,RunFOHQuestions_time)})
 
-biosignal_intervals = {}
-
-#intervals = xdf_io.create_intervals_from_df(vr_markers_df)
-
-for key,start_end in vr_intervals.items():
-    print(f"Interval {key}: {start_end}. Data type: {type(start_end)}")
-    biosignal_intervals.update({f"{key}" : xdf_io.cut_df_per_interval(start_end,biosignals_df)})
-    #biosignal_interval_dfs.append(xdf_io.cut_df_per_interval(interval,biosignals_df))
-
-# TODO: fix naming! Here confinging analysis to between the primary markers
-biosignals_df = biosignal_intervals["Complete"]
-
-print(pd.to_datetime(biosignals_df["time_stamps"], unit="s", origin="unix", utc=True))
-
-### Biosignals sampling rate 
-
-# Calcuate time difference between consecutive samples 
-biosignals_df['time_diff'] = biosignals_df['time_stamps'].diff()
-
-# Calculate sampling rate (Hz)
-biosignals_df['sampling_rate'] = 1 / biosignals_df['time_diff']
-
-# Display basic statistics
-print("Sampling Rate Statistics:")
-print(f"Mean sampling rate: {biosignals_df['sampling_rate'].mean():.2f} Hz")
-print(f"Std sampling rate: {biosignals_df['sampling_rate'].std():.2f} Hz")
-print(f"Min sampling rate: {biosignals_df['sampling_rate'].min():.2f} Hz")
-print(f"Max sampling rate: {biosignals_df['sampling_rate'].max():.2f} Hz")
+out_data_frames = []
 
 print("-"*40)
-# print("timestamp min:", biosignals_df['time_stamps'].min())
-# print("timestamp max:", biosignals_df['time_stamps'].max())
-bio_duration_mins = (biosignals_df['time_stamps'].max() - biosignals_df['time_stamps'].min()) / 60
-print(f"Duration of Biosignals Data: {bio_duration_mins} mins")
+print("[blue]Stream: BIOSIGNALS[/blue]")
+print("-"*40)
 
-if plot_data:
+try:
+    biosignals_df, biosignals_stream = xdf_io.extract_single_stream(streams, 'OpenSignals')
+    biosignals_df = xdf_io.add_column_names(biosignals_df, biosignals_stream)
+    print(biosignals_df.head(5))
+except Exception as e:
+    print("No opensignals data found. Skipping...")
 
-    # Plot biosignals sampling rate over time
-    plt.figure(figsize=(12, 4))
-    plt.plot(biosignals_df['time_stamps'], biosignals_df['sampling_rate'], linestyle='-')
-    plt.title('Biosignals Sampling Rate Over Time')
-    plt.xlabel('Time (s)')
-    plt.ylabel('Sampling Rate (Hz)')
-    plt.ylim(900, 1100)
-    plt.tight_layout()
-    plt.show()
+if biosignals_df is not None and not biosignals_df.empty:
 
-nominal_sample_rate=float(biosignals_stream['info']['nominal_srate'][0])
+    biosignal_intervals = {}
 
-#Overall plots
-#run_eda_processing(nominal_sample_rate,biosignals_df,plot_data=plot_data,data_label=f'OverAll_')
+    #intervals = xdf_io.create_intervals_from_df(vr_markers_df)
 
-#biosignal_blocks_dfs = xdf_io.divide_df_into_blocks(300,biosignals_df)
-eda_df_out = pd.DataFrame()
+    for key,start_end in vr_intervals.items():
+        print(f"Interval {key}: {start_end}. Data type: {type(start_end)}")
+        biosignal_intervals.update({f"{key}" : xdf_io.cut_df_per_interval(start_end,biosignals_df)})
+        #biosignal_interval_dfs.append(xdf_io.cut_df_per_interval(interval,biosignals_df))
 
-eda_parts = []
-for key, dataframe in biosignal_intervals.items():
-    eda_part = run_eda_processing(nominal_sample_rate, dataframe, plot_data=False, data_label=f'{key}_')
-    eda_parts.append(eda_part)
+    biosignals_df = biosignal_intervals["Complete"]
 
-eda_df_out = pd.concat(eda_parts, axis=1)
+    print(pd.to_datetime(biosignals_df["time_stamps"], unit="s", origin="unix", utc=True))
 
-#eda_df_out = pd.concat(eda_parts, axis=1)
+    ### Biosignals sampling rate 
 
-print(eda_df_out)
+    # Calcuate time difference between consecutive samples 
+    biosignals_df['time_diff'] = biosignals_df['time_stamps'].diff()
 
-# Bar plots
+    # Calculate sampling rate (Hz)
+    biosignals_df['sampling_rate'] = 1 / biosignals_df['time_diff']
 
-if plot_data:
+    # Display basic statistics
+    print("Sampling Rate Statistics:")
+    print(f"Mean sampling rate: {biosignals_df['sampling_rate'].mean():.2f} Hz")
+    print(f"Std sampling rate: {biosignals_df['sampling_rate'].std():.2f} Hz")
+    print(f"Min sampling rate: {biosignals_df['sampling_rate'].min():.2f} Hz")
+    print(f"Max sampling rate: {biosignals_df['sampling_rate'].max():.2f} Hz")
 
-    print(eda_df_out['Baseline_SCR_per_min'])
-    plt.bar(["Baseline", "Stress", "Recovery"],
-            [eda_df_out['Baseline_SCR_per_min'][0],
-            eda_df_out['Stress_SCR_per_min'][0],
-            eda_df_out['Recovery_SCR_per_min'][0]])
-    plt.xlabel("Timepoints")
-    plt.ylabel("SCR per min")
-    plt.title("FOH EDA")
-    plt.tight_layout()
-    plt.show()
+    print("-"*40)
+    # print("timestamp min:", biosignals_df['time_stamps'].min())
+    # print("timestamp max:", biosignals_df['time_stamps'].max())
+    bio_duration_mins = (biosignals_df['time_stamps'].max() - biosignals_df['time_stamps'].min()) / 60
+    print(f"Duration of Biosignals Data: {bio_duration_mins} mins")
 
-#run_ecg_processing(nominal_sample_rate,biosignals_df,plot_data=plot_data)
+    if plot_data:
+
+        # Plot biosignals sampling rate over time
+        plt.figure(figsize=(12, 4))
+        plt.plot(biosignals_df['time_stamps'], biosignals_df['sampling_rate'], linestyle='-')
+        plt.title('Biosignals Sampling Rate Over Time')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Sampling Rate (Hz)')
+        plt.ylim(900, 1100)
+        plt.tight_layout()
+        plt.show()
+
+    nominal_sample_rate=float(biosignals_stream['info']['nominal_srate'][0])
+
+    if 'EDA0' in biosignals_df.columns:
+        eda_df_out = pd.DataFrame()
+
+        eda_parts = []
+        for key, dataframe in biosignal_intervals.items():
+            eda_part = run_eda_processing(nominal_sample_rate, dataframe, plot_data=False, data_label=f'{key}_')
+            eda_parts.append(eda_part)
+
+        eda_df_out = pd.concat(eda_parts, axis=1)
+
+        if plot_data:
+
+            print(eda_df_out['Baseline_SCR_per_min'])
+            plt.bar(["Baseline", "Stress", "Recovery"],
+                    [eda_df_out['Baseline_SCR_per_min'][0],
+                    eda_df_out['Stress_SCR_per_min'][0],
+                    eda_df_out['Recovery_SCR_per_min'][0]])
+            plt.xlabel("Timepoints")
+            plt.ylabel("SCR per min")
+            plt.title("FOH EDA")
+            plt.tight_layout()
+            plt.show()
+
+        print(eda_df_out)
+        out_data_frames.append(eda_df_out)
+
+# Only run ECG processing if ECG data is present in biosignals_df
+    if 'ECG1' in biosignals_df.columns:
+        run_ecg_processing(nominal_sample_rate, biosignals_df, plot_data=plot_data)
+    else:
+        print("No ECG data found in biosignals_df. Skipping ECG processing.")
+
+    #TODO: Add ECG out DF
+
+print("-"*40)
+print("[blue]Stream: VR TRIAL EVENTS[/blue]")
+print("-"*40)
 
 # Behavioural data:
 
@@ -334,86 +452,10 @@ FOH_target_df = xdf_io.add_column_names(FOH_target_df, FOH_target)
 print(FOH_target_df)
 print("-"*40)
 
-#target_csvdata_df = pd.read_csv(FOH_target_df["FOH_target"])
-lines = FOH_target_df["FOH_target"].dropna().astype(str).tolist()
-#print(f"Header: {lines[0]}")
-#print(f"Fields: {lines[1].split(",")}")
+target_data_out = run_target_processing(FOH_target_df)
+out_data_frames.append(target_data_out)
 
-csv_text = "\n".join(lines)
-#print(csv_text)
-
-target_csvdata_df = pd.read_csv(io.StringIO(csv_text), header=0)
-# Remove rows where 'FOH_target' is any unwanted header string or is empty
-unwanted_rows = ["TimeSpawned,TimeHit,HitLatency,TargetType", ""]
-filtered_FOH_target_df = FOH_target_df[~FOH_target_df["FOH_target"].isin(unwanted_rows)]
-filtered_FOH_target_df = filtered_FOH_target_df[~FOH_target_df["FOH_target"].isna()]
-filtered_FOH_target_df[["time_stamps"]]
-
-# Concatenate target_csvdata_df with FOH_target_df["time_stamps"] horizontally
-
-target_csvdata_df = pd.concat(
-    [target_csvdata_df, filtered_FOH_target_df[["time_stamps"]].reset_index(drop=True)],
-    axis=1
-)
-
-print(target_csvdata_df)
-
-for interval_id,interval in vr_intervals.items():
-
-    if interval_id == "Complete":
-        print(f"Skipping {interval_id}")
-        continue
-
-    print(f"Trial is {interval_id} if Time Stamp between {interval[0]} and {interval[1]}")
-
-    idx =  (
-        (target_csvdata_df["time_stamps"] >= interval[0]) & 
-        (target_csvdata_df["time_stamps"] <= interval[1])
-        )
-    
-    target_csvdata_df.loc[idx,"TrialType"] = interval_id
-
-print(target_csvdata_df)
-
-# Summarize Target info
-
-order = ["Short","Medium", "Long"]
-df = target_csvdata_df.copy()
-
-# Arrange in order
-df["TargetType"] = pd.Categorical(df["TargetType"],categories=order,ordered=True)
-
-df2 = df.copy()
-
-stress_mask = df2["TrialType"].eq("Stress")
-df2["stress_idx"] = np.nan
-df2.loc[stress_mask, "stress_idx"] = (
-    df2.loc[stress_mask].groupby("TargetType").cumcount()
-)
-
-df2["stress_idx"] = df2["stress_idx"].astype("Int64")
-
-# start with normal labels
-df2["wide_col"] = df2["TrialType"] + "_" + df2["TargetType"].astype(str) + "_Target"
-
-# overwrite only stress rows
-stress_mask = df2["TrialType"].eq("Stress")
-df2.loc[stress_mask, "wide_col"] = (
-    "Stress_"
-    + df2.loc[stress_mask, "stress_idx"].astype("Int64").astype(str)
-    + "_"
-    + df2.loc[stress_mask, "TargetType"].astype(str)
-    + "_Target"
-)
-print(df2)
-
-# Wide (single row)
-target_wide = df2.pivot_table(index=None, columns="wide_col", values="HitLatency", aggfunc="first")
-target_wide = target_wide.reset_index(drop=True)
-
-print(target_wide)
-
-participant_out_df = pd.concat([eda_df_out,target_wide],axis=1)
+participant_out_df = pd.concat(out_data_frames,axis=1)
 
 #participant_out_df["Subject_ID"] =
 
