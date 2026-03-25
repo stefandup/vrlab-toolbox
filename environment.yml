@@ -162,6 +162,9 @@ dependencies:
       - pyxdf==1.17.0
       - requests==2.32.4
       - retrying==1.4.0
+      - rich
+      - IPython
+      - neurokit2
       - scipy==1.16.2
       - soundfile==0.13.1
       - tex==1.8
