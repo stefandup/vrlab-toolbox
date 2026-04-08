@@ -15,7 +15,22 @@ from pandas.errors import SettingWithCopyWarning
 
 plot_data = False
 
-def run_eda_processing(nominal_sample_rate,biosignals_df,plot_data=False,data_label=''):
+def extract_subject_id_from_xdf(xdf_fn):
+    xdf_base_name = os.path.basename(xdf_fn)
+    subject_id = xdf_base_name.split("_")[0]
+    if not subject_id:
+        subject_id = os.path.splitext(xdf_base_name)[0]
+    return subject_id
+
+
+def save_plot(fig, results_dir, subject_id, plot_label):
+    os.makedirs(results_dir, exist_ok=True)
+    out_path = os.path.join(results_dir, f"{subject_id}_{plot_label}.png")
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    print(f"Saved plot to {out_path}")
+
+
+def run_eda_processing(nominal_sample_rate,biosignals_df,vr_intervals,plot_data=False,data_label='',subject_id='',results_dir='results'):
 
     eda_raw = biosignals_df['EDA0'].values
 
@@ -53,7 +68,6 @@ def run_eda_processing(nominal_sample_rate,biosignals_df,plot_data=False,data_la
             peak_times_dict[m] = None
             return
             
-
     print("-" * 50)
 
     single_subject_eda_df_out = pd.DataFrame({
@@ -61,9 +75,8 @@ def run_eda_processing(nominal_sample_rate,biosignals_df,plot_data=False,data_la
         f'{data_label}SCR_per_min': [peak_times_dict['vanhalem2020'] / bio_duration_mins]
     })
 
-    # TODO: Fix EDA plotting
-    if plot_data:
-        # Plot all EDA subplots on one figure
+    if vr_intervals is not None:
+        # Plot all EDA subplots on one figure if interval data provided
         fig, axs = plt.subplots(1, len(eda_clean_methods) + 2, figsize=(20, 4), sharey=True)
         
         # Plot each cleaned EDA signal
@@ -89,12 +102,23 @@ def run_eda_processing(nominal_sample_rate,biosignals_df,plot_data=False,data_la
         axs[-1].set_ylabel('EDA Phasic')
         axs[-1].legend()
 
+        for i, (interval_name, (interval_start, interval_end)) in enumerate(vr_intervals.items()):
+            color = f"C{i % 10}"  # cycle through matplotlib default colors
+            # Add a vertical line on every subplot for interval start and end
+            for ax in axs:
+                ax.axvline(interval_start, color=color, linestyle='--', alpha=0.8)
+                ax.text(interval_start, ax.get_ylim()[1], f"{interval_name} start", color=color, rotation=90, va='top', ha='left', fontsize=8)
+                ax.axvline(interval_end, color=color, linestyle=':', alpha=0.8)
+                ax.text(interval_end, ax.get_ylim()[1], f"{interval_name} end", color=color, rotation=90, va='top', ha='right', fontsize=8)
+
         plt.tight_layout()
-        plt.show()
+        save_plot(fig, results_dir, subject_id, f"{data_label}eda_signals")
+        if plot_data:
+            plt.show()
 
     return single_subject_eda_df_out
 
-def run_ecg_processing(nominal_sample_rate,biosignals_df,bio_duration_mins,plot_data=False):
+def run_ecg_processing(nominal_sample_rate,biosignals_df,bio_duration_mins,plot_data=False,subject_id='',results_dir='results'):
     ecg_raw = biosignals_df['ECG1'].values
     ecg_clean_methods = ['neurokit', 'biosppy', 'pantompkins1985', 'hamilton2002', 'elgendi2010', 'engzeemod2012', 'templateconvolution', 'vg']
 
@@ -130,13 +154,14 @@ def run_ecg_processing(nominal_sample_rate,biosignals_df,bio_duration_mins,plot_
     hrv_df = nk.hrv(peak_info,sampling_rate=nominal_sample_rate,show=plot_data)
 
     if plot_data:
-        plt.figure(figsize=(12, 4))
+        fig = plt.figure(figsize=(12, 4))
         plt.plot(biosignals_df['time_stamps'], biosignals_df['ECG1'], label='ECG signal', alpha=0.7)
         plt.title('Signal Over Time: ECG')
         plt.xlabel('Time (seconds)')
         plt.ylabel('ECG Signal')
         plt.legend()
         plt.tight_layout()
+        save_plot(fig, results_dir, subject_id, "ecg_signal")
         plt.show()
 
 def run_target_processing(FOH_target_df,vr_intervals):
@@ -239,7 +264,7 @@ def run_target_processing(FOH_target_df,vr_intervals):
     target_wide = df2.pivot_table(index=None, columns="wide_col", values="HitLatency", aggfunc="first")
     target_data_out = target_wide.reset_index(drop=True)
 
-    return target_data_out
+    return target_data_out, df2
 def resolve_xdf_path(argv=None):
 
     # Get xdf_fn from first command-line argument, if provided
@@ -271,7 +296,13 @@ def resolve_xdf_path(argv=None):
 def main(argv=None):
 
     xdf_fn = resolve_xdf_path(argv)
-    print(f"Loading {xdf_fn}...")
+    subject_id = extract_subject_id_from_xdf(xdf_fn)
+    results_dir = os.path.join(os.getcwd(), "results")
+    
+    print("-"*40)
+    print(f"[yellow]Loading {xdf_fn}...[yellow/]")
+    print("-"*40)
+
     streams, header = pyxdf.load_xdf(xdf_fn)
     # Print information about the streams
     print("-" * 40)
@@ -299,7 +330,7 @@ def main(argv=None):
         VR_trial_events_df = xdf_io.add_column_names(VR_trial_events_df, VR_trial_events_stream)
         print(VR_trial_events_df.head(5))
     except Exception as e:
-        raise ValueError("Failed to extract the 'VR_trial_events' stream from XDF data.") from e
+        raise ValueError("[red]ERROR: Failed to extract the 'VR_trial_events' stream from XDF data.[red/]") from e
 
     try:
         vr_markers_df, vr_markers_stream = xdf_io.extract_single_stream(streams, 'VR_markers')
@@ -325,6 +356,7 @@ def main(argv=None):
 
     vr_intervals.update({"Complete" : (vr_start_time,vr_end_time)})
 
+
     # Extract exact timing data
 
     RaiseSafetyPlatform_time = VR_trial_events_df["time_stamps"][VR_trial_events_df["VR_trial"] == "RaiseSafetyPlatform"].iloc[0]
@@ -334,22 +366,47 @@ def main(argv=None):
     vr_intervals.update({"Baseline" : (vr_start_time,RaiseSafetyPlatform_time)})
 
     RaiseMainPlatform_time = VR_trial_events_df["time_stamps"][VR_trial_events_df["VR_trial"] == "RaiseMainPlatform"].iloc[0]
-    MainPlatformLowering_time = VR_trial_events_df["time_stamps"][VR_trial_events_df["VR_trial"] == "MainPlatformLowering"].iloc[0]
-    stress_duration_min = (MainPlatformLowering_time - RaiseMainPlatform_time) / 60
-    print(f"Stress: {RaiseMainPlatform_time} to {MainPlatformLowering_time} (Duration: {stress_duration_min:.2f} minutes)")
+    MainPlatformAtMin_time = VR_trial_events_df["time_stamps"][VR_trial_events_df["VR_trial"] == "MainPlatformAtMin"].iloc[0]
+    stress_duration_min = (MainPlatformAtMin_time - RaiseMainPlatform_time) / 60
+    print(f"Stress: {RaiseMainPlatform_time} to {MainPlatformAtMin_time} (Duration: {stress_duration_min:.2f} minutes)")
 
-    vr_intervals.update({"Stress" : (RaiseMainPlatform_time,MainPlatformLowering_time)})
+    vr_intervals.update({"Stress" : (RaiseMainPlatform_time,MainPlatformAtMin_time)})
 
-    LastDoSTDQuestions_time = VR_trial_events_df["time_stamps"][VR_trial_events_df["VR_trial"] == "DoSTDQuestions"].iloc[-1]
+    #LastDoSTDQuestions_time = VR_trial_events_df["time_stamps"][VR_trial_events_df["VR_trial"] == "DoSTDQuestions"].iloc[-1]
     RunFOHQuestions_time = VR_trial_events_df["time_stamps"][VR_trial_events_df["VR_trial"] == "RunFOHQuestions"].iloc[0]
 
-    recovery_duration_min = (RunFOHQuestions_time - LastDoSTDQuestions_time) / 60
-    print(f"Recovery: {LastDoSTDQuestions_time} to {RunFOHQuestions_time} (Duration: {recovery_duration_min:.2f} minutes)")
+    recovery_duration_min = (RunFOHQuestions_time - MainPlatformAtMin_time) / 60
+    print(f"Recovery: {MainPlatformAtMin_time} to {RunFOHQuestions_time} (Duration: {recovery_duration_min:.2f} minutes)")
 
-    vr_intervals.update({"Recovery" : (LastDoSTDQuestions_time,RunFOHQuestions_time)})
+    vr_intervals.update({"Recovery" : (MainPlatformAtMin_time,RunFOHQuestions_time)})
+
+    print("-"*40)
+    print("Appending data frames...")
+    print("-"*40)
 
     out_data_frames = []
 
+# Behavioural data:
+
+    print("-"*40)
+    print("Stream: FOH_targets")
+    print("-"*40)
+    FOH_target_df, FOH_target = xdf_io.extract_single_stream(streams, "FOH_target")
+    FOH_target_df = xdf_io.add_column_names(FOH_target_df, FOH_target)
+    print(FOH_target_df)
+    print("-"*40)
+
+    target_data_out, target_long_out = run_target_processing(FOH_target_df,vr_intervals)
+    print(target_data_out)
+    out_data_frames.append(target_data_out)
+
+    participant_out_df = pd.concat(out_data_frames,axis=1)
+
+    end_of_first_target_time = target_long_out.loc[target_long_out["wide_col"] == "Baseline_0_Long_Target", "time_stamps"].iloc[0]
+    old_baseline_end = vr_intervals["Baseline"][1]
+    vr_intervals['Baseline'] = (end_of_first_target_time,old_baseline_end)
+    #vr_intervals.update({"Practice" : (vr_start_time,end_of_first_target_time)}) 
+#TODO: fix broke this. Stress and recovery gone!
     print("-"*40)
     print("[blue]Stream: BIOSIGNALS[/blue]")
     print("-"*40)
@@ -395,16 +452,20 @@ def main(argv=None):
         bio_duration_mins = (biosignals_df['time_stamps'].max() - biosignals_df['time_stamps'].min()) / 60
         print(f"Duration of Biosignals Data: {bio_duration_mins} mins")
 
-        if plot_data:
 
-            # Plot biosignals sampling rate over time
-            plt.figure(figsize=(12, 4))
-            plt.plot(biosignals_df['time_stamps'], biosignals_df['sampling_rate'], linestyle='-')
-            plt.title('Biosignals Sampling Rate Over Time')
-            plt.xlabel('Time (s)')
-            plt.ylabel('Sampling Rate (Hz)')
-            plt.ylim(900, 1100)
-            plt.tight_layout()
+        # Plot biosignals sampling rate over time
+        fig = plt.figure(figsize=(12, 4))
+        plt.plot(biosignals_df['time_stamps'], biosignals_df['sampling_rate'], linestyle='-')
+        plt.title('Biosignals Sampling Rate Over Time')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Sampling Rate (Hz)')
+        plt.ylim(900, 1100)
+        plt.tight_layout()
+
+
+        save_plot(fig, results_dir, subject_id, "biosignals_sampling_rate")
+
+        if plot_data:
             plt.show()
 
         nominal_sample_rate=float(biosignals_stream['info']['nominal_srate'][0])
@@ -414,22 +475,37 @@ def main(argv=None):
 
             eda_parts = []
             for key, dataframe in biosignal_intervals.items():
-                eda_part = run_eda_processing(nominal_sample_rate, dataframe, plot_data=False, data_label=f'{key}_')
+
+                if key == "Complete":
+                    vr_intervals_run = vr_intervals
+                else:
+                    vr_intervals_run = None
+
+                eda_part = run_eda_processing(
+                    nominal_sample_rate,
+                    dataframe,
+                    vr_intervals_run,
+                    plot_data=plot_data,
+                    data_label=f'{key}_',
+                    subject_id=subject_id,
+                    results_dir=results_dir                
+                )
                 eda_parts.append(eda_part)
 
             eda_df_out = pd.concat(eda_parts, axis=1)
 
-            if plot_data:
+            print(eda_df_out['Baseline_SCR_per_min'])
+            fig = plt.figure()
+            plt.bar(["Baseline", "Stress", "Recovery"],
+                    [eda_df_out['Baseline_SCR_per_min'][0],
+                    eda_df_out['Stress_SCR_per_min'][0],
+                    eda_df_out['Recovery_SCR_per_min'][0]])
+            plt.xlabel("Timepoints")
+            plt.ylabel("SCR per min")
+            plt.title("FOH EDA")
+            plt.tight_layout()
 
-                print(eda_df_out['Baseline_SCR_per_min'])
-                plt.bar(["Baseline", "Stress", "Recovery"],
-                        [eda_df_out['Baseline_SCR_per_min'][0],
-                        eda_df_out['Stress_SCR_per_min'][0],
-                        eda_df_out['Recovery_SCR_per_min'][0]])
-                plt.xlabel("Timepoints")
-                plt.ylabel("SCR per min")
-                plt.title("FOH EDA")
-                plt.tight_layout()
+            if plot_data:
                 plt.show()
 
             print(eda_df_out)
@@ -437,7 +513,14 @@ def main(argv=None):
 
     # Only run ECG processing if ECG data is present in biosignals_df
         if 'ECG1' in biosignals_df.columns:
-            run_ecg_processing(nominal_sample_rate, biosignals_df,bio_duration_mins, plot_data=plot_data)
+            run_ecg_processing(
+                nominal_sample_rate,
+                biosignals_df,
+                bio_duration_mins,
+                plot_data=plot_data,
+                subject_id=subject_id,
+                results_dir=results_dir
+            )
         else:
             print("No ECG data found in biosignals_df. Skipping ECG processing.")
 
@@ -447,20 +530,7 @@ def main(argv=None):
     print("[blue]Stream: VR TRIAL EVENTS[/blue]")
     print("-"*40)
 
-    # Behavioural data:
-
-    print("-"*40)
-    print("Stream: FOH_targets")
-    print("-"*40)
-    FOH_target_df, FOH_target = xdf_io.extract_single_stream(streams, "FOH_target")
-    FOH_target_df = xdf_io.add_column_names(FOH_target_df, FOH_target)
-    print(FOH_target_df)
-    print("-"*40)
-
-    target_data_out = run_target_processing(FOH_target_df,vr_intervals)
-    out_data_frames.append(target_data_out)
-
-    participant_out_df = pd.concat(out_data_frames,axis=1)
+    
 
     #participant_out_df["Subject_ID"] =
 
