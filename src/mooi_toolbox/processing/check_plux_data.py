@@ -283,7 +283,10 @@ def resolve_xdf_path(argv=None):
         #xdf_fn_rel = r"local_MOBI_data\sub-00007\ses-S001\eeg\sub-00007_ses-S001_task-Default_run-001_eeg.xdf"
         #xdf_fn_rel = r"local_lsl_data\sub-TestZuk\ses-S001\eeg\sub-TestZuk_ses-S001_task-Default_run-001_eeg.xdf"
         #xdf_fn_rel = r"local_lsl_data\sub-TargetTest\ses-S001\eeg\sub-TargetTest_ses-S001_task-Default_run-001_eeg.xdf"
-        xdf_fn_rel = r"local_lsl_data\sub-TestTarget2\ses-S001\eeg\sub-TestTarget2_ses-S001_task-Default_run-001_eeg.xdf"
+        #xdf_fn_rel = r"local_lsl_data\sub-TestTarget2\ses-S001\eeg\sub-TestTarget2_ses-S001_task-Default_run-001_eeg.xdf"
+        #xdf_fn_rel = r"local_lsl_data\sub-TestTarget2\ses-S001\eeg\sub-TestTarget2_ses-S001_task-Default_run-001_eeg.xdf"
+        #xdf_fn_rel = r"local_lsl_data\sub-P00019\ses-S001\eeg\sub-P00019_ses-S001_task-Default_run-001_eeg.xdf"
+        xdf_fn_rel = r"local_lsl_data\sub-P00020\ses-S001\eeg\sub-P00020_ses-S001_task-Default_run-001_eeg.xdf"
 
         work_dir = os.getcwd()
         xdf_fn = os.path.join(work_dir,xdf_fn_rel)
@@ -342,6 +345,8 @@ def main(argv=None):
         raise ValueError("Failed to extract the 'VR_markers' stream from XDF data.") from e
 
     # Extract Main markers
+    #TODO: Rather look for specific markers here. So we expect start marker = 10 and end = 11. If marker 10 missing, 
+    # then we can replace with a timepoint 5 min before the raising of the intermediat plaform as a failsafe.
 
     vr_total_time_mins = (vr_markers_df["time_stamps"].max() - vr_markers_df["time_stamps"].min())/60
     vr_start_time = vr_markers_df["time_stamps"].min()

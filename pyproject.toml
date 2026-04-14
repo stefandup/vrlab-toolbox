@@ -1,8 +1,37 @@
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
+
 [project]
 name = "mooi-toolbox"
 version = "0.1.0"
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[project.scripts]
+mobi_check_xdf = "mooi_toolbox.cli.check_mobi_xdf:main"
+mobi_foh_process = "mooi_toolbox.cli.mobi_FOH_process:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.mooi_toolbox]
+default_path = "local_lsl_data" #CurrentStudy folder
+default_xdf_folder = "eeg"
+default_session = "001"
+default_xdf_task = "Default"
+default_subject = "P00018"
+eda_data_label = "EDA0"
+
+[tool.mooi_toolbox.vr_intervals.baseline]
+start = { stream = "VR_markers", column = "Markers", event = 10 }
+end = { stream = "VR_trial_events", column = "VR_trial", event = "RaiseSafetyPlatform" }
+
+[tool.mooi_toolbox.vr_intervals.stress]
+start = { stream = "VR_trial_events", column = "VR_trial", event = "RaiseMainPlatform" }
+end = { stream = "VR_trial_events", column = "VR_trial", event = "MainPlatformAtMin" }
+
+[tool.mooi_toolbox.vr_intervals.recovery]
+start = { stream = "VR_trial_events", column = "VR_trial", event = "MainPlatformAtMin" }
+end = { stream = "VR_trial_events", column = "VR_trial", event = "RunFOHQuestions" }

@@ -103,3 +103,11 @@ python -m mooi_toolbox.window_manager.auto_arrange_windows apply --config my_lay
 2. **Edit the `titles` array** with the exact window titles you want to control (as they appear in the taskbar/title bar, or partial matches).
 3. Arrange those windows on screen as you want them, then run **save** to record the layout into the JSON.
 4. Whenever you want that layout back, run **apply** (with the same config path if you didn’t use the default).
+
+---
+
+## TODO
+
+- Handle VR restarts more robustly so LSL reconnects and picks the stream up again after the VR app is restarted.
+- Consider adding a dedicated restart button for the VR/LSL workflow instead of relying on manual restart steps.
+- Consider moving launcher scripts to Python and using `subprocess` so process startup, restart, and reconnection logic are easier to manage in one place.

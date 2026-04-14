@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import datetime
 
 def create_intervals_from_df(marker_df): 
     return [(marker_df["time_stamps"].iloc[i], marker_df["time_stamps"].iloc[i + 1])
@@ -75,3 +76,27 @@ def add_column_names(single_stream_df, single_stream):
     single_stream_df.columns = column_names + list(single_stream_df.columns[num_cols:])
 
     return single_stream_df
+
+def get_sampling_rate(single_stream):
+    return float(single_stream['info']['nominal_srate'][0])
+
+def get_start_time(header):
+    return datetime.fromisoformat(header['info']['datetime'][0])
+
+def gather_xdf_data_streams(streams,stream_ids: list):
+    
+    dict_out = dict()
+
+    for stream_id in stream_ids:
+        
+        try:
+            df_out, biosignals_stream = extract_single_stream(streams, stream_id)
+            df_out = add_column_names(df_out, biosignals_stream)
+            dict_out.update({stream_id : df_out})
+
+        except Exception as e:
+            print(f"Error loading data from stream ID: {stream_id}. Skipping...")
+            print(e)
+
+    return dict_out
+
