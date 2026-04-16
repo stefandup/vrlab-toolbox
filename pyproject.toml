@@ -26,6 +26,7 @@ eda_data_label = "EDA0"
 
 [tool.mooi_toolbox.vr_intervals.baseline]
 start = { stream = "VR_markers", column = "Markers", event = 10 }
+start_fallback = { stream = "VR_trial_events", column = "VR_trial", event = "RaiseSafetyPlatform", offset_seconds = -300 }
 end = { stream = "VR_trial_events", column = "VR_trial", event = "RaiseSafetyPlatform" }
 
 [tool.mooi_toolbox.vr_intervals.stress]

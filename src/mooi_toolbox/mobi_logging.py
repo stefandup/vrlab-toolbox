@@ -1,0 +1,23 @@
+import logging
+from pathlib import Path
+import os
+
+# Configure logging
+def init(caller_file):    
+    PROJECT_ROOT = Path(caller_file).resolve().parents[3]
+    LOG_DIR = PROJECT_ROOT / "logs"
+
+    if not os.path.exists(LOG_DIR):
+        os.mkdir(LOG_DIR)
+
+    LOG_FILE = LOG_DIR / f"{Path(caller_file).stem}.log"
+        
+    logging.basicConfig(
+        filename=LOG_FILE,
+        encoding="utf-8",
+        filemode="a",
+        format="{asctime} - {levelname} - {message}",
+        style="{",
+        datefmt="%Y-%m-%d %H:%M",
+        level= logging.INFO,
+    )

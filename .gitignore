@@ -14,5 +14,7 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 *.csv
+**.log
+logs/
 temp/
 AGENTS.md

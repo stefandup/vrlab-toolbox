@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import os
 import datetime
 
 def create_intervals_from_df(marker_df): 
@@ -82,6 +83,10 @@ def get_sampling_rate(single_stream):
 
 def get_start_time(header):
     return datetime.fromisoformat(header['info']['datetime'][0])
+
+def get_subject_id(xdf_fn):
+    return os.path.basename(xdf_fn).split('_')[0]
+
 
 def gather_xdf_data_streams(streams,stream_ids: list):
     
