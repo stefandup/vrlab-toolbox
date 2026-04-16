@@ -19,7 +19,10 @@ def main(xdf_fn,verbose,show_plots):
 
     print("Running mobi FOH pipeline...")
     participant_data_out = run_foh_pipeline(xdf_fn,verbose,show_plots)
-    print(participant_data_out)
+
+    logging.info(f"FOH pipeline done for subject {subject_id}")
+
+    return participant_data_out
 
 if __name__ == "__main__":
     main()

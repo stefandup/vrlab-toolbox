@@ -16,7 +16,7 @@ def init(caller_file):
         filename=LOG_FILE,
         encoding="utf-8",
         filemode="a",
-        format="{asctime} - {levelname} - {message}",
+        format="{asctime} - {name} - {levelname} - {message}",
         style="{",
         datefmt="%Y-%m-%d %H:%M",
         level= logging.INFO,
