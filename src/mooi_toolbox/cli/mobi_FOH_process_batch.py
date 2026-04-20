@@ -1,7 +1,8 @@
 import click
 import logging
 import os
-from pathlib import Path 
+from pathlib import Path
+import pandas as pd 
 
 from mooi_toolbox import mobi_logging
 from mooi_toolbox.processing.foh_pipeline import run_pipeline as run_foh_pipeline
@@ -25,7 +26,10 @@ def main(input_folder,output_folder,verbose):
 
     logger.info(f"Looking into input folder: {input_folder}. Output folder: {output_folder}")
     
+    out_fn = os.path.join(output_folder,"FOH_process_batch_out.csv")
+
     root = Path(input_folder)
+    out_file_parts = []
 
     for xdf_fn in root.rglob("*.xdf"):
     
@@ -33,7 +37,17 @@ def main(input_folder,output_folder,verbose):
 
         mobi_logging.log_section(logger, f"Subject {subject_id}")
         participant_data_out = run_foh_pipeline(xdf_fn,verbose,show_plots=False)
+       
+        participant_data_out = participant_data_out.reset_index(drop=True)
+        participant_data_out.insert(0, "Subject_ID", subject_id)
+
+        out_file_parts.append(participant_data_out)
         logger.info(f"Done FOH pipeline for subject {subject_id}")
+    
+    out_df = pd.concat(out_file_parts, axis=0)
+    out_df.to_csv(out_fn)
+    print(out_df)
+    print(f"Saved output to {out_fn}")
 
 if __name__ == "__main__":
     mobi_logging.init(__file__)

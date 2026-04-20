@@ -38,7 +38,7 @@ def has_missing_requirements(missing,required):
     return any(stream in missing for stream in required)
 
 def run_foh_ecg_pipeline(opensignals_df,vr_intervals,show_plots=False):
-    pass
+    return pd.DataFrame()
 
 def run_pipeline(xdf_fn,verbose,show_plots):
 
@@ -77,7 +77,7 @@ def run_pipeline(xdf_fn,verbose,show_plots):
         run_foh_eda_qc(FOH_dfs['OpenSignals'])
 
     if vr_intervals is None:
-        return participant_data_out
+        return pd.DataFrame()
 
     # Biosignals processing 
     if has_missing_requirements(missing_streams,['OpenSignals','VR_markers','VR_trial_events']):
@@ -108,5 +108,7 @@ def run_pipeline(xdf_fn,verbose,show_plots):
         except tp.TPProcessingError as e:
             logger.warning("Skipping target behaviour as there was a processing error")
             logger.warning("%s",e)
-
-    return participant_data_out
+    if len(participant_data_out) != 0:
+        return pd.concat(participant_data_out, axis = 1)
+    else:
+        return pd.DataFrame()
