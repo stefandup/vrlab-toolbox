@@ -48,6 +48,7 @@ def run_pipeline(xdf_fn,verbose,show_plots):
         streams = get_and_check_xdf(xdf_fn,verbose=verbose)
 
     participant_data_out = []
+    vr_intervals = None
 
     streams_to_get = ['OpenSignals','VR_markers','VR_trial_events','FOH_target']
 
@@ -62,7 +63,11 @@ def run_pipeline(xdf_fn,verbose,show_plots):
     if has_missing_requirements(missing_streams,['VR_markers','VR_trial_events']):
         logger.warning("No trial info found in xdf. Cannot create intervals")
     else:
-        vr_intervals = vri.create_intervals(FOH_dfs['VR_markers'],FOH_dfs['VR_trial_events'])
+        try:
+            vr_intervals = vri.create_intervals(FOH_dfs['VR_markers'],FOH_dfs['VR_trial_events'])
+        except vri.IntervalException as e:
+            logger.warning("%s",e)
+
 
     # Biosignals QC
 
@@ -70,6 +75,9 @@ def run_pipeline(xdf_fn,verbose,show_plots):
         logger.warning("Missing physiology data. Cannot run QC.")
     else:
         run_foh_eda_qc(FOH_dfs['OpenSignals'])
+
+    if vr_intervals is None:
+        return participant_data_out
 
     # Biosignals processing 
     if has_missing_requirements(missing_streams,['OpenSignals','VR_markers','VR_trial_events']):
@@ -79,14 +87,16 @@ def run_pipeline(xdf_fn,verbose,show_plots):
             eda_df_out = run_foh_eda_pipeline(FOH_dfs['OpenSignals'],vr_intervals)
             participant_data_out.append(eda_df_out)
 
-        except eda.EDAProcessingError:
+        except eda.EDAProcessingError as e:
             logger.exception("EDA failed to process")
+            logger.warning("%s",e)
 
         try: 
             ecg_df_out = run_foh_ecg_pipeline(FOH_dfs['OpenSignals'],vr_intervals)
             participant_data_out.append(ecg_df_out)
-        except eda.ECGProcessingError:
+        except eda.ECGProcessingError as e:
             logger.exception("ECG failed to process")
+            logger.warning("%s",e)
 
     # behaviour processing
     if has_missing_requirements(missing_streams,['FOH_target','VR_markers','VR_trial_events']):
@@ -95,7 +105,8 @@ def run_pipeline(xdf_fn,verbose,show_plots):
         try:
             target_data_out,_ = tp.run_processing(FOH_dfs['FOH_target'],vr_intervals)
             participant_data_out.append(target_data_out)
-        except tp.TPProcessingError:
+        except tp.TPProcessingError as e:
             logger.warning("Skipping target behaviour as there was a processing error")
+            logger.warning("%s",e)
 
     return participant_data_out

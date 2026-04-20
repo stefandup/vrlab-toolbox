@@ -8,7 +8,11 @@ class IntervalException(Exception):
     """Raised when error in inverval creation occurs"""
 
 def get_event_time(df_in,col_id = "VR_trial",event_id = "RaiseSafetyPlatform"):
-    matches = df_in["time_stamps"][df_in[col_id] == event_id]
+    
+    try:
+        matches = df_in["time_stamps"][df_in[col_id] == event_id]
+    except KeyError as e:
+        raise IntervalException(f"Error in finding {event_id} - {e}")
     if matches.empty:
         raise IntervalException(f"Can not find {col_id} with id {event_id}")
     

@@ -8,7 +8,11 @@ class TPProcessingError(Exception):
 def run_processing(FOH_target_df,vr_intervals):
     # TODO: Now with changes not picking up the other conditions except Baseline...
     #target_csvdata_df = pd.read_csv(FOH_target_df["FOH_target"])
-    lines = FOH_target_df["FOH_target"].dropna().astype(str).tolist()
+    try:
+        lines = FOH_target_df["FOH_target"].dropna().astype(str).tolist()
+    except KeyError as e:
+        raise TPProcessingError(f"Error in reading target data: {e}")
+    
     #print(f"Header: {lines[0]}")
     #print(f"Fields: {lines[1].split(",")}")
 
@@ -54,6 +58,11 @@ def run_processing(FOH_target_df,vr_intervals):
         target_csvdata_df.loc[idx,"TrialType"] = interval_id
 
     print(target_csvdata_df)
+    
+    expected_col_names = ["TimeSpawned","TimeHit","HitLatency","TargetType","time_stamps","TrialType"]
+    
+    if list(target_csvdata_df.columns) != expected_col_names:
+        raise TPProcessingError("Error in target input data. Data malformed.")
 
     # Summarize Target info
 
