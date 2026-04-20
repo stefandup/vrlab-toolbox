@@ -2,6 +2,12 @@ import pandas as pd
 import numpy as np
 import os
 import datetime
+import logging
+
+logger = logging.getLogger(__name__)
+
+class xdfIOException(Exception):
+    """Raised when an XDF stream cannot be read or extracted."""
 
 def create_intervals_from_df(marker_df): 
     return [(marker_df["time_stamps"].iloc[i], marker_df["time_stamps"].iloc[i + 1])
@@ -48,8 +54,10 @@ def extract_single_stream(streams, stream_name):
             single_stream_df = pd.DataFrame(single_stream_time_series)
             # Add timestamps
             single_stream_df["time_stamps"] = single_stream_time_stamps
-    return single_stream_df, single_stream
-
+    
+            return single_stream_df, single_stream
+    raise xdfIOException(f"Could not find XDF stream {stream_name!r}")
+        
 def add_column_names(single_stream_df, single_stream):
     """Add column names to the single stream dataframes."""
     
@@ -99,9 +107,9 @@ def gather_xdf_data_streams(streams,stream_ids: list):
             df_out = add_column_names(df_out, biosignals_stream)
             dict_out.update({stream_id : df_out})
 
-        except Exception as e:
-            print(f"Error loading data from stream ID: {stream_id}. Skipping...")
-            print(e)
+        except xdfIOException:
+            logger.warning("Error loading data from stream ID: %s. Skipping...",stream_id,)
+            continue
 
     return dict_out
 

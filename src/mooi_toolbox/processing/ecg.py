@@ -2,6 +2,9 @@ import neurokit2 as nk
 import warnings
 from pandas.errors import SettingWithCopyWarning
 
+class ECGProcessingError(Exception):
+    """Raised when ECG processing fails."""
+
 def run_ecg_processing(ecg_raw,clean_method = 'biosppy',peak_detect_method='neurokit',sampling_rate=1000):
     ecg_cleaned =nk.ecg_clean(ecg_raw, sampling_rate=sampling_rate, method=clean_method,)
     peak_info = nk.ecg_findpeaks(ecg_cleaned,sampling_rate,method=peak_detect_method,show=False)

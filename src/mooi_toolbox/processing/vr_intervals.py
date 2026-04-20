@@ -4,9 +4,15 @@ from mooi_toolbox.read_mobi_xdf import xdf_io
 from mooi_toolbox import config as cfg
     
 logger = logging.getLogger(__name__)
+class IntervalException(Exception):
+    """Raised when error in inverval creation occurs"""
 
 def get_event_time(df_in,col_id = "VR_trial",event_id = "RaiseSafetyPlatform"):
-    return df_in["time_stamps"][df_in[col_id] == event_id].iloc[0]
+    matches = df_in["time_stamps"][df_in[col_id] == event_id]
+    if matches.empty:
+        raise IntervalException(f"Can not find {col_id} with id {event_id}")
+    
+    return matches.iloc[0]
 
 def get_event_time_from_spec(event_sources, event_spec):
     event_time = get_event_time(
@@ -21,9 +27,10 @@ def get_event_time_with_fallback(event_sources, primary_event, fallback_event=No
     
     try:
         return get_event_time_from_spec(event_sources, primary_event)
-    except IndexError:
+    except IntervalException:
         if fallback_event is None:
-            raise
+            logger.warning("No fallback event for this!")
+            raise IntervalException("No fallback measure for this found.")
 
         logger.warning(
         "Using fallback event %s because primary event %s was missing",
@@ -64,8 +71,8 @@ def create_intervals(vr_markers_df,VR_trial_events_df):
                 end_fallback,
             )
 
-        except IndexError:
-            logger.exception(
+        except IntervalException:
+            logger.warning(
                 "Could not create interval %s from start event %s to end event %s",
                 interval_name,
                 start_event["event"],

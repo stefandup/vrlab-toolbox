@@ -2,6 +2,9 @@ import pandas as pd
 import io
 import numpy as np
 
+class TPProcessingError(Exception):
+    """Raised when Target processing fails."""
+
 def run_processing(FOH_target_df,vr_intervals):
     # TODO: Now with changes not picking up the other conditions except Baseline...
     #target_csvdata_df = pd.read_csv(FOH_target_df["FOH_target"])
@@ -10,9 +13,16 @@ def run_processing(FOH_target_df,vr_intervals):
     #print(f"Fields: {lines[1].split(",")}")
 
     csv_text = "\n".join(lines)
+    if not csv_text:
+        raise TPProcessingError("Error reading target data.")
+
     #print(csv_text)
 
-    target_csvdata_df = pd.read_csv(io.StringIO(csv_text), header=0)
+    try:
+        target_csvdata_df = pd.read_csv(io.StringIO(csv_text), header=0)
+    except TPProcessingError:
+        raise TPProcessingError("Error reading target data.")
+    
     # Remove rows where 'FOH_target' is any unwanted header string or is empty
     unwanted_rows = ["TimeSpawned,TimeHit,HitLatency,TargetType", ""]
     filtered_FOH_target_df = FOH_target_df[~FOH_target_df["FOH_target"].isin(unwanted_rows)]
@@ -49,7 +59,8 @@ def run_processing(FOH_target_df,vr_intervals):
 
     order = ["Short","Medium", "Long"]
     df = target_csvdata_df.copy()
-
+    df = df.dropna()
+    
     # Arrange in order
     df["TargetType"] = pd.Categorical(df["TargetType"],categories=order,ordered=True)
 

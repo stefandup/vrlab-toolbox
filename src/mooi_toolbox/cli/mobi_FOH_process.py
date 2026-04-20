@@ -11,8 +11,6 @@ from mooi_toolbox import mobi_logging
 @click.option("--show-plots",is_flag=True,help="Show complete plots. Default is to save plots.")
 def main(xdf_fn,verbose,show_plots):
     
-    mobi_logging.init(__file__)
-    
     subject_id = xdf_io.get_subject_id(xdf_fn)
 
     logging.info(f"Starting FOH pipeline for subject {subject_id}")
@@ -25,4 +23,5 @@ def main(xdf_fn,verbose,show_plots):
     return participant_data_out
 
 if __name__ == "__main__":
+    mobi_logging.init(__file__)
     main()

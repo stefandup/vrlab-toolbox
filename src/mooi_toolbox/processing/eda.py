@@ -1,11 +1,22 @@
 import neurokit2 as nk
 import pandas as pd
 
+class EDAProcessingError(Exception):
+    """Raised when EDA processing fails."""
+
 def run_eda_processing(eda_raw,clean_method = 'biosppy',peak_detect_method='vanhalem2020',sampling_rate=1000):
 
-    eda_cleaned = nk.eda_clean(eda_raw, sampling_rate=sampling_rate, method=clean_method)
-    eda_decomposed = nk.eda_phasic(eda_cleaned, sampling_rate=sampling_rate)
-    eda_peaks_info = nk.eda_peaks(eda_decomposed["EDA_Phasic"], sampling_rate=sampling_rate, method=peak_detect_method)
+    try:
+
+        eda_cleaned = nk.eda_clean(eda_raw, sampling_rate=sampling_rate, method=clean_method)
+        eda_decomposed = nk.eda_phasic(eda_cleaned, sampling_rate=sampling_rate)
+        eda_peaks_info = nk.eda_peaks(eda_decomposed["EDA_Phasic"], sampling_rate=sampling_rate, method=peak_detect_method)
+    except (ValueError, TypeError, KeyError) as error:
+            raise EDAProcessingError(
+                f"Could not process EDA with clean_method={clean_method!r}, "
+                f"peak_detect_method={peak_detect_method!r}, "
+                f"sampling_rate={sampling_rate!r}"
+            ) from error
 
     return {
         "eda_cleaned" : eda_cleaned,
@@ -13,7 +24,7 @@ def run_eda_processing(eda_raw,clean_method = 'biosppy',peak_detect_method='vanh
         "eda_peaks_info": eda_peaks_info
     }
 
-def plot_eda(eda_proc_out,interval_label,show_plots):
+def plot_eda(eda_proc_out,interval_label='',show_plots=False):
     pass
 
 def get_eda_data_out(eda_proc_out,interval_label=''):

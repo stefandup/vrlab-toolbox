@@ -1,0 +1,40 @@
+import click
+import logging
+import os
+from pathlib import Path 
+
+from mooi_toolbox import mobi_logging
+from mooi_toolbox.processing.foh_pipeline import run_pipeline as run_foh_pipeline
+from mooi_toolbox.read_mobi_xdf import xdf_io
+
+logger = logging.getLogger(__name__)
+
+@click.command()
+@click.argument("input_folder", type=click.Path(exists=True,dir_okay=True),required=True)
+@click.argument("output_folder", type=click.Path(exists=True,dir_okay=True),required=False)
+@click.option("--verbose",is_flag=True,help="Give verbose output")
+
+def main(input_folder,output_folder,verbose):
+
+    if not output_folder:
+        output_folder = input_folder + "_out"
+
+    if not os.path.exists(output_folder):
+        os.mkdir(output_folder)
+
+
+    logger.info(f"Looking into input folder: {input_folder}. Output folder: {output_folder}")
+    
+    root = Path(input_folder)
+
+    for xdf_fn in root.rglob("*.xdf"):
+    
+        subject_id = xdf_io.get_subject_id(xdf_fn)
+
+        mobi_logging.log_section(logger, f"Subject {subject_id}")
+        participant_data_out = run_foh_pipeline(xdf_fn,verbose,show_plots=False)
+        logger.info(f"Done FOH pipeline for subject {subject_id}")
+
+if __name__ == "__main__":
+    mobi_logging.init(__file__)
+    main()

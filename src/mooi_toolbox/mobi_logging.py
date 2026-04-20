@@ -21,3 +21,10 @@ def init(caller_file):
         datefmt="%Y-%m-%d %H:%M",
         level= logging.INFO,
     )
+    
+def log_section(logger, title: str, width: int = 80) -> None:
+    border = "-" * width
+    logger.info("")
+    logger.info(border)
+    logger.info(title)
+    logger.info(border)
