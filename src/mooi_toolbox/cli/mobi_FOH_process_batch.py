@@ -46,8 +46,8 @@ def main(input_folder,output_folder,verbose):
     
     out_df = pd.concat(out_file_parts, axis=0)
     out_df.to_csv(out_fn)
-    print(out_df)
-    print(f"Saved output to {out_fn}")
+
+    logger.info(f"Saved output to {out_fn}")
 
 if __name__ == "__main__":
     mobi_logging.init(__file__)

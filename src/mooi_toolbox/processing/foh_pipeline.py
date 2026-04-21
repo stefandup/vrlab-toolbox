@@ -56,9 +56,10 @@ def run_pipeline(xdf_fn,verbose,show_plots):
 
     missing_streams = set(streams_to_get) - set(FOH_dfs)
     if missing_streams:
-        print(f"Missing streams: {missing_streams}")
+        logger.warning(f"Missing streams: {missing_streams}")
+
     else:
-        print("No missing streams")
+        logger.info("No missing streams")
 
     if has_missing_requirements(missing_streams,['VR_markers','VR_trial_events']):
         logger.warning("No trial info found in xdf. Cannot create intervals")
@@ -67,7 +68,6 @@ def run_pipeline(xdf_fn,verbose,show_plots):
             vr_intervals = vri.create_intervals(FOH_dfs['VR_markers'],FOH_dfs['VR_trial_events'])
         except KeyError as e:
             logger.warning("%s",e)
-
 
     # Biosignals QC
 
