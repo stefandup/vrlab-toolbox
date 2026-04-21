@@ -65,7 +65,7 @@ def run_pipeline(xdf_fn,verbose,show_plots):
     else:
         try:
             vr_intervals = vri.create_intervals(FOH_dfs['VR_markers'],FOH_dfs['VR_trial_events'])
-        except vri.IntervalException as e:
+        except KeyError as e:
             logger.warning("%s",e)
 
 
