@@ -12,9 +12,6 @@ def run_processing(FOH_target_df,vr_intervals):
         lines = FOH_target_df["FOH_target"].dropna().astype(str).tolist()
     except KeyError as e:
         raise TPProcessingError(f"Error in reading target data: {e}")
-    
-    #print(f"Header: {lines[0]}")
-    #print(f"Fields: {lines[1].split(",")}")
 
     csv_text = "\n".join(lines)
     if not csv_text:

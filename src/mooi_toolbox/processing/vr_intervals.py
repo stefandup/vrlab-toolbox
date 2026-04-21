@@ -4,17 +4,17 @@ from mooi_toolbox.read_mobi_xdf import xdf_io
 from mooi_toolbox import config as cfg
     
 logger = logging.getLogger(__name__)
-class IntervalException(Exception):
-    """Raised when error in inverval creation occurs"""
+
+# TODO: I dont think fallback processing is working currently.
 
 def get_event_time(df_in,col_id = "VR_trial",event_id = "RaiseSafetyPlatform"):
     
     try:
         matches = df_in["time_stamps"][df_in[col_id] == event_id]
     except KeyError as e:
-        raise IntervalException(f"Error in finding {event_id} - {e}")
+        raise KeyError(f"Error in finding {event_id}") from e
     if matches.empty:
-        raise IntervalException(f"Can not find {col_id} with id {event_id}")
+        raise ValueError(f"Can not find {col_id} with id {event_id}")
     
     return matches.iloc[0]
 
@@ -31,22 +31,22 @@ def get_event_time_with_fallback(event_sources, primary_event, fallback_event=No
     
     try:
         return get_event_time_from_spec(event_sources, primary_event)
-    except IntervalException:
+    except ValueError:
         if fallback_event is None:
-            logger.warning("No fallback event for this!")
-            raise IntervalException("No fallback measure for this found.")
+            raise ValueError(f"No fallback event for {primary_event}!")
 
         logger.warning(
         "Using fallback event %s because primary event %s was missing",
         fallback_event["event"],
         primary_event["event"],
         )
-
+    try:
         return get_event_time_from_spec(event_sources, fallback_event)
-
+    except ValueError as fallback_error:
+        raise ValueError(f"Primary event {primary_event} and fallback event {fallback_event} were both unavailable."
+            ) from fallback_error
+    
 def create_intervals(vr_markers_df,VR_trial_events_df):
-
-    logger.info("Creating intervals.")
 
     event_sources = {
         "VR_markers" : vr_markers_df,
@@ -75,7 +75,7 @@ def create_intervals(vr_markers_df,VR_trial_events_df):
                 end_fallback,
             )
 
-        except IntervalException:
+        except ValueError:
             logger.warning(
                 "Could not create interval %s from start event %s to end event %s",
                 interval_name,
@@ -93,7 +93,6 @@ def slice_data_frame(dataframe_in,vr_intervals):
     df_dict_out = {}
 
     for key,start_end in vr_intervals.items():
-        print(f"Interval {key}: {start_end}. Data type: {type(start_end)}")
         df_dict_out.update({f"{key}" : xdf_io.cut_df_per_interval(start_end,dataframe_in)})
 
     return df_dict_out
