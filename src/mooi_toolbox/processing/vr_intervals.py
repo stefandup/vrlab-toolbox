@@ -1,6 +1,5 @@
 import logging
 import pandas as pd
-import numpy as np
 from mooi_toolbox.read_mobi_xdf import xdf_io
 from mooi_toolbox import config as cfg
     

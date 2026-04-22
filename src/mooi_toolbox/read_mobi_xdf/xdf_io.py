@@ -9,11 +9,11 @@ logger = logging.getLogger(__name__)
 class xdfIOException(Exception):
     """Raised when an XDF stream cannot be read or extracted."""
 
-def create_intervals_from_df(marker_df): 
+def create_intervals_from_df(marker_df : pd.DataFrame): 
     return [(marker_df["time_stamps"].iloc[i], marker_df["time_stamps"].iloc[i + 1])
     for i in range(len(marker_df) - 1)]
 
-def cut_df_per_interval(start_end_in: tuple,df_in):
+def cut_df_per_interval(start_end_in: tuple,df_in : pd.DataFrame):
     start, end = start_end_in
 
     mask = (df_in["time_stamps"] >= start) & (df_in["time_stamps"] <= end)
@@ -40,7 +40,7 @@ def print_column_names(stream):
         column_names = [channel['label'][0] for channel in channels]
         print(f"Column Names for: {column_names}")
 
-def extract_single_stream(streams, stream_name):
+def extract_single_stream(streams : list, stream_name : str) -> tuple[pd.DataFrame,dict]:
     """Extract the time series and time stamps from a specified stream in xdf data."""
     for s in streams:
         if s['info']['name'][0] == stream_name:
@@ -58,7 +58,7 @@ def extract_single_stream(streams, stream_name):
             return single_stream_df, single_stream
     raise xdfIOException(f"Could not find XDF stream {stream_name!r}")
         
-def add_column_names(single_stream_df, single_stream):
+def add_column_names(single_stream_df : pd.DataFrame, single_stream : dict):
     """Add column names to the single stream dataframes."""
     
     # Check if channel description exists and is valid
@@ -86,17 +86,16 @@ def add_column_names(single_stream_df, single_stream):
 
     return single_stream_df
 
-def get_sampling_rate(single_stream):
+def get_sampling_rate(single_stream : dict):
     return float(single_stream['info']['nominal_srate'][0])
 
 def get_start_time(header):
     return datetime.fromisoformat(header['info']['datetime'][0])
 
-def get_subject_id(xdf_fn):
+def get_subject_id(xdf_fn : str) -> str:
     return os.path.basename(xdf_fn).split('_')[0]
 
-
-def gather_xdf_data_streams(streams,stream_ids: list):
+def gather_xdf_data_streams(streams : list, stream_ids: list) -> dict[str:dict]:
     
     dict_out = dict()
 

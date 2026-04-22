@@ -12,13 +12,11 @@ import logging
     
 logger = logging.getLogger(__name__)
 
-def run_foh_eda_qc(opensignals_df,eda_data_out=None,eda_info_out=None,vr_intervals=None):
+def run_foh_eda_qc(opensignals_df : pd.DataFrame,eda_data_out : pd.DataFrame | None = None,vr_intervals : dict[str, tuple[float, float]] = None) -> None:
     '''Runs optional QC which includes plotting the whole timeseries and outputting basic info'''
-    # TODO: FIX!! PLotting!!
-
-    eda_info_out = eda.run_eda_processing(opensignals_df[cfg.get_eda_data_label()])
-    eda_data_out = eda.get_eda_data_out(eda_info_out,interval_label='')
-    eda.plot_eda(opensignals_df,eda_data_out,eda_info_out,vr_intervals)
+    # Plot the entire timeseries
+    complete_ts_eda_info_out = eda.run_eda_processing(opensignals_df[cfg.get_eda_data_label()])
+    eda.plot_eda(opensignals_df,eda_data_out,complete_ts_eda_info_out,vr_intervals)
 
 def run_foh_eda_pipeline(opensignals_df : pd.DataFrame, vr_intervals: dict[str, tuple[float, float]],show_plots : bool = False) -> pd.DataFrame:
     """Loops over vr intervals and slices the opensignals df into parts for individual processing. 
@@ -65,6 +63,8 @@ def run_pipeline(xdf_fn : str, verbose : bool,show_plots : bool) -> pd.DataFrame
     else:
         logger.info("No missing streams")
 
+    # Create intervals
+
     if has_missing_requirements(missing_streams,['VR_markers','VR_trial_events']):
         logger.warning("No trial info found in xdf. Cannot create intervals")
     else:
@@ -79,7 +79,8 @@ def run_pipeline(xdf_fn : str, verbose : bool,show_plots : bool) -> pd.DataFrame
         logger.warning("Missing physiology data. Cannot run QC.")
 
     if vr_intervals is None:
-        #run_foh_eda_qc(FOH_dfs['OpenSignals'])
+        logger.warning("No intervals present. Cannot proceed with interval based nor behaviour analysis")
+        run_foh_eda_qc(FOH_dfs['OpenSignals'])
         return pd.DataFrame()
         
     # Biosignals processing 
@@ -88,7 +89,7 @@ def run_pipeline(xdf_fn : str, verbose : bool,show_plots : bool) -> pd.DataFrame
     else:
         try:
             eda_df_out = run_foh_eda_pipeline(FOH_dfs['OpenSignals'],vr_intervals)
-            #run_foh_eda_qc(FOH_dfs['OpenSignals'])
+            run_foh_eda_qc(FOH_dfs['OpenSignals'],eda_data_out=eda_df_out,vr_intervals=vr_intervals)
             participant_data_out.append(eda_df_out)
 
         except eda.EDAProcessingError as e:
