@@ -1,13 +1,12 @@
 import logging
-
+import pandas as pd
+import numpy as np
 from mooi_toolbox.read_mobi_xdf import xdf_io
 from mooi_toolbox import config as cfg
     
 logger = logging.getLogger(__name__)
 
-# TODO: I dont think fallback processing is working currently.
-
-def get_event_time(df_in,col_id = "VR_trial",event_id = "RaiseSafetyPlatform"):
+def get_event_time(df_in : pd.DataFrame ,col_id : str = "VR_trial", event_id : str = "RaiseSafetyPlatform") -> float:
     
     try:
         matches = df_in["time_stamps"][df_in[col_id] == event_id]
@@ -16,9 +15,9 @@ def get_event_time(df_in,col_id = "VR_trial",event_id = "RaiseSafetyPlatform"):
     if matches.empty:
         raise ValueError(f"Can not find {col_id} with id {event_id}")
     
-    return matches.iloc[0]
+    return float(matches.iloc[0])
 
-def get_event_time_from_spec(event_sources, event_spec):
+def get_event_time_from_spec(event_sources : dict, event_spec : dict) -> float:
     event_time = get_event_time(
         event_sources[event_spec["stream"]],
             event_spec["column"],
@@ -27,7 +26,7 @@ def get_event_time_from_spec(event_sources, event_spec):
     
     return event_time + event_spec.get("offset_seconds", 0)
 
-def get_event_time_with_fallback(event_sources, primary_event, fallback_event=None):
+def get_event_time_with_fallback(event_sources : dict, primary_event : dict , fallback_event : dict | None = None) -> float:
     
     try:
         return get_event_time_from_spec(event_sources, primary_event)
@@ -46,7 +45,7 @@ def get_event_time_with_fallback(event_sources, primary_event, fallback_event=No
         raise ValueError(f"Primary event {primary_event} and fallback event {fallback_event} were both unavailable."
             ) from fallback_error
     
-def create_intervals(vr_markers_df,VR_trial_events_df):
+def create_intervals(vr_markers_df : pd.DataFrame, VR_trial_events_df : pd.DataFrame) -> dict[str, tuple[float, float]]:
 
     event_sources = {
         "VR_markers" : vr_markers_df,
@@ -88,7 +87,7 @@ def create_intervals(vr_markers_df,VR_trial_events_df):
 
     return vr_intervals
 
-def slice_data_frame(dataframe_in,vr_intervals):
+def slice_data_frame(dataframe_in : pd.DataFrame, vr_intervals : dict[str, tuple[float, float]]) -> dict[str, pd.DataFrame]:
 
     df_dict_out = {}
 

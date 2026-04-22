@@ -51,7 +51,21 @@ Keep progress messages, warnings, and missing-data summaries distinct.
 ### 10. Tighten function boundaries
 EDA functions should only do EDA, ECG only ECG, target only target parsing/summarization.
 
-### 11. Add a final batch summary
+### 11. Make function contracts explicit before deeper plotting changes
+Pause here before continuing the plotting work.
+The confusion worked through in the EDA plotting functions is a good signal that the current function contracts are still too implicit, so making inputs and outputs more explicit first will likely make the plotting much easier and less error-prone.
+
+Focus this step on three small, concrete changes:
+
+- Define, for each function, what goes in and what comes out in one line.
+- Add type hints for the obvious cases first, such as `pd.DataFrame`, `dict`, `dict | None`, and `bool`.
+- Rename ambiguous variables so the role is obvious, such as `raw_biosignals_df`, `eda_summary_df`, and `neurokit_output`.
+
+Keep this pass brief and structural.
+The goal is not full typing coverage; it is to make each function boundary readable enough that later plotting refactors follow clear interfaces instead of guesswork.
+Do this before adding more plotting conditions or subplot-specific behavior.
+
+### 12. Add a final batch summary
 Report what was processed, skipped, missing, or only partially successful.
 
 ## Suggested order
@@ -65,7 +79,8 @@ Report what was processed, skipped, missing, or only partially successful.
 8. Split plotting
 9. Finish ECG output
 10. Centralize config
-11. Improve reporting
+11. Make function contracts explicit before deeper plotting work
+12. Improve reporting
 
 ## Exception-handling rule
 Follow the "raise low, catch high" pattern:

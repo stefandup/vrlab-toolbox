@@ -1,11 +1,19 @@
 import neurokit2 as nk
 import pandas as pd
+import matplotlib.pyplot as plt
+from typing import TypedDict
 
 class EDAProcessingError(Exception):
     """Raised when EDA processing fails."""
 
-def run_eda_processing(eda_raw,clean_method = 'biosppy',peak_detect_method='vanhalem2020',sampling_rate=1000):
+class EDAProcessingResult(TypedDict):
+    """Return class that combines cleaned, decomposed and peaks info from the neurokit2 toolbox."""
+    eda_cleaned: pd.Series
+    eda_decomposed: pd.DataFrame
+    eda_peaks_info: tuple[pd.DataFrame,dict]
 
+def run_eda_processing(eda_raw,clean_method = 'biosppy',peak_detect_method='vanhalem2020',sampling_rate=1000)  -> EDAProcessingResult:
+    """Wrap neurokit2 toolbox EDA functions and return values as a combined dictionary."""
     try:
 
         eda_cleaned = nk.eda_clean(eda_raw, sampling_rate=sampling_rate, method=clean_method)
@@ -24,10 +32,59 @@ def run_eda_processing(eda_raw,clean_method = 'biosppy',peak_detect_method='vanh
         "eda_peaks_info": eda_peaks_info
     }
 
-def plot_eda(eda_proc_out,interval_label='',show_plots=False):
-    pass
+def plot_eda(biosignals_df : pd.DataFrame,eda_df : pd.DataFrame, nk_out : dict,vr_intervals=None,show_plots=True):
+#TODO FIX plotting for individuals!
+    fig, axs = plt.subplots(1, 4, figsize=(18, 4), sharex=True)
 
-def get_eda_data_out(eda_proc_out,interval_label=''):
+    # Plot each cleaned EDA signal
+    axs[0].plot(biosignals_df['time_stamps'], nk_out['eda_cleaned'], label='EDA Cleaned')
+    axs[0].set_title('EDA Cleaned')
+    axs[0].set_xlabel('Time (s)')
+    axs[0].set_ylabel('Amplitude')
+    axs[0].legend()
+    
+    # Plot raw EDA signal and decomposed tonic component in the second-to-last subplot
+    axs[1].plot(biosignals_df['time_stamps'], biosignals_df['EDA0'], label='Raw EDA signal', alpha=0.7)
+    axs[1].plot(biosignals_df['time_stamps'], nk_out['eda_decomposed']['EDA_Tonic'], label='EDA Tonic', alpha=0.7)
+    axs[1].set_title('Signal Over Time: EDA')
+    axs[1].set_xlabel('Time (seconds)')
+    axs[1].set_ylabel('EDA Signal')
+    axs[1].legend()
 
+    # Plot decomposed phasic component in the last subplot
+    axs[2].plot(biosignals_df['time_stamps'], nk_out['eda_decomposed']['EDA_Phasic'], label='EDA Phasic', alpha=0.7, color='orange')
+    axs[2].set_title('EDA Phasic Component')
+    axs[2].set_xlabel('Time (seconds)')
+    axs[2].set_ylabel('EDA Phasic')
+    axs[2].legend()
+
+
+    if vr_intervals is not None:
+
+        axs[3].bar(["Baseline", "Stress", "Recovery"],
+                [eda_df['Baseline_SCR_per_min'][0],
+                eda_df['Stress_SCR_per_min'][0],
+                eda_df['Recovery_SCR_per_min'][0]])
+        axs[3].set_xlabel("Timepoints")
+        axs[3].set_ylabel("SCR per min")
+        axs[3].set_title("FOH EDA")
+
+        for i, (interval_name, (interval_start, interval_end)) in enumerate(vr_intervals.items()):
+            color = f"C{i % 10}"  # cycle through matplotlib default colors
+            # Add a vertical line on every subplot for interval start and end
+            for ax in axs[1:]:
+                ax.axvline(interval_start, color=color, linestyle='--', alpha=0.8)
+                ax.text(interval_start, ax.get_ylim()[1], f"{interval_name} start", color=color, rotation=90, va='top', ha='left', fontsize=8)
+                ax.axvline(interval_end, color=color, linestyle=':', alpha=0.8)
+                ax.text(interval_end, ax.get_ylim()[1], f"{interval_name} end", color=color, rotation=90, va='top', ha='right', fontsize=8)
+ 
+        #save_plot(fig, results_dir, subject_id, f"{data_label}eda_signals")
+    plt.tight_layout()
+
+    if show_plots:
+        plt.show()
+
+def get_eda_data_out(eda_proc_out : EDAProcessingResult,interval_label : str ='') -> pd.DataFrame:
+    """Count EDA SCR peaks and calculate mean of the Tonic signal. Return as a DataFrame."""
     return pd.DataFrame({f'{interval_label}Tonic_mean': [eda_proc_out['eda_decomposed']['EDA_Tonic'].mean()],
              f'{interval_label}SCR_total_peaks': len(eda_proc_out['eda_peaks_info'][1]['SCR_Peaks'])})

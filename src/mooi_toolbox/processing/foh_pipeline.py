@@ -1,6 +1,7 @@
 from mooi_toolbox import config as cfg
 from mooi_toolbox import read_mobi_xdf as xdf
 from . import eda
+from . import ecg
 from . import foh_target_processing as tp
 from . import vr_intervals as vri
 
@@ -11,14 +12,17 @@ import logging
     
 logger = logging.getLogger(__name__)
 
-def run_foh_eda_qc(opensignals_df):
+def run_foh_eda_qc(opensignals_df,eda_data_out=None,eda_info_out=None,vr_intervals=None):
     '''Runs optional QC which includes plotting the whole timeseries and outputting basic info'''
-    # TODO: Include multiple info runs here.
+    # TODO: FIX!! PLotting!!
+
     eda_info_out = eda.run_eda_processing(opensignals_df[cfg.get_eda_data_label()])
     eda_data_out = eda.get_eda_data_out(eda_info_out,interval_label='')
-    eda.plot_eda(eda_data_out)
+    eda.plot_eda(opensignals_df,eda_data_out,eda_info_out,vr_intervals)
 
-def run_foh_eda_pipeline(opensignals_df,vr_intervals,show_plots=False):
+def run_foh_eda_pipeline(opensignals_df : pd.DataFrame, vr_intervals: dict[str, tuple[float, float]],show_plots : bool = False) -> pd.DataFrame:
+    """Loops over vr intervals and slices the opensignals df into parts for individual processing. 
+    Note can also do one interval."""
 
     biosignals_dfs_dict = vri.slice_data_frame(opensignals_df,vr_intervals)
     eda_parts = []
@@ -34,14 +38,14 @@ def run_foh_eda_pipeline(opensignals_df,vr_intervals,show_plots=False):
 
     return pd.concat(eda_parts, axis=1)
 
-def has_missing_requirements(missing,required):
+def has_missing_requirements(missing : set, required : list[str]) -> bool:
     return any(stream in missing for stream in required)
 
-def run_foh_ecg_pipeline(opensignals_df,vr_intervals,show_plots=False):
+def run_foh_ecg_pipeline(opensignals_df : pd.DataFrame, vr_intervals : dict[str, tuple[float, float]],show_plots : bool =False) -> pd.DataFrame:
     return pd.DataFrame()
 
-def run_pipeline(xdf_fn,verbose,show_plots):
-
+def run_pipeline(xdf_fn : str, verbose : bool,show_plots : bool) -> pd.DataFrame:
+    """Run FOH pipeline for EDA, ECG and Behavioural (i.e. Target) data. Tries to be robust wrt missing data."""
     if not xdf_fn:
         streams = get_and_check_xdf(cfg.get_default_xdf(),verbose=verbose)
     else:
@@ -73,18 +77,18 @@ def run_pipeline(xdf_fn,verbose,show_plots):
 
     if has_missing_requirements(missing_streams,['OpenSignals']):
         logger.warning("Missing physiology data. Cannot run QC.")
-    else:
-        run_foh_eda_qc(FOH_dfs['OpenSignals'])
 
     if vr_intervals is None:
+        #run_foh_eda_qc(FOH_dfs['OpenSignals'])
         return pd.DataFrame()
-
+        
     # Biosignals processing 
     if has_missing_requirements(missing_streams,['OpenSignals','VR_markers','VR_trial_events']):
         logger.warning("Skipping ECG and EDA because required streams are missing: %s", missing_streams)
     else:
         try:
             eda_df_out = run_foh_eda_pipeline(FOH_dfs['OpenSignals'],vr_intervals)
+            #run_foh_eda_qc(FOH_dfs['OpenSignals'])
             participant_data_out.append(eda_df_out)
 
         except eda.EDAProcessingError as e:
@@ -94,11 +98,11 @@ def run_pipeline(xdf_fn,verbose,show_plots):
         try: 
             ecg_df_out = run_foh_ecg_pipeline(FOH_dfs['OpenSignals'],vr_intervals)
             participant_data_out.append(ecg_df_out)
-        except eda.ECGProcessingError as e:
+        except ecg.ECGProcessingError as e:
             logger.exception("ECG failed to process")
             logger.warning("%s",e)
 
-    # behaviour processing
+    # Behaviour processing
     if has_missing_requirements(missing_streams,['FOH_target','VR_markers','VR_trial_events']):
         logger.warning("Skipping target behaviour as there are none recorded")
     else:

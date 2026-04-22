@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 class TPProcessingError(Exception):
     """Raised when Target processing fails."""
 
-def run_processing(FOH_target_df,vr_intervals):
+def run_processing(FOH_target_df : pd.DataFrame, vr_intervals : dict[str, tuple[float, float]]) -> tuple[pd.DataFrame,pd.DataFrame]:
     """Process text data received from lsl for FOH behavioural targets"""
     #TODO: Consider logging what is dropped in the na below
     #TODO: examine a better way of checking the hdr.
@@ -36,7 +36,9 @@ def run_processing(FOH_target_df,vr_intervals):
         raise TPProcessingError("Error reading target data.") from e
     
     # Remove rows where 'FOH_target' is any unwanted header string or is empty
+
     unwanted_rows = ["TimeSpawned,TimeHit,HitLatency,TargetType", ""]
+    #TODO: BUG?
     filtered_FOH_target_df = FOH_target_df[~FOH_target_df["FOH_target"].isin(unwanted_rows)]
     filtered_FOH_target_df = filtered_FOH_target_df[~FOH_target_df["FOH_target"].isna()]
 
