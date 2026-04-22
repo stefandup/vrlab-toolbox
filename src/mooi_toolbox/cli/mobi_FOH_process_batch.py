@@ -38,18 +38,27 @@ def main(input_folder,output_folder,verbose):
         subject_id = xdf_io.get_subject_id(xdf_fn)
 
         mobi_logging.log_section(logger, f"Subject {subject_id}")
-        participant_data_out,fig = run_foh_pipeline(xdf_fn,verbose,show_plots=False)
-       
         try:
-            save_plot(fig, output_folder,subject_id,f"Subject {subject_id} QC")
-        except AttributeError as e:
-            logger.info("Error saving plot.%s",e)
+            participant_data_out,fig = run_foh_pipeline(xdf_fn,verbose,show_plots=False)
+        
+            try:
+                save_plot(fig, output_folder,subject_id,f"Subject {subject_id} QC")
+            except AttributeError as e:
+                logger.info("Error saving plot.%s",e)
 
-        participant_data_out = participant_data_out.reset_index(drop=True)
-        participant_data_out.insert(0, "Subject_ID", subject_id)
+            if participant_data_out.empty:
+                logger.warning("No participant output for subject %s", subject_id)
+                continue
 
-        out_file_parts.append(participant_data_out)
-        logger.info(f"Done FOH pipeline for subject {subject_id}")
+            participant_data_out = participant_data_out.reset_index(drop=True)
+            participant_data_out.insert(0, "Subject_ID", subject_id)
+
+            out_file_parts.append(participant_data_out)
+            logger.info(f"Done FOH pipeline for subject {subject_id}")
+
+        except (FileNotFoundError, ValueError, KeyError, TypeError) as error:
+            logger.warning("Skipping subject %s because processing failed: %s", subject_id, error)
+            continue
     
     out_df = pd.concat(out_file_parts, axis=0)
     out_df.to_csv(out_fn)
