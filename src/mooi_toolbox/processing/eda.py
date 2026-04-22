@@ -77,11 +77,9 @@ def plot_eda(biosignals_df : pd.DataFrame,eda_df : pd.DataFrame | None = None ,
         axs[2].set_xlabel('Time (minutes)')
         axs[2].set_ylabel('EDA Phasic (µS)')
         axs[2].legend()
-
-    # Add interval data if available
-
-        if vr_intervals is not None and len(eda_df.columns) == 6:
-
+        
+        if len(eda_df.columns) == 6:
+            
             axs[3].bar(["Baseline", "Stress", "Recovery"],
                     [eda_df['baseline_SCR_per_min'][0],
                     eda_df['stress_SCR_per_min'][0],
@@ -89,19 +87,22 @@ def plot_eda(biosignals_df : pd.DataFrame,eda_df : pd.DataFrame | None = None ,
             axs[3].set_xlabel("Timepoints")
             axs[3].set_ylabel("SCR per min")
             axs[3].set_title("FOH EDA")
+    # Add interval data if available
 
-            for i, (interval_name, (interval_start, interval_end)) in enumerate(vr_intervals.items()):
-                color = f"C{i % 10}"  # cycle through matplotlib default colors
-                interval_start_min = (interval_start - biosignals_df['time_stamps'].iloc[0]) / 60
-                interval_end_min = (interval_end - biosignals_df['time_stamps'].iloc[0]) / 60
-                # Add a vertical line on every subplot for interval start and end
-                for ax in axs[:3]:
-                    ax.axvline(interval_start_min, color=color, linestyle='--', alpha=0.8)
-                    ax.text(interval_start_min, ax.get_ylim()[1], f"{interval_name} start", color=color, rotation=90, va='top', ha='left', fontsize=8)
-                    ax.axvline(interval_end_min, color=color, linestyle=':', alpha=0.8)
-                    ax.text(interval_end_min, ax.get_ylim()[1], f"{interval_name} end", color=color, rotation=90, va='top', ha='right', fontsize=8)
- 
-        
+    if vr_intervals is not None:
+        for i, (interval_name, (interval_start, interval_end)) in enumerate(vr_intervals.items()):
+            color = f"C{i % 10}"  # cycle through matplotlib default colors
+            interval_start_min = (interval_start - biosignals_df['time_stamps'].iloc[0]) / 60
+            interval_end_min = (interval_end - biosignals_df['time_stamps'].iloc[0]) / 60
+            # Add a vertical line on every subplot for interval start and end
+            for ax in axs[:3]:
+                ax.axvline(interval_start_min, color=color, linestyle='--', alpha=0.8)
+                ax.text(interval_start_min, ax.get_ylim()[1], f"{interval_name} start", color=color, rotation=90, va='top', ha='left', fontsize=8)
+                ax.axvline(interval_end_min, color=color, linestyle=':', alpha=0.8)
+                ax.text(interval_end_min, ax.get_ylim()[1], f"{interval_name} end", color=color, rotation=90, va='top', ha='right', fontsize=8)
+    
+
+    
     plt.tight_layout()
 
     if show_plots:
