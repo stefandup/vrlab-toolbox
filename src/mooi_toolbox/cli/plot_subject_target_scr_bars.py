@@ -9,24 +9,29 @@ import pandas as pd
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_INPUT_CSV = PROJECT_ROOT / "local_lsl_data_aggregated.csv"
-DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "results"
+DEFAULT_INPUT_CSV = PROJECT_ROOT / "local_lsl_data" / "_out" / "FOH_process_batch_out.csv"
+DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "local_lsl_data" / "_out" / "plots"
 REQUIRED_TARGET_COLUMNS = [
     "Baseline_0_Short_Target",
     "Baseline_1_Short_Target",
     "Stress_0_Short_Target",
     "Stress_1_Short_Target",
-    "Recovery_Short_Target",
+    "recovery_Short_Target",
     "Baseline_0_Medium_Target",
     "Baseline_1_Medium_Target",
     "Stress_0_Medium_Target",
     "Stress_1_Medium_Target",
-    "Recovery_Medium_Target",
+    "recovery_Medium_Target",
     "Baseline_0_Long_Target",
     "Baseline_1_Long_Target",
     "Stress_0_Long_Target",
     "Stress_1_Long_Target",
-    "Recovery_Long_Target",
+    "recovery_Long_Target",
+]
+REQUIRED_SCR_COLUMNS = [
+    "baseline_SCR_per_min",
+    "stress_SCR_per_min",
+    "recovery_SCR_per_min",
 ]
 
 
@@ -68,21 +73,51 @@ def _target_by_condition(row: pd.Series, duration: str) -> list[float]:
             row.get(f"Stress_1_{duration}_Target", np.nan),
         ]
     )
-    recovery = float(row.get(f"Recovery_{duration}_Target", np.nan))
+    recovery = float(row.get(f"recovery_{duration}_Target", np.nan))
     return [training, baseline, stress, recovery]
 
 
 def _scr_by_condition(row: pd.Series) -> list[float]:
     return [
-        float(row.get("Baseline_SCR_per_min", np.nan)),
-        float(row.get("Stress_SCR_per_min", np.nan)),
-        float(row.get("Recovery_SCR_per_min", np.nan)),
+        float(row.get("baseline_SCR_per_min", np.nan)),
+        float(row.get("stress_SCR_per_min", np.nan)),
+        float(row.get("recovery_SCR_per_min", np.nan)),
     ]
+
+
+def _normalise_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    # Import-Csv showed an unnamed index-like first column in the batch output.
+    unnamed_columns = [col for col in df.columns if str(col).startswith("Unnamed:")]
+    if unnamed_columns:
+        df = df.drop(columns=unnamed_columns)
+
+    rename_map = {}
+    for col in df.columns:
+        stripped = str(col).strip()
+        lowered = stripped.lower()
+        if lowered == "subject_id":
+            rename_map[col] = "Subject_ID"
+        elif lowered == "recovery_short_target":
+            rename_map[col] = "recovery_Short_Target"
+        elif lowered == "recovery_medium_target":
+            rename_map[col] = "recovery_Medium_Target"
+        elif lowered == "recovery_long_target":
+            rename_map[col] = "recovery_Long_Target"
+        elif lowered == "baseline_scr_per_min":
+            rename_map[col] = "baseline_SCR_per_min"
+        elif lowered == "stress_scr_per_min":
+            rename_map[col] = "stress_SCR_per_min"
+        elif lowered == "recovery_scr_per_min":
+            rename_map[col] = "recovery_SCR_per_min"
+
+    if rename_map:
+        df = df.rename(columns=rename_map)
+    return df
 
 
 def _validate_columns(df: pd.DataFrame) -> None:
     required_columns = [
-        "subject_id",
+        "Subject_ID",
         *REQUIRED_TARGET_COLUMNS,
     ]
     missing = [col for col in required_columns if col not in df.columns]
@@ -91,7 +126,7 @@ def _validate_columns(df: pd.DataFrame) -> None:
 
 
 def create_subject_plot(row: pd.Series, output_dir: Path) -> Path:
-    subject_id = str(row["subject_id"])
+    subject_id = str(row["Subject_ID"])
     target_conditions = ["Training", "Baseline", "Stress", "Recovery"]
     scr_conditions = ["Baseline", "Stress", "Recovery"]
     scr_values = _scr_by_condition(row)
@@ -155,25 +190,23 @@ def main(argv: list[str] | None = None) -> int:
     if not input_csv.exists():
         raise FileNotFoundError(f"Input CSV not found: {input_csv}")
 
-    df = pd.read_csv(input_csv)
+    df = _normalise_dataframe(pd.read_csv(input_csv))
     _validate_columns(df)
 
-    numeric_cols = [col for col in df.columns if col != "subject_id" and col != "xdf_path"]
+    numeric_cols = [
+        col
+        for col in df.columns
+        if col not in {"Subject_ID", "xdf_path"}
+    ]
     df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors="coerce")
 
     saved_paths: list[Path] = []
     skipped_subjects: list[str] = []
     for idx, row in df.iterrows():
-        subject_id = str(row.get("subject_id", f"row_{idx}"))
-        missing_values = [
-            col for col in REQUIRED_TARGET_COLUMNS if pd.isna(row.get(col, np.nan))
-        ]
-        if missing_values:
-            print(
-                f"Skipping {subject_id}: missing target values in columns "
-                f"{missing_values}"
-            )
-            skipped_subjects.append(subject_id)
+        subject_id = str(row.get("Subject_ID", f"row_{idx}"))
+        if pd.isna(row.get("Subject_ID", np.nan)) or not subject_id.strip():
+            print(f"Skipping row_{idx}: missing subject identifier")
+            skipped_subjects.append(f"row_{idx}")
             continue
         try:
             saved_paths.append(create_subject_plot(row, output_dir))
