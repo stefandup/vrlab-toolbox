@@ -3,7 +3,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from typing import TypedDict
+from mooi_toolbox import config as cfg
 
+import logging
+
+from . import vr_intervals as vri
+
+logger = logging.getLogger(__name__)
 class EDAProcessingError(Exception):
     """Raised when EDA processing fails."""
 
@@ -14,8 +20,14 @@ class EDAProcessingResult(TypedDict):
     eda_decomposed: pd.DataFrame
     eda_peaks_info: tuple[pd.DataFrame,dict]
 
-def run_eda_processing(eda_raw,clean_method = 'biosppy',peak_detect_method='vanhalem2020',sampling_rate=1000)  -> EDAProcessingResult:
-    """Wrap neurokit2 toolbox EDA functions and return values as a combined dictionary."""
+def run_eda_qc(biosignals_df : pd.DataFrame,eda_data_out : pd.DataFrame | None = None,vr_intervals : dict[str, tuple[float, float]] = None) -> Figure:
+    '''Runs optional QC which includes plotting the whole timeseries and outputting basic info'''
+    # Plot the entire timeseries
+    complete_ts_eda_info_out = run_eda_processing(biosignals_df[cfg.get_eda_data_label()])
+    return plot_eda(biosignals_df,eda_data_out,complete_ts_eda_info_out,vr_intervals)
+
+def run_eda_processing(eda_raw : pd.DataFrame, clean_method :str = 'biosppy',peak_detect_method : str ='vanhalem2020',sampling_rate : float = 1000)  -> EDAProcessingResult:
+    """Wrap neurokit2 toolbox EDA functions on one set of timeseries data and return values as a combined dictionary."""
     try:
         total_time_min : int = (len(eda_raw)/sampling_rate) / 60
         eda_cleaned = nk.eda_clean(eda_raw, sampling_rate=sampling_rate, method=clean_method)
@@ -34,6 +46,24 @@ def run_eda_processing(eda_raw,clean_method = 'biosppy',peak_detect_method='vanh
         "eda_decomposed" : eda_decomposed,
         "eda_peaks_info": eda_peaks_info
     }
+
+def run_eda_pipeline(biosignals_df : pd.DataFrame, vr_intervals: dict[str, tuple[float, float]]) -> pd.DataFrame:
+    """Wraps run_eda_processing. Loops over vr intervals and slices the biosignal_df into parts for individual processing. 
+    Note can also do one interval."""
+
+    biosignals_dfs_dict = vri.slice_data_frame(biosignals_df,vr_intervals)
+    eda_parts = []
+
+    for key,biosignal_df in biosignals_dfs_dict.items():
+        try:
+            eda_info_out = run_eda_processing(biosignal_df[cfg.get_eda_data_label()])
+            eda_data_out = get_eda_data_out(eda_info_out,interval_label=f'{key}_')
+            eda_parts.append(eda_data_out)
+        except EDAProcessingError:
+            logger.warning("Skipping EDA for interval %s", key)
+            continue
+
+    return pd.concat(eda_parts, axis=1)
 
 def plot_eda(biosignals_df : pd.DataFrame,eda_df : pd.DataFrame | None = None , 
              nk_complete_ts_out : EDAProcessingResult | None = None,vr_intervals=None,

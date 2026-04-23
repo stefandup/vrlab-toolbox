@@ -1,5 +1,6 @@
 import neurokit2 as nk
 import warnings
+import pandas as pd
 from pandas.errors import SettingWithCopyWarning
 
 class ECGProcessingError(Exception):
@@ -29,3 +30,6 @@ def run_ecg_processing(ecg_raw,clean_method = 'biosppy',peak_detect_method='neur
     print(f"Total peak count: {tot_q_peak_count}")
 
     return hrv_df
+
+def run_ecg_pipeline(opensignals_df : pd.DataFrame, vr_intervals : dict[str, tuple[float, float]],show_plots : bool =False) -> pd.DataFrame:
+    return pd.DataFrame()

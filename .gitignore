@@ -10,6 +10,8 @@
 /local_MOBI_data/
 /local_lsl_data
 /local_lsl_data/
+/crane_data
+/crane_data/
 /temp/
 __pycache__/
 *.py[cod]

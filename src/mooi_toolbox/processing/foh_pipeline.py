@@ -13,38 +13,12 @@ import logging
     
 logger = logging.getLogger(__name__)
 
-def run_foh_eda_qc(opensignals_df : pd.DataFrame,eda_data_out : pd.DataFrame | None = None,vr_intervals : dict[str, tuple[float, float]] = None) -> Figure:
-    '''Runs optional QC which includes plotting the whole timeseries and outputting basic info'''
-    # Plot the entire timeseries
-    complete_ts_eda_info_out = eda.run_eda_processing(opensignals_df[cfg.get_eda_data_label()])
-    return eda.plot_eda(opensignals_df,eda_data_out,complete_ts_eda_info_out,vr_intervals)
-
-def run_foh_eda_pipeline(opensignals_df : pd.DataFrame, vr_intervals: dict[str, tuple[float, float]],show_plots : bool = False) -> pd.DataFrame:
-    """Loops over vr intervals and slices the opensignals df into parts for individual processing. 
-    Note can also do one interval."""
-
-    biosignals_dfs_dict = vri.slice_data_frame(opensignals_df,vr_intervals)
-    eda_parts = []
-
-    for key,biosignal_df in biosignals_dfs_dict.items():
-        try:
-            eda_info_out = eda.run_eda_processing(biosignal_df[cfg.get_eda_data_label()])
-            eda_data_out = eda.get_eda_data_out(eda_info_out,interval_label=f'{key}_')
-            eda_parts.append(eda_data_out)
-        except eda.EDAProcessingError:
-            logger.warning("Skipping EDA for interval %s", key)
-            continue
-
-    return pd.concat(eda_parts, axis=1)
-
 def has_missing_requirements(missing : set, required : list[str]) -> bool:
     return any(stream in missing for stream in required)
 
-def run_foh_ecg_pipeline(opensignals_df : pd.DataFrame, vr_intervals : dict[str, tuple[float, float]],show_plots : bool =False) -> pd.DataFrame:
-    return pd.DataFrame()
-
 def run_pipeline(xdf_fn : str,verbose : bool,show_plots : bool) -> tuple[pd.DataFrame,Figure]:
-    """Run FOH pipeline for EDA, ECG and Behavioural (i.e. Target) data. Tries to be robust wrt missing data."""
+    #TODO This can be renamed to FOH LSL pipeline
+    """Run FOH pipeline for LSL EDA, ECG and Behavioural (i.e. Target) data. Tries to be robust wrt missing data."""
     if not xdf_fn:
         streams = get_and_check_xdf(cfg.get_default_xdf(),verbose=verbose)
     else:
@@ -80,7 +54,7 @@ def run_pipeline(xdf_fn : str,verbose : bool,show_plots : bool) -> tuple[pd.Data
     if has_missing_requirements(missing_streams,['OpenSignals']):
         logger.warning("Missing physiology data. Cannot run QC.")
     else:
-        fig = run_foh_eda_qc(FOH_dfs['OpenSignals'])
+        fig = eda.run_eda_qc(FOH_dfs['OpenSignals'])
 
     if vr_intervals is None:
         logger.warning("No intervals present. Cannot proceed with interval based nor behaviour analysis")
@@ -91,8 +65,8 @@ def run_pipeline(xdf_fn : str,verbose : bool,show_plots : bool) -> tuple[pd.Data
         logger.warning("Skipping ECG and EDA because required streams are missing: %s", missing_streams)
     else:
         try:
-            eda_df_out = run_foh_eda_pipeline(FOH_dfs['OpenSignals'],vr_intervals)
-            fig = run_foh_eda_qc(FOH_dfs['OpenSignals'],eda_data_out=eda_df_out,vr_intervals=vr_intervals)
+            eda_df_out = eda.run_eda_pipeline(FOH_dfs['OpenSignals'],vr_intervals)
+            fig = eda.run_eda_qc(FOH_dfs['OpenSignals'],eda_data_out=eda_df_out,vr_intervals=vr_intervals)
             participant_data_out.append(eda_df_out)
 
         except eda.EDAProcessingError as e:
@@ -100,7 +74,7 @@ def run_pipeline(xdf_fn : str,verbose : bool,show_plots : bool) -> tuple[pd.Data
             logger.warning("%s",e)
 
         try: 
-            ecg_df_out = run_foh_ecg_pipeline(FOH_dfs['OpenSignals'],vr_intervals)
+            ecg_df_out = ecg.run_ecg_pipeline(FOH_dfs['OpenSignals'],vr_intervals)
             participant_data_out.append(ecg_df_out)
         except ecg.ECGProcessingError as e:
             logger.exception("ECG failed to process")
