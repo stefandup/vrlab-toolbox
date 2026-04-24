@@ -1,10 +1,8 @@
 import click
 import logging
-from pathlib import Path
 import os
 
 from mooi_toolbox.processing.crane_pipeline import run_pipeline as run_crane_pipeline
-from mooi_toolbox.read_mobi_xdf import xdf_io
 from mooi_toolbox import mobi_logging
 from mooi_toolbox.processing import biopac
 from mooi_toolbox.processing.plot_utils import save_plot

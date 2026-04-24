@@ -3,7 +3,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from typing import TypedDict
-from mooi_toolbox import config as cfg
 
 import logging
 
