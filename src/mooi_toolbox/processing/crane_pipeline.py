@@ -21,9 +21,7 @@ def run_pipeline(biopac_fn : str,verbose : bool = False,show_plots : bool = Fals
 
     vr_intervals = get_trigger_intervals(biopac.load_biopac_data(biopac_fn,'Trigger'))
     print(vr_intervals)
+    scr_df_out = eda.run_eda_intervals(eda_raw_timestamped,vr_intervals)
+    fig = eda.run_eda_qc(eda_raw_timestamped,scr_df_out,vr_intervals)
 
-    eda_data_out : eda.nkEDAProcessingResult = eda.run_nk_eda_processing(eda_raw_timestamped['EDA'])
-    scr_data_out = eda.get_eda_data_out(eda_data_out)
-    fig = eda.run_eda_qc(eda_raw_timestamped,scr_data_out,vr_intervals)
-
-    return tuple([scr_data_out,fig])
+    return tuple([scr_df_out,fig])

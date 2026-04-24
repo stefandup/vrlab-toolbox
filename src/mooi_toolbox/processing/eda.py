@@ -111,15 +111,14 @@ def plot_eda(eda_raw_timestamped : pd.DataFrame, scr_participant_data : pd.DataF
         axs[2].set_ylabel('EDA Phasic (µS)')
         axs[2].legend(loc="upper left")
         
-        if len(scr_participant_data.columns) == 6:
-            
-            axs[3].bar(["Baseline", "Stress", "Recovery"],
-                    [scr_participant_data['baseline_SCR_per_min'][0],
-                    scr_participant_data['stress_SCR_per_min'][0],
-                    scr_participant_data['recovery_SCR_per_min'][0]])
-            axs[3].set_xlabel("Timepoints")
-            axs[3].set_ylabel("SCR per min")
-            axs[3].set_title("FOH EDA")
+        scr_participant_data.filter(like="SCR_per_min").iloc[0].plot(kind="bar",ax=axs[3],)
+        labels = [label.get_text().split("_", 1)[0] for label in axs[3].get_xticklabels()]
+        axs[3].set_xticklabels(labels)
+        
+        axs[3].set_xlabel("Timepoints")
+        axs[3].set_ylabel("SCR per min")
+        axs[3].set_title("FOH EDA")
+
     # Add interval data if available
 
     if vr_intervals is not None:

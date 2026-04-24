@@ -27,6 +27,7 @@ def main(biopac_mat_fn  : str ,output_folder : str,verbose : bool,show_plots : b
 
     logger.info("Looking at subject %s",subject_id)
     participant_data_out,fig = run_crane_pipeline(biopac_mat_fn)
+    save_plot(fig,output_folder,subject_id,f"Subject {subject_id} QC")
 
 if __name__ == "__main__":
     mobi_logging.init(__file__)
