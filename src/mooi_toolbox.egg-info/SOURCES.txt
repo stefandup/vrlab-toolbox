@@ -13,6 +13,7 @@ src/mooi_toolbox/cli/mobi_FOH_process_batch.py
 src/mooi_toolbox/cli/mobi_core_process.py
 src/mooi_toolbox/cli/plot_subject_target_scr_bars.py
 src/mooi_toolbox/cli/vrlab_crane_process.py
+src/mooi_toolbox/cli/vrlab_crane_process_batch.py
 src/mooi_toolbox/processing/__init__.py
 src/mooi_toolbox/processing/biopac.py
 src/mooi_toolbox/processing/crane_behaviour_processing.py
@@ -32,3 +33,6 @@ src/mooi_toolbox/window_manager/__init__.py
 src/mooi_toolbox/window_manager/auto_arrange_windows.py
 src/mooi_toolbox/window_manager/example_window.py
 src/mooi_toolbox/window_manager/python_window_management.py
+src/mooi_toolbox/window_manager/Automate/TestController.py
+src/mooi_toolbox/window_manager/Automate/automation_layer.py
+src/mooi_toolbox/window_manager/Automate/session_controller.py
