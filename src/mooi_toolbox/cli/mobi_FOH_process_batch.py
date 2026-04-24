@@ -5,10 +5,9 @@ from pathlib import Path
 import pandas as pd 
 
 from mooi_toolbox import mobi_logging
-from mooi_toolbox.processing.foh_pipeline import run_pipeline as run_foh_pipeline
+from mooi_toolbox.processing.foh_pipeline import run_lsl_pipeline as run_lsl_foh_pipeline
 from mooi_toolbox.processing.plot_utils import save_plot
 from mooi_toolbox.read_mobi_xdf import xdf_io
-
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +17,7 @@ logger = logging.getLogger(__name__)
 @click.option("--verbose",is_flag=True,help="Give verbose output")
 
 def main(input_folder,output_folder,verbose):
-
+    """CLI tool for processing and plotting MOBI LSL data for FOH VR task"""
     if not output_folder:
         output_folder = input_folder + "_out"
 
@@ -39,7 +38,7 @@ def main(input_folder,output_folder,verbose):
 
         mobi_logging.log_section(logger, f"Subject {subject_id}")
         try:
-            participant_data_out,fig = run_foh_pipeline(xdf_fn,verbose,show_plots=False)
+            participant_data_out,fig = run_lsl_foh_pipeline(xdf_fn,verbose,show_plots=False)
         
             try:
                 save_plot(fig, output_folder,subject_id,f"Subject {subject_id} QC")

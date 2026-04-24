@@ -3,7 +3,7 @@ import os
 from functools import lru_cache
 
 @lru_cache
-def get_config():
+def get_config() -> dict[str,any]:
 
     with open("pyproject.toml","rb") as f:
         cfg = tomllib.load(f)
@@ -11,7 +11,7 @@ def get_config():
     return cfg["tool"]["mooi_toolbox"]
 
 @lru_cache
-def get_default_xdf():
+def get_default_xdf() -> str:
 
     dft = get_config()
     path_out = os.path.join(
@@ -28,12 +28,17 @@ def get_default_xdf():
     )
     return path_out
 
-def get_eda_data_label():
+def get_opensignals_eda_data_label() ->str:
     
     dft = get_config()
 
-    return dft["eda_data_label"]
+    return dft["eda_opensignals_data_label"]
 
-def get_vr_intervals():
+def get_biopac_eda_data_label() -> str:
+    dft = get_config()
+
+    return dft["eda_biopac_data_label"]
+
+def get_vr_intervals() -> str:
     dft = get_config()
     return dft["vr_intervals"]

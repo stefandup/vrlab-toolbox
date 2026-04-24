@@ -9,28 +9,30 @@ import logging
 
 from . import vr_intervals as vri
 
+
 logger = logging.getLogger(__name__)
 class EDAProcessingError(Exception):
     """Raised when EDA processing fails."""
 
-class EDAProcessingResult(TypedDict):
-    """Return class that combines cleaned, decomposed and peaks info from the neurokit2 toolbox."""
+class nkEDAProcessingResult(TypedDict):
+    """Neurokit2 out: Return class that combines cleaned, decomposed and peaks info from the neurokit2 toolbox."""
     total_time_min: int
     eda_cleaned: pd.Series
     eda_decomposed: pd.DataFrame
     eda_peaks_info: tuple[pd.DataFrame,dict]
 
-def run_eda_qc(biosignals_df : pd.DataFrame,eda_data_out : pd.DataFrame | None = None,vr_intervals : dict[str, tuple[float, float]] = None) -> Figure:
+def run_eda_qc(eda_raw_timestamped : pd.DataFrame,eda_data_out : pd.DataFrame | None = None,vr_intervals : dict[str, tuple[float, float]] = None) -> Figure:
+    #TODO: Rather that this takes in the raw data in?
     '''Runs optional QC which includes plotting the whole timeseries and outputting basic info'''
     # Plot the entire timeseries
-    complete_ts_eda_info_out = run_eda_processing(biosignals_df[cfg.get_eda_data_label()])
-    return plot_eda(biosignals_df,eda_data_out,complete_ts_eda_info_out,vr_intervals)
+    complete_ts_eda_out : nkEDAProcessingResult = run_nk_eda_processing(eda_raw_timestamped['EDA'])
+    return plot_eda(eda_raw_timestamped,eda_data_out,complete_ts_eda_out,vr_intervals)
 
-def run_eda_processing(eda_raw : pd.DataFrame, clean_method :str = 'biosppy',peak_detect_method : str ='vanhalem2020',sampling_rate : float = 1000)  -> EDAProcessingResult:
+def run_nk_eda_processing(eda_raw_series_df : pd.DataFrame, clean_method :str = 'biosppy',peak_detect_method : str ='vanhalem2020',sampling_rate : float = 1000)  -> nkEDAProcessingResult:
     """Wrap neurokit2 toolbox EDA functions on one set of timeseries data and return values as a combined dictionary."""
     try:
-        total_time_min : int = (len(eda_raw)/sampling_rate) / 60
-        eda_cleaned = nk.eda_clean(eda_raw, sampling_rate=sampling_rate, method=clean_method)
+        total_time_min : int = (len(eda_raw_series_df)/sampling_rate) / 60
+        eda_cleaned = nk.eda_clean(eda_raw_series_df, sampling_rate=sampling_rate, method=clean_method)
         eda_decomposed = nk.eda_phasic(eda_cleaned, sampling_rate=sampling_rate)
         eda_peaks_info = nk.eda_peaks(eda_decomposed["EDA_Phasic"], sampling_rate=sampling_rate, method=peak_detect_method)
     except (ValueError, TypeError, KeyError) as error:
@@ -47,16 +49,17 @@ def run_eda_processing(eda_raw : pd.DataFrame, clean_method :str = 'biosppy',pea
         "eda_peaks_info": eda_peaks_info
     }
 
-def run_eda_pipeline(biosignals_df : pd.DataFrame, vr_intervals: dict[str, tuple[float, float]]) -> pd.DataFrame:
+def run_eda_intervals(eda_raw_timestamped_full_ts : pd.DataFrame, vr_intervals: dict[str, tuple[float, float]]) -> pd.DataFrame:
     """Wraps run_eda_processing. Loops over vr intervals and slices the biosignal_df into parts for individual processing. 
     Note can also do one interval."""
 
-    biosignals_dfs_dict = vri.slice_data_frame(biosignals_df,vr_intervals)
+    biosignals_dfs_dict = vri.slice_data_frame(eda_raw_timestamped_full_ts,vr_intervals)
     eda_parts = []
 
-    for key,biosignal_df in biosignals_dfs_dict.items():
+    for key,eda_raw_interval_timestamped in biosignals_dfs_dict.items():
         try:
-            eda_info_out = run_eda_processing(biosignal_df[cfg.get_eda_data_label()])
+            eda_raw_interval = eda_raw_interval_timestamped['EDA']
+            eda_info_out = run_nk_eda_processing(eda_raw_interval)
             eda_data_out = get_eda_data_out(eda_info_out,interval_label=f'{key}_')
             eda_parts.append(eda_data_out)
         except EDAProcessingError:
@@ -65,8 +68,8 @@ def run_eda_pipeline(biosignals_df : pd.DataFrame, vr_intervals: dict[str, tuple
 
     return pd.concat(eda_parts, axis=1)
 
-def plot_eda(biosignals_df : pd.DataFrame,eda_df : pd.DataFrame | None = None , 
-             nk_complete_ts_out : EDAProcessingResult | None = None,vr_intervals=None,
+def plot_eda(eda_raw_timestamped : pd.DataFrame, scr_participant_data : pd.DataFrame | None = None , 
+             nk_complete_ts_out : nkEDAProcessingResult | None = None,vr_intervals=None,
              show_plots=False) -> Figure:
 
     fig = plt.figure(figsize=(12, 8))
@@ -79,10 +82,10 @@ def plot_eda(biosignals_df : pd.DataFrame,eda_df : pd.DataFrame | None = None ,
     ]
     axs[1].sharex(axs[0])
     axs[2].sharex(axs[0])
-    time_min = (biosignals_df['time_stamps'] - biosignals_df['time_stamps'].iloc[0]) / 60
+    time_min = (eda_raw_timestamped['time_stamps'] - eda_raw_timestamped['time_stamps'].iloc[0]) / 60
 
     # Plot raw EDA signal and decomposed tonic component if available
-    axs[0].plot(time_min, biosignals_df['EDA0'], label='Raw EDA signal', alpha=0.7)
+    axs[0].plot(time_min, eda_raw_timestamped['EDA'], label='Raw EDA signal', alpha=0.7)
     
     if nk_complete_ts_out is not None:
         axs[0].plot(time_min, nk_complete_ts_out['eda_decomposed']['EDA_Tonic'], label='EDA Tonic', alpha=0.7)
@@ -90,15 +93,15 @@ def plot_eda(biosignals_df : pd.DataFrame,eda_df : pd.DataFrame | None = None ,
     axs[0].set_title('Signal Over Time: EDA')
     axs[0].set_xlabel('Time (minutes)')
     axs[0].set_ylabel('EDA Signal (µS)')
-    axs[0].legend()
+    axs[0].legend(loc="upper left")
 
-    if eda_df is not None:
+    if scr_participant_data is not None:
         # Plot cleaned EDA signal if available
         axs[1].plot(time_min, nk_complete_ts_out['eda_cleaned'], label='EDA Cleaned')
         axs[1].set_title('EDA Cleaned')
         axs[1].set_xlabel('Time (minutes)')
         axs[1].set_ylabel('Amplitude (µS)')
-        axs[1].legend()
+        axs[1].legend(loc="upper left")
         
         # Plot decomposed phasic component in the last subplot if available
 
@@ -106,14 +109,14 @@ def plot_eda(biosignals_df : pd.DataFrame,eda_df : pd.DataFrame | None = None ,
         axs[2].set_title('EDA Phasic Component')
         axs[2].set_xlabel('Time (minutes)')
         axs[2].set_ylabel('EDA Phasic (µS)')
-        axs[2].legend()
+        axs[2].legend(loc="upper left")
         
-        if len(eda_df.columns) == 6:
+        if len(scr_participant_data.columns) == 6:
             
             axs[3].bar(["Baseline", "Stress", "Recovery"],
-                    [eda_df['baseline_SCR_per_min'][0],
-                    eda_df['stress_SCR_per_min'][0],
-                    eda_df['recovery_SCR_per_min'][0]])
+                    [scr_participant_data['baseline_SCR_per_min'][0],
+                    scr_participant_data['stress_SCR_per_min'][0],
+                    scr_participant_data['recovery_SCR_per_min'][0]])
             axs[3].set_xlabel("Timepoints")
             axs[3].set_ylabel("SCR per min")
             axs[3].set_title("FOH EDA")
@@ -122,16 +125,14 @@ def plot_eda(biosignals_df : pd.DataFrame,eda_df : pd.DataFrame | None = None ,
     if vr_intervals is not None:
         for i, (interval_name, (interval_start, interval_end)) in enumerate(vr_intervals.items()):
             color = f"C{i % 10}"  # cycle through matplotlib default colors
-            interval_start_min = (interval_start - biosignals_df['time_stamps'].iloc[0]) / 60
-            interval_end_min = (interval_end - biosignals_df['time_stamps'].iloc[0]) / 60
+            interval_start_min = (interval_start - eda_raw_timestamped['time_stamps'].iloc[0]) / 60
+            interval_end_min = (interval_end - eda_raw_timestamped['time_stamps'].iloc[0]) / 60
             # Add a vertical line on every subplot for interval start and end
             for ax in axs[:3]:
                 ax.axvline(interval_start_min, color=color, linestyle='--', alpha=0.8)
                 ax.text(interval_start_min, ax.get_ylim()[1], f"{interval_name} start", color=color, rotation=90, va='top', ha='left', fontsize=8)
                 ax.axvline(interval_end_min, color=color, linestyle=':', alpha=0.8)
                 ax.text(interval_end_min, ax.get_ylim()[1], f"{interval_name} end", color=color, rotation=90, va='top', ha='right', fontsize=8)
-    
-
     
     plt.tight_layout()
 
@@ -140,7 +141,7 @@ def plot_eda(biosignals_df : pd.DataFrame,eda_df : pd.DataFrame | None = None ,
 
     return fig
 
-def get_eda_data_out(eda_proc_out : EDAProcessingResult,interval_label : str ='') -> pd.DataFrame:
+def get_eda_data_out(eda_proc_out : nkEDAProcessingResult,interval_label : str ='') -> pd.DataFrame:
     """Count EDA SCR peaks and calculate mean of the Tonic signal. Return as a DataFrame."""
     time_min = eda_proc_out['total_time_min']
     return pd.DataFrame({f'{interval_label}Tonic_mean': [eda_proc_out['eda_decomposed']['EDA_Tonic'].mean()],

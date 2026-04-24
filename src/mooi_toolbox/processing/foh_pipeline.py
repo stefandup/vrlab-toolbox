@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def has_missing_requirements(missing : set, required : list[str]) -> bool:
     return any(stream in missing for stream in required)
 
-def run_pipeline(xdf_fn : str,verbose : bool,show_plots : bool) -> tuple[pd.DataFrame,Figure]:
+def run_lsl_pipeline(xdf_fn : str,verbose : bool,show_plots : bool) -> tuple[pd.DataFrame,Figure]:
     #TODO This can be renamed to FOH LSL pipeline
     """Run FOH pipeline for LSL EDA, ECG and Behavioural (i.e. Target) data. Tries to be robust wrt missing data."""
     if not xdf_fn:
@@ -54,7 +54,9 @@ def run_pipeline(xdf_fn : str,verbose : bool,show_plots : bool) -> tuple[pd.Data
     if has_missing_requirements(missing_streams,['OpenSignals']):
         logger.warning("Missing physiology data. Cannot run QC.")
     else:
-        fig = eda.run_eda_qc(FOH_dfs['OpenSignals'])
+        eda_raw_timestamped : pd.DataFrame = FOH_dfs['OpenSignals']
+        eda_raw_timestamped = eda_raw_timestamped.rename(columns={cfg.get_opensignals_eda_data_label() : 'EDA'})
+        fig = eda.run_eda_qc(eda_raw_timestamped)
 
     if vr_intervals is None:
         logger.warning("No intervals present. Cannot proceed with interval based nor behaviour analysis")
@@ -65,8 +67,8 @@ def run_pipeline(xdf_fn : str,verbose : bool,show_plots : bool) -> tuple[pd.Data
         logger.warning("Skipping ECG and EDA because required streams are missing: %s", missing_streams)
     else:
         try:
-            eda_df_out = eda.run_eda_pipeline(FOH_dfs['OpenSignals'],vr_intervals)
-            fig = eda.run_eda_qc(FOH_dfs['OpenSignals'],eda_data_out=eda_df_out,vr_intervals=vr_intervals)
+            eda_df_out = eda.run_eda_intervals(eda_raw_timestamped,vr_intervals)
+            fig = eda.run_eda_qc(eda_raw_timestamped,eda_data_out=eda_df_out,vr_intervals=vr_intervals)
             participant_data_out.append(eda_df_out)
 
         except eda.EDAProcessingError as e:
@@ -74,7 +76,7 @@ def run_pipeline(xdf_fn : str,verbose : bool,show_plots : bool) -> tuple[pd.Data
             logger.warning("%s",e)
 
         try: 
-            ecg_df_out = ecg.run_ecg_pipeline(FOH_dfs['OpenSignals'],vr_intervals)
+            ecg_df_out = ecg.run_ecg_pipeline(FOH_dfs['OpenSignals']['ECG1'],vr_intervals)
             participant_data_out.append(ecg_df_out)
         except ecg.ECGProcessingError as e:
             logger.exception("ECG failed to process")

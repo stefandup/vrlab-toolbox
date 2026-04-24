@@ -14,6 +14,7 @@ mobi_check_xdf = "mooi_toolbox.cli.check_mobi_xdf:main"
 mobi_foh_process = "mooi_toolbox.cli.mobi_FOH_process:main"
 mobi_foh_batch_process = "mooi_toolbox.cli.mobi_FOH_process_batch:main"
 plot_target_data = "mooi_toolbox.cli.plot_subject_target_scr_bars:main"
+vrlab_crane_process = "mooi_toolbox.cli.vrlab_crane_process:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -24,7 +25,8 @@ default_xdf_folder = "eeg"
 default_session = "001"
 default_xdf_task = "Default"
 default_subject = "P00018"
-eda_data_label = "EDA0"
+eda_opensignals_data_label = "EDA0"
+eda_biopac_data_label = "EDA"
 
 [tool.mooi_toolbox.vr_intervals.baseline]
 start = { stream = "VR_markers", column = "Markers", event = 10 }
