@@ -108,7 +108,7 @@ def main(subject_id : str,behaviour_data_dir : str) -> pd.DataFrame:
             nausea_total=("Nausea","sum"),
             dizziness_total=("Dizzy","sum"),
             dropped_total=("TotalDropped","sum"),
-            nr_frustration_barrels=("NrFrustrationBarrels","median"),
+            nr_frustration_barrels=("nrFrustrationBarrels","median"),
             nr_error_slips=("NrErrorSlips","mean"),
             nr_slips=("NrSlips","mean"),
             nr_no_reason_slips=("NrNoReasonSlips","mean"),
@@ -117,6 +117,15 @@ def main(subject_id : str,behaviour_data_dir : str) -> pd.DataFrame:
             target_score=("TargetScore","median")
         )
     )
+
+    emotion_counts = (
+        behav_df_validated
+        .groupby(wide_cols + ["EmotionFeedback"])
+        .size()
+        .unstack(fill_value=0)
+    )
+    
+    summary = summary.join(emotion_counts)
 
     one_row = summary.unstack(wide_cols,fill_value=0)
     one_row = one_row.to_frame().T

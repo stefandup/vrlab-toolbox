@@ -20,7 +20,7 @@ def run_pipeline(biopac_fn : str,verbose : bool = False,show_plots : bool = Fals
         raise
 
     vr_intervals = get_trigger_intervals(biopac.load_biopac_data(biopac_fn,'Trigger'))
-    print(vr_intervals)
+
     scr_df_out = eda.run_eda_intervals(eda_raw_timestamped,vr_intervals)
     fig = eda.run_eda_qc(eda_raw_timestamped,scr_df_out,vr_intervals)
 
