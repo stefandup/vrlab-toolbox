@@ -5,7 +5,7 @@ import logging
 import pandera.pandas as pa
 
 logger = logging.getLogger(__name__)
-
+#TODO convert to tuple
 EMOTIONS_TESTED = ["Boredom", "Dissatisfaction", "Joy", "Sadness", "Satisfaction", "Confused", "Anger"]
 
 def has_balanced_conditions(df):
@@ -70,7 +70,7 @@ crane_behav_file_schema = pa.DataFrameSchema(
 def behaviour_matches_biopac_data(subject_id : str,behaviour_data_dir : str) -> list[Path]:
     logger.info(f"Looking for {subject_id} in {behaviour_data_dir}...")
 
-    reg_pattern = f"^{subject_id}.csv$"
+    reg_pattern = f"^.*{subject_id}_CraneOut.csv$"
     compiled = re.compile(reg_pattern)
 
     root = Path(behaviour_data_dir)

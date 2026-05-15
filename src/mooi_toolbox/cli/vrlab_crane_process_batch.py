@@ -11,8 +11,12 @@ from mooi_toolbox.processing import biopac
 from mooi_toolbox.processing.crane_pipeline import run_pipeline as run_crane_pipeline
 from mooi_toolbox.processing.plot_utils import save_plot
 from mooi_toolbox.processing import crane_behaviour_processing as cbp
+from mooi_toolbox.processing import crane_debrief_data as debrief
 
 logger = logging.getLogger(__name__)
+
+def get_id_from_mat(mat_fn : str)-> str:
+    return mat_fn.split('_')[1]
 
 @click.command()
 @click.argument("input_folder", type=click.Path(exists=True, dir_okay=True), required=True)
@@ -21,6 +25,9 @@ logger = logging.getLogger(__name__)
 @click.option("--verbose", is_flag=True, help="Give verbose output")
 def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool):
     """CLI tool for batch processing VRLab crane behaviour and physiology data."""
+    
+    #TODO: Empty DF out needs to give a warning.
+    
     if not output_folder:
         output_folder = input_folder + "_out"
 
@@ -50,6 +57,7 @@ def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool
                     )
 
             mobi_logging.log_section(logger, f"Subject {subject_id}")
+            logger.info("Trying to read file %s",biopac_mat_fn)
             try:
                 participant_data_out, fig = run_crane_pipeline(
                     biopac_mat_fn,
@@ -82,10 +90,19 @@ def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool
                 behav_data_out = cbp.main(subject_id,behav_folder)
                 behav_data_out.insert(0,"Subject_ID",subject_id)
                 behav_out_parts.append(behav_data_out)
+
                 logger.info("Processed behav data for subject %s",behav_fn)
 
             except ValueError as e:
                 logger.warning("Skipping behaviour analysis on %s. %s",subject_id,e)
+
+            try:
+                debrief_data_out = debrief.main(subject_id,behav_folder)
+                behav_out_parts.append(debrief_data_out)
+                logger.info("Processed debrief data for subject %s",subject_id)
+
+            except ValueError as e:
+                logger.warning("Skipping debrief analysis on %s. %s",subject_id,e)
 
     behav_df_out = pd.concat(behav_out_parts,axis=0)
     behav_df_out.to_csv(behav_fn + ".csv")

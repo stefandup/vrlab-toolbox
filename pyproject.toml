@@ -16,7 +16,7 @@ mobi_foh_batch_process = "mooi_toolbox.cli.mobi_FOH_process_batch:main"
 plot_target_data = "mooi_toolbox.cli.plot_subject_target_scr_bars:main"
 vrlab_crane_process = "mooi_toolbox.cli.vrlab_crane_process:main"
 vrlab_crane_batch = "mooi_toolbox.cli.vrlab_crane_process_batch:main"
-vrlab_crane_summary_data = "mooi_toolbox.cli.vrlab_crane_summary_data:main"
+vrlab_crane_summary_data = "mooi_toolbox.cli.vrlab_crane_qc:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

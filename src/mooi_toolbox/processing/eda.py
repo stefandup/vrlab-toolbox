@@ -21,7 +21,7 @@ class nkEDAProcessingResult(TypedDict):
     eda_peaks_info: tuple[pd.DataFrame,dict]
 
 def run_eda_qc(eda_raw_timestamped : pd.DataFrame,eda_data_out : pd.DataFrame | None = None,vr_intervals : dict[str, tuple[float, float]] = None) -> Figure:
-    #TODO: Rather that this takes in the raw data in?
+
     '''Runs optional QC which includes plotting the whole timeseries and outputting basic info'''
     # Plot the entire timeseries
     complete_ts_eda_out : nkEDAProcessingResult = run_nk_eda_processing(eda_raw_timestamped['EDA'])

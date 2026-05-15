@@ -40,4 +40,4 @@ def load_biopac_data(biopac_fn : str, data_to_load : str) -> pd.DataFrame:
     return pd.DataFrame({"time_stamps": time_stamps, data_to_load: data})
 
 def get_subject_id_from_mat(biopac_mat_fn : str) -> str:
-    return os.path.basename(biopac_mat_fn).split('.')[0].strip().replace(' ','')
+    return os.path.basename(biopac_mat_fn).split('.')[0].strip().replace(' ','').split('_')[1]
