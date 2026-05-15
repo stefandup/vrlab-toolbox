@@ -21,8 +21,9 @@ crane_debrief_file_schema = pa.DataFrameSchema(
     strict=True,
     coerce=True    
 )
+#TODO: Fix this as it is likely out of scope
 @cache
-def load_group_debrief_data(subject_id : str,behaviour_data_dir : str) -> pd.DataFrame:
+def load_group_debrief_data(behaviour_data_dir : str) -> pd.DataFrame:
     red_cap_fn = r"CraneGame_Emotional Experience Form.xlsx"
     data_fn = os.path.join(behaviour_data_dir,red_cap_fn)
 
@@ -76,7 +77,8 @@ def load_group_debrief_data(subject_id : str,behaviour_data_dir : str) -> pd.Dat
     return debrief_data_out
 
 def main(subject_id : str,behaviour_data_dir : str) -> pd.DataFrame:
-    debrief_df = load_group_debrief_data(subject_id,behaviour_data_dir)
-    subject_debrief_out = debrief_df.loc[debrief_df["Debrief_Subject_ID"] == subject_id]
-    subject_debrief_out.rename(columns={"Debrief_Subject_ID":"Subject_ID"})
+    debrief_df = load_group_debrief_data(behaviour_data_dir)
+    # Copy as to ensure the cache is read only.
+    subject_debrief_out = debrief_df.loc[debrief_df["Debrief_Subject_ID"] == subject_id].copy()
+    subject_debrief_out = subject_debrief_out.rename(columns={"Debrief_Subject_ID":"Subject_ID"})
     return subject_debrief_out
