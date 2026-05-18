@@ -110,7 +110,7 @@ def load_and_validate_crane_behaviour_csv(behav_file_fn) -> pd.DataFrame:
 
     return behav_df_validated
 
-def main(subject_id : str,behaviour_data_dir : str) -> pd.DataFrame:
+def main(subject_id : str,behaviour_data_dir : str) -> tuple[pd.DataFrame,pd.DataFrame]:
     
     """
     Per participant processes behaviour files and outputs a wide data frame 
@@ -174,4 +174,4 @@ def main(subject_id : str,behaviour_data_dir : str) -> pd.DataFrame:
 
     one_row = one_row.reset_index(drop=True)
 
-    return one_row
+    return one_row,behav_df_validated

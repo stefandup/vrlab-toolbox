@@ -80,5 +80,5 @@ def main(subject_id : str,behaviour_data_dir : str) -> pd.DataFrame:
     debrief_df = load_group_debrief_data(behaviour_data_dir)
     # Copy as to ensure the cache is read only. Cahce ensures that we dont reload the excel for every subject
     subject_debrief_out = debrief_df.loc[debrief_df["Debrief_Subject_ID"] == subject_id].copy()
-    subject_debrief_out = subject_debrief_out.rename(columns={"Debrief_Subject_ID":"Subject_ID"})
+    subject_debrief_out = subject_debrief_out.drop(columns="Debrief_Subject_ID")
     return subject_debrief_out

@@ -93,6 +93,7 @@ def run_lsl_pipeline(xdf_fn : str,verbose : bool,show_plots : bool) -> tuple[pd.
             logger.warning("Skipping target behaviour as there was a processing error")
             logger.warning("%s",e)
     if len(participant_data_out) != 0:
+        # Concatenate row wise
         return (pd.concat(participant_data_out, axis = 1),fig)
     else:
         return (pd.DataFrame(),None)

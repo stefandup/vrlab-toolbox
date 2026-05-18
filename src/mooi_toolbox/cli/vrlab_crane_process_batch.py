@@ -10,8 +10,7 @@ from mooi_toolbox import mobi_logging
 from mooi_toolbox.processing import biopac
 from mooi_toolbox.processing.crane_pipeline import run_pipeline as run_crane_pipeline
 from mooi_toolbox.processing.plot_utils import save_plot
-from mooi_toolbox.processing import crane_behaviour_processing as cbp
-from mooi_toolbox.processing import crane_debrief_data as debrief
+
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +33,10 @@ def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool
     logger.info("Looking into input folder: %s. Output folder: %s", input_folder, output_folder)
 
     out_fn = os.path.join(output_folder, "vrlab_crane_process_batch_out.csv")
-    behav_fn = os.path.join(output_folder,"vrlab_crane_process_batch_behav_out")
+    data_out_fn = os.path.join(output_folder,"vrlab_crane_process_batch_behav_out")
 
     root = Path(input_folder)
     out_file_parts = []
-    behav_out_parts = []
 
     subject_mat_files = list(root.rglob("*.mat"))
     with Progress() as progress:
@@ -55,9 +53,14 @@ def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool
 
             mobi_logging.log_section(logger, f"Subject {subject_id}")
             logger.info("Trying to read file %s",biopac_mat_fn)
+
+            participant_data_out = None
+
             try:
                 participant_data_out, fig = run_crane_pipeline(
+                    subject_id,
                     biopac_mat_fn,
+                    behav_folder,
                     verbose=verbose,
                     show_plots=False,
                 )
@@ -74,7 +77,7 @@ def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool
                     continue
 
                 participant_data_out = participant_data_out.reset_index(drop=True)
-                participant_data_out.insert(0, "Subject_ID", subject_id)
+                #participant_data_out.insert(0, "Subject_ID", subject_id)
 
                 out_file_parts.append(participant_data_out)
                 logger.info("Done crane pipeline for subject %s", subject_id)
@@ -83,42 +86,19 @@ def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool
                 logger.warning("Skipping subject %s because processing failed: %s", subject_id, error)
                 continue
 
-            subject_behav_out = None
-            
-            try:
-                behav_data_out = cbp.main(subject_id,behav_folder)
-                behav_data_out.insert(0,"Subject_ID",subject_id)
-                subject_behav_out = behav_data_out
-                logger.info("Processed behav data for subject %s",behav_fn)
-
-            except ValueError as e:
-                logger.warning("Skipping behaviour analysis on %s. %s",subject_id,e)
-
-            try:
-                debrief_data_out = debrief.main(subject_id,behav_folder)
-                
-                if subject_behav_out is None:
-                    subject_behav_out = debrief_data_out
-                else:
-                    subject_behav_out = pd.merge(
-                        subject_behav_out,
-                        debrief_data_out,
-                        on="Subject_ID",
-                        how="outer",
-                    )
-                    
-                logger.info("Processed debrief data for subject %s",subject_id)
-
-            except ValueError as e:
-                logger.warning("Skipping debrief analysis on %s. %s",subject_id,e)
-            
-            if subject_behav_out is not None:
-                behav_out_parts.append(subject_behav_out)
     # TODO: Add eda to the mix
-    behav_df_out = pd.concat(behav_out_parts,axis=0)
-    behav_df_out.to_csv(behav_fn + ".csv")
+
+
+    for out_file_part in out_file_parts:
+        if out_file_part.columns.duplicated().any():
+            print(out_file_part.columns.duplicated())
+            print(out_file_part["Subject_ID"])
+            print("Duplicates!")
+
+    participant_df_out = pd.concat(out_file_parts,axis=0)
+    participant_df_out.to_csv(data_out_fn + ".csv")
     # TODO: Do data labels for SPSS out
-    pyreadstat.write_sav(behav_df_out,behav_fn + ".sav")
+    pyreadstat.write_sav(participant_df_out,data_out_fn + ".sav")
 
     out_df = pd.concat(out_file_parts, axis=0)
     out_df.to_csv(out_fn)

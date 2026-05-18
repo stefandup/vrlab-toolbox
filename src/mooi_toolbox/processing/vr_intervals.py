@@ -104,12 +104,47 @@ def get_trigger_intervals(trigger_df_in : pd.DataFrame) -> dict[str,tuple[float,
     return {f"TP{i}" : (float(start),float(end))
             for i,(start,end) in enumerate(interval_pairs)}
 
-def get_behav_intervals(validated_behav_df) -> list:
-    pass
+def get_crane_behav_intervals(validated_behav_df : pd.DataFrame) -> dict[str,tuple[float,float]]:
+    
+    intervals_out = {}
+
+    for index, row in validated_behav_df.iterrows():
+        if row["Training"]:
+            intervals_out.update({f"{row["BlockType"]}_{row["TrialType"]}_{row["TrialNr"]}_Training" : tuple([row["TrialStartTime"],row["TrialEndTime"]])})
+        else:    
+            intervals_out.update({f"{row["BlockType"]}_{row["TrialType"]}_{row["TrialNr"]}" : tuple([row["TrialStartTime"],row["TrialEndTime"]])})
+
+    return intervals_out
 
 
 def match_behav_intervals_with_trigger_intervals(trigger_intervals : dict[str,tuple[float,float]],validated_behav_df) -> dict[str,tuple[float,float]]:
     
-    behav_intervals = get_behav_intervals(validated_behav_df)
+    behav_intervals = get_crane_behav_intervals(validated_behav_df)
     
-    pass
+    for behav_key, behav_interval in behav_intervals.items():
+        behav_start = behav_interval[0]
+        max_start_delta=6.0
+        matched_intervals = trigger_intervals
+
+        best_delta = float("inf")
+
+        for trigger_key,trigger_interval in trigger_intervals.items():
+            trigger_start = trigger_interval[0]
+            delta = abs(behav_start - trigger_start)
+
+            if delta < best_delta:
+                best_trigger_key = trigger_key
+                best_delta = delta
+
+        if best_trigger_key is None:
+            continue
+
+        if best_delta > max_start_delta:
+            continue
+        
+        logger.info("Max behav offset is %.2f",best_delta)
+
+        matched_intervals.update({behav_key : trigger_intervals[best_trigger_key]})
+        matched_intervals.pop(best_trigger_key)
+
+    return matched_intervals
