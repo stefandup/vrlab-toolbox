@@ -15,9 +15,6 @@ from mooi_toolbox.processing import crane_debrief_data as debrief
 
 logger = logging.getLogger(__name__)
 
-def get_id_from_mat(mat_fn : str)-> str:
-    return mat_fn.split('_')[1]
-
 @click.command()
 @click.argument("input_folder", type=click.Path(exists=True, dir_okay=True), required=True)
 @click.argument("behav_folder", type=click.Path(exists=True, dir_okay=True), required=True)
@@ -86,11 +83,12 @@ def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool
                 logger.warning("Skipping subject %s because processing failed: %s", subject_id, error)
                 continue
 
+            subject_behav_out = None
+            
             try:
                 behav_data_out = cbp.main(subject_id,behav_folder)
                 behav_data_out.insert(0,"Subject_ID",subject_id)
-                behav_out_parts.append(behav_data_out)
-
+                subject_behav_out = behav_data_out
                 logger.info("Processed behav data for subject %s",behav_fn)
 
             except ValueError as e:
@@ -98,12 +96,25 @@ def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool
 
             try:
                 debrief_data_out = debrief.main(subject_id,behav_folder)
-                behav_out_parts.append(debrief_data_out)
+                
+                if subject_behav_out is None:
+                    subject_behav_out = debrief_data_out
+                else:
+                    subject_behav_out = pd.merge(
+                        subject_behav_out,
+                        debrief_data_out,
+                        on="Subject_ID",
+                        how="outer",
+                    )
+                    
                 logger.info("Processed debrief data for subject %s",subject_id)
 
             except ValueError as e:
                 logger.warning("Skipping debrief analysis on %s. %s",subject_id,e)
-
+            
+            if subject_behav_out is not None:
+                behav_out_parts.append(subject_behav_out)
+    # TODO: Add eda to the mix
     behav_df_out = pd.concat(behav_out_parts,axis=0)
     behav_df_out.to_csv(behav_fn + ".csv")
     # TODO: Do data labels for SPSS out

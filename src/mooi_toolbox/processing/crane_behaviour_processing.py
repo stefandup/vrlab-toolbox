@@ -86,8 +86,6 @@ def import_csv_to_long_df(behav_fn : Path) -> pd.DataFrame:
     # Check for missing data. Try to work around missing data, but break if you need to.
     return pd.read_csv(behav_fn)
 
-    return pd.DataFrame()
-
 def create_participant_out_data(long_data_df : pd.DataFrame) -> pd.DataFrame:
     """
     Takes per participant crane behav data and converts to wide data which then can be 
@@ -98,6 +96,19 @@ def create_participant_out_data(long_data_df : pd.DataFrame) -> pd.DataFrame:
 
 
     return pd.DataFrame()
+
+def load_and_validate_crane_behaviour_csv(behav_file_fn) -> pd.DataFrame:
+    #TODO: Decide what to do when multiple csv files are found
+    behav_df = import_csv_to_long_df(behav_file_fn)
+    try:
+        behav_df_validated = crane_behav_file_schema.validate(behav_df)
+    except pa.errors.SchemaErrors as e:
+        logger.error("Error loading %s: %s",behav_file_fn,e.failure_cases.to_string(index=False))
+        raise
+
+    logger.info("Successfully loaded %s", behav_file_fn)
+
+    return behav_df_validated
 
 def main(subject_id : str,behaviour_data_dir : str) -> pd.DataFrame:
     
@@ -116,15 +127,7 @@ def main(subject_id : str,behaviour_data_dir : str) -> pd.DataFrame:
     
     logger.info(f"Found {behav_files_found}")
 
-    #TODO: Decide what to do when multiple csv files are found
-    behav_df = import_csv_to_long_df(behav_files_found[0])
-    try:
-        behav_df_validated = crane_behav_file_schema.validate(behav_df)
-    except pa.errors.SchemaErrors as e:
-        logger.error("Error loading %s: %s",behav_files_found[0],e.failure_cases.to_string(index=False))
-        raise
-
-    logger.info("Successfully loaded %s", behav_files_found[0])
+    behav_df_validated = load_and_validate_crane_behaviour_csv(behav_files_found[0])
 
     # Remove training
     training_rows = behav_df_validated[behav_df_validated["Training"]].index

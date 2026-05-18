@@ -96,10 +96,20 @@ def slice_data_frame(timestamped_df_in : pd.DataFrame, vr_intervals : dict[str, 
     return df_dict_out
 
 def get_trigger_intervals(trigger_df_in : pd.DataFrame) -> dict[str,tuple[float,float]]:
-    
+    """Uses the biopac intervals and gets all the intervals and assigns a TP nr to them regardless of nr"""
     trigger_times = trigger_df_in['time_stamps'][trigger_df_in['Trigger'].diff() > 0.47]
     trigger_events_df = trigger_times.to_frame(name = "trigger_times")
     interval_pairs = list(zip(trigger_events_df['trigger_times'].iloc[:-1], trigger_events_df['trigger_times'].iloc[1:]))
     
     return {f"TP{i}" : (float(start),float(end))
             for i,(start,end) in enumerate(interval_pairs)}
+
+def get_behav_intervals(validated_behav_df) -> list:
+    pass
+
+
+def match_behav_intervals_with_trigger_intervals(trigger_intervals : dict[str,tuple[float,float]],validated_behav_df) -> dict[str,tuple[float,float]]:
+    
+    behav_intervals = get_behav_intervals(validated_behav_df)
+    
+    pass
