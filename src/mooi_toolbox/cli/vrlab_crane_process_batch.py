@@ -11,7 +11,6 @@ from mooi_toolbox.processing import biopac
 from mooi_toolbox.processing.crane_pipeline import run_pipeline as run_crane_pipeline
 from mooi_toolbox.processing.plot_utils import save_plot
 
-
 logger = logging.getLogger(__name__)
 
 @click.command()
@@ -33,7 +32,7 @@ def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool
     logger.info("Looking into input folder: %s. Output folder: %s", input_folder, output_folder)
 
     out_fn = os.path.join(output_folder, "vrlab_crane_process_batch_out.csv")
-    data_out_fn = os.path.join(output_folder,"vrlab_crane_process_batch_behav_out")
+    data_out_fn = os.path.join(output_folder,"vrlab_crane_process_batch_data_out")
 
     root = Path(input_folder)
     out_file_parts = []
@@ -86,22 +85,10 @@ def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool
                 logger.warning("Skipping subject %s because processing failed: %s", subject_id, error)
                 continue
 
-    # TODO: Add eda to the mix
-
-
-    for out_file_part in out_file_parts:
-        if out_file_part.columns.duplicated().any():
-            print(out_file_part.columns.duplicated())
-            print(out_file_part["Subject_ID"])
-            print("Duplicates!")
-
     participant_df_out = pd.concat(out_file_parts,axis=0)
     participant_df_out.to_csv(data_out_fn + ".csv")
     # TODO: Do data labels for SPSS out
     pyreadstat.write_sav(participant_df_out,data_out_fn + ".sav")
-
-    out_df = pd.concat(out_file_parts, axis=0)
-    out_df.to_csv(out_fn)
 
     logger.info("Saved output to %s", out_fn)
 

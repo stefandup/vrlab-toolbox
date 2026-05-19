@@ -49,16 +49,19 @@ def run_pipeline(subject_id : str,biopac_fn : str,behav_folder : str,verbose : b
 
     vr_intervals = get_trigger_intervals(biopac.load_biopac_data(biopac_fn,'Trigger'))
     scr_df_out = eda.run_eda_intervals(eda_raw_timestamped,vr_intervals)
-    fig = eda.run_eda_qc(eda_raw_timestamped,scr_df_out,vr_intervals)
-
+    
     # Do labeled Physiology
     try:
         labeled_vr_intervals = match_behav_intervals_with_trigger_intervals(vr_intervals,validated_behav_df)
         scr_interval_df_out = eda.run_eda_intervals(eda_raw_timestamped,labeled_vr_intervals)
         scr_interval_df_out = scr_interval_df_out.reset_index(drop=True)
+        fig = eda.run_eda_qc(eda_raw_timestamped,scr_df_out,labeled_vr_intervals)
         participant_data_out.append(scr_interval_df_out)
     except ValueError as e:
             logger.warning("Skipping physiology analysis on %s. %s",subject_id,e)
+
+    if fig is None:
+        fig = eda.run_eda_qc(eda_raw_timestamped,scr_df_out,vr_intervals)
 
     if len(participant_data_out) != 0:
         # Concatenate row wise

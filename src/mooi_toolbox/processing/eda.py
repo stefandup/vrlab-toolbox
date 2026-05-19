@@ -8,7 +8,6 @@ import logging
 
 from . import vr_intervals as vri
 
-
 logger = logging.getLogger(__name__)
 class EDAProcessingError(Exception):
     """Raised when EDA processing fails."""
@@ -142,5 +141,5 @@ def plot_eda(eda_raw_timestamped : pd.DataFrame, scr_participant_data : pd.DataF
 def get_eda_data_out(eda_proc_out : nkEDAProcessingResult,interval_label : str ='') -> pd.DataFrame:
     """Count EDA SCR peaks and calculate mean of the Tonic signal. Return as a DataFrame."""
     time_min = eda_proc_out['total_time_min']
-    return pd.DataFrame({f'{interval_label}Tonic_mean': [eda_proc_out['eda_decomposed']['EDA_Tonic'].mean()],
-             f'{interval_label}SCR_per_min': len(eda_proc_out['eda_peaks_info'][1]['SCR_Peaks'])/time_min})
+    
+    return pd.DataFrame({f'{interval_label}SCR_per_min': [len(eda_proc_out['eda_peaks_info'][1]['SCR_Peaks']) / time_min]})
