@@ -20,4 +20,5 @@ __pycache__/
 **.log
 logs/
 temp/
+spss_scripts/
 AGENTS.md

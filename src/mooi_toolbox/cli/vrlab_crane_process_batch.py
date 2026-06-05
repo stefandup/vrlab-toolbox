@@ -5,10 +5,12 @@ from pathlib import Path
 import pandas as pd
 import pyreadstat
 from rich.progress import Progress
+import pandera.pandas as pa
 
 from mooi_toolbox import mobi_logging
 from mooi_toolbox.processing import biopac
 from mooi_toolbox.processing.crane_pipeline import run_pipeline as run_crane_pipeline
+from mooi_toolbox.processing.crane_pipeline import validate_participant_output
 from mooi_toolbox.processing.plot_utils import save_plot
 
 logger = logging.getLogger(__name__)
@@ -86,11 +88,26 @@ def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool
                 continue
 
     participant_df_out = pd.concat(out_file_parts,axis=0)
+    
+    try:
+       participant_df_out_validated = validate_participant_output(participant_df_out)    
+    except pa.errors.SchemaErrors as e:
+        logger.error("Error validating final output file: %s",e.failure_cases.to_string(index=False))
+        raise
+
     participant_df_out.to_csv(data_out_fn + ".csv")
     # TODO: Do data labels for SPSS out
-    pyreadstat.write_sav(participant_df_out,data_out_fn + ".sav")
 
-    logger.info("Saved output to %s", out_fn)
+    logger.info("Successfully validated final output file")
+
+    pyreadstat.write_sav(
+        participant_df_out_validated,
+        data_out_fn + ".sav",
+        variable_format={"Subject_ID": "A20"},
+        variable_measure={"Subject_ID": "nominal"},
+        )
+
+    logger.info("Saved final output file to %s", out_fn)
 
 if __name__ == "__main__":
     mobi_logging.init(__file__)

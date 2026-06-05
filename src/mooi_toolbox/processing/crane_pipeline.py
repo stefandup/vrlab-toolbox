@@ -1,6 +1,7 @@
 import pandas as pd
 from matplotlib.figure import Figure
 import logging
+import pandera.pandas as pa
 
 from mooi_toolbox.processing import biopac
 from mooi_toolbox import config as cfg
@@ -11,6 +12,67 @@ from mooi_toolbox.processing import crane_behaviour_processing as cbp
 from mooi_toolbox.processing import crane_debrief_data as debrief
 
 logger = logging.getLogger(__name__)
+
+BLOCK_TYPES = ("NonStressBlock", "StressBlock")
+TRIAL_TYPES = ("SlipTrial", "NonSlipTrial")
+BEHAVIOUR_OUTPUT_METRICS = (
+    "nausea_avg",
+    "dizziness_avg",
+    "stressed_avg",
+    "dropped_total",
+    "nr_frustration_barrels",
+    "nr_error_slips",
+    "nr_slips",
+    "nr_no_reason_slips",
+    "nr_forced_slips",
+    "avg_velocity",
+    "target_score",
+    *(f"{emotion}_proportion" for emotion in cbp.EMOTIONS_TESTED),
+)
+DEBRIEF_OUTPUT_METRICS = tuple(debrief.emotion_cols)
+
+def _optional_float_column() -> pa.Column:
+    return pa.Column(float, nullable=True, coerce=True, required=False)
+
+def build_participant_output_schema() -> pa.DataFrameSchema:
+    """Create schema for the wide participant output produced by this pipeline."""
+    behaviour_columns = {
+        f"{metric}_{block_type}_{trial_type}": _optional_float_column()
+        for metric in BEHAVIOUR_OUTPUT_METRICS
+        for block_type in BLOCK_TYPES
+        for trial_type in TRIAL_TYPES
+    }
+
+    debrief_columns = {
+        f"Debrief_{metric}_{trial_type}": _optional_float_column()
+        for metric in DEBRIEF_OUTPUT_METRICS
+        for trial_type in TRIAL_TYPES
+    }
+
+    physiology_columns = {
+        r"^.+_SCR_per_min$": pa.Column(
+            float,
+            nullable=True,
+            coerce=True,
+            required=False,
+            regex=True,
+        )
+    }
+
+    return pa.DataFrameSchema(
+        {
+            "Subject_ID": pa.Column(pd.StringDtype(), nullable=False, coerce=True, required=False),
+            **behaviour_columns,
+            **debrief_columns,
+            **physiology_columns,
+        },
+        coerce=True,
+        strict=False,
+    )
+
+def validate_participant_output(participant_out_df: pd.DataFrame) -> pd.DataFrame:
+    """Validate and coerce the participant-level wide output."""
+    return build_participant_output_schema().validate(participant_out_df)
 
 def run_pipeline(subject_id : str,biopac_fn : str,behav_folder : str,verbose : bool = False,show_plots : bool = False) -> tuple[pd.DataFrame,Figure]:
     
