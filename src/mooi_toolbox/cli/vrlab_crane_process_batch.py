@@ -18,18 +18,12 @@ logger = logging.getLogger(__name__)
 @click.command()
 @click.argument("input_folder", type=click.Path(exists=True, dir_okay=True), required=True)
 @click.argument("behav_folder", type=click.Path(exists=True, dir_okay=True), required=True)
-@click.argument("output_folder", type=click.Path(exists=True, dir_okay=True), required=False)
+@click.argument("output_folder", type=click.Path(exists=True, dir_okay=True), required=True)
 @click.option("--verbose", is_flag=True, help="Give verbose output")
 def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool):
     """CLI tool for batch processing VRLab crane behaviour and physiology data."""
     
     #TODO: Empty DF out needs to give a warning.
-    
-    if not output_folder:
-        output_folder = input_folder + "_out"
-
-    if not os.path.exists(output_folder):
-        os.mkdir(output_folder)
 
     logger.info("Looking into input folder: %s. Output folder: %s", input_folder, output_folder)
 

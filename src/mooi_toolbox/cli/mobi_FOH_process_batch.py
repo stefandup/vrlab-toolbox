@@ -13,17 +13,11 @@ logger = logging.getLogger(__name__)
 
 @click.command()
 @click.argument("input_folder", type=click.Path(exists=True,dir_okay=True),required=True)
-@click.argument("output_folder", type=click.Path(exists=True,dir_okay=True),required=False)
+@click.argument("output_folder", type=click.Path(exists=True,dir_okay=True),required=True)
 @click.option("--verbose",is_flag=True,help="Give verbose output")
 
 def main(input_folder,output_folder,verbose):
     """CLI tool for processing and plotting MOBI LSL data for FOH VR task"""
-    if not output_folder:
-        output_folder = input_folder + "_out"
-
-    if not os.path.exists(output_folder):
-        os.mkdir(output_folder)
-
 
     logger.info(f"Looking into input folder: {input_folder}. Output folder: {output_folder}")
     

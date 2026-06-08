@@ -121,6 +121,8 @@ def run_pipeline(subject_id : str,biopac_fn : str,behav_folder : str,verbose : b
         participant_data_out.append(scr_interval_df_out)
     except ValueError as e:
             logger.warning("Skipping physiology analysis on %s. %s",subject_id,e)
+     
+     # TODO: rather validate at subject level
 
     if fig is None:
         fig = eda.run_eda_qc(eda_raw_timestamped,scr_df_out,vr_intervals)
@@ -130,3 +132,4 @@ def run_pipeline(subject_id : str,biopac_fn : str,behav_folder : str,verbose : b
         return (pd.concat(participant_data_out, axis = 1),fig)
     else:
         return (pd.DataFrame(),None)
+

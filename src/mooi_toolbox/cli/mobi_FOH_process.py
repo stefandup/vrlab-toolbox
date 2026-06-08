@@ -11,7 +11,7 @@ from mooi_toolbox.processing.plot_utils import save_plot
 logger = logging.getLogger(__name__)
 
 @click.command()
-@click.argument("xdf_fn", type=click.Path(exists=True,dir_okay=True),required=False)
+@click.argument("xdf_fn", type=click.Path(exists=True,dir_okay=True),required=True)
 @click.argument("output_folder",type=click.Path(exists=True,dir_okay=True),required=False)
 @click.option("--verbose",is_flag=True,help="Give verbose output")
 @click.option("--show-plots",is_flag=True,help="Show complete plots. Default is to save plots.")
