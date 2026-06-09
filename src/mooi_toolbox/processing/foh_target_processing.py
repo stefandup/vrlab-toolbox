@@ -40,7 +40,10 @@ def run_processing(FOH_target_df : pd.DataFrame, vr_intervals : dict[str, tuple[
     unwanted_rows = ["TimeSpawned,TimeHit,HitLatency,TargetType", ""]
     #TODO: BUG?
     filtered_FOH_target_df = FOH_target_df[~FOH_target_df["FOH_target"].isin(unwanted_rows)]
-    filtered_FOH_target_df = filtered_FOH_target_df[~FOH_target_df["FOH_target"].isna()]
+    # filtered_FOH_target_df = filtered_FOH_target_df[~FOH_target_df["FOH_target"].isna()]
+    # Prevent index mismatch during filtering
+    filtered_FOH_target_df = filtered_FOH_target_df[~filtered_FOH_target_df["FOH_target"].isna()
+]
 
     # Concatenate target_csvdata_df with FOH_target_df["time_stamps"] horizontally
     try: 
