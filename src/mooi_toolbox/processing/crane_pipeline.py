@@ -12,13 +12,19 @@ from mooi_toolbox.processing.vr_intervals import match_behav_intervals_with_trig
 from mooi_toolbox.processing import crane_behaviour_processing as cbp
 from mooi_toolbox.processing import crane_debrief_data as debrief
 
-@dataclass
-class CranePipelineInput:
+#TODO: Dataclass can be used to also look for the variables and generate errors.
+@dataclass(frozen=True)
+class CranePipelineInput():
     subject_id : str = "00020"
     biopac_fn: str = r"crane_data\\2026481120_00020_CraneOut.mat"
     behav_folder : str = r"crane_data"
     verbose : bool = False
     show_plots : bool = False
+    
+@dataclass(frozen=True)
+class CranePipelineOutput():
+    subject_df_out : pd.DataFrame
+    figure_data_out : Figure
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +89,7 @@ def validate_participant_output(participant_out_df: pd.DataFrame) -> pd.DataFram
     """Validate and coerce the participant-level wide output."""
     return build_participant_output_schema().validate(participant_out_df)
 
-def run_pipeline(data_in : CranePipelineInput) -> tuple[pd.DataFrame,Figure]:
+def run_pipeline(data_in : CranePipelineInput) -> CranePipelineOutput:
     
     fig : Figure = None
     # Needs raw EDA to work. 
@@ -138,7 +144,10 @@ def run_pipeline(data_in : CranePipelineInput) -> tuple[pd.DataFrame,Figure]:
 
     if len(participant_data_out) != 0:
         # Concatenate row wise
-        return (pd.concat(participant_data_out, axis = 1),fig)
+        return CranePipelineOutput(
+            subject_df_out=pd.concat(participant_data_out, axis = 1),
+            figure_data_out=fig
+            )
     else:
-        return (pd.DataFrame(),None)
+        return CranePipelineOutput(subject_df_out=pd.DataFrame(),figure_data_out=None)
 

@@ -34,7 +34,10 @@ def main(biopac_mat_fn  : str , behav_folder: str , output_folder : str,verbose 
                 show_plots=False
                 )
     
-    participant_data_out,fig = run_crane_pipeline(pipeline_input)
+    pipeline_output = run_crane_pipeline(pipeline_input)
+    participant_data_out = pipeline_output.subject_df_out
+    fig = pipeline_output.figure_data_out
+    
     print(participant_data_out)
     save_plot(fig,output_folder,subject_id,f"Subject {subject_id} QC")
 

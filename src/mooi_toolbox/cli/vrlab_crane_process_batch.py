@@ -60,8 +60,10 @@ def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool
                 )
 
             try:
-                participant_data_out, fig = run_crane_pipeline(pipeline_input)
-
+                pipeline_output = run_crane_pipeline(pipeline_input)
+                participant_data_out = pipeline_output.subject_df_out
+                fig = pipeline_output.figure_data_out
+                
                 try:
                     save_plot(fig, output_folder, subject_id, f"Subject {subject_id} QC")
                     # TODO: This causes issues: need to matplotlib.use("Agg") or similar
