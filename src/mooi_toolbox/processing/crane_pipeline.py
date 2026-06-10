@@ -179,9 +179,18 @@ def run_pipeline(data_in : CranePipelineInput) -> CranePipelineOutput:
     if fig is None:
         fig = eda.run_eda_qc(eda_raw_timestamped,scr_df_out,vr_intervals)
 
+    df_out = pd.concat(participant_data_out, axis = 1)
+
+    col_to_mv = "Processing_Status"
+
+    if col_to_mv in df_out.columns:
+        cols = df_out.columns.tolist()
+        cols.remove(col_to_mv)
+        cols.insert(1, col_to_mv)
+        df_out = df_out[cols]
 
     return CranePipelineOutput(
-            subject_df_out=pd.concat(participant_data_out, axis = 1),
+            subject_df_out=df_out,
             figure_data_out=fig,
             status=status
             )
