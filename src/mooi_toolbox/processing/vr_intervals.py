@@ -2,7 +2,8 @@ import logging
 import pandas as pd
 from mooi_toolbox.read_mobi_xdf import xdf_io
 from mooi_toolbox import config as cfg
-    
+from mooi_toolbox.processing.processing_status import ProcessingStatus
+
 logger = logging.getLogger(__name__)
 
 def get_event_time(xdf_df_in : pd.DataFrame ,col_id : str = "VR_trial", event_id : str = "RaiseSafetyPlatform") -> float:
@@ -117,10 +118,11 @@ def get_crane_behav_intervals(validated_behav_df : pd.DataFrame) -> dict[str,tup
     return intervals_out
 
 
-def match_behav_intervals_with_trigger_intervals(trigger_intervals : dict[str,tuple[float,float]],validated_behav_df) -> dict[str,tuple[float,float]]:
-    
+def match_behav_intervals_with_trigger_intervals(trigger_intervals : dict[str,tuple[float,float]],validated_behav_df) -> tuple[dict[str,tuple[float,float]],ProcessingStatus]:
+
+    status = ProcessingStatus.OK
     behav_intervals = get_crane_behav_intervals(validated_behav_df)
-    
+
     for behav_key, behav_interval in behav_intervals.items():
         behav_start = behav_interval[0]
         max_start_delta=6.0
@@ -147,4 +149,10 @@ def match_behav_intervals_with_trigger_intervals(trigger_intervals : dict[str,tu
         matched_intervals.update({behav_key : trigger_intervals[best_trigger_key]})
         matched_intervals.pop(best_trigger_key)
 
-    return matched_intervals
+    unmatched = behav_intervals.keys() - matched_intervals.keys()
+
+    if len(unmatched) != 0:
+        logger.warning("Could not match %s",unmatched)
+        status = ProcessingStatus.ERROR
+
+    return (matched_intervals,status)

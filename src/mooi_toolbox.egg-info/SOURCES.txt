@@ -10,14 +10,15 @@ src/mooi_toolbox.egg-info/top_level.txt
 src/mooi_toolbox/cli/check_mobi_xdf.py
 src/mooi_toolbox/cli/mobi_FOH_process.py
 src/mooi_toolbox/cli/mobi_FOH_process_batch.py
-src/mooi_toolbox/cli/mobi_core_process.py
 src/mooi_toolbox/cli/plot_subject_target_scr_bars.py
 src/mooi_toolbox/cli/vrlab_crane_process.py
-src/mooi_toolbox/cli/vrlab_crane_process_batch.py
+src/mooi_toolbox/cli/vrlab_crane_qc.py
 src/mooi_toolbox/processing/__init__.py
 src/mooi_toolbox/processing/biopac.py
 src/mooi_toolbox/processing/crane_behaviour_processing.py
+src/mooi_toolbox/processing/crane_debrief_data.py
 src/mooi_toolbox/processing/crane_pipeline.py
+src/mooi_toolbox/processing/csv_files.py
 src/mooi_toolbox/processing/ecg.py
 src/mooi_toolbox/processing/eda.py
 src/mooi_toolbox/processing/eeg.py
@@ -26,7 +27,9 @@ src/mooi_toolbox/processing/foh_target_processing.py
 src/mooi_toolbox/processing/mobi_core_pipeline.py
 src/mooi_toolbox/processing/opensignals.py
 src/mooi_toolbox/processing/plot_utils.py
+src/mooi_toolbox/processing/processing_status.py
 src/mooi_toolbox/processing/vr_intervals.py
+src/mooi_toolbox/qc/crane_behav_qc.py
 src/mooi_toolbox/read_mobi_xdf/__init__.py
 src/mooi_toolbox/read_mobi_xdf/xdf_io.py
 src/mooi_toolbox/window_manager/__init__.py
@@ -36,3 +39,4 @@ src/mooi_toolbox/window_manager/python_window_management.py
 src/mooi_toolbox/window_manager/Automate/TestController.py
 src/mooi_toolbox/window_manager/Automate/automation_layer.py
 src/mooi_toolbox/window_manager/Automate/session_controller.py
+tests/test_crane_pipeline.py

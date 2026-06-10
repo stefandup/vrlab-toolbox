@@ -3,7 +3,6 @@ from matplotlib.figure import Figure
 import logging
 import pandera.pandas as pa
 from dataclasses import dataclass
-from enum import Enum
 
 from mooi_toolbox.processing import biopac
 from mooi_toolbox import config as cfg
@@ -12,16 +11,12 @@ from mooi_toolbox.processing.vr_intervals import get_trigger_intervals
 from mooi_toolbox.processing.vr_intervals import match_behav_intervals_with_trigger_intervals
 from mooi_toolbox.processing import crane_behaviour_processing as cbp
 from mooi_toolbox.processing import crane_debrief_data as debrief
+from mooi_toolbox.processing.processing_status import ProcessingStatus
 
 #TODO: Dataclass can be used to also look for the variables and generate errors.
 
 # Define dataclasses to make the input/output contract of the pipeline clear. 
 # This will help later in simplifying the larger toolbox strategies used.
-
-class ProcessingStatus(Enum):
-    ERROR = "error"
-    PARTIAL = "partial"
-    OK = "ok"
 
 # Dataclass is frozen to avoid changes during the pipeline
 @dataclass(frozen=True)
@@ -62,7 +57,7 @@ BEHAVIOUR_OUTPUT_METRICS = (
     *(f"{emotion}_proportion" for emotion in cbp.EMOTIONS_TESTED),
 )
 DEBRIEF_OUTPUT_METRICS = tuple(debrief.emotion_cols)
-
+EXPECTED_INTERVAL_NR = 23
 def _optional_float_column() -> pa.Column:
     return pa.Column(float, nullable=True, coerce=True, required=False)
 
@@ -157,14 +152,17 @@ def run_pipeline(data_in : CranePipelineInput) -> CranePipelineOutput:
         status = ProcessingStatus.PARTIAL
     
     # Do QC
-    #TODO: More robustness needed for trigger interval detection
     vr_intervals = get_trigger_intervals(biopac.load_biopac_data(data_in.biopac_fn,'Trigger'))
+    if len(vr_intervals) != EXPECTED_INTERVAL_NR:
+        logger.warning("Interval count is %d and not %d for subject %s.",len(vr_intervals),EXPECTED_INTERVAL_NR,data_in.subject_id)
+        status = ProcessingStatus.ERROR
 
     scr_df_out = eda.run_eda_intervals(eda_raw_timestamped,vr_intervals)
     if validated_behav_df is not None:
         # Do labeled Physiology
         try:
-            labeled_vr_intervals = match_behav_intervals_with_trigger_intervals(vr_intervals,validated_behav_df)
+            labeled_vr_intervals,behav_status = match_behav_intervals_with_trigger_intervals(vr_intervals,validated_behav_df)
+            status = behav_status
             scr_interval_df_out = eda.run_eda_intervals(eda_raw_timestamped,labeled_vr_intervals)
             scr_interval_df_out = scr_interval_df_out.reset_index(drop=True)
             fig = eda.run_eda_qc(eda_raw_timestamped,scr_df_out,labeled_vr_intervals)
