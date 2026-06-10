@@ -94,35 +94,43 @@ plot_target_data --input-csv local_lsl_data/_out/FOH_process_batch_out.csv --out
 
 If no arguments are supplied, the script uses its default paths under `local_lsl_data/_out`.
 
-### Process one VRLab Crane Biopac file
+### Process VRLab Crane Biopac files
 
-Run the Crane pipeline for one Biopac `.mat` file.
+Run the Crane pipeline for Biopac `.mat` files and matching behaviour data.
+Crane now uses one command for both batch-style processing and single-subject
+processing:
 
 ```bash
-vrlab_crane_process path/to/subject_file.mat path/to/output_folder
+vrlab_crane_process path/to/crane_mat_folder path/to/behaviour_folder path/to/output_folder
+```
+
+By default, the command searches recursively under the input folder for all
+files matching `*_CraneOut.mat`, processes each subject it can, saves QC plots,
+and writes combined participant-level output files.
+
+To process one participant, pass the subject ID:
+
+```bash
+vrlab_crane_process path/to/crane_mat_folder path/to/behaviour_folder path/to/output_folder --subject_id P00018
 ```
 
 With verbose output:
 
 ```bash
-vrlab_crane_process path/to/subject_file.mat path/to/output_folder --verbose
+vrlab_crane_process path/to/crane_mat_folder path/to/behaviour_folder path/to/output_folder --verbose
 ```
 
-### Batch-process VRLab Crane Biopac files
-
-Process all `.mat` files found recursively under an input folder.
-
-```bash
-vrlab_crane_batch crane_data crane_data_out
-```
-
-If the output folder is omitted, the script writes to `<input_folder>_out`.
-
-The batch output CSV is written as:
+The combined Crane output files are written as:
 
 ```text
-vrlab_crane_process_batch_out.csv
+vrlab_crane_process_batch_data_out.csv
+vrlab_crane_process_batch_data_out.sav
 ```
+
+When `--subject_id` is supplied, the output filenames are prefixed with that
+subject ID. The FOH workflow is intended to move toward this same single-script
+pattern, where one command can handle either one participant or all matching
+files.
 
 ---
 
