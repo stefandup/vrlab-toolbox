@@ -2,6 +2,7 @@ import pandas as pd
 from matplotlib.figure import Figure
 import logging
 import pandera.pandas as pa
+from dataclasses import dataclass
 
 from mooi_toolbox.processing import biopac
 from mooi_toolbox import config as cfg
@@ -10,6 +11,14 @@ from mooi_toolbox.processing.vr_intervals import get_trigger_intervals
 from mooi_toolbox.processing.vr_intervals import match_behav_intervals_with_trigger_intervals
 from mooi_toolbox.processing import crane_behaviour_processing as cbp
 from mooi_toolbox.processing import crane_debrief_data as debrief
+
+@dataclass
+class CranePipelineInput:
+    subject_id : str = "00020"
+    biopac_fn: str = r"crane_data\\2026481120_00020_CraneOut.mat"
+    behav_folder : str = r"crane_data"
+    verbose : bool = False
+    show_plots : bool = False
 
 logger = logging.getLogger(__name__)
 
@@ -74,12 +83,12 @@ def validate_participant_output(participant_out_df: pd.DataFrame) -> pd.DataFram
     """Validate and coerce the participant-level wide output."""
     return build_participant_output_schema().validate(participant_out_df)
 
-def run_pipeline(subject_id : str,biopac_fn : str,behav_folder : str,verbose : bool = False,show_plots : bool = False) -> tuple[pd.DataFrame,Figure]:
+def run_pipeline(data_in : CranePipelineInput) -> tuple[pd.DataFrame,Figure]:
     
     fig : Figure = None
     # Needs raw EDA to work. 
     try:
-        eda_raw_timestamped : pd.DataFrame = biopac.load_biopac_data(biopac_fn,cfg.get_biopac_eda_data_label())
+        eda_raw_timestamped : pd.DataFrame = biopac.load_biopac_data(data_in.biopac_fn,cfg.get_biopac_eda_data_label())
     except ValueError as e:
         logger.warning("Error loading biopac eda data. %s",e)
         raise
@@ -87,29 +96,29 @@ def run_pipeline(subject_id : str,biopac_fn : str,behav_folder : str,verbose : b
     participant_data_out = []
             
     try:
-        behav_data_out,validated_behav_df = cbp.main(subject_id,behav_folder)
-        behav_data_out.insert(0,"Subject_ID",subject_id)
+        behav_data_out,validated_behav_df = cbp.main(data_in.subject_id,data_in.behav_folder)
+        behav_data_out.insert(0,"Subject_ID",data_in.subject_id)
         behav_data_out = behav_data_out.reset_index(drop=True)
         participant_data_out.append(behav_data_out)
-        logger.info("Processed behav data for subject %s",subject_id)
+        logger.info("Processed behav data for subject %s",data_in.subject_id)
 
     except ValueError as e:
-        logger.warning("Skipping behaviour analysis on %s. %s",subject_id,e)
+        logger.warning("Skipping behaviour analysis on %s. %s",data_in.subject_id,e)
 
     try:
-        debrief_data_out = debrief.main(subject_id,behav_folder)
+        debrief_data_out = debrief.main(data_in.subject_id,data_in.behav_folder)
         debrief_data_out = debrief_data_out.reset_index(drop=True)
         participant_data_out.append(debrief_data_out)
 
-        logger.info("Processed debrief data for subject %s",subject_id)
+        logger.info("Processed debrief data for subject %s",data_in.subject_id)
 
     except ValueError as e:
-        logger.warning("Skipping debrief analysis on %s. %s",subject_id,e)
+        logger.warning("Skipping debrief analysis on %s. %s",data_in.subject_id,e)
     
 
     # Do QC
 
-    vr_intervals = get_trigger_intervals(biopac.load_biopac_data(biopac_fn,'Trigger'))
+    vr_intervals = get_trigger_intervals(biopac.load_biopac_data(data_in.biopac_fn,'Trigger'))
     scr_df_out = eda.run_eda_intervals(eda_raw_timestamped,vr_intervals)
     
     # Do labeled Physiology
@@ -120,7 +129,7 @@ def run_pipeline(subject_id : str,biopac_fn : str,behav_folder : str,verbose : b
         fig = eda.run_eda_qc(eda_raw_timestamped,scr_df_out,labeled_vr_intervals)
         participant_data_out.append(scr_interval_df_out)
     except ValueError as e:
-            logger.warning("Skipping physiology analysis on %s. %s",subject_id,e)
+            logger.warning("Skipping physiology analysis on %s. %s",data_in.subject_id,e)
      
      # TODO: rather validate at subject level
 

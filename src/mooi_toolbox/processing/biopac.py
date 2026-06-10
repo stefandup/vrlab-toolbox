@@ -1,5 +1,4 @@
 import logging
-import mooi_toolbox.config as cfg
 import scipy.io as sio
 import pandas as pd
 import numpy as np

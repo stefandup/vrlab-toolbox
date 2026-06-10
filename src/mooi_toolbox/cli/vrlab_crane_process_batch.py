@@ -10,7 +10,7 @@ import pandera.pandas as pa
 from mooi_toolbox import mobi_logging
 from mooi_toolbox.processing import biopac
 from mooi_toolbox.processing.crane_pipeline import run_pipeline as run_crane_pipeline
-from mooi_toolbox.processing.crane_pipeline import validate_participant_output
+from mooi_toolbox.processing.crane_pipeline import validate_participant_output , CranePipelineInput
 from mooi_toolbox.processing.plot_utils import save_plot
 
 logger = logging.getLogger(__name__)
@@ -51,14 +51,16 @@ def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool
 
             participant_data_out = None
 
-            try:
-                participant_data_out, fig = run_crane_pipeline(
-                    subject_id,
-                    biopac_mat_fn,
-                    behav_folder,
-                    verbose=verbose,
-                    show_plots=False,
+            pipeline_input = CranePipelineInput(
+                subject_id=subject_id,
+                biopac_fn=biopac_mat_fn,
+                behav_folder=behav_folder,
+                verbose=verbose,
+                show_plots=False
                 )
+
+            try:
+                participant_data_out, fig = run_crane_pipeline(pipeline_input)
 
                 try:
                     save_plot(fig, output_folder, subject_id, f"Subject {subject_id} QC")
