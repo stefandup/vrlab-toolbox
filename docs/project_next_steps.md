@@ -6,7 +6,9 @@ The toolbox has moved beyond a single-script research workflow into a more modul
 
 The FOH pipeline now handles multiple LSL/XDF streams, including physiology, VR markers, trial events, and target behaviour. It checks for missing streams, logs warnings, and tries to continue where possible instead of failing the whole participant immediately. This is the right direction for messy research data where recordings are often incomplete.
 
-A second VR paradigm, Crane, has also been added. Crane introduces Biopac `.mat` input, trigger-derived intervals, and reuse of the existing interval-based EDA processing and QC plotting. Adding this second paradigm showed that the code can support multiple environments, but also exposed the next major design issue: dataframe identity and dataframe contracts are still too implicit.
+A second VR paradigm, Crane, has also been added. Crane introduces Biopac `.mat` input, trigger-derived intervals, behaviour/debrief processing, and reuse of the existing interval-based EDA processing and QC plotting. Adding this second paradigm showed that the code can support multiple environments, but also exposed the next major design issue: pipeline input/output contracts and dataframe identity need to be explicit before a shared pipeline architecture is introduced.
+
+Crane is now being used as the pilot for a strategy-style pipeline boundary. The pipeline has been moved toward a single input object and a single output object, with a participant-level dataframe, optional QC figure, and processing status. This is the right level of structure for now: each environment can become a function-based strategy first, while a shared template/runner can wait until FOH and Crane prove the same shape in practice.
 
 ## Main Lesson
 
@@ -29,14 +31,40 @@ This makes it harder to add new pipelines and harder for students to know where 
 
 Use a contract-first refactor before doing a larger architecture refactor.
 
+The immediate architectural direction is:
+
+1. make each paradigm pipeline a clear function-based strategy;
+2. align inputs, outputs, statuses, and validation behaviour;
+3. only then consider a shared template/runner for common orchestration.
+
 ### 1. Small cleanup
 
 - Replace remaining `print()` calls with logging.
 - Fix obvious return type hints, especially functions that can return `None`.
 - Fix small robustness issues in loading and missing-column handling.
-- Make Crane's failure handling more consistent with FOH.
+- Finish Crane's small contract cleanup: tests, nullable figures in CLIs, and consistent status handling.
 
-### 2. Add dataframe contracts
+### 2. Standardize pipeline input/output contracts
+
+Before extracting shared abstractions, make each paradigm pipeline expose the same broad contract:
+
+- one input dataclass;
+- one output dataclass;
+- participant-level output dataframe;
+- optional QC figure;
+- processing status such as `ok`, `partial`, or `error`;
+- validation at the output boundary.
+
+Crane is the pilot implementation for this pattern. FOH should follow next, without introducing a shared template yet.
+
+Important design rules:
+
+- missing optional data should produce a logged warning and a `partial` output where possible;
+- unrecoverable participant-level failures should produce an `error` output row when that helps downstream accounting;
+- the output dataframe should carry processing status so CSV/SPSS analysis can spot partial or failed subjects;
+- the Python output object and exported dataframe should agree on status.
+
+### 3. Add dataframe contracts
 
 Introduce Pandera schemas for important dataframe shapes.
 
@@ -70,12 +98,14 @@ Use Pandera mainly at boundaries:
 
 Avoid validating every tiny intermediate dataframe unless it prevents a real source of confusion or failure.
 
-### 3. Add small tests
+### 4. Add small tests
 
 Start with tiny synthetic dataframe tests rather than full real-file tests.
 
 Good first targets:
 
+- Crane output status for successful, partial, and error cases;
+- Crane output dataframe includes `Processing_Status`;
 - missing stream checks;
 - trigger interval creation;
 - schema accepts valid EDA data;
@@ -84,7 +114,7 @@ Good first targets:
 - FOH target parsing with missing header compensation;
 - interval fallback logic.
 
-### 4. Standardize soft failure rules
+### 5. Standardize soft failure rules
 
 Decide which failures should:
 
@@ -98,9 +128,9 @@ Examples:
 - missing interval data: likely stop interval-based processing;
 - one failed EDA interval: skip that interval;
 - malformed target data: skip target behaviour;
-- corrupted input file: skip participant/file.
+- corrupted input file: return an error output row or skip participant/file, depending on whether downstream accounting needs a row.
 
-### 5. Align FOH and Crane pipeline shape
+### 6. Align FOH and Crane pipeline shape
 
 Both pipelines should eventually follow the same broad sequence:
 
@@ -112,11 +142,13 @@ Both pipelines should eventually follow the same broad sequence:
 6. run behaviour processors;
 7. combine outputs;
 8. generate QC figures;
-9. return participant-level output and diagnostics.
+9. return participant-level output, diagnostics, and processing status.
 
-### 6. Later: add a paradigm specification
+Do this alignment with function-based strategy objects first. Avoid a class hierarchy unless a pipeline needs persistent state or lifecycle methods.
 
-Only after contracts and tests are clearer, introduce a lightweight `ParadigmSpec` or similar structure.
+### 7. Later: add a lightweight runner/template
+
+Only after contracts and tests are clearer, introduce a lightweight pipeline runner, template, `ParadigmSpec`, or similar structure.
 
 The long-term goal is that a student can add a new VR environment by defining:
 
@@ -128,10 +160,12 @@ The long-term goal is that a student can add a new VR environment by defining:
 - behaviour processors;
 - output naming rules.
 
+The likely future shape is a small runner that accepts a pipeline context and a list of step functions. Each step should return a predictable result: output dataframe, optional figure, status/skip reason, and logs. This should come after Crane and FOH both follow the simpler input/output strategy contract.
+
 ## Working Rule
 
 Do not rewrite everything at once. Preserve working behaviour and improve one structural issue at a time.
 
 The next major refactor should be:
 
-> dataframe contracts first, shared pipeline architecture second.
+> function-based strategy contracts first, dataframe contracts alongside them, shared template architecture second.

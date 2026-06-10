@@ -27,17 +27,17 @@ class ProcessingStatus(Enum):
 @dataclass(frozen=True)
 class CranePipelineInput():
     #TODO: Maybe not best practice to hard code here as wont be available to everyone.
-    subject_id : str = "00020"
-    biopac_fn: str = r"crane_data\\2026481120_00020_CraneOut.mat"
-    behav_folder : str = r"crane_data"
-    verbose : bool = False
-    show_plots : bool = False
+    subject_id : str
+    biopac_fn: str
+    behav_folder : str
+    verbose : bool
+    show_plots : bool
 
 @dataclass
 class CranePipelineOutput():
 
     subject_df_out : pd.DataFrame
-    figure_data_out : Figure
+    figure_data_out : Figure | None
     status : ProcessingStatus
 
     def __post_init__(self):
@@ -121,11 +121,14 @@ def run_pipeline(data_in : CranePipelineInput) -> CranePipelineOutput:
 
     validated_behav_df = None
     fig : Figure = None
+    # Assume OK unless and exception is raied
     status = ProcessingStatus.OK
+
     # Needs raw EDA to work. 
+    
     try:
         eda_raw_timestamped : pd.DataFrame = biopac.load_biopac_data(data_in.biopac_fn,cfg.get_biopac_eda_data_label())
-    except ValueError as e:
+    except (ValueError,FileNotFoundError) as e:
         logger.warning("Error loading biopac eda data. %s",e)
         return get_error_output(data_in)
 
@@ -138,7 +141,7 @@ def run_pipeline(data_in : CranePipelineInput) -> CranePipelineOutput:
         participant_data_out.append(behav_data_out)
         logger.info("Processed behav data for subject %s",data_in.subject_id)
 
-    except ValueError as e:
+    except (ValueError,FileNotFoundError) as e:
         logger.warning("Skipping behaviour analysis on %s. %s",data_in.subject_id,e)
         status = ProcessingStatus.PARTIAL
 
@@ -149,14 +152,14 @@ def run_pipeline(data_in : CranePipelineInput) -> CranePipelineOutput:
 
         logger.info("Processed debrief data for subject %s",data_in.subject_id)
 
-    except ValueError as e:
+    except (ValueError,FileNotFoundError) as e:
         logger.warning("Skipping debrief analysis on %s. %s",data_in.subject_id,e)
         status = ProcessingStatus.PARTIAL
     
-
     # Do QC
-
+    #TODO: More robustness needed for trigger interval detection
     vr_intervals = get_trigger_intervals(biopac.load_biopac_data(data_in.biopac_fn,'Trigger'))
+
     scr_df_out = eda.run_eda_intervals(eda_raw_timestamped,vr_intervals)
     if validated_behav_df is not None:
         # Do labeled Physiology
@@ -178,13 +181,10 @@ def run_pipeline(data_in : CranePipelineInput) -> CranePipelineOutput:
     if fig is None:
         fig = eda.run_eda_qc(eda_raw_timestamped,scr_df_out,vr_intervals)
 
-    if len(participant_data_out) != 0:
-        # Concatenate row wise
-        return CranePipelineOutput(
+
+    return CranePipelineOutput(
             subject_df_out=pd.concat(participant_data_out, axis = 1),
             figure_data_out=fig,
             status=status
             )
-    else:
-        return get_error_output(data_in)
 

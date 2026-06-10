@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool):
     """CLI tool for batch processing VRLab crane behaviour and physiology data."""
     
-    #TODO: Empty DF out needs to give a warning.
+    participant_data_out = None
+    fig=None
 
     logger.info("Looking into input folder: %s. Output folder: %s", input_folder, output_folder)
 
@@ -49,7 +50,7 @@ def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool
             mobi_logging.log_section(logger, f"Subject {subject_id}")
             logger.info("Trying to read file %s",biopac_mat_fn)
 
-            participant_data_out = None
+
 
             pipeline_input = CranePipelineInput(
                 subject_id=subject_id,
@@ -63,7 +64,7 @@ def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool
                 pipeline_output = run_crane_pipeline(pipeline_input)
                 participant_data_out = pipeline_output.subject_df_out
                 fig = pipeline_output.figure_data_out
-                
+
                 try:
                     save_plot(fig, output_folder, subject_id, f"Subject {subject_id} QC")
                     # TODO: This causes issues: need to matplotlib.use("Agg") or similar
