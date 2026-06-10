@@ -119,7 +119,7 @@ def get_crane_behav_intervals(validated_behav_df : pd.DataFrame) -> dict[str,tup
 
 
 def match_behav_intervals_with_trigger_intervals(trigger_intervals : dict[str,tuple[float,float]],validated_behav_df) -> tuple[dict[str,tuple[float,float]],ProcessingStatus]:
-
+    #TODO: Make more robust
     status = ProcessingStatus.OK
     behav_intervals = get_crane_behav_intervals(validated_behav_df)
 
