@@ -77,7 +77,7 @@ def validate_participant_output(participant_out_df: pd.DataFrame) -> pd.DataFram
 def run_pipeline(subject_id : str,biopac_fn : str,behav_folder : str,verbose : bool = False,show_plots : bool = False) -> tuple[pd.DataFrame,Figure]:
     
     fig : Figure = None
-
+    # Needs raw EDA to work. 
     try:
         eda_raw_timestamped : pd.DataFrame = biopac.load_biopac_data(biopac_fn,cfg.get_biopac_eda_data_label())
     except ValueError as e:
