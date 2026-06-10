@@ -3,6 +3,7 @@ from matplotlib.figure import Figure
 import logging
 import pandera.pandas as pa
 from dataclasses import dataclass
+from enum import Enum
 
 from mooi_toolbox.processing import biopac
 from mooi_toolbox import config as cfg
@@ -13,18 +14,34 @@ from mooi_toolbox.processing import crane_behaviour_processing as cbp
 from mooi_toolbox.processing import crane_debrief_data as debrief
 
 #TODO: Dataclass can be used to also look for the variables and generate errors.
+
+# Define dataclasses to make the input/output contract of the pipeline clear. 
+# This will help later in simplifying the larger toolbox strategies used.
+
+class ProcessingStatus(Enum):
+    ERROR = "error"
+    PARTIAL = "partial"
+    OK = "ok"
+
+# Dataclass is frozen to avoid changes during the pipeline
 @dataclass(frozen=True)
 class CranePipelineInput():
+    #TODO: Maybe not best practice to hard code here as wont be available to everyone.
     subject_id : str = "00020"
     biopac_fn: str = r"crane_data\\2026481120_00020_CraneOut.mat"
     behav_folder : str = r"crane_data"
     verbose : bool = False
     show_plots : bool = False
-    
-@dataclass(frozen=True)
+
+@dataclass
 class CranePipelineOutput():
+
     subject_df_out : pd.DataFrame
     figure_data_out : Figure
+    status : ProcessingStatus
+
+    def __post_init__(self):
+        self.subject_df_out = validate_participant_output(self.subject_df_out)
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +66,7 @@ DEBRIEF_OUTPUT_METRICS = tuple(debrief.emotion_cols)
 def _optional_float_column() -> pa.Column:
     return pa.Column(float, nullable=True, coerce=True, required=False)
 
+#Schema builds more or less automatically based on the constants set.
 def build_participant_output_schema() -> pa.DataFrameSchema:
     """Create schema for the wide participant output produced by this pipeline."""
     behaviour_columns = {
@@ -80,6 +98,7 @@ def build_participant_output_schema() -> pa.DataFrameSchema:
             **behaviour_columns,
             **debrief_columns,
             **physiology_columns,
+            "Processing_Status" : pa.Column(pd.StringDtype(), nullable=False, coerce=True, required=False)
         },
         coerce=True,
         strict=False,
@@ -89,15 +108,26 @@ def validate_participant_output(participant_out_df: pd.DataFrame) -> pd.DataFram
     """Validate and coerce the participant-level wide output."""
     return build_participant_output_schema().validate(participant_out_df)
 
+def get_error_output(data_in):
+    return CranePipelineOutput(
+            status=ProcessingStatus.ERROR,
+            subject_df_out=pd.DataFrame(
+                {"Subject_ID" : [data_in.subject_id],
+                 "Processing_Status" : [ProcessingStatus.ERROR.value]}),
+            figure_data_out=None
+            ) 
+
 def run_pipeline(data_in : CranePipelineInput) -> CranePipelineOutput:
-    
+
+    validated_behav_df = None
     fig : Figure = None
+    status = ProcessingStatus.OK
     # Needs raw EDA to work. 
     try:
         eda_raw_timestamped : pd.DataFrame = biopac.load_biopac_data(data_in.biopac_fn,cfg.get_biopac_eda_data_label())
     except ValueError as e:
         logger.warning("Error loading biopac eda data. %s",e)
-        raise
+        return get_error_output(data_in)
 
     participant_data_out = []
             
@@ -110,6 +140,7 @@ def run_pipeline(data_in : CranePipelineInput) -> CranePipelineOutput:
 
     except ValueError as e:
         logger.warning("Skipping behaviour analysis on %s. %s",data_in.subject_id,e)
+        status = ProcessingStatus.PARTIAL
 
     try:
         debrief_data_out = debrief.main(data_in.subject_id,data_in.behav_folder)
@@ -120,24 +151,29 @@ def run_pipeline(data_in : CranePipelineInput) -> CranePipelineOutput:
 
     except ValueError as e:
         logger.warning("Skipping debrief analysis on %s. %s",data_in.subject_id,e)
+        status = ProcessingStatus.PARTIAL
     
 
     # Do QC
 
     vr_intervals = get_trigger_intervals(biopac.load_biopac_data(data_in.biopac_fn,'Trigger'))
     scr_df_out = eda.run_eda_intervals(eda_raw_timestamped,vr_intervals)
-    
-    # Do labeled Physiology
-    try:
-        labeled_vr_intervals = match_behav_intervals_with_trigger_intervals(vr_intervals,validated_behav_df)
-        scr_interval_df_out = eda.run_eda_intervals(eda_raw_timestamped,labeled_vr_intervals)
-        scr_interval_df_out = scr_interval_df_out.reset_index(drop=True)
-        fig = eda.run_eda_qc(eda_raw_timestamped,scr_df_out,labeled_vr_intervals)
-        participant_data_out.append(scr_interval_df_out)
-    except ValueError as e:
-            logger.warning("Skipping physiology analysis on %s. %s",data_in.subject_id,e)
-     
-     # TODO: rather validate at subject level
+    if validated_behav_df is not None:
+        # Do labeled Physiology
+        try:
+            labeled_vr_intervals = match_behav_intervals_with_trigger_intervals(vr_intervals,validated_behav_df)
+            scr_interval_df_out = eda.run_eda_intervals(eda_raw_timestamped,labeled_vr_intervals)
+            scr_interval_df_out = scr_interval_df_out.reset_index(drop=True)
+            fig = eda.run_eda_qc(eda_raw_timestamped,scr_df_out,labeled_vr_intervals)
+            participant_data_out.append(scr_interval_df_out)
+        except ValueError as e:
+                logger.warning("Skipping physiology analysis on %s. %s",data_in.subject_id,e)
+                status = ProcessingStatus.PARTIAL
+    else:
+        status = ProcessingStatus.PARTIAL
+
+    # Append the final status
+    participant_data_out.append(pd.DataFrame({"Processing_Status" : [status.value]})) 
 
     if fig is None:
         fig = eda.run_eda_qc(eda_raw_timestamped,scr_df_out,vr_intervals)
@@ -146,8 +182,9 @@ def run_pipeline(data_in : CranePipelineInput) -> CranePipelineOutput:
         # Concatenate row wise
         return CranePipelineOutput(
             subject_df_out=pd.concat(participant_data_out, axis = 1),
-            figure_data_out=fig
+            figure_data_out=fig,
+            status=status
             )
     else:
-        return CranePipelineOutput(subject_df_out=pd.DataFrame(),figure_data_out=None)
+        return get_error_output(data_in)
 
