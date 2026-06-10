@@ -1,7 +1,4 @@
 import unittest
-from pandas import DataFrame
-import pandera as pa
-
 from mooi_toolbox.processing.crane_pipeline import run_pipeline, validate_participant_output
 from mooi_toolbox.processing.crane_pipeline import CranePipelineInput, ProcessingStatus 
 
