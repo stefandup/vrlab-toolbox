@@ -122,21 +122,33 @@ def match_behav_intervals_with_trigger_intervals(trigger_intervals : dict[str,tu
     #TODO: Make more robust
     status = ProcessingStatus.OK
     behav_intervals = get_crane_behav_intervals(validated_behav_df)
-
+    #_behav_intervals = behav_intervals.copy()
+    remaining_trigger_intervals = trigger_intervals.copy()
+    matched_intervals = {}
+    unmatched_behav_keys = set(behav_intervals.keys())
+    max_start_delta=6.0
+    best_deltas = []
+    best_signed_deltas = []
+    matched_debug_rows = []
     for behav_key, behav_interval in behav_intervals.items():
+
         behav_start = behav_interval[0]
-        max_start_delta=6.0
-        matched_intervals = trigger_intervals
+        best_trigger_key = None
+        #
+        #matched_intervals = trigger_intervals
 
         best_delta = float("inf")
-
-        for trigger_key,trigger_interval in trigger_intervals.items():
+        #print(f"Behav start {behav_start}")
+        for trigger_key,trigger_interval in remaining_trigger_intervals.items():
             trigger_start = trigger_interval[0]
+            
             delta = abs(behav_start - trigger_start)
-
+            signed_delta = behav_start - trigger_start
+            #print(f"Trigger {trigger_key} : Time {trigger_interval[0]} :  Delta: {delta}")
             if delta < best_delta:
                 best_trigger_key = trigger_key
                 best_delta = delta
+                best_signed_delta = signed_delta
 
         if best_trigger_key is None:
             continue
@@ -144,15 +156,41 @@ def match_behav_intervals_with_trigger_intervals(trigger_intervals : dict[str,tu
         if best_delta > max_start_delta:
             continue
         
-        logger.info("Max behav offset is %.2f",best_delta)
+        #logger.info("Max behav offset is %.2f",best_delta)
+        matched_intervals[behav_key] = remaining_trigger_intervals.pop(best_trigger_key)
 
-        matched_intervals.update({behav_key : trigger_intervals[best_trigger_key]})
-        matched_intervals.pop(best_trigger_key)
+        matched_debug_rows.append(
+            {
+                "behav_key": behav_key,
+                "trigger_key": best_trigger_key,
+                "behav_start": behav_start,
+                "trigger_start": matched_intervals[behav_key][0],
+                "signed_delta": behav_start - matched_intervals[behav_key][0],
+            }
+        )
 
-    unmatched = behav_intervals.keys() - matched_intervals.keys()
 
-    if len(unmatched) != 0:
-        logger.warning("Could not match %s",unmatched)
+        unmatched_behav_keys.remove(behav_key)
+
+        print(f"Selected: {best_trigger_key} with best delta: {best_delta} as best match for {behav_key}")
+        best_deltas.append(best_delta)
+        best_signed_deltas.append(best_signed_delta)
+    print(f"Best deltas: {best_deltas} Signed: {best_signed_deltas}")
+
+    for previous_row, current_row in zip(matched_debug_rows[:-1], matched_debug_rows[1:]):
+        behav_spacing = current_row["behav_start"] - previous_row["behav_start"]
+        trigger_spacing = current_row["trigger_start"] - previous_row["trigger_start"]
+        spacing_error = behav_spacing - trigger_spacing
+
+        print(
+            f"{previous_row['behav_key']} -> {current_row['behav_key']}: "
+            f"behav_spacing={behav_spacing:.3f}, "
+            f"trigger_spacing={trigger_spacing:.3f}, "
+            f"spacing_error={spacing_error:.3f}"
+        )
+
+    if len(unmatched_behav_keys) != 0:
+        logger.warning("Could not match %s",unmatched_behav_keys)
         status = ProcessingStatus.ERROR
 
     return (matched_intervals,status)
