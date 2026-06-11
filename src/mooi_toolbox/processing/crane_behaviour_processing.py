@@ -169,7 +169,10 @@ def main(subject_id : str,behaviour_data_dir : str) -> tuple[pd.DataFrame,pd.Dat
     )
 
     one_row = summary_with_proportions.unstack(wide_cols,fill_value=0)
-    one_row = one_row.to_frame().T
+
+    if isinstance(one_row,pd.Series):
+        one_row = one_row.to_frame().T
+
     one_row.columns = [f"{metric}_{block_type}_{trial_type}" for metric, block_type, trial_type in one_row.columns]
 
     one_row = one_row.reset_index(drop=True)
