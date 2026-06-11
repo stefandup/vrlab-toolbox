@@ -1,5 +1,4 @@
 import unittest
-from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.biopac import BiopacRawData
 from mooi_toolbox.processing.crane_pipeline import run_pipeline, validate_participant_output
 from mooi_toolbox.processing.crane_pipeline import ProcessingStatus 
