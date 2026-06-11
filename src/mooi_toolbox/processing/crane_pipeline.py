@@ -12,21 +12,7 @@ from mooi_toolbox.processing.vr_intervals import match_behav_intervals_with_trig
 from mooi_toolbox.processing import crane_behaviour_processing as cbp
 from mooi_toolbox.processing import crane_debrief_data as debrief
 from mooi_toolbox.processing.processing_status import ProcessingStatus
-
-#TODO: Dataclass can be used to also look for the variables and generate errors.
-
-# Define dataclasses to make the input/output contract of the pipeline clear. 
-# This will help later in simplifying the larger toolbox strategies used.
-
-# Dataclass is frozen to avoid changes during the pipeline
-@dataclass(frozen=True)
-class CranePipelineInput():
-    #TODO: Maybe not best practice to hard code here as wont be available to everyone.
-    subject_id : str
-    biopac_fn: str
-    behav_folder : str
-    verbose : bool
-    show_plots : bool
+from mooi_toolbox.processing.input_data import PipelineInput
 
 @dataclass
 class CranePipelineOutput():
@@ -112,17 +98,18 @@ def get_error_output(data_in):
             figure_data_out=None
             ) 
 
-def run_pipeline(data_in : CranePipelineInput) -> CranePipelineOutput:
+def run_pipeline(data_in : PipelineInput) -> CranePipelineOutput:
 
     validated_behav_df = None
-    fig : Figure = None
+    fig : Figure | None = None
     # Assume OK unless and exception is raied
     status = ProcessingStatus.OK
 
     # Needs raw EDA to work. 
     
     try:
-        eda_raw_timestamped : pd.DataFrame = biopac.load_biopac_data(data_in.biopac_fn,cfg.get_biopac_eda_data_label())
+        raw_timestamped_data : biopac.BiopacRawData = biopac.BiopacRawData.load_data(data_in)
+        eda_raw_timestamped = raw_timestamped_data['EDA']
     except (ValueError,FileNotFoundError) as e:
         logger.warning("Error loading biopac eda data. %s",e)
         return get_error_output(data_in)
@@ -152,7 +139,7 @@ def run_pipeline(data_in : CranePipelineInput) -> CranePipelineOutput:
         status = ProcessingStatus.PARTIAL
     
     # Do QC
-    vr_intervals = get_trigger_intervals(biopac.load_biopac_data(data_in.biopac_fn,'Trigger'))
+    vr_intervals = get_trigger_intervals(raw_timestamped_data['Trigger'])
     if len(vr_intervals) != EXPECTED_INTERVAL_NR:
         logger.warning("Interval count is %d and not %d for subject %s.",len(vr_intervals),EXPECTED_INTERVAL_NR,data_in.subject_id)
         status = ProcessingStatus.ERROR

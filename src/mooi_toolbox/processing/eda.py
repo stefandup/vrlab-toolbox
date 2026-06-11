@@ -14,25 +14,25 @@ class EDAProcessingError(Exception):
 
 class nkEDAProcessingResult(TypedDict):
     """Neurokit2 out: Return class that combines cleaned, decomposed and peaks info from the neurokit2 toolbox."""
-    total_time_min: int
+    total_time_min: float
     eda_cleaned: pd.Series
     eda_decomposed: pd.DataFrame
     eda_peaks_info: tuple[pd.DataFrame,dict]
 
-def run_eda_qc(eda_raw_timestamped : pd.DataFrame,eda_data_out : pd.DataFrame | None = None,vr_intervals : dict[str, tuple[float, float]] = None) -> Figure:
+def run_eda_qc(eda_raw_timestamped : pd.DataFrame,eda_data_out : pd.DataFrame | None = None,vr_intervals : dict[str, tuple[float, float]] | None = None) -> Figure:
 
     '''Runs optional QC which includes plotting the whole timeseries and outputting basic info'''
     # Plot the entire timeseries
     complete_ts_eda_out : nkEDAProcessingResult = run_nk_eda_processing(eda_raw_timestamped['EDA'])
     return plot_eda(eda_raw_timestamped,eda_data_out,complete_ts_eda_out,vr_intervals)
 
-def run_nk_eda_processing(eda_raw_series_df : pd.DataFrame, clean_method :str = 'biosppy',peak_detect_method : str ='vanhalem2020',sampling_rate : float = 1000)  -> nkEDAProcessingResult:
+def run_nk_eda_processing(eda_raw_series_df : pd.Series, clean_method :str = 'biosppy',peak_detect_method : str ='vanhalem2020',sampling_rate : float = 1000)  -> nkEDAProcessingResult:
     """Wrap neurokit2 toolbox EDA functions on one set of timeseries data and return values as a combined dictionary."""
     try:
-        total_time_min : int = (len(eda_raw_series_df)/sampling_rate) / 60
-        eda_cleaned = nk.eda_clean(eda_raw_series_df, sampling_rate=sampling_rate, method=clean_method)
-        eda_decomposed = nk.eda_phasic(eda_cleaned, sampling_rate=sampling_rate)
-        eda_peaks_info = nk.eda_peaks(eda_decomposed["EDA_Phasic"], sampling_rate=sampling_rate, method=peak_detect_method)
+        total_time_min : float = (len(eda_raw_series_df)/sampling_rate) / 60
+        eda_cleaned = nk.eda_clean(eda_raw_series_df, sampling_rate=sampling_rate, method=clean_method) # type: ignore
+        eda_decomposed = nk.eda_phasic(eda_cleaned, sampling_rate=sampling_rate) # type: ignore
+        eda_peaks_info = nk.eda_peaks(eda_decomposed["EDA_Phasic"], sampling_rate=sampling_rate, method=peak_detect_method) # type: ignore
     except (ValueError, TypeError, KeyError) as error:
             raise EDAProcessingError(
                 f"Could not process EDA with clean_method={clean_method!r}, "
@@ -93,7 +93,7 @@ def plot_eda(eda_raw_timestamped : pd.DataFrame, scr_participant_data : pd.DataF
     axs[0].set_ylabel('EDA Signal (µS)')
     axs[0].legend(loc="upper left")
 
-    if scr_participant_data is not None:
+    if scr_participant_data is not None and nk_complete_ts_out is not None:
         # Plot cleaned EDA signal if available
         axs[1].plot(time_min, nk_complete_ts_out['eda_cleaned'], label='EDA Cleaned')
         axs[1].set_title('EDA Cleaned')

@@ -1,8 +1,11 @@
 import unittest
+from mooi_toolbox.processing.biodata import RawBioData
+from mooi_toolbox.processing.biopac import BiopacRawData
 from mooi_toolbox.processing.crane_pipeline import run_pipeline, validate_participant_output
-from mooi_toolbox.processing.crane_pipeline import CranePipelineInput, ProcessingStatus 
+from mooi_toolbox.processing.crane_pipeline import ProcessingStatus 
+from mooi_toolbox.processing.input_data import PipelineInput
 
-example_crane_participant_correct = CranePipelineInput(
+example_crane_participant_correct = PipelineInput(
     subject_id = "00020",
     biopac_fn = r"crane_data\\2026481120_00020_CraneOut.mat",
     behav_folder = r"crane_data",
@@ -10,7 +13,7 @@ example_crane_participant_correct = CranePipelineInput(
     show_plots= False
 )
 
-crane_participant_no_FILE = CranePipelineInput(
+crane_participant_no_FILE = PipelineInput(
     subject_id = "00020",
     biopac_fn = r"crane_data\\NOFILE.mat",
     behav_folder = r"crane_data",
@@ -18,7 +21,7 @@ crane_participant_no_FILE = CranePipelineInput(
     show_plots= False
 )
 
-crane_participant_no_BEHAV = CranePipelineInput(
+crane_participant_no_BEHAV = PipelineInput(
     subject_id = "00020",
     biopac_fn = r"crane_data\\2026481120_00020_CraneOut.mat",
     behav_folder = r"NO_BEHAV_FOLDER",
@@ -26,7 +29,7 @@ crane_participant_no_BEHAV = CranePipelineInput(
     show_plots= False
 )
 
-example_incorrect_interval_nr = CranePipelineInput(
+example_incorrect_interval_nr = PipelineInput(
     subject_id = "00007",
     biopac_fn = r"crane_data\\2026371237_00007_CraneOut.mat",
     behav_folder = r"crane_data",
@@ -34,13 +37,23 @@ example_incorrect_interval_nr = CranePipelineInput(
     show_plots= False
 )
 
-example_correct_interval_nr = CranePipelineInput(
+example_correct_interval_nr = PipelineInput(
     subject_id="TESTa",
     biopac_fn = r"crane_data\\20262121130_TESTa_CraneOut.mat",
     behav_folder = r"crane_data",
     verbose = False,
     show_plots= False
 )
+
+class TestBasicDataHandling(unittest.TestCase):
+
+    def test_good_raw_data_init_should_return_ok(self):
+        raw_biodata_good : BiopacRawData = BiopacRawData.load_data(example_crane_participant_correct)
+        self.assertIsInstance(raw_biodata_good,BiopacRawData)
+
+        with self.assertRaises(FileNotFoundError):
+            BiopacRawData.load_data(crane_participant_no_FILE)
+                
 
 class TestCranePipeline(unittest.TestCase):
 
