@@ -1,7 +1,6 @@
 import pandera.pandas as pa
 import pandas as pd
 from dataclasses import dataclass
-from mooi_toolbox.processing.input_data import PipelineInput
 
 def all_columns_are_floats(df : pd.DataFrame) -> bool:
     results = []
@@ -38,7 +37,7 @@ class RawBioData:
         for label,df in self.raw_data.items():
             validated_data[label] = raw_bio_data_schema.validate(df)
 
-        object.__setattr__(self, "validated_raw_data", validated_data)
+        object.__setattr__(self, "raw_data", validated_data)
 
     def __getitem__(self, key :str) -> pd.DataFrame:
         return self.raw_data[key]
