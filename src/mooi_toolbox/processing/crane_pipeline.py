@@ -5,7 +5,6 @@ import pandera.pandas as pa
 from dataclasses import dataclass
 
 from mooi_toolbox.processing import biopac
-from mooi_toolbox import config as cfg
 from mooi_toolbox.processing import eda
 from mooi_toolbox.processing.vr_intervals import get_trigger_intervals
 from mooi_toolbox.processing.vr_intervals import match_behav_intervals_with_trigger_intervals
