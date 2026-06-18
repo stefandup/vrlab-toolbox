@@ -135,6 +135,7 @@ class TestCranePipeline(unittest.TestCase):
                 pipeline_out.subject_df_out["Processing_Status"].iloc[0],
                 'Data_in=ok behav=ok Debrief=ok Intervals=ok phys=ok'
                 )
+        
     def test_crane_handles_medium_short_triggers(self):
         pipeline_out = run_pipeline(example_incorrect_medium_short_trigger)
         self.assertEqual(pipeline_out.status["Intervals"],ProcessingStatus.OK)
