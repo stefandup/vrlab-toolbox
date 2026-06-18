@@ -8,6 +8,7 @@ from mooi_toolbox import mobi_logging
 from mooi_toolbox.processing.foh_pipeline import run_lsl_pipeline as run_lsl_foh_pipeline
 from mooi_toolbox.processing.plot_utils import save_plot
 from mooi_toolbox.read_mobi_xdf import xdf_io
+from mooi_toolbox.cli.check_mobi_xdf import check_mobi_xdf as get_and_check_xdf
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,42 @@ def main(input_folder,output_folder,verbose):
     for xdf_fn in root.rglob("*.xdf"):
     
         subject_id = xdf_io.get_subject_id(xdf_fn)
+        # hier updated
+        try:
+          streams = get_and_check_xdf(xdf_fn, verbose=False)
+        except Exception as error:
+          logger.warning(
+           "Skipping %s because XDF could not be loaded: %s",
+           xdf_fn.name,
+           error
+          )
+          continue
+
+        streams_to_get = ["FOH_target", "VR_trial_events", "VR_markers"]
+
+        found_counts = {}
+
+        for stream in streams:
+            name = stream["info"]["name"][0]
+
+            if name in streams_to_get:
+                found_counts[name] = len(stream["time_series"])
+
+        has_foh_markers = (
+            found_counts.get("FOH_target", 0) > 0
+            and found_counts.get("VR_trial_events", 0) > 0
+            and found_counts.get("VR_markers", 0) > 0
+        )
+
+        if not has_foh_markers:
+            logger.info(
+                "Skipping %s because it does not contain FOH markers. Counts: %s",
+                xdf_fn.name,
+                found_counts
+            )
+            continue
+
+
 
         mobi_logging.log_section(logger, f"Subject {subject_id}")
         try:
