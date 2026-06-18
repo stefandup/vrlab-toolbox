@@ -141,14 +141,14 @@ def setup_opensignals():
         time.sleep(3)
 
         print("[WAIT] Waiting before pressing Record...")
-        time.sleep(8)
+        time.sleep(12)
 
         print("[INFO] Clicking Record...")
         pyautogui.moveTo(*RECORD_BTN, duration=0.4)
         pyautogui.click()
 
         print("[WAIT] Waiting after pressing Record before continuing...")
-        time.sleep(8)
+        time.sleep(12)
 
         print("[OK] OpenSignals automated by coordinates")
 
@@ -223,8 +223,6 @@ def setup_foh(participant_id: str):
 
         PARTICIPANT_FIELD = (727, 302)
         TRAINING_BTN = (864, 546)
-        BACK_BTN = (875, 973)
-        START_VR_BTN = (876, 666)
 
         print("[INFO] Clicking FOH participant field...")
         pyautogui.moveTo(*PARTICIPANT_FIELD, duration=0.3)
@@ -241,24 +239,11 @@ def setup_foh(participant_id: str):
         pyautogui.write(participant_id, interval=0.05)
         time.sleep(0.5)
 
-        print("[INFO] Clicking Training...")
+        print("[INFO] Clicking Training as final automated step...")
         pyautogui.moveTo(*TRAINING_BTN, duration=0.3)
         pyautogui.click()
 
-        print("[INFO] Waiting on training screen...")
-        time.sleep(5)
-
-        print("[INFO] Clicking Back...")
-        pyautogui.moveTo(*BACK_BTN, duration=0.3)
-        pyautogui.click()
-        time.sleep(1)
-
-        print("[INFO] Clicking Start VR...")
-        pyautogui.moveTo(*START_VR_BTN, duration=0.3)
-        pyautogui.click()
-        time.sleep(1)
-
-        print("[OK] FOH fully automated")
+        print("[OK] FOH stopped on Training screen. User can now click Back and Start VR manually.")
 
     except Exception as e:
         print(f"[ERROR] FOH automation failed: {e}")
