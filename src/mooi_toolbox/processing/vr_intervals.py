@@ -6,6 +6,8 @@ from sklearn.linear_model import LinearRegression
 from mooi_toolbox.read_mobi_xdf import xdf_io
 from mooi_toolbox import config as cfg
 from mooi_toolbox.processing.processing_status import ProcessingStatus
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import PolynomialFeatures
 
 logger = logging.getLogger(__name__)
 
@@ -99,14 +101,41 @@ def slice_data_frame(timestamped_df_in : pd.DataFrame, vr_intervals : dict[str, 
 
     return df_dict_out
 
+def remove_known_false_triggers(trigger_interval_pairs : list[tuple[float,float]]):
+    if not trigger_interval_pairs:
+        return trigger_interval_pairs
+
+    zero_tolerance = 0.1
+    minimum_trigger_spacing = 1.0
+    trigger_times = [trigger_interval_pairs[0][0]]
+    trigger_times.extend(end_time for _, end_time in trigger_interval_pairs)
+
+    if abs(trigger_times[0]) <= zero_tolerance:
+        logger.warning("Removed first timepoint as it is likely a false start: %s",trigger_times[0])
+        trigger_times = trigger_times[1:]
+
+    valid_trigger_times = trigger_times[:1]
+    for trigger_time in trigger_times[1:]:
+        if trigger_time - valid_trigger_times[-1] < minimum_trigger_spacing:
+            logger.warning("Removed trigger time %.3f because it was less than %.1f second after %.3f",trigger_time,minimum_trigger_spacing,valid_trigger_times[-1])
+            continue
+
+        valid_trigger_times.append(trigger_time)
+
+    return list(zip(valid_trigger_times[:-1], valid_trigger_times[1:]))
+
 def get_trigger_intervals(trigger_df_in : pd.DataFrame) -> dict[str,tuple[float,float]]:
     """Uses the biopac intervals and gets all the intervals and assigns a TP nr to them regardless of nr"""
     trigger_times = trigger_df_in['time_stamps'][trigger_df_in['Trigger'].diff() > 0.47]
     trigger_events_df = trigger_times.to_frame(name = "trigger_times")
     interval_pairs = list(zip(trigger_events_df['trigger_times'].iloc[:-1], trigger_events_df['trigger_times'].iloc[1:]))
+    interval_pairs = remove_known_false_triggers(interval_pairs) 
+
+    trigger_intervals_out = {
+        f"TP{i}" : (float(start),float(end))for i,(start,end) in enumerate(interval_pairs)
+        }
     
-    return {f"TP{i}" : (float(start),float(end))
-            for i,(start,end) in enumerate(interval_pairs)}
+    return trigger_intervals_out
 
 def get_crane_behav_intervals(validated_behav_df : pd.DataFrame) -> dict[str,tuple[float,float]]:
     
@@ -120,108 +149,78 @@ def get_crane_behav_intervals(validated_behav_df : pd.DataFrame) -> dict[str,tup
 
     return intervals_out
 
-def get_predicted_trigger_times(behav_intervals : dict[str, tuple[float, float]]) -> np.ndarray:
-
-    reference_df = pd.read_parquet(r"C:\\Users\\stefan\\mobi_mooi_toolbox\\matched_debug_df_testa.parquet")
+def get_predicted_trigger_intervals(behav_intervals : dict[str, tuple[float, float]]) -> tuple[dict[str,tuple[float,float]],float]:
+    #TODO incorporate
+    reference_df = pd.read_parquet(r"references/matched_debug_df_testa.parquet")
 
     # Control for the relative start difference.
     X = (reference_df["behav_start"].loc[1:len(behav_intervals)] - reference_df["behav_start"].iloc[0]).values.reshape(-1,1)
     y = (reference_df["trigger_start"].loc[1:len(behav_intervals)] - reference_df["trigger_start"].iloc[0]).values.reshape(-1,1)
-    model = LinearRegression()
+
+    model = make_pipeline(
+    PolynomialFeatures(degree=2, include_bias=False),
+    LinearRegression()
+    )
+
     model.fit(X,y)
     newX = np.array([start_end_time[0] for start_end_time in behav_intervals.values()]).reshape(-1,1)
     newX_rel = newX - newX[0]
+    mean_trial_len = np.mean([start_end_times[1] - start_end_times[0] for start_end_times in behav_intervals.values()])
+    train_pred_y = model.predict(X)
+    absolute_errors = np.abs(np.ravel(y) - np.ravel(train_pred_y))
+    max_expected_delta = np.percentile(absolute_errors, 95) * 10
 
-    return model.predict(newX_rel)
+    pred_trigger_y = model.predict(newX_rel)
+
+    pred_trigger_intervals = {
+        key : (pred_trigger_y[nr].item(),pred_trigger_y[nr].item() + mean_trial_len) 
+        for nr,key in enumerate(behav_intervals.keys())
+        }
+    return (pred_trigger_intervals,max_expected_delta)
+
 
 def match_behav_intervals_with_trigger_intervals(trigger_intervals : dict[str,tuple[float,float]],validated_behav_df) -> tuple[dict[str,tuple[float,float]],ProcessingStatus]:
     #TODO: Make more robust
     behav_intervals = get_crane_behav_intervals(validated_behav_df)
-    predicted_trigger_times = get_predicted_trigger_times(behav_intervals)
+    pred_trigger_intervals,max_expected_delta = get_predicted_trigger_intervals(behav_intervals)
     status = ProcessingStatus.OK
-    
+    experiment_start = next(iter(trigger_intervals.values()))[0] # Get first value of dict
+
     remaining_trigger_intervals = trigger_intervals.copy()
     matched_intervals = {}
     unmatched_behav_keys = set(behav_intervals.keys())
-    max_start_delta=6.0
+    max_start_delta=max_expected_delta
     best_deltas = []
-    best_signed_deltas = []
-    matched_debug_rows = []
 
-    for behav_key, behav_interval in behav_intervals.items():
+    for pred_key,pred_start_end in pred_trigger_intervals.items():
 
-        behav_start = behav_interval[0]
+        rel_pred_start = pred_start_end[0]
         best_trigger_key = None
-        #
-        #matched_intervals = trigger_intervals
-
         best_delta = float("inf")
-        #print(f"Behav start {behav_start}")
-        for trigger_key,trigger_interval in remaining_trigger_intervals.items():
-            trigger_start = trigger_interval[0]
-            
-            delta = abs(behav_start - trigger_start)
-            signed_delta = behav_start - trigger_start
-            print(f"Trigger {trigger_key} : Time {trigger_interval[0]} :  Delta: {delta}")
+
+        for trigger_interval_key,trigger_start_end in remaining_trigger_intervals.items():
+            rel_trigger_start = trigger_start_end[0] - experiment_start
+            delta = abs(rel_pred_start - rel_trigger_start)
+
             if delta < best_delta:
-                best_trigger_key = trigger_key
+                best_trigger_key = trigger_interval_key
                 best_delta = delta
-                best_signed_delta = signed_delta
+                best_deltas.append(best_delta)
 
         if best_trigger_key is None:
             continue
 
         if best_delta > max_start_delta:
-            continue
+            logger.warning("Max delta exceeded for trigger %s. Delta: %s",best_trigger_key,best_delta)
+
+        unmatched_behav_keys.remove(pred_key)
+        matched_intervals[pred_key] = remaining_trigger_intervals.pop(best_trigger_key)
+
+        #print(f"Selected: {best_trigger_key}. Best delta: {best_delta}. Matched {pred_key}")
         
-        #logger.info("Max behav offset is %.2f",best_delta)
-        matched_intervals[behav_key] = remaining_trigger_intervals.pop(best_trigger_key)
-
-        matched_debug_rows.append(
-            {
-                "behav_key": behav_key,
-                "trigger_key": best_trigger_key,
-                "behav_start": behav_start,
-                "behav_end" : behav_interval[1],
-                "trigger_start": matched_intervals[behav_key][0],
-                "trigger_end" : matched_intervals[behav_key][1],
-                "behav_dur" : behav_interval[1] - behav_interval[0],
-                "trigger_dur" : matched_intervals[behav_key][1] - matched_intervals[behav_key][0],
-                "dur_diff" : (matched_intervals[behav_key][1] - matched_intervals[behav_key][0]) - (behav_interval[1] - behav_interval[0]),
-                "trigger_behav_start_diff": behav_start - matched_intervals[behav_key][0],
-            }
-        )
-        unmatched_behav_keys.remove(behav_key)
-
-        print(f"Selected: {best_trigger_key} with best delta: {best_delta} as best match for {behav_key}")
-        best_deltas.append(best_delta)
-        best_signed_deltas.append(best_signed_delta)
-    matched_debug_df = pd.DataFrame(matched_debug_rows)
-    matched_debug_df.to_parquet("matched_debug_df_20.parquet")
-    print(f"Best deltas: {best_deltas} Signed: {best_signed_deltas}")
-    # TODO: Out df for debugging
-    debug_rows = []
-    for previous_row, current_row in zip(matched_debug_rows[:-1], matched_debug_rows[1:]):
-        behav_spacing = current_row["behav_start"] - previous_row["behav_start"]
-        trigger_spacing = current_row["trigger_start"] - previous_row["trigger_start"]
-        spacing_error = behav_spacing - trigger_spacing
-        debug_rows.append({"First_Block_behav" : current_row['behav_key'],
-                           "Previous_Block_behav" : previous_row['behav_key'],
-                           "Behav_spacing" : behav_spacing,
-                           "Trigger_spacing" : trigger_spacing,
-                           "Spacing_Error" : spacing_error
-                           })
-        print(
-            f"{previous_row['behav_key']} -> {current_row['behav_key']}: "
-            f"behav_spacing={behav_spacing:.3f}, "
-            f"trigger_spacing={trigger_spacing:.3f}, "
-            f"spacing_error={spacing_error:.3f}"
-        )
-    debug_df = pd.DataFrame(debug_rows)
-    debug_df.to_parquet("vr_debug_out.parquet", index=False)
-
-    if len(unmatched_behav_keys) != 0:
+    if len(unmatched_behav_keys) != 0:                                                                                                                 
         logger.warning("Could not match %s",unmatched_behav_keys)
-        status = ProcessingStatus.ERROR
+        logger.debug("Best deltas where: %s",best_deltas)                                                                                      
+        status = ProcessingStatus.ERROR  
 
     return (matched_intervals,status)

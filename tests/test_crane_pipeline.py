@@ -44,6 +44,22 @@ example_correct_interval_nr = PipelineInput(
     show_plots= False
 )
 
+example_long_delay = PipelineInput(
+        subject_id="00011",
+    biopac_fn = r"crane_data\\2026325120_00011_CraneOut.mat",
+    behav_folder = r"crane_data",
+    verbose = False,
+    show_plots= False
+)
+
+example_incorrect_short_trigger = PipelineInput(
+    subject_id = "00006",
+    biopac_fn = r"crane_data\\202637138_00006_CraneOut.mat",
+    behav_folder = r"crane_data",
+    verbose = False,
+    show_plots= False
+)
+
 class TestBasicDataHandling(unittest.TestCase):
 
     def test_good_raw_data_init_should_return_ok(self):
@@ -90,6 +106,21 @@ class TestCranePipeline(unittest.TestCase):
 
     def test_crane_returns_ok_for_correct_interval_nr(self):
         pipeline_out = run_pipeline(example_correct_interval_nr)
+        self.assertEqual(pipeline_out.status,ProcessingStatus.OK)
+        self.assertEqual(
+                pipeline_out.subject_df_out["Processing_Status"].iloc[0],
+                ProcessingStatus.OK.value
+                )
+    def test_crane_handles_long_delay_time(self):
+        pipeline_out = run_pipeline(example_long_delay)
+        self.assertEqual(pipeline_out.status,ProcessingStatus.OK)
+        self.assertEqual(
+                pipeline_out.subject_df_out["Processing_Status"].iloc[0],
+                ProcessingStatus.OK.value
+                )
+
+    def test_crane_handles_short_triggers(self):
+        pipeline_out = run_pipeline(example_incorrect_short_trigger)
         self.assertEqual(pipeline_out.status,ProcessingStatus.OK)
         self.assertEqual(
                 pipeline_out.subject_df_out["Processing_Status"].iloc[0],

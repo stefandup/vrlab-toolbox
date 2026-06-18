@@ -10,7 +10,8 @@ import pandera.pandas as pa
 from mooi_toolbox import mobi_logging
 from mooi_toolbox.processing import biopac
 from mooi_toolbox.processing.crane_pipeline import run_pipeline as run_crane_pipeline
-from mooi_toolbox.processing.crane_pipeline import validate_participant_output , CranePipelineInput
+from mooi_toolbox.processing.crane_pipeline import validate_participant_output
+from mooi_toolbox.processing.input_data import PipelineInput
 from mooi_toolbox.processing.plot_utils import save_plot
 
 logger = logging.getLogger(__name__)
@@ -40,7 +41,8 @@ def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool
         task = progress.add_task("Processing subjects", total=len(subject_mat_files))
         
         for biopac_mat_fn in subject_mat_files:
-            subject_id = biopac.get_subject_id_from_mat(biopac_mat_fn)
+            #TODO: fix str to path
+            subject_id = biopac.get_subject_id_from_mat(str(biopac_mat_fn))
 
             progress.update(
                         task,
@@ -52,10 +54,10 @@ def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool
             logger.info("Trying to read file %s",biopac_mat_fn)
 
 
-
-            pipeline_input = CranePipelineInput(
+            #TODO: Fix fn to path
+            pipeline_input = PipelineInput(
                 subject_id=subject_id,
-                biopac_fn=biopac_mat_fn,
+                biopac_fn=str(biopac_mat_fn),
                 behav_folder=behav_folder,
                 verbose=verbose,
                 show_plots=False
@@ -66,12 +68,12 @@ def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool
                 participant_data_out = pipeline_output.subject_df_out
                 fig = pipeline_output.figure_data_out
 
-                try:
-                    save_plot(fig, output_folder, subject_id, f"Subject {subject_id} QC")
-                    # TODO: This causes issues: need to matplotlib.use("Agg") or similar
-                    #plt.close(fig)
-                except AttributeError as error:
-                    logger.info("Error saving plot.%s", error)
+                if fig is not None:
+                        save_plot(fig, output_folder, subject_id, f"Subject {subject_id} QC")
+                        # TODO: This causes issues: need to matplotlib.use("Agg") or similar
+                        #plt.close(fig)
+                else:
+                    logger.info("Error saving plot for %s", subject_id)
 
                 if participant_data_out.empty:
                     logger.warning("No participant output for subject %s", subject_id)
