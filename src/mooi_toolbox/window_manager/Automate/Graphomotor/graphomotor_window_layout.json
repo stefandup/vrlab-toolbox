@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "windows": [
+    {
+      "title": "Lab Recorder",
+      "left": -1854,
+      "top": 32,
+      "width": 685,
+      "height": 472
+    },
+    {
+      "title": "OpenSignals (r)evolution",
+      "left": -901,
+      "top": 425,
+      "width": 800,
+      "height": 600
+    },
+    {
+      "title": "Graphomotor Protocol",
+      "left": -8,
+      "top": -31,
+      "width": 1936,
+      "height": 1100
+    },
+    {
+      "title": "Neon",
+      "left": -1020,
+      "top": 5,
+      "width": 1016,
+      "height": 739
+    }
+  ],
+  "titles": [
+    "Lab Recorder",
+    "OpenSignals (r)evolution",
+    "Graphomotor Protocol",
+    "Neon",
+    "neon-gui",
+    "mobi-neon"
+  ]
+}
