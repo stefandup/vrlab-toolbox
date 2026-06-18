@@ -102,27 +102,42 @@ def slice_data_frame(timestamped_df_in : pd.DataFrame, vr_intervals : dict[str, 
     return df_dict_out
 
 def remove_known_false_triggers(trigger_interval_pairs : list[tuple[float,float]]):
+    #TODO: Improve!
+    #[start_end[1] - start_end[0] for start_end in trigger_interval_pairs]
     if not trigger_interval_pairs:
         return trigger_interval_pairs
 
-    zero_tolerance = 0.1
-    minimum_trigger_spacing = 1.0
-    trigger_times = [trigger_interval_pairs[0][0]]
-    trigger_times.extend(end_time for _, end_time in trigger_interval_pairs)
+    tolerance = 0.1
+    valid_trigger_interval_pairs = []
 
-    if abs(trigger_times[0]) <= zero_tolerance:
-        logger.warning("Removed first timepoint as it is likely a false start: %s",trigger_times[0])
-        trigger_times = trigger_times[1:]
-
-    valid_trigger_times = trigger_times[:1]
-    for trigger_time in trigger_times[1:]:
-        if trigger_time - valid_trigger_times[-1] < minimum_trigger_spacing:
-            logger.warning("Removed trigger time %.3f because it was less than %.1f second after %.3f",trigger_time,minimum_trigger_spacing,valid_trigger_times[-1])
+    for pair_nr, (start_time, end_time) in enumerate(trigger_interval_pairs):
+        if pair_nr == 0 and np.isclose(start_time, 0.0, atol=tolerance):
+            logger.warning(
+                "Removed first interval because its start is likely a false start: %s",
+                start_time,
+            )
             continue
 
-        valid_trigger_times.append(trigger_time)
+        if np.isclose(end_time - start_time, 0.0, atol=tolerance):
+            logger.warning(
+                "Removed interval %.3f to %.3f because its duration is close to zero",
+                start_time,
+                end_time,
+            )
+            continue
 
-    return list(zip(valid_trigger_times[:-1], valid_trigger_times[1:]))
+        if end_time - start_time < 10.0:
+            logger.warning(
+                "Removed interval %.3f to %.3f because its duration is too short: %.3f (s)",
+                start_time,
+                end_time,
+                end_time - start_time
+            )
+            continue
+
+        valid_trigger_interval_pairs.append((start_time, end_time))
+
+    return valid_trigger_interval_pairs
 
 def get_trigger_intervals(trigger_df_in : pd.DataFrame) -> dict[str,tuple[float,float]]:
     """Uses the biopac intervals and gets all the intervals and assigns a TP nr to them regardless of nr"""

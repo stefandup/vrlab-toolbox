@@ -18,7 +18,7 @@ class CranePipelineOutput():
 
     subject_df_out : pd.DataFrame
     figure_data_out : Figure | None
-    status : ProcessingStatus
+    status : dict[str,ProcessingStatus]
 
     def __post_init__(self):
         self.subject_df_out = validate_participant_output(self.subject_df_out)
@@ -88,9 +88,9 @@ def validate_participant_output(participant_out_df: pd.DataFrame) -> pd.DataFram
     """Validate and coerce the participant-level wide output."""
     return build_participant_output_schema().validate(participant_out_df)
 
-def get_error_output(data_in):
+def get_error_output(error_id : str ,data_in : PipelineInput):
     return CranePipelineOutput(
-            status=ProcessingStatus.ERROR,
+            status={error_id : ProcessingStatus.ERROR},
             subject_df_out=pd.DataFrame(
                 {"Subject_ID" : [data_in.subject_id],
                  "Processing_Status" : [ProcessingStatus.ERROR.value]}),
@@ -102,16 +102,17 @@ def run_pipeline(data_in : PipelineInput) -> CranePipelineOutput:
     validated_behav_df = None
     fig : Figure | None = None
     # Assume OK unless and exception is raied
-    status = ProcessingStatus.OK
+    status = {}
 
     # Needs raw EDA to work. 
     
     try:
         raw_timestamped_data : biopac.BiopacRawData = biopac.BiopacRawData.load_data(data_in)
         eda_raw_timestamped = raw_timestamped_data['EDA']
+        status.update({"Data_in" : ProcessingStatus.OK})
     except (ValueError,FileNotFoundError) as e:
         logger.warning("Error loading biopac eda data. %s",e)
-        return get_error_output(data_in)
+        return get_error_output("Data_in",data_in)
 
     participant_data_out = []
             
@@ -121,10 +122,10 @@ def run_pipeline(data_in : PipelineInput) -> CranePipelineOutput:
         behav_data_out = behav_data_out.reset_index(drop=True)
         participant_data_out.append(behav_data_out)
         logger.info("Processed behav data for subject %s",data_in.subject_id)
-
+        status.update({"behav" : ProcessingStatus.OK})
     except (ValueError,FileNotFoundError) as e:
         logger.warning("Skipping behaviour analysis on %s. %s",data_in.subject_id,e)
-        status = ProcessingStatus.PARTIAL
+        status.update({"behav" : ProcessingStatus.PARTIAL})
 
     try:
         debrief_data_out = debrief.main(data_in.subject_id,data_in.behav_folder)
@@ -132,35 +133,40 @@ def run_pipeline(data_in : PipelineInput) -> CranePipelineOutput:
         participant_data_out.append(debrief_data_out)
 
         logger.info("Processed debrief data for subject %s",data_in.subject_id)
-
+        status.update({"Debrief" : ProcessingStatus.OK})
     except (ValueError,FileNotFoundError) as e:
         logger.warning("Skipping debrief analysis on %s. %s",data_in.subject_id,e)
-        status = ProcessingStatus.PARTIAL
+        status.update({"Debrief" : ProcessingStatus.PARTIAL})
     
     # Do QC
     vr_intervals = get_trigger_intervals(raw_timestamped_data['Trigger'])
     if len(vr_intervals) != EXPECTED_INTERVAL_NR:
         logger.warning("Interval count is %d and not %d for subject %s.",len(vr_intervals),EXPECTED_INTERVAL_NR,data_in.subject_id)
-        status = ProcessingStatus.ERROR
+        status.update({"Intervals" : ProcessingStatus.ERROR})
+    else:
+        status.update({"Intervals" : ProcessingStatus.OK})
 
     scr_df_out = eda.run_eda_intervals(eda_raw_timestamped,vr_intervals)
     if validated_behav_df is not None:
         # Do labeled Physiology
         try:
             labeled_vr_intervals,behav_status = match_behav_intervals_with_trigger_intervals(vr_intervals,validated_behav_df)
-            status = behav_status
+            status.update({"behav" : behav_status})
             scr_interval_df_out = eda.run_eda_intervals(eda_raw_timestamped,labeled_vr_intervals)
             scr_interval_df_out = scr_interval_df_out.reset_index(drop=True)
             fig = eda.run_eda_qc(eda_raw_timestamped,scr_df_out,labeled_vr_intervals)
             participant_data_out.append(scr_interval_df_out)
+            status.update({"phys" : ProcessingStatus.OK})
         except ValueError as e:
                 logger.warning("Skipping physiology analysis on %s. %s",data_in.subject_id,e)
-                status = ProcessingStatus.PARTIAL
+                status.update({"phys" : ProcessingStatus.ERROR})
     else:
-        status = ProcessingStatus.PARTIAL
+        status.update({"behav" : ProcessingStatus.ERROR})
+        status.update({"phys" : ProcessingStatus.ERROR})
 
     # Append the final status
-    participant_data_out.append(pd.DataFrame({"Processing_Status" : [status.value]})) 
+    status_text = " ".join(f"{key}={value.value}" for key, value in status.items())
+    participant_data_out.append(pd.DataFrame({"Processing_Status" : [status_text]})) 
 
     if fig is None:
         fig = eda.run_eda_qc(eda_raw_timestamped,scr_df_out,vr_intervals)

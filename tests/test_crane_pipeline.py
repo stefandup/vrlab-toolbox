@@ -52,9 +52,17 @@ example_long_delay = PipelineInput(
     show_plots= False
 )
 
-example_incorrect_short_trigger = PipelineInput(
+example_incorrect_very_short_trigger = PipelineInput(
     subject_id = "00006",
     biopac_fn = r"crane_data\\202637138_00006_CraneOut.mat",
+    behav_folder = r"crane_data",
+    verbose = False,
+    show_plots= False
+)
+
+example_incorrect_medium_short_trigger= PipelineInput(
+    subject_id = "PID16407",
+    biopac_fn = r"crane_data\\20265221116_PID16407_CraneOut.mat",
     behav_folder = r"crane_data",
     verbose = False,
     show_plots= False
@@ -81,7 +89,7 @@ class TestCranePipeline(unittest.TestCase):
     def test_crane_pipeline_labels_missing_file_correctly(self):
 
         pipeline_out = run_pipeline(crane_participant_no_FILE)
-        self.assertEqual(pipeline_out.status,ProcessingStatus.ERROR)
+        self.assertEqual(pipeline_out.status["Data_in"],ProcessingStatus.ERROR)
         self.assertEqual(
                 pipeline_out.subject_df_out["Processing_Status"].iloc[0],
                 ProcessingStatus.ERROR.value
@@ -90,39 +98,47 @@ class TestCranePipeline(unittest.TestCase):
     def test_crane_pipeline_labels_missing_behav_correctly(self):
 
         pipeline_out = run_pipeline(crane_participant_no_BEHAV)
-        self.assertEqual(pipeline_out.status,ProcessingStatus.PARTIAL)
+        self.assertEqual(pipeline_out.status["Debrief"],ProcessingStatus.PARTIAL)
         self.assertEqual(
                 pipeline_out.subject_df_out["Processing_Status"].iloc[0],
-                ProcessingStatus.PARTIAL.value
+                'Data_in=ok behav=error Debrief=partial Intervals=ok phys=error'
                 )
 
-    def test_crane_returns_error_for_incorrect_interval_nr(self):
+    def test_crane_corrects_error_for_incorrect_interval_nr(self):
         pipeline_out = run_pipeline(example_incorrect_interval_nr)
-        self.assertEqual(pipeline_out.status,ProcessingStatus.ERROR)
+        self.assertEqual(pipeline_out.status["Intervals"],ProcessingStatus.OK)
         self.assertEqual(
                 pipeline_out.subject_df_out["Processing_Status"].iloc[0],
-                ProcessingStatus.ERROR.value
+                'Data_in=ok behav=ok Debrief=ok Intervals=ok phys=ok'
                 )
 
     def test_crane_returns_ok_for_correct_interval_nr(self):
         pipeline_out = run_pipeline(example_correct_interval_nr)
-        self.assertEqual(pipeline_out.status,ProcessingStatus.OK)
+        self.assertEqual(pipeline_out.status["Intervals"],ProcessingStatus.OK)
         self.assertEqual(
                 pipeline_out.subject_df_out["Processing_Status"].iloc[0],
-                ProcessingStatus.OK.value
+                'Data_in=ok behav=ok Debrief=ok Intervals=ok phys=ok'
                 )
+        
     def test_crane_handles_long_delay_time(self):
         pipeline_out = run_pipeline(example_long_delay)
-        self.assertEqual(pipeline_out.status,ProcessingStatus.OK)
+        self.assertEqual(pipeline_out.status["Intervals"],ProcessingStatus.OK)
         self.assertEqual(
                 pipeline_out.subject_df_out["Processing_Status"].iloc[0],
-                ProcessingStatus.OK.value
+                'Data_in=ok behav=ok Debrief=ok Intervals=ok phys=ok'
                 )
 
-    def test_crane_handles_short_triggers(self):
-        pipeline_out = run_pipeline(example_incorrect_short_trigger)
-        self.assertEqual(pipeline_out.status,ProcessingStatus.OK)
+    def test_crane_handles_very_short_triggers(self):
+        pipeline_out = run_pipeline(example_incorrect_very_short_trigger)
+        self.assertEqual(pipeline_out.status["Intervals"],ProcessingStatus.OK)
         self.assertEqual(
                 pipeline_out.subject_df_out["Processing_Status"].iloc[0],
-                ProcessingStatus.OK.value
+                'Data_in=ok behav=ok Debrief=ok Intervals=ok phys=ok'
+                )
+    def test_crane_handles_medium_short_triggers(self):
+        pipeline_out = run_pipeline(example_incorrect_medium_short_trigger)
+        self.assertEqual(pipeline_out.status["Intervals"],ProcessingStatus.OK)
+        self.assertEqual(
+                pipeline_out.subject_df_out["Processing_Status"].iloc[0],
+                'Data_in=ok behav=ok Debrief=ok Intervals=ok phys=ok'
                 )
