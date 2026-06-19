@@ -3,6 +3,7 @@ from dataclasses import dataclass, asdict
 
 class ProcessingStatus(Enum):
     NOT_RUN = "not_run"
+    CORRECTED = "corrected"
     ERROR = "error"
     PARTIAL = "partial"
     OK = "ok"

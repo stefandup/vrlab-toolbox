@@ -88,15 +88,13 @@ def validate_participant_output(participant_out_df: pd.DataFrame) -> pd.DataFram
     """Validate and coerce the participant-level wide output."""
     return build_participant_output_schema().validate(participant_out_df)
 
-def get_error_output(data_in : PipelineInput) -> CranePipelineOutput:
-    '''Used when there is no data.'''
-    status = PipelineStatus()
-    status.data_in = ProcessingStatus.ERROR
+def get_error_output(data_in : PipelineInput, status_in : PipelineStatus) -> CranePipelineOutput:
+
     return CranePipelineOutput(
         subject_df_out=pd.DataFrame({"Subject_ID" : [data_in.subject_id], 
-                                     "Processing_Status" : [status.get_as_text()]}),
+                                     "Processing_Status" : [status_in.get_as_text()]}),
         figure_data_out=None,
-        status=status
+        status=status_in
         ) 
 
 def run_pipeline(data_in : PipelineInput) -> CranePipelineOutput:
@@ -114,7 +112,8 @@ def run_pipeline(data_in : PipelineInput) -> CranePipelineOutput:
         status.data_in = ProcessingStatus.OK
     except (ValueError,FileNotFoundError) as e:
         logger.warning("Error loading biopac eda data. %s",e)
-        return get_error_output(data_in)
+        status.data_in = ProcessingStatus.ERROR
+        return get_error_output(data_in,status)
 
     participant_data_out = []
             
@@ -142,12 +141,12 @@ def run_pipeline(data_in : PipelineInput) -> CranePipelineOutput:
         status.debrief = ProcessingStatus.ERROR
     
     # Do QC
-    vr_intervals = get_trigger_intervals(raw_timestamped_data['Trigger'])
+    vr_intervals,status_out = get_trigger_intervals(raw_timestamped_data['Trigger'])
     if len(vr_intervals) != EXPECTED_INTERVAL_NR:
         logger.warning("Interval count is %d and not %d for subject %s.",len(vr_intervals),EXPECTED_INTERVAL_NR,data_in.subject_id)
         status.intervals = ProcessingStatus.ERROR
     else:
-        status.intervals = ProcessingStatus.OK
+        status.intervals = status_out
 
     scr_df_out = eda.run_eda_intervals(eda_raw_timestamped,vr_intervals)
     if validated_behav_df is not None:
@@ -179,6 +178,9 @@ def run_pipeline(data_in : PipelineInput) -> CranePipelineOutput:
         fig = eda.run_eda_qc(eda_raw_timestamped,scr_df_out,vr_intervals)
 
     df_out = pd.concat(participant_data_out, axis = 1)
+
+    if "Subject_ID" not in df_out.columns:
+        df_out.insert(0, "Subject_ID", data_in.subject_id)
 
     # Move processing to front
 
