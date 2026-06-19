@@ -74,11 +74,11 @@ def build_participant_output_schema() -> pa.DataFrameSchema:
 
     return pa.DataFrameSchema(
         {
-            "Subject_ID": pa.Column(pd.StringDtype(), nullable=False, coerce=True, required=False),
+            "Subject_ID": pa.Column(pd.StringDtype(), nullable=False, coerce=True, required=True),
             **behaviour_columns,
             **debrief_columns,
             **physiology_columns,
-            "Processing_Status" : pa.Column(pd.StringDtype(), nullable=False, coerce=True, required=False)
+            "Processing_Status" : pa.Column(pd.StringDtype(), nullable=False, coerce=True, required=True)
         },
         coerce=True,
         strict=False,
@@ -88,7 +88,7 @@ def validate_participant_output(participant_out_df: pd.DataFrame) -> pd.DataFram
     """Validate and coerce the participant-level wide output."""
     return build_participant_output_schema().validate(participant_out_df)
 
-def get_error_output(data_in : PipelineInput):
+def get_error_output(data_in : PipelineInput) -> CranePipelineOutput:
     '''Used when there is no data.'''
     status = PipelineStatus()
     status.data_in = ProcessingStatus.ERROR
@@ -159,7 +159,11 @@ def run_pipeline(data_in : PipelineInput) -> CranePipelineOutput:
             scr_interval_df_out = scr_interval_df_out.reset_index(drop=True)
             fig = eda.run_eda_qc(eda_raw_timestamped,scr_df_out,labeled_vr_intervals)
             participant_data_out.append(scr_interval_df_out)
-            status.physiology = ProcessingStatus.OK
+
+            if status.intervals == ProcessingStatus.ERROR:
+                status.physiology = ProcessingStatus.PARTIAL
+            else:    
+                status.physiology = ProcessingStatus.OK
 
         except ValueError as e:
                 logger.warning("Skipping physiology analysis on %s. %s",data_in.subject_id,e)

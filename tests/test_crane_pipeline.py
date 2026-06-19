@@ -109,6 +109,7 @@ class TestCranePipeline(unittest.TestCase):
             intervals=ProcessingStatus.OK,
             debrief=ProcessingStatus.ERROR
             ).get_as_text()
+        
         pipeline_out = run_pipeline(crane_participant_no_BEHAV)
         self.assertEqual(pipeline_out.status.debrief,ProcessingStatus.ERROR)
         self.assertEqual(
