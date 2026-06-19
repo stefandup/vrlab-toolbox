@@ -10,6 +10,8 @@ A second VR paradigm, Crane, has also been added. Crane introduces Biopac `.mat`
 
 Crane is now being used as the pilot for a strategy-style pipeline boundary. The pipeline has been moved toward a single input object and a single output object, with a participant-level dataframe, optional QC figure, and processing status. This is the right level of structure for now: each environment can become a function-based strategy first, while a shared template/runner can wait until FOH and Crane prove the same shape in practice.
 
+The Crane clock issue has been corrected, but it still needs more testing against additional participants/files before treating it as fully settled.
+
 ## Main Lesson
 
 The next step is not a whole rewrite. The code already has good bones and should be refactored gradually.
@@ -57,12 +59,21 @@ Before extracting shared abstractions, make each paradigm pipeline expose the sa
 
 Crane is the pilot implementation for this pattern. FOH should follow next, without introducing a shared template yet.
 
+Crane is heading in the right direction as the reference pipeline shape. The useful pattern is that it now returns both a Python status object and an exported `Processing_Status` column. Before copying this pattern into FOH, make the status contract more rigorous:
+
+- use fixed status keys across pipelines, such as `data_in`, `behaviour`, `debrief`, `intervals`, and `physiology`;
+- serialize statuses in a fixed order so tests and CSV/SPSS outputs do not depend on update order;
+- define what `ok`, `partial`, and `error` mean for each stage;
+- decide whether `intervals=error` should stop physiology processing or mean that physiology was attempted but should not be trusted;
+- make core participant output columns such as `Subject_ID` and `Processing_Status` required once the Crane output shape is settled.
+
 Important design rules:
 
 - missing optional data should produce a logged warning and a `partial` output where possible;
 - unrecoverable participant-level failures should produce an `error` output row when that helps downstream accounting;
 - the output dataframe should carry processing status so CSV/SPSS analysis can spot partial or failed subjects;
 - the Python output object and exported dataframe should agree on status.
+- Next NB: correct the output columns so stress-first and stress-last recordings produce consistent, predictable column names, using one explicit normalization rule rather than letting recording order leak into final column names.
 
 ### 3. Add dataframe contracts
 

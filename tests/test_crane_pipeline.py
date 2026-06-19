@@ -1,7 +1,7 @@
 import unittest
 from mooi_toolbox.processing.biopac import BiopacRawData
 from mooi_toolbox.processing.crane_pipeline import run_pipeline, validate_participant_output
-from mooi_toolbox.processing.crane_pipeline import ProcessingStatus 
+from mooi_toolbox.processing.crane_pipeline import ProcessingStatus , PipelineStatus
 from mooi_toolbox.processing.input_data import PipelineInput
 
 example_crane_participant_correct = PipelineInput(
@@ -77,6 +77,12 @@ class TestBasicDataHandling(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             BiopacRawData.load_data(crane_participant_no_FILE)
                 
+all_ok_status_str = PipelineStatus(data_in=ProcessingStatus.OK,
+                                   behaviour=ProcessingStatus.OK,
+                                   debrief=ProcessingStatus.OK,
+                                   intervals=ProcessingStatus.OK,
+                                   physiology=ProcessingStatus.OK
+                                   ).get_as_text()
 
 class TestCranePipeline(unittest.TestCase):
 
@@ -87,59 +93,65 @@ class TestCranePipeline(unittest.TestCase):
 
 
     def test_crane_pipeline_labels_missing_file_correctly(self):
-
+        input_processing_status = PipelineStatus(data_in=ProcessingStatus.ERROR).get_as_text()
         pipeline_out = run_pipeline(crane_participant_no_FILE)
-        self.assertEqual(pipeline_out.status["Data_in"],ProcessingStatus.ERROR)
+        self.assertEqual(pipeline_out.status.data_in,ProcessingStatus.ERROR)
         self.assertEqual(
                 pipeline_out.subject_df_out["Processing_Status"].iloc[0],
-                ProcessingStatus.ERROR.value
+                input_processing_status
                 )
 
     def test_crane_pipeline_labels_missing_behav_correctly(self):
-
+        physiology_and_behav_error = PipelineStatus(
+            data_in=ProcessingStatus.OK,
+            physiology=ProcessingStatus.ERROR,
+            behaviour=ProcessingStatus.ERROR,
+            intervals=ProcessingStatus.OK,
+            debrief=ProcessingStatus.ERROR
+            ).get_as_text()
         pipeline_out = run_pipeline(crane_participant_no_BEHAV)
-        self.assertEqual(pipeline_out.status["Debrief"],ProcessingStatus.PARTIAL)
+        self.assertEqual(pipeline_out.status.debrief,ProcessingStatus.ERROR)
         self.assertEqual(
                 pipeline_out.subject_df_out["Processing_Status"].iloc[0],
-                'Data_in=ok behav=error Debrief=partial Intervals=ok phys=error'
+                physiology_and_behav_error
                 )
 
     def test_crane_corrects_error_for_incorrect_interval_nr(self):
         pipeline_out = run_pipeline(example_incorrect_interval_nr)
-        self.assertEqual(pipeline_out.status["Intervals"],ProcessingStatus.OK)
+        self.assertEqual(pipeline_out.status.intervals,ProcessingStatus.OK)
         self.assertEqual(
                 pipeline_out.subject_df_out["Processing_Status"].iloc[0],
-                'Data_in=ok behav=ok Debrief=ok Intervals=ok phys=ok'
+                all_ok_status_str
                 )
 
     def test_crane_returns_ok_for_correct_interval_nr(self):
         pipeline_out = run_pipeline(example_correct_interval_nr)
-        self.assertEqual(pipeline_out.status["Intervals"],ProcessingStatus.OK)
+        self.assertEqual(pipeline_out.status.intervals,ProcessingStatus.OK)
         self.assertEqual(
                 pipeline_out.subject_df_out["Processing_Status"].iloc[0],
-                'Data_in=ok behav=ok Debrief=ok Intervals=ok phys=ok'
+                all_ok_status_str
                 )
         
     def test_crane_handles_long_delay_time(self):
         pipeline_out = run_pipeline(example_long_delay)
-        self.assertEqual(pipeline_out.status["Intervals"],ProcessingStatus.OK)
+        self.assertEqual(pipeline_out.status.intervals,ProcessingStatus.OK)
         self.assertEqual(
                 pipeline_out.subject_df_out["Processing_Status"].iloc[0],
-                'Data_in=ok behav=ok Debrief=ok Intervals=ok phys=ok'
+                all_ok_status_str
                 )
 
     def test_crane_handles_very_short_triggers(self):
         pipeline_out = run_pipeline(example_incorrect_very_short_trigger)
-        self.assertEqual(pipeline_out.status["Intervals"],ProcessingStatus.OK)
+        self.assertEqual(pipeline_out.status.intervals,ProcessingStatus.OK)
         self.assertEqual(
                 pipeline_out.subject_df_out["Processing_Status"].iloc[0],
-                'Data_in=ok behav=ok Debrief=ok Intervals=ok phys=ok'
+                all_ok_status_str
                 )
         
     def test_crane_handles_medium_short_triggers(self):
         pipeline_out = run_pipeline(example_incorrect_medium_short_trigger)
-        self.assertEqual(pipeline_out.status["Intervals"],ProcessingStatus.OK)
+        self.assertEqual(pipeline_out.status.intervals,ProcessingStatus.OK)
         self.assertEqual(
                 pipeline_out.subject_df_out["Processing_Status"].iloc[0],
-                'Data_in=ok behav=ok Debrief=ok Intervals=ok phys=ok'
+                all_ok_status_str
                 )
