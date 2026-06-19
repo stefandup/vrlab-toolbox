@@ -104,7 +104,7 @@ def run_pipeline(data_in : PipelineInput) -> CranePipelineOutput:
     # Assume OK unless and exception is raied
     status = PipelineStatus()
 
-    # Needs raw EDA to work. 
+    # Input raw eda
     
     try:
         raw_timestamped_data : biopac.BiopacRawData = biopac.BiopacRawData.load_data(data_in)
@@ -116,7 +116,8 @@ def run_pipeline(data_in : PipelineInput) -> CranePipelineOutput:
         return get_error_output(data_in,status)
 
     participant_data_out = []
-            
+
+    # Import behaviour data
     try:
         behav_data_out,validated_behav_df = cbp.main(data_in.subject_id,data_in.behav_folder)
         behav_data_out.insert(0,"Subject_ID",data_in.subject_id)
@@ -156,8 +157,10 @@ def run_pipeline(data_in : PipelineInput) -> CranePipelineOutput:
             status.behaviour = behav_status
             scr_interval_df_out = eda.run_eda_intervals(eda_raw_timestamped,labeled_vr_intervals)
             scr_interval_df_out = scr_interval_df_out.reset_index(drop=True)
+
+            scr_interval_df_out_corr = eda.correct_order(scr_interval_df_out)
+            participant_data_out.append(scr_interval_df_out_corr)
             fig = eda.run_eda_qc(eda_raw_timestamped,scr_df_out,labeled_vr_intervals)
-            participant_data_out.append(scr_interval_df_out)
 
             if status.intervals == ProcessingStatus.ERROR:
                 status.physiology = ProcessingStatus.PARTIAL

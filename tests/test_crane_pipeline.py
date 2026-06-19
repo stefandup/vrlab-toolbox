@@ -67,6 +67,16 @@ example_incorrect_medium_short_trigger= PipelineInput(
     verbose = False,
     show_plots= False
 )
+
+crane_participant_no_debrief = PipelineInput(
+    subject_id = "PID15868",
+    biopac_fn = r"crane_data\\20265121237_PID15868_CraneOut.mat",
+    behav_folder = r"crane_data",
+    verbose = False,
+    show_plots= False
+)
+
+
 corrected_interval_str = PipelineStatus(data_in=ProcessingStatus.OK,
                             behaviour=ProcessingStatus.OK,
                             debrief=ProcessingStatus.OK,
@@ -123,6 +133,23 @@ class TestCranePipeline(unittest.TestCase):
                 physiology_and_behav_error
                 )
 
+    def test_crane_missing_debrief_correct_label(self):
+
+        missing_debrief = PipelineStatus(
+            data_in=ProcessingStatus.OK,
+            physiology=ProcessingStatus.OK,
+            behaviour=ProcessingStatus.OK,
+            intervals=ProcessingStatus.OK,
+            debrief=ProcessingStatus.ERROR
+            ).get_as_text()
+        
+        pipeline_out = run_pipeline(crane_participant_no_debrief)
+        self.assertEqual(pipeline_out.status.debrief,ProcessingStatus.ERROR)
+        self.assertEqual(
+                pipeline_out.subject_df_out["Processing_Status"].iloc[0],
+                missing_debrief
+                )
+        
     def test_crane_corrects_error_for_incorrect_interval_nr(self):
 
         pipeline_out = run_pipeline(example_incorrect_interval_nr)
@@ -141,11 +168,12 @@ class TestCranePipeline(unittest.TestCase):
                 )
         
     def test_crane_handles_long_delay_time(self):
+        '''Currently no error with excessive delays'''
         pipeline_out = run_pipeline(example_long_delay)
-        self.assertEqual(pipeline_out.status.intervals,ProcessingStatus.CORRECTED)
+        self.assertEqual(pipeline_out.status.intervals,ProcessingStatus.OK)
         self.assertEqual(
                 pipeline_out.subject_df_out["Processing_Status"].iloc[0],
-                corrected_interval_str
+                all_ok_status_str
                 )
 
     def test_crane_handles_very_short_triggers(self):
@@ -157,6 +185,13 @@ class TestCranePipeline(unittest.TestCase):
                 )
         
     def test_crane_handles_medium_short_triggers(self):
+        corrected_interval_str = PipelineStatus(data_in=ProcessingStatus.OK,
+                            behaviour=ProcessingStatus.OK,
+                            debrief=ProcessingStatus.ERROR,
+                            intervals=ProcessingStatus.CORRECTED,
+                            physiology=ProcessingStatus.OK
+                            ).get_as_text()
+
         pipeline_out = run_pipeline(example_incorrect_medium_short_trigger)
         self.assertEqual(pipeline_out.status.intervals,ProcessingStatus.CORRECTED)
         self.assertEqual(

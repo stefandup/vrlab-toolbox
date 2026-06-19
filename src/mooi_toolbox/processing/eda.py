@@ -3,6 +3,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from typing import TypedDict
+import re
+from collections import defaultdict
 
 import logging
 
@@ -49,6 +51,7 @@ def run_nk_eda_processing(eda_raw_series_df : pd.Series, clean_method :str = 'bi
 
 def run_eda_intervals(eda_raw_timestamped_full_ts : pd.DataFrame, vr_intervals: dict[str, tuple[float, float]]) -> pd.DataFrame:
     """Wraps run_eda_processing. Loops over vr intervals and slices the biosignal_df into parts for individual processing. 
+    Those parts are then concatenated into an out dataframe.
     Note can also do one interval."""
 
     biosignals_dfs_dict = vri.slice_data_frame(eda_raw_timestamped_full_ts,vr_intervals)
@@ -143,3 +146,31 @@ def get_eda_data_out(eda_proc_out : nkEDAProcessingResult,interval_label : str =
     time_min = eda_proc_out['total_time_min']
     
     return pd.DataFrame({f'{interval_label}SCR_per_min': [len(eda_proc_out['eda_peaks_info'][1]['SCR_Peaks']) / time_min]})
+
+def correct_order(df_in : pd.DataFrame) -> pd.DataFrame:
+    split_cols = [col.split('_') for col in df_in.columns]
+
+    new_cols_parts = []
+    for split_c in split_cols :
+        new_split = []
+        for c in split_c:
+            new_c = "".join(re.sub(r"\d+","",c))
+            if new_c != "":
+                new_split.append(new_c)
+        new_cols_parts.append(new_split)
+
+    new_cols = ["_".join(new_col_part) for new_col_part in new_cols_parts]
+
+    counts = defaultdict(int)
+
+    corrected_cols = []
+
+    for col in new_cols:
+        counts[col] += 1
+        corrected_cols.append(f"{col}_{counts[col]}")
+
+
+    df_out = df_in.copy()
+    df_out.columns = corrected_cols
+
+    return df_out
