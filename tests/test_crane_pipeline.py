@@ -164,7 +164,7 @@ class TestCranePipeline(unittest.TestCase):
         self.assertEqual(pipeline_out.status.intervals,ProcessingStatus.OK)
         self.assertEqual(
                 pipeline_out.subject_df_out["Processing_Status"].iloc[0],
-                all_ok_status_str
+                'data_in=ok behaviour=ok debrief=error intervals=ok physiology=ok'
                 )
         
     def test_crane_handles_long_delay_time(self):

@@ -34,6 +34,53 @@ This exposes the command-line scripts defined in `pyproject.toml`.
 
 ---
 
+## Build executable
+
+This project includes small PyInstaller wrapper scripts for building the
+`vrlab_crane_process` command as a single executable.
+
+The useful part is portability: the built executable in `dist/` can be copied
+to another folder, including a folder on your `PATH`, without copying the rest
+of this project source code.
+
+Install PyInstaller in your active virtual environment first:
+
+```bash
+python -m pip install pyinstaller
+```
+
+On Windows:
+
+```powershell
+.\build.ps1
+```
+
+On macOS or Linux:
+
+```bash
+bash build_mac.sh
+```
+
+Both scripts run:
+
+```bash
+pyinstaller --onefile src/mooi_toolbox/cli/vrlab_crane_process.py
+```
+
+PyInstaller writes temporary build files to `build/` and the executable to
+`dist/`. If PyInstaller reports that the obsolete `pathlib` backport is
+installed in the virtual environment, uninstall that package:
+
+```bash
+python -m pip uninstall pathlib
+```
+
+Modern Python already includes `pathlib` in the standard library, so removing
+the old backport should not break normal imports such as
+`from pathlib import Path`.
+
+---
+
 ## Command-line examples
 
 ### Inspect an XDF file
