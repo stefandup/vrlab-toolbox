@@ -7,6 +7,11 @@ import pyreadstat
 from rich.progress import Progress
 import pandera.pandas as pa
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+
 from mooi_toolbox import mobi_logging
 from mooi_toolbox.processing import biopac
 from mooi_toolbox.processing.crane_pipeline import run_pipeline as run_crane_pipeline
@@ -69,7 +74,10 @@ def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool
                 fig = pipeline_output.figure_data_out
 
                 if fig is not None:
-                        save_plot(fig, output_folder, subject_id, f"Subject {subject_id} QC")
+                        try:
+                            save_plot(fig, output_folder, subject_id, f"Subject {subject_id} QC")
+                        finally:
+                            plt.close(fig)
                         # TODO: This causes issues: need to matplotlib.use("Agg") or similar
                         #plt.close(fig)
                 else:
