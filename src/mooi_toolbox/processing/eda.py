@@ -3,6 +3,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from typing import TypedDict
+import re
+from collections import defaultdict
 
 import logging
 
@@ -14,25 +16,25 @@ class EDAProcessingError(Exception):
 
 class nkEDAProcessingResult(TypedDict):
     """Neurokit2 out: Return class that combines cleaned, decomposed and peaks info from the neurokit2 toolbox."""
-    total_time_min: int
+    total_time_min: float
     eda_cleaned: pd.Series
     eda_decomposed: pd.DataFrame
     eda_peaks_info: tuple[pd.DataFrame,dict]
 
-def run_eda_qc(eda_raw_timestamped : pd.DataFrame,eda_data_out : pd.DataFrame | None = None,vr_intervals : dict[str, tuple[float, float]] = None) -> Figure:
+def run_eda_qc(eda_raw_timestamped : pd.DataFrame,eda_data_out : pd.DataFrame | None = None,vr_intervals : dict[str, tuple[float, float]] | None = None) -> Figure:
 
     '''Runs optional QC which includes plotting the whole timeseries and outputting basic info'''
     # Plot the entire timeseries
     complete_ts_eda_out : nkEDAProcessingResult = run_nk_eda_processing(eda_raw_timestamped['EDA'])
     return plot_eda(eda_raw_timestamped,eda_data_out,complete_ts_eda_out,vr_intervals)
 
-def run_nk_eda_processing(eda_raw_series_df : pd.DataFrame, clean_method :str = 'biosppy',peak_detect_method : str ='vanhalem2020',sampling_rate : float = 1000)  -> nkEDAProcessingResult:
+def run_nk_eda_processing(eda_raw_series_df : pd.Series, clean_method :str = 'biosppy',peak_detect_method : str ='vanhalem2020',sampling_rate : float = 1000)  -> nkEDAProcessingResult:
     """Wrap neurokit2 toolbox EDA functions on one set of timeseries data and return values as a combined dictionary."""
     try:
-        total_time_min : int = (len(eda_raw_series_df)/sampling_rate) / 60
-        eda_cleaned = nk.eda_clean(eda_raw_series_df, sampling_rate=sampling_rate, method=clean_method)
-        eda_decomposed = nk.eda_phasic(eda_cleaned, sampling_rate=sampling_rate)
-        eda_peaks_info = nk.eda_peaks(eda_decomposed["EDA_Phasic"], sampling_rate=sampling_rate, method=peak_detect_method)
+        total_time_min : float = (len(eda_raw_series_df)/sampling_rate) / 60
+        eda_cleaned = nk.eda_clean(eda_raw_series_df, sampling_rate=sampling_rate, method=clean_method) # type: ignore
+        eda_decomposed = nk.eda_phasic(eda_cleaned, sampling_rate=sampling_rate) # type: ignore
+        eda_peaks_info = nk.eda_peaks(eda_decomposed["EDA_Phasic"], sampling_rate=sampling_rate, method=peak_detect_method) # type: ignore
     except (ValueError, TypeError, KeyError) as error:
             raise EDAProcessingError(
                 f"Could not process EDA with clean_method={clean_method!r}, "
@@ -49,6 +51,7 @@ def run_nk_eda_processing(eda_raw_series_df : pd.DataFrame, clean_method :str = 
 
 def run_eda_intervals(eda_raw_timestamped_full_ts : pd.DataFrame, vr_intervals: dict[str, tuple[float, float]]) -> pd.DataFrame:
     """Wraps run_eda_processing. Loops over vr intervals and slices the biosignal_df into parts for individual processing. 
+    Those parts are then concatenated into an out dataframe.
     Note can also do one interval."""
 
     biosignals_dfs_dict = vri.slice_data_frame(eda_raw_timestamped_full_ts,vr_intervals)
@@ -93,7 +96,7 @@ def plot_eda(eda_raw_timestamped : pd.DataFrame, scr_participant_data : pd.DataF
     axs[0].set_ylabel('EDA Signal (µS)')
     axs[0].legend(loc="upper left")
 
-    if scr_participant_data is not None:
+    if scr_participant_data is not None and nk_complete_ts_out is not None:
         # Plot cleaned EDA signal if available
         axs[1].plot(time_min, nk_complete_ts_out['eda_cleaned'], label='EDA Cleaned')
         axs[1].set_title('EDA Cleaned')
@@ -143,3 +146,31 @@ def get_eda_data_out(eda_proc_out : nkEDAProcessingResult,interval_label : str =
     time_min = eda_proc_out['total_time_min']
     
     return pd.DataFrame({f'{interval_label}SCR_per_min': [len(eda_proc_out['eda_peaks_info'][1]['SCR_Peaks']) / time_min]})
+
+def correct_order(df_in : pd.DataFrame) -> pd.DataFrame:
+    split_cols = [col.split('_') for col in df_in.columns]
+
+    new_cols_parts = []
+    for split_c in split_cols :
+        new_split = []
+        for c in split_c:
+            new_c = "".join(re.sub(r"\d+","",c))
+            if new_c != "":
+                new_split.append(new_c)
+        new_cols_parts.append(new_split)
+
+    new_cols = ["_".join(new_col_part) for new_col_part in new_cols_parts]
+
+    counts = defaultdict(int)
+
+    corrected_cols = []
+
+    for col in new_cols:
+        counts[col] += 1
+        corrected_cols.append(f"{col}_{counts[col]}")
+
+
+    df_out = df_in.copy()
+    df_out.columns = corrected_cols
+
+    return df_out

@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def has_missing_requirements(missing : set, required : list[str]) -> bool:
     return any(stream in missing for stream in required)
 
-def run_lsl_pipeline(xdf_fn : str,verbose : bool,show_plots : bool) -> tuple[pd.DataFrame,Figure]:
+def run_lsl_pipeline(xdf_fn : str,verbose : bool,show_plots : bool) -> tuple[pd.DataFrame,Figure | None]:
 
     """Run FOH pipeline for LSL EDA, ECG and Behavioural (i.e. Target) data. Tries to be robust wrt missing data."""
     if not xdf_fn:
