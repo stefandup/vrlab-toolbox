@@ -78,8 +78,7 @@ def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool
                             save_plot(fig, output_folder, subject_id, f"Subject {subject_id} QC")
                         finally:
                             plt.close(fig)
-                        # TODO: This causes issues: need to matplotlib.use("Agg") or similar
-                        #plt.close(fig)
+
                 else:
                     logger.info("Error saving plot for %s", subject_id)
 

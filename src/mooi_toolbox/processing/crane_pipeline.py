@@ -12,17 +12,14 @@ from mooi_toolbox.processing import crane_behaviour_processing as cbp
 from mooi_toolbox.processing import crane_debrief_data as debrief
 from mooi_toolbox.processing.processing_status import ProcessingStatus, PipelineStatus
 from mooi_toolbox.processing.input_data import PipelineInput
+from mooi_toolbox.processing.output_data import PipelineOutput, build_base_output_schema
 
 @dataclass
-class CranePipelineOutput():
+class CranePipelineOutput(PipelineOutput):
 
-    subject_df_out : pd.DataFrame
-    figure_data_out : Figure | None
-    status : PipelineStatus
-
-    def __post_init__(self):
-        self.subject_df_out = validate_participant_output(self.subject_df_out)
-
+    def validate_participant_output(self) -> pd.DataFrame:
+        return build_crane_participant_output_schema().validate(self.subject_df_out)
+    
 logger = logging.getLogger(__name__)
 
 BLOCK_TYPES = ("NonStressBlock", "StressBlock")
@@ -47,7 +44,7 @@ def _optional_float_column() -> pa.Column:
     return pa.Column(float, nullable=True, coerce=True, required=False)
 
 #Schema builds more or less automatically based on the constants set.
-def build_participant_output_schema() -> pa.DataFrameSchema:
+def build_crane_participant_output_schema() -> pa.DataFrameSchema:
     """Create schema for the wide participant output produced by this pipeline."""
     behaviour_columns = {
         f"{metric}_{block_type}_{trial_type}": _optional_float_column()
@@ -72,21 +69,13 @@ def build_participant_output_schema() -> pa.DataFrameSchema:
         )
     }
 
-    return pa.DataFrameSchema(
+    return build_base_output_schema(
         {
-            "Subject_ID": pa.Column(pd.StringDtype(), nullable=False, coerce=True, required=True),
             **behaviour_columns,
             **debrief_columns,
-            **physiology_columns,
-            "Processing_Status" : pa.Column(pd.StringDtype(), nullable=False, coerce=True, required=True)
-        },
-        coerce=True,
-        strict=False,
+            **physiology_columns
+        }
     )
-
-def validate_participant_output(participant_out_df: pd.DataFrame) -> pd.DataFrame:
-    """Validate and coerce the participant-level wide output."""
-    return build_participant_output_schema().validate(participant_out_df)
 
 def get_error_output(data_in : PipelineInput, status_in : PipelineStatus) -> CranePipelineOutput:
 

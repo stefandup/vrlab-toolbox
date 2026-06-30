@@ -1,6 +1,6 @@
 import unittest
 from mooi_toolbox.processing.biopac import BiopacRawData
-from mooi_toolbox.processing.crane_pipeline import run_pipeline, validate_participant_output
+from mooi_toolbox.processing.crane_pipeline import run_pipeline, CranePipelineOutput
 from mooi_toolbox.processing.crane_pipeline import ProcessingStatus , PipelineStatus
 from mooi_toolbox.processing.input_data import PipelineInput
 
@@ -104,8 +104,7 @@ class TestCranePipeline(unittest.TestCase):
 
     def test_crane_pipeline_has_expected_output(self):
         pipeline_out = run_pipeline(example_crane_participant_correct)
-        data_frame_out = pipeline_out.subject_df_out
-        validate_participant_output(data_frame_out)
+        pipeline_out.validate_participant_output()
 
 
     def test_crane_pipeline_labels_missing_file_correctly(self):
