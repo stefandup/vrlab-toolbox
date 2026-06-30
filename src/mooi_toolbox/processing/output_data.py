@@ -4,6 +4,7 @@ import pandas as pd
 import pandera.pandas as pa
 
 from mooi_toolbox.processing.processing_status import PipelineStatus
+from mooi_toolbox.processing.input_data import PipelineInput
 
 def build_base_output_schema( additional_columns : dict[str, pa.Column] | None = None) -> pa.DataFrameSchema:
     '''Ensure that all pipelines have Subject_ID and Processing_Status values'''
@@ -28,3 +29,15 @@ class PipelineOutput():
 
     def validate_participant_output(self) -> pd.DataFrame:
         return build_base_output_schema().validate(self.subject_df_out)
+
+    @classmethod
+    def error(cls, data_in : PipelineInput , status_in : PipelineStatus):
+        error_df_out = pd.DataFrame(
+            {"Subject_ID" : [data_in.subject_id],
+             "Processing_Status" : [status_in.get_as_text()]})
+        
+        return cls(
+            subject_df_out = error_df_out,
+            figure_data_out = None,
+            status=status_in
+            )

@@ -77,17 +77,8 @@ def build_crane_participant_output_schema() -> pa.DataFrameSchema:
         }
     )
 
-def get_error_output(data_in : PipelineInput, status_in : PipelineStatus) -> CranePipelineOutput:
-
-    return CranePipelineOutput(
-        subject_df_out=pd.DataFrame({"Subject_ID" : [data_in.subject_id], 
-                                     "Processing_Status" : [status_in.get_as_text()]}),
-        figure_data_out=None,
-        status=status_in
-        ) 
-
 def run_pipeline(data_in : PipelineInput) -> CranePipelineOutput:
-
+    # TODO: PIpeline currently bit haphazard: difficult to figure out whats going on for new coders.
     validated_behav_df = None
     fig : Figure | None = None
     # Assume OK unless and exception is raied
@@ -102,7 +93,7 @@ def run_pipeline(data_in : PipelineInput) -> CranePipelineOutput:
     except (ValueError,FileNotFoundError) as e:
         logger.warning("Error loading biopac eda data. %s",e)
         status.data_in = ProcessingStatus.ERROR
-        return get_error_output(data_in,status)
+        return CranePipelineOutput.error(data_in,status)
 
     participant_data_out = []
 

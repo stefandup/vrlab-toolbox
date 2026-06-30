@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 from mooi_toolbox import mobi_logging
 from mooi_toolbox.processing import biopac
 from mooi_toolbox.processing.crane_pipeline import run_pipeline as run_crane_pipeline
-from mooi_toolbox.processing.crane_pipeline import validate_participant_output
+from mooi_toolbox.processing.crane_pipeline import build_crane_participant_output_schema
 from mooi_toolbox.processing.input_data import PipelineInput
 from mooi_toolbox.processing.plot_utils import save_plot
 
@@ -99,8 +99,8 @@ def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool
     participant_df_out = pd.concat(out_file_parts,axis=0)
     
     try:
-       participant_df_out_validated = validate_participant_output(participant_df_out)    
-    except pa.errors.SchemaErrors as e:
+       participant_df_out_validated = build_crane_participant_output_schema().validate(participant_df_out)    
+    except pa.errors.SchemaError as e:
         logger.error("Error validating final output file: %s",e.failure_cases.to_string(index=False))
         raise
 
