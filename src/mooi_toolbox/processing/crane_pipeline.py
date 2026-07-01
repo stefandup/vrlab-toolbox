@@ -8,8 +8,8 @@ from mooi_toolbox.processing import biopac
 from mooi_toolbox.processing import eda
 from mooi_toolbox.processing.vr_intervals import get_trigger_intervals
 from mooi_toolbox.processing.vr_intervals import match_behav_intervals_with_trigger_intervals
-from mooi_toolbox.processing import crane_behaviour_processing as cbp
-from mooi_toolbox.processing import crane_debrief_data as debrief
+from mooi_toolbox.processing import crane_behaviour as behaviour
+from mooi_toolbox.processing import crane_debrief_behaviour as debrief
 from mooi_toolbox.processing.processing_status import ProcessingStatus, PipelineStatus
 from mooi_toolbox.processing.input_data import ParticipantConfig
 from mooi_toolbox.processing.output_data import PipelineData, build_base_output_schema
@@ -36,7 +36,7 @@ BEHAVIOUR_OUTPUT_METRICS = (
     "nr_forced_slips",
     "avg_velocity",
     "target_score",
-    *(f"{emotion}_proportion" for emotion in cbp.EMOTIONS_TESTED),
+    *(f"{emotion}_proportion" for emotion in behaviour.EMOTIONS_TESTED),
 )
 DEBRIEF_OUTPUT_METRICS = tuple(debrief.emotion_cols)
 EXPECTED_INTERVAL_NR = 23
@@ -99,7 +99,7 @@ def run_pipeline(data_in : ParticipantConfig) -> CranePipelineOutput:
 
     # Import behaviour data
     try:
-        behav_data_out,validated_behav_df = cbp.main(data_in.subject_id,data_in.behav_folder)
+        behav_data_out,validated_behav_df = behaviour.process(data_in)
         behav_data_out.insert(0,"Subject_ID",data_in.subject_id)
         behav_data_out = behav_data_out.reset_index(drop=True)
         participant_data_out.append(behav_data_out)
@@ -110,7 +110,7 @@ def run_pipeline(data_in : ParticipantConfig) -> CranePipelineOutput:
         status.behaviour = ProcessingStatus.ERROR
 
     try:
-        debrief_data_out = debrief.main(data_in.subject_id,data_in.behav_folder)
+        debrief_data_out = debrief.process(data_in)
         debrief_data_out = debrief_data_out.reset_index(drop=True)
         participant_data_out.append(debrief_data_out)
 

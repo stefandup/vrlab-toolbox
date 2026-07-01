@@ -4,6 +4,8 @@ import pandera.pandas as pa
 import logging
 from functools import cache
 
+from mooi_toolbox.processing.input_data import ParticipantConfig
+
 logger = logging.getLogger(__name__)
 
 EMOTIONS_TESTED = ("Boredom", "Dissatisfaction", "Joy", "Sadness", "Satisfaction", "Confused", "Anger")
@@ -76,13 +78,13 @@ def load_group_debrief_data(behaviour_data_dir : str) -> pd.DataFrame:
 
     return debrief_data_out
 
-def main(subject_id : str,behaviour_data_dir : str) -> pd.DataFrame:
-    debrief_df = load_group_debrief_data(behaviour_data_dir)
+def process(config_in : ParticipantConfig) -> pd.DataFrame:
+    debrief_df = load_group_debrief_data(config_in.behav_folder)
     # Copy as to ensure the cache is read only. Cahce ensures that we dont reload the excel for every subject
-    subject_debrief_out = debrief_df.loc[debrief_df["Debrief_Subject_ID"] == subject_id].copy()
+    subject_debrief_out = debrief_df.loc[debrief_df["Debrief_Subject_ID"] == config_in.subject_id].copy()
 
     if subject_debrief_out.empty:
-        logger.warning("Missing behaviour data for subject %s",subject_id)
+        logger.warning("Missing behaviour data for subject %s",config_in.subject_id)
         raise ValueError
 
     subject_debrief_out = subject_debrief_out.drop(columns="Debrief_Subject_ID")

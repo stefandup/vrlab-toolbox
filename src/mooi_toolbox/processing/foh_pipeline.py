@@ -2,7 +2,7 @@ from mooi_toolbox import config as cfg
 from mooi_toolbox import read_mobi_xdf as xdf
 from . import eda
 from . import ecg
-from . import foh_target_processing as tp
+from . import foh_target_behaviour as tp
 from . import vr_intervals as vri
 from matplotlib.figure import Figure
 

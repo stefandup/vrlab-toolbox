@@ -4,6 +4,8 @@ import re
 import logging
 import pandera.pandas as pa
 
+from mooi_toolbox.processing.input_data import ParticipantConfig
+
 logger = logging.getLogger(__name__)
 #TODO convert to tuple
 EMOTIONS_TESTED = ["Boredom", "Dissatisfaction", "Joy", "Sadness", "Satisfaction", "Confused", "Anger"]
@@ -110,7 +112,7 @@ def load_and_validate_crane_behaviour_csv(behav_file_fn) -> pd.DataFrame:
 
     return behav_df_validated
 
-def main(subject_id : str,behaviour_data_dir : str) -> tuple[pd.DataFrame,pd.DataFrame]:
+def process(config_in : ParticipantConfig) -> tuple[pd.DataFrame,pd.DataFrame]:
     
     """
     Per participant processes behaviour files and outputs a wide data frame 
@@ -118,10 +120,10 @@ def main(subject_id : str,behaviour_data_dir : str) -> tuple[pd.DataFrame,pd.Dat
     
     """
 
-    behav_files_found = behaviour_matches_biopac_data(subject_id,behaviour_data_dir)
+    behav_files_found = behaviour_matches_biopac_data(config_in.subject_id,config_in.behav_folder)
 
     if not behav_files_found:
-        error = f"No files found for {subject_id}"
+        error = f"No files found for {config_in.subject_id}"
         logger.error(error)
         raise FileNotFoundError(error)
     
