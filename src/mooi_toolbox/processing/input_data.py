@@ -6,7 +6,7 @@ from dataclasses import dataclass
 # Dataclass is frozen to avoid changes during the pipeline
 
 @dataclass(frozen=True)
-class PipelineInput():
+class ParticipantConfig():
     subject_id : str
     biopac_fn: str
     behav_folder : str

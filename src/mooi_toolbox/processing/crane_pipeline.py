@@ -11,11 +11,11 @@ from mooi_toolbox.processing.vr_intervals import match_behav_intervals_with_trig
 from mooi_toolbox.processing import crane_behaviour_processing as cbp
 from mooi_toolbox.processing import crane_debrief_data as debrief
 from mooi_toolbox.processing.processing_status import ProcessingStatus, PipelineStatus
-from mooi_toolbox.processing.input_data import PipelineInput
-from mooi_toolbox.processing.output_data import PipelineOutput, build_base_output_schema
+from mooi_toolbox.processing.input_data import ParticipantConfig
+from mooi_toolbox.processing.output_data import PipelineData, build_base_output_schema
 
 @dataclass
-class CranePipelineOutput(PipelineOutput):
+class CranePipelineOutput(PipelineData):
 
     def validate_participant_output(self) -> pd.DataFrame:
         return build_crane_participant_output_schema().validate(self.subject_df_out)
@@ -77,7 +77,7 @@ def build_crane_participant_output_schema() -> pa.DataFrameSchema:
         }
     )
 
-def run_pipeline(data_in : PipelineInput) -> CranePipelineOutput:
+def run_pipeline(data_in : ParticipantConfig) -> CranePipelineOutput:
     # TODO: PIpeline currently bit haphazard: difficult to figure out whats going on for new coders.
     validated_behav_df = None
     fig : Figure | None = None

@@ -6,8 +6,8 @@ from matplotlib.figure import Figure
 import logging
 
 from mooi_toolbox.processing.processing_status import ProcessingStatus, PipelineStatus
-from mooi_toolbox.processing.output_data import PipelineOutput, build_base_output_schema
-from mooi_toolbox.processing.input_data import PipelineInput
+from mooi_toolbox.processing.output_data import PipelineData, build_base_output_schema
+from mooi_toolbox.processing.input_data import ParticipantConfig
 from mooi_toolbox.processing import biopac
 from mooi_toolbox.processing.vr_intervals import get_trigger_intervals
 from mooi_toolbox.processing import eda
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 EXPECTED_INTERVAL_NR = 12
 
 @dataclass
-class LongWalkPipelineOutput(PipelineOutput):
+class LongWalkPipelineOutput(PipelineData):
 
     def validate_participant_output(self) -> DataFrame:
         return build_long_walk_participant_output_schema().validate(self.subject_df_out)
@@ -39,7 +39,8 @@ def build_long_walk_participant_output_schema():
 
     return build_base_output_schema({**physiology_columns})
 
-def run_pipeline(data_in : PipelineInput) -> LongWalkPipelineOutput:
+def run_pipeline(data_in : ParticipantConfig) -> LongWalkPipelineOutput:
+    #TODO: Make less of a messy pipeline! Fix Crane as well to be less messy!
     fig : Figure | None = None
     # Assume OK unless and exception is raied
     status = PipelineStatus()

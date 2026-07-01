@@ -16,7 +16,7 @@ from mooi_toolbox import mobi_logging
 from mooi_toolbox.processing import biopac
 from mooi_toolbox.processing.crane_pipeline import run_pipeline as run_crane_pipeline
 from mooi_toolbox.processing.crane_pipeline import build_crane_participant_output_schema
-from mooi_toolbox.processing.input_data import PipelineInput
+from mooi_toolbox.processing.input_data import ParticipantConfig
 from mooi_toolbox.processing.plot_utils import save_plot
 
 logger = logging.getLogger(__name__)
@@ -60,7 +60,7 @@ def main(input_folder: str, behav_folder: str ,output_folder: str, verbose: bool
 
 
             #TODO: Fix fn to path
-            pipeline_input = PipelineInput(
+            pipeline_input = ParticipantConfig(
                 subject_id=subject_id,
                 biopac_fn=str(biopac_mat_fn),
                 behav_folder=behav_folder,

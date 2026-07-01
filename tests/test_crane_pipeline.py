@@ -2,9 +2,9 @@ import unittest
 from mooi_toolbox.processing.biopac import BiopacRawData
 from mooi_toolbox.processing.crane_pipeline import run_pipeline
 from mooi_toolbox.processing.crane_pipeline import ProcessingStatus , PipelineStatus
-from mooi_toolbox.processing.input_data import PipelineInput
+from mooi_toolbox.processing.input_data import ParticipantConfig
 
-example_crane_participant_correct = PipelineInput(
+example_crane_participant_correct = ParticipantConfig(
     subject_id = "00020",
     biopac_fn = r"crane_data\\2026481120_00020_CraneOut.mat",
     behav_folder = r"crane_data",
@@ -12,7 +12,7 @@ example_crane_participant_correct = PipelineInput(
     show_plots= False
 )
 
-crane_participant_no_FILE = PipelineInput(
+crane_participant_no_FILE = ParticipantConfig(
     subject_id = "00020",
     biopac_fn = r"crane_data\\NOFILE.mat",
     behav_folder = r"crane_data",
@@ -20,7 +20,7 @@ crane_participant_no_FILE = PipelineInput(
     show_plots= False
 )
 
-crane_participant_no_BEHAV = PipelineInput(
+crane_participant_no_BEHAV = ParticipantConfig(
     subject_id = "00020",
     biopac_fn = r"crane_data\\2026481120_00020_CraneOut.mat",
     behav_folder = r"NO_BEHAV_FOLDER",
@@ -28,7 +28,7 @@ crane_participant_no_BEHAV = PipelineInput(
     show_plots= False
 )
 
-example_incorrect_interval_nr = PipelineInput(
+example_incorrect_interval_nr = ParticipantConfig(
     subject_id = "00007",
     biopac_fn = r"crane_data\\2026371237_00007_CraneOut.mat",
     behav_folder = r"crane_data",
@@ -36,7 +36,7 @@ example_incorrect_interval_nr = PipelineInput(
     show_plots= False
 )
 
-example_correct_interval_nr = PipelineInput(
+example_correct_interval_nr = ParticipantConfig(
     subject_id="TESTa",
     biopac_fn = r"crane_data\\20262121130_TESTa_CraneOut.mat",
     behav_folder = r"crane_data",
@@ -44,7 +44,7 @@ example_correct_interval_nr = PipelineInput(
     show_plots= False
 )
 
-example_long_delay = PipelineInput(
+example_long_delay = ParticipantConfig(
         subject_id="00011",
     biopac_fn = r"crane_data\\2026325120_00011_CraneOut.mat",
     behav_folder = r"crane_data",
@@ -52,7 +52,7 @@ example_long_delay = PipelineInput(
     show_plots= False
 )
 
-example_incorrect_very_short_trigger = PipelineInput(
+example_incorrect_very_short_trigger = ParticipantConfig(
     subject_id = "00006",
     biopac_fn = r"crane_data\\202637138_00006_CraneOut.mat",
     behav_folder = r"crane_data",
@@ -60,7 +60,7 @@ example_incorrect_very_short_trigger = PipelineInput(
     show_plots= False
 )
 
-example_incorrect_medium_short_trigger= PipelineInput(
+example_incorrect_medium_short_trigger= ParticipantConfig(
     subject_id = "PID16407",
     biopac_fn = r"crane_data\\20265221116_PID16407_CraneOut.mat",
     behav_folder = r"crane_data",
@@ -68,7 +68,7 @@ example_incorrect_medium_short_trigger= PipelineInput(
     show_plots= False
 )
 
-crane_participant_no_debrief = PipelineInput(
+crane_participant_no_debrief = ParticipantConfig(
     subject_id = "PID15868",
     biopac_fn = r"crane_data\\20265121237_PID15868_CraneOut.mat",
     behav_folder = r"crane_data",

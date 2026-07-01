@@ -5,7 +5,7 @@ import numpy as np
 import os
 
 from mooi_toolbox.processing.biodata import RawBioData
-from mooi_toolbox.processing.input_data import PipelineInput
+from mooi_toolbox.processing.input_data import ParticipantConfig
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +13,7 @@ def clean_biopac_labels(labels_in):
 
     return [label.strip().split(" ")[0] for label in labels_in.flatten()]
 
-def load_biopac_data(data_in : PipelineInput) -> dict[str,pd.DataFrame]:
+def load_biopac_data(data_in : ParticipantConfig) -> dict[str,pd.DataFrame]:
     """Load biopac mat files into pd Dataframe."""
     # time_stamps EDA DF
     
@@ -52,6 +52,6 @@ class BiopacRawData(RawBioData):
     
     '''
     @classmethod
-    def load_data(cls,pipeline_input : PipelineInput):
+    def load_data(cls,pipeline_input : ParticipantConfig):
         biopac_data : dict[str,pd.DataFrame] = load_biopac_data(pipeline_input)
         return cls(biopac_data)
