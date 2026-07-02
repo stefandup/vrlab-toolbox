@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from typing import Self
 from matplotlib.figure import Figure
 import pandas as pd
 import pandera.pandas as pa
@@ -61,7 +62,7 @@ class PipelineData():
         self.subject_df_out = revised_validation_schema.validate(combined_df)
 
     @classmethod
-    def error(cls,subject_id : str ,status_in : PipelineStatus) -> "PipelineData":
+    def error(cls,subject_id : str ,status_in : PipelineStatus) -> Self:
         error_df_out = pd.DataFrame(
             {"Subject_ID" : [subject_id],
              "Processing_Status" : [status_in.get_as_text()]})

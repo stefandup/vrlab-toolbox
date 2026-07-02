@@ -93,7 +93,7 @@ def run_pipeline(data_in : ParticipantConfig) -> CranePipelineOutput:
     except (ValueError,FileNotFoundError) as e:
         logger.warning("Error loading biopac eda data. %s",e)
         status.data_in = ProcessingStatus.ERROR
-        return CranePipelineOutput.error(data_in,status)
+        return CranePipelineOutput.error(data_in.subject_id,status)
 
     participant_data_out = []
 
@@ -175,9 +175,11 @@ def run_pipeline(data_in : ParticipantConfig) -> CranePipelineOutput:
         cols.insert(1, col_to_mv)
         df_out = df_out[cols]
 
-    return CranePipelineOutput(
-            subject_df_out=df_out,
-            figure_data_out=fig,
-            status=status
-            )
+    pipeline_output = CranePipelineOutput(subject_id=data_in.subject_id)
+    pipeline_output.subject_df_out=df_out
+    pipeline_output.figure_data_out=fig
+    pipeline_output.status=status
+
+    return pipeline_output
+
 
