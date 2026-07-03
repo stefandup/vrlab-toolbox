@@ -5,10 +5,11 @@ import pandas as pd
 from matplotlib.figure import Figure
 import logging
 
+from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.processing_status import ProcessingStatus, PipelineStatus
 from mooi_toolbox.processing.output_data import PipelineData, build_base_output_schema
 from mooi_toolbox.processing.input_data import ParticipantConfig
-from mooi_toolbox.processing import biopac
+from mooi_toolbox.processing.biopac import BiopacDataImportStartegy
 from mooi_toolbox.processing.vr_intervals import get_trigger_intervals
 from mooi_toolbox.processing import eda
 
@@ -48,13 +49,13 @@ def run_pipeline(data_in : ParticipantConfig) -> LongWalkPipelineOutput:
     # Input raw eda
     
     try:
-        raw_timestamped_data : biopac.BiopacRawData = biopac.BiopacRawData.load_data(data_in)
+        raw_timestamped_data : RawBioData = BiopacDataImportStartegy().import_data(data_in)
         eda_raw_timestamped = raw_timestamped_data['EDA']
         status.data_in = ProcessingStatus.OK
     except (ValueError,FileNotFoundError) as e:
         logger.warning("Error loading biopac eda data. %s",e)
         status.data_in = ProcessingStatus.ERROR
-        return LongWalkPipelineOutput.error(data_in,status)
+        return LongWalkPipelineOutput.error(data_in.subject_id,status)
 
     participant_data_out = [] 
 

@@ -1,6 +1,7 @@
 import unittest
 
-from mooi_toolbox.processing.biopac import BiopacRawData
+from mooi_toolbox.processing.biodata import RawBioData
+from mooi_toolbox.processing.biopac import BiopacDataImportStartegy
 from mooi_toolbox.processing.processing_status import ProcessingStatus,PipelineStatus
 from mooi_toolbox.processing.input_data import ParticipantConfig
 
@@ -17,8 +18,8 @@ example_long_walk_participant_correct = ParticipantConfig(
 class TestReadingBasicBiopacData(unittest.TestCase):
     
     def test_good_raw_data_should_return_ok(self):
-        raw_biodata_good : BiopacRawData = BiopacRawData.load_data(example_long_walk_participant_correct)
-        self.assertIsInstance(raw_biodata_good,BiopacRawData)
+        raw_biodata_good : RawBioData = BiopacDataImportStartegy().import_data(example_long_walk_participant_correct)
+        self.assertIsInstance(raw_biodata_good,RawBioData)
 
 class TestLongWalkPipeline(unittest.TestCase):
 

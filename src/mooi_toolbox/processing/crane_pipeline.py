@@ -5,6 +5,7 @@ import pandera.pandas as pa
 from dataclasses import dataclass
 
 from mooi_toolbox.processing import biopac
+from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing import eda
 from mooi_toolbox.processing.vr_intervals import get_trigger_intervals
 from mooi_toolbox.processing.vr_intervals import match_behav_intervals_with_trigger_intervals
@@ -77,7 +78,10 @@ def build_crane_participant_output_schema() -> pa.DataFrameSchema:
         }
     )
 
-def run_pipeline(data_in : ParticipantConfig) -> CranePipelineOutput:
+class CranePipeLine():
+    pass
+
+def run_pipeline(config_in : ParticipantConfig) -> CranePipelineOutput:
     # TODO: PIpeline currently bit haphazard: difficult to figure out whats going on for new coders.
     validated_behav_df = None
     fig : Figure | None = None
@@ -87,44 +91,44 @@ def run_pipeline(data_in : ParticipantConfig) -> CranePipelineOutput:
     # Input raw eda
     
     try:
-        raw_timestamped_data : biopac.BiopacRawData = biopac.BiopacRawData.load_data(data_in)
+        raw_timestamped_data : RawBioData = biopac.BiopacDataImportStartegy().import_data(config_in)
         eda_raw_timestamped = raw_timestamped_data['EDA']
         status.data_in = ProcessingStatus.OK
     except (ValueError,FileNotFoundError) as e:
         logger.warning("Error loading biopac eda data. %s",e)
         status.data_in = ProcessingStatus.ERROR
-        return CranePipelineOutput.error(data_in.subject_id,status)
+        return CranePipelineOutput.error(config_in.subject_id,status)
 
     participant_data_out = []
 
     # Import behaviour data
     try:
-        behav_data_out,validated_behav_df = behaviour.process(data_in)
-        behav_data_out.insert(0,"Subject_ID",data_in.subject_id)
+        behav_data_out,validated_behav_df = behaviour.process(config_in)
+        behav_data_out.insert(0,"Subject_ID",config_in.subject_id)
         behav_data_out = behav_data_out.reset_index(drop=True)
         participant_data_out.append(behav_data_out)
-        logger.info("Processed behav data for subject %s",data_in.subject_id)
+        logger.info("Processed behav data for subject %s",config_in.subject_id)
         status.behaviour = ProcessingStatus.OK
     except (ValueError,FileNotFoundError) as e:
-        logger.warning("Skipping behaviour analysis on %s. %s",data_in.subject_id,e)
+        logger.warning("Skipping behaviour analysis on %s. %s",config_in.subject_id,e)
         status.behaviour = ProcessingStatus.ERROR
 
     try:
-        debrief_data_out = debrief.process(data_in)
+        debrief_data_out = debrief.process(config_in)
         debrief_data_out = debrief_data_out.reset_index(drop=True)
         participant_data_out.append(debrief_data_out)
 
-        logger.info("Processed debrief data for subject %s",data_in.subject_id)
+        logger.info("Processed debrief data for subject %s",config_in.subject_id)
         status.debrief = ProcessingStatus.OK
 
     except (ValueError,FileNotFoundError) as e:
-        logger.warning("Skipping debrief analysis on %s. %s",data_in.subject_id,e)
+        logger.warning("Skipping debrief analysis on %s. %s",config_in.subject_id,e)
         status.debrief = ProcessingStatus.ERROR
     
     # Do QC
     vr_intervals,status_out = get_trigger_intervals(raw_timestamped_data['Trigger'])
     if len(vr_intervals) != EXPECTED_INTERVAL_NR:
-        logger.warning("Interval count is %d and not %d for subject %s.",len(vr_intervals),EXPECTED_INTERVAL_NR,data_in.subject_id)
+        logger.warning("Interval count is %d and not %d for subject %s.",len(vr_intervals),EXPECTED_INTERVAL_NR,config_in.subject_id)
         status.intervals = ProcessingStatus.ERROR
     else:
         status.intervals = status_out
@@ -148,7 +152,7 @@ def run_pipeline(data_in : ParticipantConfig) -> CranePipelineOutput:
                 status.physiology = ProcessingStatus.OK
 
         except ValueError as e:
-                logger.warning("Skipping physiology analysis on %s. %s",data_in.subject_id,e)
+                logger.warning("Skipping physiology analysis on %s. %s",config_in.subject_id,e)
                 status.physiology = ProcessingStatus.ERROR
     else:
         status.behaviour = ProcessingStatus.ERROR
@@ -163,7 +167,7 @@ def run_pipeline(data_in : ParticipantConfig) -> CranePipelineOutput:
     df_out = pd.concat(participant_data_out, axis = 1)
 
     if "Subject_ID" not in df_out.columns:
-        df_out.insert(0, "Subject_ID", data_in.subject_id)
+        df_out.insert(0, "Subject_ID", config_in.subject_id)
 
     # Move processing to front
 
@@ -175,7 +179,7 @@ def run_pipeline(data_in : ParticipantConfig) -> CranePipelineOutput:
         cols.insert(1, col_to_mv)
         df_out = df_out[cols]
 
-    pipeline_output = CranePipelineOutput(subject_id=data_in.subject_id)
+    pipeline_output = CranePipelineOutput(subject_id=config_in.subject_id)
     pipeline_output.subject_df_out=df_out
     pipeline_output.figure_data_out=fig
     pipeline_output.status=status

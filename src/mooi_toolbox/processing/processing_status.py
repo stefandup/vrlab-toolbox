@@ -16,6 +16,7 @@ class PipelineStatus:
     debrief : ProcessingStatus  = ProcessingStatus.NOT_RUN
     intervals : ProcessingStatus  = ProcessingStatus.NOT_RUN
     physiology : ProcessingStatus  = ProcessingStatus.NOT_RUN
+    saved : ProcessingStatus = ProcessingStatus.NOT_RUN
 
     def as_dict(self) -> dict[str,ProcessingStatus]:
         '''For looping'''

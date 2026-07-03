@@ -24,7 +24,6 @@ logs/
 temp/
 spss_scripts/
 AGENTS.md
-references/
 build/
 dist/
 vrlab_crane_process.spec

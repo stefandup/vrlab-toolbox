@@ -9,21 +9,28 @@ from mooi_toolbox.processing.input_data import ParticipantConfig
 
 logger = logging.getLogger(__name__)
 
+class BiopacDataImportStartegy:
+    def import_data(self, config_in: ParticipantConfig) -> RawBioData:
+
+        raw_data_for_pipeline = load_biopac_data(config_in)
+
+        return raw_data_for_pipeline
+
 def clean_biopac_labels(labels_in):
 
     return [label.strip().split(" ")[0] for label in labels_in.flatten()]
 
-def load_biopac_data(data_in : ParticipantConfig) -> dict[str,pd.DataFrame]:
+def load_biopac_data(config_in : ParticipantConfig) -> RawBioData:
     """Load biopac mat files into pd Dataframe."""
     # time_stamps EDA DF
     
-    logger.info(f"Loading {data_in.biopac_fn}")
+    logger.info(f"Loading {config_in.biopac_fn}")
     dfs_out : dict[str,pd.DataFrame] = {}
 
     try:
-        imported_data = sio.loadmat(data_in.biopac_fn)
+        imported_data = sio.loadmat(config_in.biopac_fn)
     except ValueError as e:
-        logger.error("Error loading %s: %s",data_in.biopac_fn,e)
+        logger.error("Error loading %s: %s",config_in.biopac_fn,e)
         raise
     mat_data = imported_data['data']
     mat_isi = imported_data['isi']
@@ -40,18 +47,9 @@ def load_biopac_data(data_in : ParticipantConfig) -> dict[str,pd.DataFrame]:
         new_data = pd.DataFrame({"time_stamps" : time_stamps, label : data})
         dfs_out.update({label : new_data})
 
-    return dfs_out
+    raw_bio_data_out = RawBioData(raw_data=dfs_out)
+
+    return raw_bio_data_out
 
 def get_subject_id_from_mat(biopac_mat_fn : str) -> str:
     return os.path.basename(biopac_mat_fn).split('.')[0].strip().replace(' ','').split('_')[1]
-
-class BiopacRawData(RawBioData):
-    '''
-    Inherets from biodata class. Here we add a load method for the particular data type.
-    Using this class based method it is easier to add new methods inherting from the biodata class.
-    
-    '''
-    @classmethod
-    def load_data(cls,pipeline_input : ParticipantConfig):
-        biopac_data : dict[str,pd.DataFrame] = load_biopac_data(pipeline_input)
-        return cls(biopac_data)

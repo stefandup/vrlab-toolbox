@@ -1,6 +1,6 @@
 import pandera.pandas as pa
 import pandas as pd
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 def all_columns_are_floats(df : pd.DataFrame) -> bool:
     results = []
@@ -30,7 +30,7 @@ class RawBioData:
     as validated by RawBioData.
     
     '''
-    raw_data : dict[str,pd.DataFrame] # Different dataframes at potentially different Hz
+    raw_data : dict[str,pd.DataFrame]  = field(default_factory=dict)# Different dataframes at potentially different Hz
 
     def __post_init__(self):
         validated_data : dict[str,pd.DataFrame] = {}

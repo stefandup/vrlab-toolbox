@@ -1,5 +1,6 @@
 import unittest
-from mooi_toolbox.processing.biopac import BiopacRawData
+from mooi_toolbox.processing.biodata import RawBioData
+from mooi_toolbox.processing.biopac import BiopacDataImportStartegy
 from mooi_toolbox.processing.crane_pipeline import run_pipeline
 from mooi_toolbox.processing.crane_pipeline import ProcessingStatus , PipelineStatus
 from mooi_toolbox.processing.input_data import ParticipantConfig
@@ -91,15 +92,23 @@ all_ok_status_str = PipelineStatus(data_in=ProcessingStatus.OK,
                                    physiology=ProcessingStatus.OK
                                    ).get_as_text()
 
+missing_debrief = PipelineStatus(
+    data_in=ProcessingStatus.OK,
+    physiology=ProcessingStatus.OK,
+    behaviour=ProcessingStatus.OK,
+    intervals=ProcessingStatus.OK,
+    debrief=ProcessingStatus.ERROR
+    ).get_as_text()
+
 class TestBasicDataHandling(unittest.TestCase):
 
     def test_good_raw_data_init_should_return_ok(self):
-        raw_biodata_good : BiopacRawData = BiopacRawData.load_data(example_crane_participant_correct)
-        self.assertIsInstance(raw_biodata_good,BiopacRawData)
+        raw_biodata_good : RawBioData = BiopacDataImportStartegy().import_data(example_crane_participant_correct)
+        self.assertIsInstance(raw_biodata_good,RawBioData)
 
     def test_no_data_should_return_error(self):
         with self.assertRaises(FileNotFoundError):
-            BiopacRawData.load_data(crane_participant_no_FILE)
+            BiopacDataImportStartegy().import_data(crane_participant_no_FILE)
                 
 class TestCranePipeline(unittest.TestCase):
 
@@ -134,13 +143,6 @@ class TestCranePipeline(unittest.TestCase):
 
     def test_crane_missing_debrief_correct_label(self):
 
-        missing_debrief = PipelineStatus(
-            data_in=ProcessingStatus.OK,
-            physiology=ProcessingStatus.OK,
-            behaviour=ProcessingStatus.OK,
-            intervals=ProcessingStatus.OK,
-            debrief=ProcessingStatus.ERROR
-            ).get_as_text()
         
         pipeline_out = run_pipeline(crane_participant_no_debrief)
         self.assertEqual(pipeline_out.status.debrief,ProcessingStatus.ERROR)
@@ -163,7 +165,7 @@ class TestCranePipeline(unittest.TestCase):
         self.assertEqual(pipeline_out.status.intervals,ProcessingStatus.OK)
         self.assertEqual(
                 pipeline_out.subject_df_out["Processing_Status"].iloc[0],
-                'data_in=ok behaviour=ok debrief=error intervals=ok physiology=ok'
+                missing_debrief
                 )
         
     def test_crane_handles_long_delay_time(self):
