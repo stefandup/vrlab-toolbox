@@ -1,15 +1,18 @@
-import tomllib
 import os
 from functools import lru_cache
 from typing import Any
 
-@lru_cache
-def get_config() -> dict[str,Any]:
+import tomllib
 
-    with open("pyproject.toml","rb") as f:
+
+@lru_cache
+def get_config() -> dict[str, Any]:
+
+    with open("pyproject.toml", "rb") as f:
         cfg = tomllib.load(f)
 
     return cfg["tool"]["mooi_toolbox"]
+
 
 @lru_cache
 def get_default_xdf() -> str:
@@ -25,20 +28,23 @@ def get_default_xdf() -> str:
             f"_ses-S{dft['default_session']}"
             f"_task-{dft['default_xdf_task']}"
             f"_run-001_{dft['default_xdf_folder']}.xdf"
-        )
+        ),
     )
     return path_out
 
-def get_opensignals_eda_data_label() ->str:
-    
+
+def get_opensignals_eda_data_label() -> str:
+
     dft = get_config()
 
     return dft["eda_opensignals_data_label"]
+
 
 def get_biopac_eda_data_label() -> str:
     dft = get_config()
 
     return dft["eda_biopac_data_label"]
+
 
 def get_vr_intervals() -> str:
     dft = get_config()
