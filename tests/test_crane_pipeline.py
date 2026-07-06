@@ -7,7 +7,7 @@ from mooi_toolbox.processing.input_data import ParticipantConfig
 
 example_crane_participant_correct = ParticipantConfig(
     subject_id="00020",
-    biopac_fn=r"crane_data\\2026481120_00020_CraneOut.mat",
+    physiology_fn=r"crane_data\\2026481120_00020_CraneOut.mat",
     behav_folder=r"crane_data",
     verbose=False,
     show_plots=False,
@@ -15,7 +15,7 @@ example_crane_participant_correct = ParticipantConfig(
 
 crane_participant_no_FILE = ParticipantConfig(
     subject_id="00020",
-    biopac_fn=r"crane_data\\NOFILE.mat",
+    physiology_fn=r"crane_data\\NOFILE.mat",
     behav_folder=r"crane_data",
     verbose=False,
     show_plots=False,
@@ -23,7 +23,7 @@ crane_participant_no_FILE = ParticipantConfig(
 
 crane_participant_no_BEHAV = ParticipantConfig(
     subject_id="00020",
-    biopac_fn=r"crane_data\\2026481120_00020_CraneOut.mat",
+    physiology_fn=r"crane_data\\2026481120_00020_CraneOut.mat",
     behav_folder=r"NO_BEHAV_FOLDER",
     verbose=False,
     show_plots=False,
@@ -31,7 +31,7 @@ crane_participant_no_BEHAV = ParticipantConfig(
 
 example_incorrect_interval_nr = ParticipantConfig(
     subject_id="00007",
-    biopac_fn=r"crane_data\\2026371237_00007_CraneOut.mat",
+    physiology_fn=r"crane_data\\2026371237_00007_CraneOut.mat",
     behav_folder=r"crane_data",
     verbose=False,
     show_plots=False,
@@ -39,7 +39,7 @@ example_incorrect_interval_nr = ParticipantConfig(
 
 example_correct_interval_nr = ParticipantConfig(
     subject_id="TESTa",
-    biopac_fn=r"crane_data\\20262121130_TESTa_CraneOut.mat",
+    physiology_fn=r"crane_data\\20262121130_TESTa_CraneOut.mat",
     behav_folder=r"crane_data",
     verbose=False,
     show_plots=False,
@@ -47,7 +47,7 @@ example_correct_interval_nr = ParticipantConfig(
 
 example_long_delay = ParticipantConfig(
     subject_id="00011",
-    biopac_fn=r"crane_data\\2026325120_00011_CraneOut.mat",
+    physiology_fn=r"crane_data\\2026325120_00011_CraneOut.mat",
     behav_folder=r"crane_data",
     verbose=False,
     show_plots=False,
@@ -55,7 +55,7 @@ example_long_delay = ParticipantConfig(
 
 example_incorrect_very_short_trigger = ParticipantConfig(
     subject_id="00006",
-    biopac_fn=r"crane_data\\202637138_00006_CraneOut.mat",
+    physiology_fn=r"crane_data\\202637138_00006_CraneOut.mat",
     behav_folder=r"crane_data",
     verbose=False,
     show_plots=False,
@@ -63,7 +63,7 @@ example_incorrect_very_short_trigger = ParticipantConfig(
 
 example_incorrect_medium_short_trigger = ParticipantConfig(
     subject_id="PID16407",
-    biopac_fn=r"crane_data\\20265221116_PID16407_CraneOut.mat",
+    physiology_fn=r"crane_data\\20265221116_PID16407_CraneOut.mat",
     behav_folder=r"crane_data",
     verbose=False,
     show_plots=False,
@@ -71,7 +71,7 @@ example_incorrect_medium_short_trigger = ParticipantConfig(
 
 crane_participant_no_debrief = ParticipantConfig(
     subject_id="PID15868",
-    biopac_fn=r"crane_data\\20265121237_PID15868_CraneOut.mat",
+    physiology_fn=r"crane_data\\20265121237_PID15868_CraneOut.mat",
     behav_folder=r"crane_data",
     verbose=False,
     show_plots=False,

@@ -6,7 +6,7 @@ import pandera.pandas as pa
 from matplotlib.figure import Figure
 
 from mooi_toolbox.processing import biopac, eda
-from mooi_toolbox.processing import crane_behaviour as behaviour
+from mooi_toolbox.processing import crane_behaviour as crane_behaviour
 from mooi_toolbox.processing import crane_debrief_behaviour as debrief
 from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.input_data import ParticipantConfig
@@ -40,7 +40,7 @@ BEHAVIOUR_OUTPUT_METRICS = (
     "nr_forced_slips",
     "avg_velocity",
     "target_score",
-    *(f"{emotion}_proportion" for emotion in behaviour.EMOTIONS_TESTED),
+    *(f"{emotion}_proportion" for emotion in crane_behaviour.EMOTIONS_TESTED),
 )
 DEBRIEF_OUTPUT_METRICS = tuple(debrief.emotion_cols)
 EXPECTED_INTERVAL_NR = 23
@@ -105,7 +105,7 @@ def run_pipeline(config_in: ParticipantConfig) -> CranePipelineOutput:
 
     # Import behaviour data
     try:
-        behav_data_out, validated_behav_df = behaviour.process(config_in)
+        behav_data_out, validated_behav_df = crane_behaviour.process(config_in)
         behav_data_out.insert(0, "Subject_ID", config_in.subject_id)
         behav_data_out = behav_data_out.reset_index(drop=True)
         participant_data_out.append(behav_data_out)

@@ -1,10 +1,9 @@
 import logging
-import re
-from pathlib import Path
 
 import pandas as pd
 import pandera.pandas as pa
 
+from mooi_toolbox.processing import behaviour
 from mooi_toolbox.processing.input_data import ParticipantConfig
 
 logger = logging.getLogger(__name__)
@@ -77,71 +76,16 @@ crane_behav_file_schema = pa.DataFrameSchema(
 )
 
 
-# Match with BIOPAC data
-def behaviour_matches_biopac_data(subject_id: str, behaviour_data_dir: str) -> list[Path]:
-    logger.info(f"Looking for {subject_id} in {behaviour_data_dir}...")
-
-    reg_pattern = f"^.*{subject_id}_CraneOut.csv$"
-    compiled = re.compile(reg_pattern)
-
-    root = Path(behaviour_data_dir)
-    return [
-        behav_file_path
-        for behav_file_path in root.rglob("*")
-        if behav_file_path.is_file() and compiled.search(behav_file_path.name)
-    ]
-
-
-def import_csv_to_long_df(behav_fn: Path) -> pd.DataFrame:
-    """Import behaviour to a long df"""
-
-    # Check for missing data. Try to work around missing data, but break if you need to.
-    return pd.read_csv(behav_fn)
-
-
-def create_participant_out_data(long_data_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Takes per participant crane behav data and converts to wide data which then can be
-    added in the pipeline.
-
-    """
-    # group_cols =
-
-    return pd.DataFrame()
-
-
-def load_and_validate_crane_behaviour_csv(behav_file_fn) -> pd.DataFrame:
-    # TODO: Decide what to do when multiple csv files are found
-    behav_df = import_csv_to_long_df(behav_file_fn)
-    try:
-        behav_df_validated = crane_behav_file_schema.validate(behav_df)
-    except pa.errors.SchemaErrors as e:
-        logger.error("Error loading %s: %s", behav_file_fn, e.failure_cases.to_string(index=False))
-        raise
-
-    logger.info("Successfully loaded %s", behav_file_fn)
-
-    return behav_df_validated
-
-
 def process(config_in: ParticipantConfig) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Per participant processes behaviour files and outputs a wide data frame
+    Per participant processes behaviour files for the crane game and outputs a wide data frame
     to concat in the batch.
 
     """
 
-    behav_files_found = behaviour_matches_biopac_data(config_in.subject_id, config_in.behav_folder)
-
-    if not behav_files_found:
-        error = f"No files found for {config_in.subject_id}"
-        logger.error(error)
-        raise FileNotFoundError(error)
-
-    logger.info(f"Found {behav_files_found}")
-
-    behav_df_validated = load_and_validate_crane_behaviour_csv(behav_files_found[0])
-
+    behav_df_validated = behaviour.load_validate_physiology_behav_data(
+        config_in, crane_behav_file_schema
+    )
     # Remove training
     training_rows = behav_df_validated[behav_df_validated["Training"]].index
     behav_df_validated_no_training = behav_df_validated.drop(index=training_rows)
