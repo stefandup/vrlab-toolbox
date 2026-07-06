@@ -258,7 +258,7 @@ def get_predicted_trigger_intervals(
 
 
 def match_behav_intervals_with_trigger_intervals(
-    trigger_intervals: dict[str, tuple[float, float]], validated_behav_df
+    trigger_intervals: dict[str, tuple[float, float]], validated_behav_df: pd.DataFrame
 ) -> tuple[dict[str, tuple[float, float]], ProcessingStatus]:
     # TODO: Make more robust
     behav_intervals = get_crane_behav_intervals(validated_behav_df)
