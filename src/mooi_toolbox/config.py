@@ -1,9 +1,10 @@
 import tomllib
 import os
 from functools import lru_cache
+from typing import Any
 
 @lru_cache
-def get_config() -> dict[str,any]:
+def get_config() -> dict[str,Any]:
 
     with open("pyproject.toml","rb") as f:
         cfg = tomllib.load(f)
