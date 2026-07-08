@@ -2,6 +2,10 @@ import unittest
 
 from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.biopac import BiopacDataImportStartegy
+from mooi_toolbox.processing.crane_behaviour import (
+    RawCraneBehaviourData,
+    build_crane_raw_behav_file_schema,
+)
 from mooi_toolbox.processing.crane_pipeline import PipelineStatus, ProcessingStatus, run_pipeline
 from mooi_toolbox.processing.input_data import ParticipantConfig
 
@@ -101,6 +105,12 @@ missing_debrief = PipelineStatus(
     intervals=ProcessingStatus.OK,
     debrief=ProcessingStatus.ERROR,
 ).get_as_text()
+
+
+class TestBehaviourClassWithBiopacData(unittest.TestCase):
+    def test_biopac_behav_import(self):
+        correct_behaviour = RawCraneBehaviourData.read_csv(example_crane_participant_correct)
+        build_crane_raw_behav_file_schema().validate(correct_behaviour.raw_behav_df)
 
 
 class TestBasicDataHandling(unittest.TestCase):

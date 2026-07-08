@@ -10,47 +10,45 @@ from mooi_toolbox.processing import crane_behaviour as crane_behaviour
 from mooi_toolbox.processing import crane_debrief_behaviour as debrief
 from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.input_data import ParticipantConfig
-from mooi_toolbox.processing.output_data import PipelineData, build_base_output_schema
+from mooi_toolbox.processing.output_data import PipelineOutputData, build_base_output_schema
 from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
 from mooi_toolbox.processing.vr_intervals import (
     get_trigger_intervals,
     match_behav_intervals_with_trigger_intervals,
 )
 
-
-@dataclass
-class CranePipelineOutput(PipelineData):
-    def validate_participant_output(self) -> pd.DataFrame:
-        return build_crane_participant_output_schema().validate(self.subject_df_out)
-
-
 logger = logging.getLogger(__name__)
 
-BLOCK_TYPES = ("NonStressBlock", "StressBlock")
-TRIAL_TYPES = ("SlipTrial", "NonSlipTrial")
-BEHAVIOUR_OUTPUT_METRICS = (
-    "nausea_avg",
-    "dizziness_avg",
-    "stressed_avg",
-    "dropped_total",
-    "nr_frustration_barrels",
-    "nr_error_slips",
-    "nr_slips",
-    "nr_no_reason_slips",
-    "nr_forced_slips",
-    "avg_velocity",
-    "target_score",
-    *(f"{emotion}_proportion" for emotion in crane_behaviour.EMOTIONS_TESTED),
-)
+
 DEBRIEF_OUTPUT_METRICS = tuple(debrief.emotion_cols)
 EXPECTED_INTERVAL_NR = 23
 
 
-def _optional_float_column() -> pa.Column:
-    return pa.Column(float, nullable=True, coerce=True, required=False)
+def build_crane_debrief_output_schema() -> pa.DataFrameSchema:
+    return pa.DataFrameSchema(
+        {
+            f"Debrief_{metric}_{trial_type}": _optional_float_column()
+            for metric in DEBRIEF_OUTPUT_METRICS
+            for trial_type in TRIAL_TYPES
+        },
+        coerce=True,
+        strict=False,
+    )
+
+
+# TODO Unlikely to be unique!
+
+
+@dataclass
+class CraneDebriefOutputData(PipelineOutputData):
+    validation_schema: pa.DataFrameSchema = build_crane_debrief_output_schema()
+
+
+# TODO: Might be redundant as the physiology is less uniquely specified
 
 
 # Schema builds more or less automatically based on the constants set.
+# TODO THis schema can be split into behaviour/debrief and physiology types.
 def build_crane_participant_output_schema() -> pa.DataFrameSchema:
     """Create schema for the wide participant output produced by this pipeline."""
     behaviour_columns = {
@@ -79,11 +77,17 @@ def build_crane_participant_output_schema() -> pa.DataFrameSchema:
     return build_base_output_schema({**behaviour_columns, **debrief_columns, **physiology_columns})
 
 
+@dataclass
+class CranePipelineOutputData(PipelineOutputData):
+    def validate_participant_output(self) -> pd.DataFrame:
+        return build_crane_participant_output_schema().validate(self.subject_df_out)
+
+
 class CranePipeline:
     pass
 
 
-def run_pipeline(config_in: ParticipantConfig) -> CranePipelineOutput:
+def run_pipeline(config_in: ParticipantConfig) -> CranePipelineOutputData:
     # TODO: PIpeline currently bit haphazard: difficult to figure out whats going on for new coders.
     validated_behav_df = None
     fig: Figure | None = None
@@ -99,7 +103,7 @@ def run_pipeline(config_in: ParticipantConfig) -> CranePipelineOutput:
     except (ValueError, FileNotFoundError) as e:
         logger.warning("Error loading biopac eda data. %s", e)
         status.data_in = ProcessingStatus.ERROR
-        return CranePipelineOutput.error(config_in.subject_id, status)
+        return CranePipelineOutputData.error(config_in.subject_id, status)
 
     participant_data_out = []
 
@@ -188,7 +192,7 @@ def run_pipeline(config_in: ParticipantConfig) -> CranePipelineOutput:
         cols.insert(1, col_to_mv)
         df_out = df_out[cols]
 
-    pipeline_output = CranePipelineOutput(subject_id=config_in.subject_id)
+    pipeline_output = CranePipelineOutputData(subject_id=config_in.subject_id)
     pipeline_output.subject_df_out = df_out
     pipeline_output.figure_data_out = fig
     pipeline_output.status = status

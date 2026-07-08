@@ -26,11 +26,12 @@ def build_base_output_schema(
 
 
 @dataclass
-class PipelineData:
+class PipelineOutputData:
     # TODO: Fix that on init it inits already an empty participant output data using config.
     subject_id: str
     subject_df_out: pd.DataFrame = field(init=False)
     figure_data_out: Figure | None = field(default=None, init=False)
+    validation_schema: pa.DataFrameSchema = build_base_output_schema()
     status: PipelineStatus = field(default_factory=PipelineStatus, init=False)
 
     def __post_init__(self):
@@ -41,9 +42,9 @@ class PipelineData:
         self.subject_df_out = self.validate_participant_output()
 
     def validate_participant_output(self) -> pd.DataFrame:
-        return build_base_output_schema().validate(self.subject_df_out)
+        return self.validation_schema.validate(self.subject_df_out)
 
-    def append_columns(
+    def append_dataframe(
         self, data_in: pd.DataFrame, additional_columns: dict[str, pa.Column]
     ) -> None:
         revised_validation_schema = build_base_output_schema(additional_columns)
@@ -67,6 +68,18 @@ class PipelineData:
             raise ValueError("Output data must contain exactly one row.")
 
         self.subject_df_out = revised_validation_schema.validate(combined_df)
+
+    def merge(self, other: "PipelineOutputData") -> "PipelineOutputData":
+        merged_output = PipelineOutputData(self.subject_id)
+        merged_output.status = self.status.merge(other.status)
+        merged_output.validation_schema = pa.DataFrameSchema(
+            {**self.validation_schema.columns, **other.validation_schema.columns}
+        )
+        merged_output.subject_df_out = self.subject_df_out.copy()
+        merged_output.append_dataframe(other.subject_df_out, other.validation_schema.columns)
+        merged_output.subject_df_out["Processing_Status"] = merged_output.status.get_as_text()
+
+        return merged_output
 
     @classmethod
     def error(cls, subject_id: str, status_in: PipelineStatus) -> Self:

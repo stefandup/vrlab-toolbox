@@ -1,10 +1,12 @@
 import logging
+from dataclasses import dataclass
 
 import pandas as pd
 import pandera.pandas as pa
 
 from mooi_toolbox.processing import behaviour
 from mooi_toolbox.processing.input_data import ParticipantConfig
+from mooi_toolbox.processing.output_data import PipelineOutputData
 
 logger = logging.getLogger(__name__)
 # TODO convert to tuple
@@ -17,6 +19,28 @@ EMOTIONS_TESTED = [
     "Confused",
     "Anger",
 ]
+
+BLOCK_TYPES = ("NonStressBlock", "StressBlock")
+TRIAL_TYPES = ("SlipTrial", "NonSlipTrial")
+BEHAVIOUR_OUTPUT_METRICS = (
+    "nausea_avg",
+    "dizziness_avg",
+    "stressed_avg",
+    "dropped_total",
+    "nr_frustration_barrels",
+    "nr_error_slips",
+    "nr_slips",
+    "nr_no_reason_slips",
+    "nr_forced_slips",
+    "avg_velocity",
+    "target_score",
+    *(f"{emotion}_proportion" for emotion in EMOTIONS_TESTED),
+)
+
+
+class RawCraneBehaviourData(behaviour.RawBehaviourData):
+    def validate_behav_data(self) -> pd.DataFrame:
+        return build_crane_raw_behav_file_schema().validate(self.raw_behav_df)
 
 
 def has_balanced_conditions(df):
@@ -39,53 +63,78 @@ def has_balanced_conditions(df):
     return counts.min() > 0 and counts.nunique() == 1
 
 
-crane_behav_file_schema = pa.DataFrameSchema(
-    {
-        "TrialNr": pa.Column(int, pa.Check.ge(1), nullable=False),
-        "TrialStartTime": pa.Column(float, pa.Check.ge(1), nullable=False),
-        "TrialEndTime": pa.Column(float, pa.Check.ge(1), nullable=False),
-        "BlockType": pa.Column(
-            str, pa.Check.isin(["NonStressBlock", "StressBlock"]), nullable=False
+def build_crane_raw_behav_file_schema() -> pa.DataFrameSchema:
+    crane_raw_behav_file_schema = pa.DataFrameSchema(
+        {
+            "TrialNr": pa.Column(int, pa.Check.ge(1), nullable=False),
+            "TrialStartTime": pa.Column(float, pa.Check.ge(1), nullable=False),
+            "TrialEndTime": pa.Column(float, pa.Check.ge(1), nullable=False),
+            "BlockType": pa.Column(
+                str, pa.Check.isin(["NonStressBlock", "StressBlock"]), nullable=False
+            ),
+            "TrialType": pa.Column(
+                str, pa.Check.isin(["SlipTrial", "NonSlipTrial"]), nullable=False
+            ),
+            "Training": pa.Column(bool, nullable=False),
+            "CurrentScore": pa.Column(int, pa.Check.ge(0), nullable=False),
+            "TotalDropped": pa.Column(int, pa.Check.ge(0), nullable=False),
+            "TargetScore": pa.Column(int, pa.Check.ge(0), nullable=False),
+            "nrFrustrationBarrels": pa.Column(int, pa.Check.ge(0), nullable=False),
+            "NrErrorSlips": pa.Column(int, pa.Check.ge(0), nullable=False),
+            "NrSlips": pa.Column(int, pa.Check.ge(0), nullable=False),
+            "NrOtherSlips": pa.Column(int, pa.Check.ge(0), nullable=False),
+            "NrNoReasonSlips": pa.Column(int, pa.Check.ge(0), nullable=False),
+            "NrForcedSlips": pa.Column(int, pa.Check.ge(0), nullable=False),
+            "AvgVelocity": pa.Column(float, pa.Check.ge(0), nullable=False),
+            "Nausea": pa.Column(int, pa.Check.isin([1, 2, 3, 4, 5]), nullable=False),
+            "Dizzy": pa.Column(int, pa.Check.isin([1, 2, 3, 4, 5]), nullable=False),
+            "Stressed": pa.Column(int, pa.Check.isin([1, 2, 3, 4, 5]), nullable=False),
+            "EmotionFeedback": pa.Column(str, pa.Check.isin(EMOTIONS_TESTED), nullable=False),
+        },
+        strict=True,
+        coerce=True,
+        checks=pa.Check(
+            has_balanced_conditions,
+            name="balanced_block_trial_conditions",
+            error=(
+                "Expected equal non-training trial counts for every BlockType x TrialType condition."
+            ),
         ),
-        "TrialType": pa.Column(str, pa.Check.isin(["SlipTrial", "NonSlipTrial"]), nullable=False),
-        "Training": pa.Column(bool, nullable=False),
-        "CurrentScore": pa.Column(int, pa.Check.ge(0), nullable=False),
-        "TotalDropped": pa.Column(int, pa.Check.ge(0), nullable=False),
-        "TargetScore": pa.Column(int, pa.Check.ge(0), nullable=False),
-        "nrFrustrationBarrels": pa.Column(int, pa.Check.ge(0), nullable=False),
-        "NrErrorSlips": pa.Column(int, pa.Check.ge(0), nullable=False),
-        "NrSlips": pa.Column(int, pa.Check.ge(0), nullable=False),
-        "NrOtherSlips": pa.Column(int, pa.Check.ge(0), nullable=False),
-        "NrNoReasonSlips": pa.Column(int, pa.Check.ge(0), nullable=False),
-        "NrForcedSlips": pa.Column(int, pa.Check.ge(0), nullable=False),
-        "AvgVelocity": pa.Column(float, pa.Check.ge(0), nullable=False),
-        "Nausea": pa.Column(int, pa.Check.isin([1, 2, 3, 4, 5]), nullable=False),
-        "Dizzy": pa.Column(int, pa.Check.isin([1, 2, 3, 4, 5]), nullable=False),
-        "Stressed": pa.Column(int, pa.Check.isin([1, 2, 3, 4, 5]), nullable=False),
-        "EmotionFeedback": pa.Column(str, pa.Check.isin(EMOTIONS_TESTED), nullable=False),
-    },
-    strict=True,
-    coerce=True,
-    checks=pa.Check(
-        has_balanced_conditions,
-        name="balanced_block_trial_conditions",
-        error=(
-            "Expected equal non-training trial counts for every BlockType x TrialType condition."
-        ),
-    ),
-)
+    )
+    return crane_raw_behav_file_schema
 
 
-def process(config_in: ParticipantConfig) -> tuple[pd.DataFrame, pd.DataFrame]:
+def _optional_float_column() -> pa.Column:
+    return pa.Column(float, nullable=True, coerce=True, required=False)
+
+
+def build_crane_behaviour_output_schema() -> pa.DataFrameSchema:
+    return pa.DataFrameSchema(
+        {
+            f"{metric}_{block_type}_{trial_type}": _optional_float_column()
+            for metric in BEHAVIOUR_OUTPUT_METRICS
+            for block_type in BLOCK_TYPES
+            for trial_type in TRIAL_TYPES
+        },
+        coerce=True,
+        strict=False,
+    )
+
+
+@dataclass
+class CraneBehaviourOutputData(PipelineOutputData):
+    validation_schema: pa.DataFrameSchema = build_crane_behaviour_output_schema()
+
+
+def process(config_in: ParticipantConfig) -> tuple[CraneBehaviourOutputData, RawCraneBehaviourData]:
     """
     Per participant processes behaviour files for the crane game and outputs a wide data frame
     to concat in the batch.
 
     """
+    raw_crane_behaviour = RawCraneBehaviourData.read_csv(config_in)
+    behav_df_validated = raw_crane_behaviour.raw_behav_df
 
-    behav_df_validated = behaviour.load_validate_physiology_behav_data(
-        config_in, crane_behav_file_schema
-    )
     # Remove training
     training_rows = behav_df_validated[behav_df_validated["Training"]].index
     behav_df_validated_no_training = behav_df_validated.drop(index=training_rows)
@@ -130,4 +179,8 @@ def process(config_in: ParticipantConfig) -> tuple[pd.DataFrame, pd.DataFrame]:
 
     one_row = one_row.reset_index(drop=True)
 
-    return one_row, behav_df_validated
+    behaviour_output = CraneBehaviourOutputData(config_in.subject_id)
+    behaviour_output.append_dataframe(one_row, build_crane_behaviour_output_schema().columns)
+
+    # One row should be a Pipeline dataoutput
+    return behaviour_output, raw_crane_behaviour

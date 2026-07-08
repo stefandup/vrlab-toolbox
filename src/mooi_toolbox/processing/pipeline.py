@@ -1,9 +1,14 @@
 import logging
-from typing import Protocol
+from collections.abc import Sequence
+from dataclasses import dataclass, field
+from typing import Protocol, TypeVar, cast
 
+import pandas as pd
+
+from mooi_toolbox.processing.behaviour import RawBehaviourData
 from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.input_data import ParticipantConfig
-from mooi_toolbox.processing.output_data import PipelineData
+from mooi_toolbox.processing.output_data import PipelineOutputData
 
 # from mooi_toolbox.processing.vr_intervals import
 # TODO: This could potentially form part of pipeline as a class override?
@@ -12,55 +17,176 @@ from mooi_toolbox.processing.vr_intervals import VrIntervals
 
 logger = logging.getLogger(__name__)
 
+BehaviourDataType = TypeVar("BehaviourDataType", bound="RawBehaviourData")
+PhysiologyDataType = TypeVar("PhysiologyDataType", bound="RawBioData")
+
+
+# TODO: Probably can use a template method here for the StoreClass...
+@dataclass
+class RawBehaviourDataStore:
+    items: dict[type[RawBehaviourData], RawBehaviourData] = field(default_factory=dict)
+
+    def add(self, item: RawBehaviourData) -> None:
+        self.items[type(item)] = item
+
+    def get(self, item_type: type[BehaviourDataType]) -> BehaviourDataType:
+        try:
+            return cast(BehaviourDataType, self.items[item_type])
+        except KeyError as e:
+            raise ValueError(f"Store has no behaviour of type {item_type.__name__}") from e
+
+    def has(self, item_type: type[RawBehaviourData]) -> bool:
+        return item_type in self.items
+
+
+@dataclass
+class RawPhysiologyDataStore:
+    items: dict[type[RawBioData], RawBioData] = field(default_factory=dict)
+
+    def add(self, item: RawBioData) -> None:
+        self.items[type(item)] = item
+
+    def get(self, item_type: type[PhysiologyDataType]) -> PhysiologyDataType:
+        try:
+            return cast(PhysiologyDataType, self.items[item_type])
+        except KeyError as e:
+            raise ValueError(f"Store has no physiology data of type {item_type.__name__}") from e
+
+    def has(self, item_type: type[RawBioData]) -> bool:
+        return item_type in self.items
+
+
 # Strategies
-
-
 # strategy base class
-class ImportBioDataStrategy(Protocol):
-    def import_data(self, config_in: ParticipantConfig) -> RawBioData: ...
 
 
-class ProcessBehaviourDataStrategy(Protocol):
-    def process_behaviour_data(
-        self, config_in: ParticipantConfig, data_in: PipelineData | None = None
-    ) -> PipelineData: ...
+class ImportBioDataStrategyStep(Protocol):
+    def run(self, config_in: ParticipantConfig) -> RawBioData: ...
 
 
-class ProcessPhysiologyDataStrategy(Protocol):
-    def process_physiology_data(
+class ImportBehaviourDataStrategyStep(Protocol):
+    def run(self, config_in: ParticipantConfig) -> RawBehaviourData: ...
+
+
+class ProcessBehaviourDataStrategyStep(Protocol):
+    input_data_type: type[RawBehaviourData]
+
+    def run(
+        self, config_in: ParticipantConfig, data_in: RawBehaviourData | None = None
+    ) -> PipelineOutputData: ...
+
+
+# TODO: Issue here is that the input contract still not set... and output needs a clear class
+class GetIntervalsStartegy(Protocol):
+    def run(
+        self, trigger_df: pd.DataFrame, behav_df: RawBehaviourData
+    ) -> tuple[dict[str, tuple[float, float]], ProcessingStatus]: ...
+
+
+class ProcessPhysiologyDataStrategyStep(Protocol):
+    input_data_type: type[RawBioData]
+
+    def run(
         self,
         config_in: ParticipantConfig,
         biodata_in: RawBioData,
-        data_in: PipelineData | None = None,
-        intervals: VrIntervals | None = None,
-    ) -> PipelineData: ...
-
-
-class DataQcStrategy(Protocol):
-    """Run the minimal amount of processing to check the data for correctness."""
-
-    def qc_data(
-        self, config_in: ParticipantConfig, data_in: PipelineData | None = None
-    ) -> None: ...
+        trial_intervals: VrIntervals | None = None,
+    ) -> PipelineOutputData: ...
 
 
 class SavingDataStrategy(Protocol):
-    def save_data(self, config_in: ParticipantConfig, data_in: PipelineData) -> None: ...
+    def run(self, config_in: ParticipantConfig, data_in: PipelineOutputData) -> None: ...
+
+
+@dataclass
+class SequentialBehaviourImportSteps:
+    raw_behaviour_data_Store: RawBehaviourDataStore = field(default_factory=RawBehaviourDataStore)
+    steps: Sequence[ImportBehaviourDataStrategyStep] = field(default_factory=list)
+
+    def run(self, config_in: ParticipantConfig) -> RawBehaviourDataStore:
+
+        for step in self.steps:
+            pipeline_raw_behav_data = step.run(config_in=config_in)
+            self.raw_behaviour_data_Store.add(pipeline_raw_behav_data)
+
+        return self.raw_behaviour_data_Store
+
+
+@dataclass
+class SequentialBehaviourProcessingSteps:
+    steps: Sequence[ProcessBehaviourDataStrategyStep] = field(default_factory=list)
+
+    def run(
+        self,
+        config_in: ParticipantConfig,
+        data_store_in: RawBehaviourDataStore,
+    ) -> PipelineOutputData:
+        behavioural_output_data = PipelineOutputData(config_in.subject_id)
+        for step in self.steps:
+            in_data_type = step.input_data_type
+            raw_behav_data = data_store_in.get(in_data_type)
+            step_output: PipelineOutputData = step.run(config_in=config_in, data_in=raw_behav_data)
+            behavioural_output_data.merge(step_output)
+        return behavioural_output_data
+
+
+@dataclass
+class SequentialPhysiolgyImportSteps:
+    raw_physiology_store: RawPhysiologyDataStore = field(default_factory=RawPhysiologyDataStore)
+    steps: Sequence[ImportBioDataStrategyStep] = field(default_factory=list)
+
+    def run(self, config_in: ParticipantConfig) -> RawPhysiologyDataStore:
+        for step in self.steps:
+            data_out = step.run(config_in)
+            self.raw_physiology_store.add(data_out)
+
+        return self.raw_physiology_store
+
+
+@dataclass
+class SequentialPhysiologyProcessingSteps:
+    data_out: PipelineOutputData
+    steps: Sequence[ProcessPhysiologyDataStrategyStep] = field(default_factory=list)
+
+    def run(
+        self,
+        config_in: ParticipantConfig,
+        data_store_in: RawPhysiologyDataStore,
+        intervals_in: VrIntervals,
+    ):
+
+        for step in self.steps:
+            in_data_type = step.input_data_type
+            biodata_in = data_store_in.get(in_data_type)
+            step_data_out = step.run(config_in, biodata_in, intervals_in)
+            self.data_out.merge(step_data_out)
+
+        return self.data_out
 
 
 # Pipeline base class
 class PipelineTemplate:
     def __init__(
         self,
-        import_strategy: ImportBioDataStrategy,
-        process_behav_strategy: ProcessBehaviourDataStrategy,
-        process_physiology_strategy: ProcessPhysiologyDataStrategy,
+        behaviour_raw_data_store: RawBehaviourDataStore,
+        physiolgy_raw_data_store: RawPhysiologyDataStore,
+        sequential_physiology_import_steps: SequentialPhysiolgyImportSteps,
+        sequential_behaviour_data_import_steps: SequentialBehaviourImportSteps,
+        sequential_behaviour_processing_steps: SequentialBehaviourProcessingSteps,
+        get_interval_strategy: GetIntervalsStartegy,
+        sequential_physiology_processing_steps: SequentialPhysiologyProcessingSteps,
         save_strategy: SavingDataStrategy,
     ) -> None:
 
-        self.import_strategy = import_strategy
-        self.process_behav_strategy = process_behav_strategy
-        self.process_physiology_strategy = process_physiology_strategy
+        self.behaviour_raw_data_store = behaviour_raw_data_store
+        self.physiolgy_raw_data_store = physiolgy_raw_data_store
+
+        self.sequential_physiology_import_steps = sequential_physiology_import_steps
+        self.sequential_behaviour_data_import_steps = sequential_behaviour_data_import_steps
+
+        self.sequential_behaviour_steps = sequential_behaviour_processing_steps
+        self.sequential_physiology_steps = sequential_physiology_processing_steps
+        self.get_interval_strategy = get_interval_strategy
         self.save_strategy = save_strategy
 
     def run(self, config_in: ParticipantConfig) -> None:
@@ -68,7 +194,9 @@ class PipelineTemplate:
         pipeline_status = PipelineStatus()
 
         try:
-            raw_physiology_data = self.import_strategy.import_data(config_in)
+            self.behaviour_raw_data_store = self.sequential_behaviour_data_import_steps.run(
+                config_in
+            )
             pipeline_status.data_in = ProcessingStatus.OK
         except (ValueError, FileNotFoundError) as e:
             logger.warning(
@@ -77,19 +205,8 @@ class PipelineTemplate:
             pipeline_status.data_in = ProcessingStatus.ERROR
 
         try:
-            pipeline_data = self.process_physiology_strategy.process_physiology_data(
-                config_in, raw_physiology_data
-            )
-            pipeline_status.physiology = ProcessingStatus.OK
-        except (ValueError, FileNotFoundError) as e:
-            logger.warning(
-                "Error importing physiology data for participant %s. %s", config_in.subject_id, e
-            )
-            pipeline_status.physiology = ProcessingStatus.ERROR
-
-        try:
-            pipeline_data = self.process_behav_strategy.process_behaviour_data(
-                config_in, pipeline_data
+            pipeline_data = self.sequential_behaviour_steps.run(
+                config_in, self.behaviour_raw_data_store
             )
             pipeline_status.behaviour = ProcessingStatus.OK
         except (ValueError, FileNotFoundError) as e:
@@ -99,7 +216,36 @@ class PipelineTemplate:
             pipeline_status.behaviour = ProcessingStatus.ERROR
 
         try:
-            self.save_strategy.save_data(config_in, pipeline_data)
+            self.physiolgy_raw_data_store = self.sequential_physiology_import_steps.run(config_in)
+            pipeline_status.data_in = ProcessingStatus.OK
+        except (ValueError, FileNotFoundError) as e:
+            logger.warning(
+                "Error importing raw biodata for participant %s. %s", config_in.subject_id, e
+            )
+            pipeline_status.data_in = ProcessingStatus.ERROR
+
+        # TODO Get intervals: They should be fixed for the study? i.e. just one Will be reused...
+        try:
+            trial_intervals = self.get_interval_strategy.run()
+
+        except (ValueError, FileNotFoundError) as e:
+            logger.warning(
+                "Error processing intervals for participant %s. %s", config_in.subject_id, e
+            )
+
+        try:
+            pipeline_data = self.sequential_physiology_steps.run(
+                config_in, self.physiolgy_raw_data_store, trial_intervals
+            )
+            pipeline_status.physiology = ProcessingStatus.OK
+        except (ValueError, FileNotFoundError) as e:
+            logger.warning(
+                "Error importing physiology data for participant %s. %s", config_in.subject_id, e
+            )
+            pipeline_status.physiology = ProcessingStatus.ERROR
+
+        try:
+            self.save_strategy.run(config_in, pipeline_data)
             pipeline_status.saved = ProcessingStatus.OK
         except (ValueError, FileNotFoundError) as e:
             logger.warning(
