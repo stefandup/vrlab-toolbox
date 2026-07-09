@@ -3,8 +3,6 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Protocol, TypeVar, cast
 
-import pandas as pd
-
 from mooi_toolbox.processing.behaviour import RawBehaviourData
 from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.input_data import ParticipantConfig
@@ -13,7 +11,7 @@ from mooi_toolbox.processing.output_data import PipelineOutputData
 # from mooi_toolbox.processing.vr_intervals import
 # TODO: This could potentially form part of pipeline as a class override?
 from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
-from mooi_toolbox.processing.vr_intervals import VrIntervals
+from mooi_toolbox.processing.trial_intervals import TrialIntervals
 
 logger = logging.getLogger(__name__)
 
@@ -76,11 +74,10 @@ class ProcessBehaviourDataStrategyStep(Protocol):
     ) -> PipelineOutputData: ...
 
 
-# TODO: Issue here is that the input contract still not set... and output needs a clear class
-class GetIntervalsStartegy(Protocol):
+class GetTrialIntervalsStartegy(Protocol):
     def run(
-        self, trigger_df: pd.DataFrame, behav_df: RawBehaviourData
-    ) -> tuple[dict[str, tuple[float, float]], ProcessingStatus]: ...
+        self, raw_biodata_in: RawBioData, raw_behaviour_data_in: RawBehaviourData
+    ) -> tuple[TrialIntervals, PipelineStatus]: ...
 
 
 class ProcessPhysiologyDataStrategyStep(Protocol):
@@ -90,7 +87,7 @@ class ProcessPhysiologyDataStrategyStep(Protocol):
         self,
         config_in: ParticipantConfig,
         biodata_in: RawBioData,
-        trial_intervals: VrIntervals | None = None,
+        trial_intervals: TrialIntervals | None = None,
     ) -> PipelineOutputData: ...
 
 
@@ -152,7 +149,7 @@ class SequentialPhysiologyProcessingSteps:
         self,
         config_in: ParticipantConfig,
         data_store_in: RawPhysiologyDataStore,
-        intervals_in: VrIntervals,
+        intervals_in: TrialIntervals,
     ):
 
         for step in self.steps:
@@ -173,7 +170,7 @@ class PipelineTemplate:
         sequential_physiology_import_steps: SequentialPhysiolgyImportSteps,
         sequential_behaviour_data_import_steps: SequentialBehaviourImportSteps,
         sequential_behaviour_processing_steps: SequentialBehaviourProcessingSteps,
-        get_interval_strategy: GetIntervalsStartegy,
+        get_intervals_strategy: GetTrialIntervalsStartegy,
         sequential_physiology_processing_steps: SequentialPhysiologyProcessingSteps,
         save_strategy: SavingDataStrategy,
     ) -> None:
@@ -186,7 +183,7 @@ class PipelineTemplate:
 
         self.sequential_behaviour_steps = sequential_behaviour_processing_steps
         self.sequential_physiology_steps = sequential_physiology_processing_steps
-        self.get_interval_strategy = get_interval_strategy
+        self.get_interval_strategy = get_intervals_strategy
         self.save_strategy = save_strategy
 
     def run(self, config_in: ParticipantConfig) -> None:
@@ -224,10 +221,12 @@ class PipelineTemplate:
             )
             pipeline_status.data_in = ProcessingStatus.ERROR
 
-        # TODO Get intervals: They should be fixed for the study? i.e. just one Will be reused...
         try:
-            trial_intervals = self.get_interval_strategy.run()
-
+            # TODO: raw behav data cant just be raw. Needs to be a study template or something
+            trial_intervals, trial_interval_pipeline_status = self.get_interval_strategy.run(
+                raw_biodata, raw_behav_data
+            )
+            pipeline_status = pipeline_status.merge(trial_interval_pipeline_status)
         except (ValueError, FileNotFoundError) as e:
             logger.warning(
                 "Error processing intervals for participant %s. %s", config_in.subject_id, e

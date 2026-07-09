@@ -12,9 +12,9 @@ from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.input_data import ParticipantConfig
 from mooi_toolbox.processing.output_data import PipelineOutputData, build_base_output_schema
 from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
-from mooi_toolbox.processing.vr_intervals import (
-    get_trigger_intervals,
-    match_behav_intervals_with_trigger_intervals,
+from mooi_toolbox.processing.trial_intervals import (
+    get_raw_biopac_trigger_intervals,
+    match_crane_behav_intervals_with_trigger_intervals,
 )
 
 logger = logging.getLogger(__name__)
@@ -132,7 +132,9 @@ def run_pipeline(config_in: ParticipantConfig) -> CranePipelineOutputData:
         status.debrief = ProcessingStatus.ERROR
 
     # Do QC
-    vr_intervals, status_out = get_trigger_intervals(raw_timestamped_data["Trigger"])
+    vr_intervals, status_out = get_raw_biopac_trigger_intervals(raw_timestamped_data["Trigger"])
+    # TODO: Remember this included the clean method below
+    interval_pairs, status = remove_crane_known_false_triggers(interval_pairs)
     if len(vr_intervals) != EXPECTED_INTERVAL_NR:
         logger.warning(
             "Interval count is %d and not %d for subject %s.",
@@ -148,7 +150,7 @@ def run_pipeline(config_in: ParticipantConfig) -> CranePipelineOutputData:
     if validated_behav_df is not None:
         # Do labeled Physiology
         try:
-            labeled_vr_intervals, behav_status = match_behav_intervals_with_trigger_intervals(
+            labeled_vr_intervals, behav_status = match_crane_behav_intervals_with_trigger_intervals(
                 vr_intervals, validated_behav_df
             )
             status.behaviour = behav_status

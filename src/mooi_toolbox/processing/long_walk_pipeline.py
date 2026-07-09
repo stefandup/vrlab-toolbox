@@ -12,7 +12,7 @@ from mooi_toolbox.processing.biopac import BiopacDataImportStartegy
 from mooi_toolbox.processing.input_data import ParticipantConfig
 from mooi_toolbox.processing.output_data import PipelineOutputData, build_base_output_schema
 from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
-from mooi_toolbox.processing.vr_intervals import get_trigger_intervals
+from mooi_toolbox.processing.trial_intervals import get_raw_biopac_trigger_intervals
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ def run_pipeline(data_in: ParticipantConfig) -> LongWalkPipelineOutputData:
 
     # Do QC
 
-    vr_intervals, status_out = get_trigger_intervals(raw_timestamped_data["Trigger"])
+    vr_intervals, status_out = get_raw_biopac_trigger_intervals(raw_timestamped_data["Trigger"])
     if len(vr_intervals) != EXPECTED_INTERVAL_NR:
         logger.warning(
             "Interval count is %d and not %d for subject %s.",

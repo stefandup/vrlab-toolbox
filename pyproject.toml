@@ -29,16 +29,16 @@ default_subject = "P00018"
 eda_opensignals_data_label = "EDA0"
 eda_biopac_data_label = "EDA"
 
-[tool.mooi_toolbox.vr_intervals.baseline]
+[tool.mooi_toolbox.trial_intervals.baseline]
 start = { stream = "VR_markers", column = "Markers", event = 10 }
 start_fallback = { stream = "VR_trial_events", column = "VR_trial", event = "RaiseSafetyPlatform", offset_seconds = -300 }
 end = { stream = "VR_trial_events", column = "VR_trial", event = "RaiseSafetyPlatform" }
 
-[tool.mooi_toolbox.vr_intervals.stress]
+[tool.mooi_toolbox.trial_intervals.stress]
 start = { stream = "VR_trial_events", column = "VR_trial", event = "RaiseMainPlatform" }
 end = { stream = "VR_trial_events", column = "VR_trial", event = "MainPlatformAtMin" }
 
-[tool.mooi_toolbox.vr_intervals.recovery]
+[tool.mooi_toolbox.trial_intervals.recovery]
 start = { stream = "VR_trial_events", column = "VR_trial", event = "MainPlatformAtMin" }
 end = { stream = "VR_trial_events", column = "VR_trial", event = "RunFOHQuestions" }
 

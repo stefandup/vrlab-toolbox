@@ -46,6 +46,6 @@ def get_biopac_eda_data_label() -> str:
     return dft["eda_biopac_data_label"]
 
 
-def get_vr_intervals() -> str:
+def get_trial_intervals() -> str:
     dft = get_config()
-    return dft["vr_intervals"]
+    return dft["trial_intervals"]

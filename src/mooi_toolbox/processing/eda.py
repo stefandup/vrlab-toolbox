@@ -12,7 +12,7 @@ from matplotlib.figure import Figure
 
 from mooi_toolbox.processing.output_data import PipelineOutputData
 
-from . import vr_intervals as vri
+from . import trial_intervals as vri
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ def run_eda_intervals(
     Those parts are then concatenated into an out dataframe.
     Note can also do one interval."""
 
-    biosignals_dfs_dict = vri.slice_data_frame(eda_raw_timestamped_full_ts, vr_intervals)
+    biosignals_dfs_dict = vri.slice_lsl_data_frame(eda_raw_timestamped_full_ts, vr_intervals)
     eda_parts = []
 
     for key, eda_raw_interval_timestamped in biosignals_dfs_dict.items():
