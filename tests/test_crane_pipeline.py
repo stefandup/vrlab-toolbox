@@ -109,7 +109,9 @@ missing_debrief = PipelineStatus(
 
 class TestBehaviourClassWithBiopacData(unittest.TestCase):
     def test_biopac_behav_import(self):
-        correct_behaviour = RawCraneBehaviourData.read_csv(example_crane_participant_correct)
+        correct_behaviour = RawCraneBehaviourData.load_from_config(
+            example_crane_participant_correct
+        )
         build_crane_raw_behav_file_schema().validate(correct_behaviour.raw_behav_df)
 
 

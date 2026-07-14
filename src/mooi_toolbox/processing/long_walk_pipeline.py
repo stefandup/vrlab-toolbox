@@ -10,7 +10,10 @@ from mooi_toolbox.processing import eda
 from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.biopac import BiopacDataImportStartegy
 from mooi_toolbox.processing.input_data import ParticipantConfig
-from mooi_toolbox.processing.output_data import PipelineOutputData, build_base_output_schema
+from mooi_toolbox.processing.output_data import (
+    PipelineOutputData,
+    build_base_pipeline_output_schema,
+)
 from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
 from mooi_toolbox.processing.trial_intervals import get_raw_biopac_trigger_intervals
 
@@ -41,7 +44,7 @@ def build_long_walk_participant_output_schema():
         )
     }
 
-    return build_base_output_schema({**physiology_columns})
+    return build_base_pipeline_output_schema({**physiology_columns})
 
 
 def run_pipeline(data_in: ParticipantConfig) -> LongWalkPipelineOutputData:

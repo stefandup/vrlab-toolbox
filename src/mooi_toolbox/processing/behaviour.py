@@ -1,16 +1,18 @@
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import pandas as pd
 import pandera.pandas as pa
 
+from mooi_toolbox.processing.bids import BidsEventsData
 from mooi_toolbox.processing.input_data import ParticipantConfig
 
 logger = logging.getLogger(__name__)
 
 
+# TODO: This is very messy. Not sure if half of these functions arent redundant!
 def build_base_output_schema(
     additional_columns: dict[str, pa.Column] | None = None,
 ) -> pa.DataFrameSchema:
@@ -26,16 +28,20 @@ def build_base_output_schema(
 class RawBehaviourData:
     subject_config: ParticipantConfig
     raw_behav_df: pd.DataFrame
+    validation_schema: pa.DataFrameSchema = field(default_factory=build_base_output_schema)
 
     def __post_init__(self):
         self.raw_behav_df = self.validate_behav_data()
 
     def validate_behav_data(self) -> pd.DataFrame:
-        return build_base_output_schema().validate(self.raw_behav_df)
+        return self.validation_schema.validate(self.raw_behav_df)
+
+    def to_bids_events(self) -> BidsEventsData:
+        return BidsEventsData()
 
     @classmethod
-    def read_csv(cls, config_in: ParticipantConfig):
-        behav_df = load_physiology_data_from_csv(config_in)
+    def load_from_config(cls, config_in: ParticipantConfig):
+        behav_df = load_from_participant_config(config_in)
         return cls(config_in, behav_df)
 
 
@@ -64,7 +70,7 @@ def load_validate_physiology_behav_data(
 
     """
 
-    behav_files_found = behaviour_matches_physiology_data(config_in)
+    behav_files_found = behaviour_matches_biopac_physiology_data(config_in)
 
     if not behav_files_found:
         error = f"No files found for {config_in.subject_id}"
@@ -77,8 +83,8 @@ def load_validate_physiology_behav_data(
     return behav_df_validated
 
 
-def load_physiology_data_from_csv(config_in: ParticipantConfig):
-    behav_files_found = behaviour_matches_physiology_data(config_in)
+def load_from_participant_config(config_in: ParticipantConfig):
+    behav_files_found = behaviour_matches_biopac_physiology_data(config_in)
 
     if not behav_files_found:
         error = (
@@ -95,7 +101,7 @@ def load_physiology_data_from_csv(config_in: ParticipantConfig):
 
 
 # Match with physiology data
-def behaviour_matches_physiology_data(config_in: ParticipantConfig) -> list[Path]:
+def behaviour_matches_biopac_physiology_data(config_in: ParticipantConfig) -> list[Path]:
     logger.info(f"Looking for {config_in.subject_id} in {config_in.behav_folder}...")
     search_string = Path(config_in.physiology_fn).stem
     reg_pattern = f"^.*{search_string}.csv$"

@@ -1,18 +1,17 @@
 import logging
 import re
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TypedDict
 
 import matplotlib.pyplot as plt
 import neurokit2 as nk
 import pandas as pd
-import pandera as pa
+import pandera.pandas as pa
 from matplotlib.figure import Figure
 
+from mooi_toolbox.processing import trial_intervals
 from mooi_toolbox.processing.output_data import PipelineOutputData
-
-from . import trial_intervals as vri
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +34,9 @@ def build_eda_physiology_output_schema() -> pa.DataFrameSchema:
 
 @dataclass
 class EdaPhysiologyOutputData(PipelineOutputData):
-    validation_schema: pa.DataFrameSchema = build_eda_physiology_output_schema()
+    validation_schema: pa.DataFrameSchema = field(
+        default_factory=build_eda_physiology_output_schema
+    )
 
 
 class EDAProcessingError(Exception):
@@ -43,7 +44,10 @@ class EDAProcessingError(Exception):
 
 
 class nkEDAProcessingResult(TypedDict):
-    """Neurokit2 out: Return class that combines cleaned, decomposed and peaks info from the neurokit2 toolbox."""
+    """
+    Neurokit2 out: Return class that combines cleaned, decomposed and peaks info from the
+    neurokit2 toolbox.
+    """
 
     total_time_min: float
     eda_cleaned: pd.Series
@@ -68,7 +72,11 @@ def run_nk_eda_processing(
     peak_detect_method: str = "vanhalem2020",
     sampling_rate: float = 1000,
 ) -> nkEDAProcessingResult:
-    """Wrap neurokit2 toolbox EDA functions on one set of timeseries data and return values as a combined dictionary."""
+    """
+    Wrap neurokit2 toolbox EDA functions on one set of timeseries data and return values as a
+    combined dictionary.
+
+    """
     try:
         total_time_min: float = (len(eda_raw_series_df) / sampling_rate) / 60
         eda_cleaned = nk.eda_clean(
@@ -96,11 +104,15 @@ def run_nk_eda_processing(
 def run_eda_intervals(
     eda_raw_timestamped_full_ts: pd.DataFrame, vr_intervals: dict[str, tuple[float, float]]
 ) -> pd.DataFrame:
-    """Wraps run_eda_processing. Loops over vr intervals and slices the biosignal_df into parts for individual processing.
-    Those parts are then concatenated into an out dataframe.
-    Note can also do one interval."""
+    """
+    Wraps run_eda_processing. Loops over vr intervals and slices the biosignal_df into parts for
+    individual processing. Those parts are then concatenated into an out dataframe.
+    Note can also do one interval.
+    """
 
-    biosignals_dfs_dict = vri.slice_lsl_data_frame(eda_raw_timestamped_full_ts, vr_intervals)
+    biosignals_dfs_dict = trial_intervals.slice_lsl_data_frame(
+        eda_raw_timestamped_full_ts, vr_intervals
+    )
     eda_parts = []
 
     for key, eda_raw_interval_timestamped in biosignals_dfs_dict.items():

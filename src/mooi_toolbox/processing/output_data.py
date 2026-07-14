@@ -8,7 +8,7 @@ from matplotlib.figure import Figure
 from mooi_toolbox.processing.processing_status import PipelineStatus
 
 
-def build_base_output_schema(
+def build_base_pipeline_output_schema(
     additional_columns: dict[str, pa.Column] | None = None,
 ) -> pa.DataFrameSchema:
     """Ensure that all pipelines have Subject_ID and Processing_Status values"""
@@ -31,7 +31,7 @@ class PipelineOutputData:
     subject_id: str
     subject_df_out: pd.DataFrame = field(init=False)
     figure_data_out: Figure | None = field(default=None, init=False)
-    validation_schema: pa.DataFrameSchema = build_base_output_schema()
+    validation_schema: pa.DataFrameSchema = field(default_factory=build_base_pipeline_output_schema)
     status: PipelineStatus = field(default_factory=PipelineStatus, init=False)
 
     def __post_init__(self):
@@ -47,7 +47,7 @@ class PipelineOutputData:
     def append_dataframe(
         self, data_in: pd.DataFrame, additional_columns: dict[str, pa.Column]
     ) -> None:
-        revised_validation_schema = build_base_output_schema(additional_columns)
+        revised_validation_schema = build_base_pipeline_output_schema(additional_columns)
         data_in_reset = data_in.reset_index(drop=True)
 
         # Drop columns from data in.

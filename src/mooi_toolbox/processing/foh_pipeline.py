@@ -9,7 +9,7 @@ from mooi_toolbox.cli.check_mobi_xdf import check_mobi_xdf as get_and_check_xdf
 
 from . import ecg, eda
 from . import foh_target_behaviour as tp
-from . import trial_intervals as vri
+from . import trial_intervals as trial_intervals
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ def run_lsl_pipeline(
         logger.warning("No trial info found in xdf. Cannot create intervals")
     else:
         try:
-            vr_intervals = vri.create_lsl_trial_intervals(
+            vr_intervals = trial_intervals.create_lsl_trial_intervals(
                 FOH_dfs["VR_markers"], FOH_dfs["VR_trial_events"]
             )
         except KeyError as e:

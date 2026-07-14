@@ -1,0 +1,4 @@
+onset	duration	trial_type	response_time
+0.0	1.5	reach	0.42
+2.5	1.0	grasp	0.35
+5.0	2.0	release	n/a

@@ -1,5 +1,5 @@
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pandas as pd
 import pandera.pandas as pa
@@ -36,11 +36,6 @@ BEHAVIOUR_OUTPUT_METRICS = (
     "target_score",
     *(f"{emotion}_proportion" for emotion in EMOTIONS_TESTED),
 )
-
-
-class RawCraneBehaviourData(behaviour.RawBehaviourData):
-    def validate_behav_data(self) -> pd.DataFrame:
-        return build_crane_raw_behav_file_schema().validate(self.raw_behav_df)
 
 
 def has_balanced_conditions(df):
@@ -122,8 +117,70 @@ def build_crane_behaviour_output_schema() -> pa.DataFrameSchema:
 
 
 @dataclass
+class RawCraneBehaviourData(behaviour.RawBehaviourData):
+    validation_schema: pa.DataFrameSchema = field(default_factory=build_crane_raw_behav_file_schema)
+
+    def to_bids_events(self) -> behaviour.BidsEventsData:
+
+        renamed_to_bids_columns = {
+            "TrialNr": "trial_nr",
+            "CurrentScore": "current_score",
+            "TotalDropped": "total_dropped",
+            "TargetScore": "target_score",
+            "nrFrustrationBarrels": "nr_frustration_barrels",
+            "NrErrorSlips": "nr_error_slips",
+            "NrSlips": "nr_slips",
+            "NrOtherSlips": "nr_other_slips",
+            "NrNoReasonSlips": "nr_no_reason_slips",
+            "NrForcedSlips": "nr_forced_slips",
+            "AvgVelocity": "avg_velocity",
+            "Nausea": "nausea",
+            "Dizzy": "dizzy",
+            "Stressed": "stressed",
+            "EmotionFeedback": "emotion_feedback",
+        }
+
+        events_df = pd.DataFrame(
+            {
+                "onset": self.raw_behav_df["TrialStartTime"],
+                "duration": self.raw_behav_df["TrialEndTime"] - self.raw_behav_df["TrialStartTime"],
+                "trial_type": (
+                    self.raw_behav_df["BlockType"] + "_" + self.raw_behav_df["TrialType"]
+                ),
+                "training": self.raw_behav_df["Training"],
+                **{
+                    bids_name: self.raw_behav_df[raw_name]
+                    for raw_name, bids_name in renamed_to_bids_columns.items()
+                },
+            }
+        )
+        additional_columns = {
+            bids_name: pa.Column(self.validation_schema.columns[raw_name].dtype, coerce=True)
+            for raw_name, bids_name in renamed_to_bids_columns.items()
+        }
+
+        additional_columns["trial_type"] = pa.Column(str, nullable=False, coerce=True)
+        additional_columns["training"] = pa.Column(bool, nullable=False, coerce=True)
+
+        bids_events = behaviour.BidsEventsData()
+        bids_events.append_dataframe(
+            events_df,
+            additional_columns=additional_columns,
+        )
+
+        return bids_events
+
+
+@dataclass
 class CraneBehaviourOutputData(PipelineOutputData):
-    validation_schema: pa.DataFrameSchema = build_crane_behaviour_output_schema()
+    """
+    Returns the one line output data which the Pipeline can concatenate for the final
+    group level output.
+    """
+
+    validation_schema: pa.DataFrameSchema = field(
+        default_factory=build_crane_behaviour_output_schema
+    )
 
 
 def process(config_in: ParticipantConfig) -> tuple[CraneBehaviourOutputData, RawCraneBehaviourData]:
@@ -132,7 +189,7 @@ def process(config_in: ParticipantConfig) -> tuple[CraneBehaviourOutputData, Raw
     to concat in the batch.
 
     """
-    raw_crane_behaviour = RawCraneBehaviourData.read_csv(config_in)
+    raw_crane_behaviour = RawCraneBehaviourData.load_from_config(config_in)
     behav_df_validated = raw_crane_behaviour.raw_behav_df
 
     # Remove training

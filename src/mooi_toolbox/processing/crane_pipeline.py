@@ -1,5 +1,5 @@
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pandas as pd
 import pandera.pandas as pa
@@ -9,19 +9,52 @@ from mooi_toolbox.processing import biopac, eda
 from mooi_toolbox.processing import crane_behaviour as crane_behaviour
 from mooi_toolbox.processing import crane_debrief_behaviour as debrief
 from mooi_toolbox.processing.biodata import RawBioData
-from mooi_toolbox.processing.input_data import ParticipantConfig
-from mooi_toolbox.processing.output_data import PipelineOutputData, build_base_output_schema
-from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
-from mooi_toolbox.processing.trial_intervals import (
-    get_raw_biopac_trigger_intervals,
+from mooi_toolbox.processing.crane_trial_intervals import (
     match_crane_behav_intervals_with_trigger_intervals,
 )
+from mooi_toolbox.processing.input_data import ParticipantConfig
+from mooi_toolbox.processing.output_data import (
+    PipelineOutputData,
+    build_base_pipeline_output_schema,
+)
+from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
+from mooi_toolbox.processing.trial_intervals import get_raw_biopac_trigger_intervals
 
 logger = logging.getLogger(__name__)
 
+EMOTIONS_TESTED = [
+    "Boredom",
+    "Dissatisfaction",
+    "Joy",
+    "Sadness",
+    "Satisfaction",
+    "Confused",
+    "Anger",
+]
+
+BLOCK_TYPES = ("NonStressBlock", "StressBlock")
+TRIAL_TYPES = ("SlipTrial", "NonSlipTrial")
+BEHAVIOUR_OUTPUT_METRICS = (
+    "nausea_avg",
+    "dizziness_avg",
+    "stressed_avg",
+    "dropped_total",
+    "nr_frustration_barrels",
+    "nr_error_slips",
+    "nr_slips",
+    "nr_no_reason_slips",
+    "nr_forced_slips",
+    "avg_velocity",
+    "target_score",
+    *(f"{emotion}_proportion" for emotion in EMOTIONS_TESTED),
+)
 
 DEBRIEF_OUTPUT_METRICS = tuple(debrief.emotion_cols)
 EXPECTED_INTERVAL_NR = 23
+
+
+def _optional_float_column() -> pa.Column:
+    return pa.Column(float, nullable=True, coerce=True, required=False)
 
 
 def build_crane_debrief_output_schema() -> pa.DataFrameSchema:
@@ -41,7 +74,7 @@ def build_crane_debrief_output_schema() -> pa.DataFrameSchema:
 
 @dataclass
 class CraneDebriefOutputData(PipelineOutputData):
-    validation_schema: pa.DataFrameSchema = build_crane_debrief_output_schema()
+    validation_schema: pa.DataFrameSchema = field(default_factory=build_crane_debrief_output_schema)
 
 
 # TODO: Might be redundant as the physiology is less uniquely specified
@@ -74,7 +107,9 @@ def build_crane_participant_output_schema() -> pa.DataFrameSchema:
         )
     }
 
-    return build_base_output_schema({**behaviour_columns, **debrief_columns, **physiology_columns})
+    return build_base_pipeline_output_schema(
+        {**behaviour_columns, **debrief_columns, **physiology_columns}
+    )
 
 
 @dataclass
