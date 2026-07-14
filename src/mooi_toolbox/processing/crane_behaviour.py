@@ -183,6 +183,7 @@ class CraneBehaviourOutputData(PipelineOutputData):
     )
 
 
+# TODO: Create strategy
 def process(config_in: ParticipantConfig) -> tuple[CraneBehaviourOutputData, RawCraneBehaviourData]:
     """
     Per participant processes behaviour files for the crane game and outputs a wide data frame
