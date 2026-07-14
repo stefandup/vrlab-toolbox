@@ -1,4 +1,6 @@
 import logging
+import os
+import sys
 from dataclasses import dataclass
 
 import numpy as np
@@ -222,7 +224,9 @@ def get_predicted_trigger_intervals(
     behav_intervals: dict[str, tuple[float, float]],
 ) -> tuple[dict[str, tuple[float, float]], float]:
     # TODO Still very patchy and specific to the crane game
-    reference_df = pd.read_parquet(r"references/matched_debug_df_testa.parquet")
+    base = getattr(sys, "_MEIPASS", ".")  # Is this frozen exe bin or running from source
+    reference_path = os.path.join(base, "references", "matched_debug_df_testa.parquet")
+    reference_df = pd.read_parquet(reference_path)
 
     # Control for the relative start difference.
     X = (
