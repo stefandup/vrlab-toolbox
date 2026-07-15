@@ -183,6 +183,74 @@ class CraneBehaviourOutputData(PipelineOutputData):
     )
 
 
+class ImportCraneBehaviourDataStrategyStep:
+    def run(self, config_in: ParticipantConfig) -> RawCraneBehaviourData:
+
+        return RawCraneBehaviourData.load_from_config(config_in)
+
+
+class ProcessCraneBehaviourDataStrategyStep:
+    input_data_type: type[RawCraneBehaviourData] = RawCraneBehaviourData
+
+    def run(
+        self,
+        config_in: ParticipantConfig,
+        raw_behaviour_data_in: RawCraneBehaviourData,
+    ) -> CraneBehaviourOutputData:
+        # TODO: See if using bids might simplify things long run
+        behav_df_validated = raw_behaviour_data_in.raw_behav_df
+
+        # Remove training
+        training_rows = behav_df_validated[behav_df_validated["Training"]].index
+        behav_df_validated_no_training = behav_df_validated.drop(index=training_rows)
+
+        wide_cols = ["BlockType", "TrialType"]
+
+        summary = behav_df_validated_no_training.groupby(wide_cols).agg(
+            nausea_avg=("Nausea", "mean"),
+            dizziness_avg=("Dizzy", "mean"),
+            stressed_avg=("Stressed", "mean"),
+            dropped_total=("TotalDropped", "sum"),
+            nr_frustration_barrels=("nrFrustrationBarrels", "median"),
+            nr_error_slips=("NrErrorSlips", "mean"),
+            nr_slips=("NrSlips", "mean"),
+            nr_no_reason_slips=("NrNoReasonSlips", "mean"),
+            nr_forced_slips=("NrForcedSlips", "mean"),
+            avg_velocity=("AvgVelocity", "mean"),
+            target_score=("TargetScore", "median"),
+        )
+        emotion_counts = (
+            behav_df_validated_no_training.groupby(wide_cols)["EmotionFeedback"]
+            .value_counts()
+            .unstack(fill_value=0)
+            .reindex(columns=EMOTIONS_TESTED, fill_value=0)
+        )
+
+        emotion_totals = emotion_counts.sum(axis=1)
+        emotion_proportions = emotion_counts.div(emotion_totals, axis=0)
+
+        summary_with_proportions = summary.drop(columns=EMOTIONS_TESTED, errors="ignore").join(
+            emotion_proportions.add_suffix("_proportion")
+        )
+
+        one_row = summary_with_proportions.unstack(wide_cols, fill_value=0)
+
+        if isinstance(one_row, pd.Series):
+            one_row = one_row.to_frame().T
+
+        one_row.columns = [
+            f"{metric}_{block_type}_{trial_type}"
+            for metric, block_type, trial_type in one_row.columns
+        ]
+
+        one_row = one_row.reset_index(drop=True)
+
+        behaviour_output = CraneBehaviourOutputData(config_in.subject_id)
+        behaviour_output.append_dataframe(one_row, build_crane_behaviour_output_schema().columns)
+
+        return behaviour_output
+
+
 # TODO: Create strategy
 def process(config_in: ParticipantConfig) -> tuple[CraneBehaviourOutputData, RawCraneBehaviourData]:
     """

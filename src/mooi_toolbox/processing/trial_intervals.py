@@ -126,7 +126,7 @@ def create_lsl_trial_intervals(
     return trial_intervals
 
 
-def slice_lsl_data_frame(
+def slice_data_frame(
     timestamped_df_in: pd.DataFrame, trial_intervals: dict[str, tuple[float, float]]
 ) -> dict[str, pd.DataFrame]:
     """Takes any dataframe in and subdivides into intervals given."""

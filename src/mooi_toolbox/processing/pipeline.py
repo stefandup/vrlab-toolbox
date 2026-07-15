@@ -70,11 +70,14 @@ class ProcessBehaviourDataStrategyStep(Protocol):
     input_data_type: type[RawBehaviourData]
 
     def run(
-        self, config_in: ParticipantConfig, data_in: RawBehaviourData | None = None
+        self, config_in: ParticipantConfig, raw_behaviour_data_in: RawBehaviourData
     ) -> PipelineOutputData: ...
 
 
 class GetTrialIntervalsStartegy(Protocol):
+    input_bio_data_type: type[RawBioData]
+    input_behaviour_data_type: type[RawBehaviourData]
+
     def run(
         self, raw_biodata_in: RawBioData, raw_behaviour_data_in: RawBehaviourData
     ) -> tuple[TrialIntervals, PipelineStatus]: ...
@@ -122,7 +125,9 @@ class SequentialBehaviourProcessingSteps:
         for step in self.steps:
             in_data_type = step.input_data_type
             raw_behav_data = data_store_in.get(in_data_type)
-            step_output: PipelineOutputData = step.run(config_in=config_in, data_in=raw_behav_data)
+            step_output: PipelineOutputData = step.run(
+                config_in=config_in, raw_behaviour_data_in=raw_behav_data
+            )
             behavioural_output_data.merge(step_output)
         return behavioural_output_data
 
@@ -222,9 +227,14 @@ class PipelineTemplate:
             pipeline_status.data_in = ProcessingStatus.ERROR
 
         try:
-            # TODO: raw behav data cant just be raw. Needs to be a study template or something
+            raw_biodata_for_intervals = self.physiolgy_raw_data_store.get(
+                self.get_interval_strategy.input_bio_data_type
+            )
+            raw_behav_data_for_intervals = self.behaviour_raw_data_store.get(
+                self.get_interval_strategy.input_behaviour_data_type
+            )
             trial_intervals, trial_interval_pipeline_status = self.get_interval_strategy.run(
-                raw_biodata, raw_behav_data
+                raw_biodata_for_intervals, raw_behav_data_for_intervals
             )
             pipeline_status = pipeline_status.merge(trial_interval_pipeline_status)
         except (ValueError, FileNotFoundError) as e:

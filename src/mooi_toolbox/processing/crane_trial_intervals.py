@@ -14,7 +14,10 @@ from mooi_toolbox.processing.trial_intervals import TrialIntervals, get_raw_biop
 logger = logging.getLogger(__name__)
 
 
-class CraneGetTrialIntervalStrategy:
+class CraneGetTrialIntervalStrategyStep:
+    input_bio_data_type: type[RawBioData] = RawBioData
+    input_behaviour_data_type: type[RawCraneBehaviourData] = RawCraneBehaviourData
+
     def run(
         self, raw_biodata_in: RawBioData, raw_behaviour_data_in: RawCraneBehaviourData
     ) -> tuple[TrialIntervals, PipelineStatus]:

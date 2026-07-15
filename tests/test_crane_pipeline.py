@@ -3,6 +3,8 @@ import unittest
 from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.biopac import BiopacDataImportStartegy
 from mooi_toolbox.processing.crane_behaviour import (
+    ImportCraneBehaviourDataStrategyStep,
+    ProcessCraneBehaviourDataStrategyStep,
     RawCraneBehaviourData,
     build_crane_raw_behav_file_schema,
 )
@@ -114,17 +116,31 @@ class TestBehaviourClassWithBiopacData(unittest.TestCase):
         )
         build_crane_raw_behav_file_schema().validate(correct_behaviour.raw_behav_df)
 
+    def test_behaviour_processing_strategy(self):
+        pass
+
 
 class TestBasicDataHandling(unittest.TestCase):
     def test_good_raw_data_init_should_return_ok(self):
-        raw_biodata_good: RawBioData = BiopacDataImportStartegy().import_data(
+        raw_biodata_good: RawBioData = BiopacDataImportStartegy().run(
             example_crane_participant_correct
         )
         self.assertIsInstance(raw_biodata_good, RawBioData)
 
     def test_no_data_should_return_error(self):
         with self.assertRaises(FileNotFoundError):
-            BiopacDataImportStartegy().import_data(crane_participant_no_FILE)
+            BiopacDataImportStartegy().run(crane_participant_no_FILE)
+
+
+class TestCraneBehaviourStrategy(unittest.TestCase):
+    def test_crane_process_behaviour(self):
+        import_strategy = ImportCraneBehaviourDataStrategyStep()
+        process_strategy = ProcessCraneBehaviourDataStrategyStep()
+        raw_behaviour_data = import_strategy.run(config_in=example_crane_participant_correct)
+        crane_behav_output_data = process_strategy.run(
+            example_crane_participant_correct, raw_behaviour_data
+        )
+        self.assertEqual(crane_behav_output_data.subject_df_out["Subject_ID"].iloc[0], "00020")
 
 
 class TestCranePipeline(unittest.TestCase):

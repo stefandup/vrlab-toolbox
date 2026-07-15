@@ -11,6 +11,8 @@ import pandera.pandas as pa
 from matplotlib.figure import Figure
 
 from mooi_toolbox.processing import trial_intervals
+from mooi_toolbox.processing.biodata import RawBioData
+from mooi_toolbox.processing.input_data import ParticipantConfig
 from mooi_toolbox.processing.output_data import PipelineOutputData
 
 logger = logging.getLogger(__name__)
@@ -53,6 +55,22 @@ class nkEDAProcessingResult(TypedDict):
     eda_cleaned: pd.Series
     eda_decomposed: pd.DataFrame
     eda_peaks_info: tuple[pd.DataFrame, dict]
+
+
+class ProcessEdaPhysiologyDataStrategyStep:
+    input_data_type: type[RawBioData] = RawBioData
+
+    def run(
+        self,
+        config_in: ParticipantConfig,
+        biodata_in: RawBioData,
+        trial_intervals: trial_intervals.TrialIntervals,
+    ) -> EdaPhysiologyOutputData:
+
+        scr_df = run_eda_intervals(biodata_in.raw_data["EDA"], trial_intervals.intervals)
+        eda_pipeline_out = EdaPhysiologyOutputData(config_in.subject_id)
+        eda_pipeline_out.append_dataframe(scr_df, {})
+        return eda_pipeline_out
 
 
 def run_eda_qc(
@@ -109,8 +127,7 @@ def run_eda_intervals(
     individual processing. Those parts are then concatenated into an out dataframe.
     Note can also do one interval.
     """
-
-    biosignals_dfs_dict = trial_intervals.slice_lsl_data_frame(
+    biosignals_dfs_dict = trial_intervals.slice_data_frame(
         eda_raw_timestamped_full_ts, vr_intervals
     )
     eda_parts = []

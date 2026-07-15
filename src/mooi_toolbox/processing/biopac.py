@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class BiopacDataImportStartegy:
-    def import_data(self, config_in: ParticipantConfig) -> RawBioData:
+    def run(self, config_in: ParticipantConfig) -> RawBioData:
 
         raw_data_for_pipeline = load_biopac_data(config_in)
 
