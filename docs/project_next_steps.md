@@ -250,6 +250,19 @@ Needed:
 - update `crane_debrief_behaviour.py` to import `EMOTIONS_TESTED`/`TRIAL_TYPES` from `crane_behaviour.py` too, deciding on one canonical type (list vs tuple) when consolidating;
 - once consolidated, a small test asserting the debrief and pipeline column names line up with the behaviour schema's would catch future drift.
 
+### 11. Add a fallback for partial/missing behaviour data using unlabelled intervals
+
+Right now, if behaviour data is partial or missing, interval matching has no fallback: `CraneGetTrialIntervalStrategyStep` needs the behaviour dataframe to label and match trigger intervals, so a missing/partial behaviour import currently cascades into `intervals=error` and physiology is skipped entirely (see `test_crane_pipeline_labels_missing_behav_correctly`, `test_crane_missing_debrief_correct_label`).
+
+The old QC procedure had a fallback for exactly this case: when behaviour labels aren't available, fall back to the raw, unlabelled trigger intervals so physiology processing can still run (unlabelled instead of skipped). This needs to be reintroduced.
+
+Needed:
+
+- decide where the fallback lives — likely a variant path in `CraneGetTrialIntervalStrategyStep.run` (or a fallback strategy step) that returns unlabelled intervals when `raw_behaviour_data_in` is unavailable or only partially usable;
+- decide what `intervals` status means in this case — probably `partial` rather than `error`, since physiology can still run on unlabelled intervals;
+- decide how unlabelled intervals should be named/columned in the participant-level output, since the current column naming scheme (`{metric}_{block_type}_{trial_type}`) assumes labelled intervals;
+- add a test mirroring the old QC case: partial/missing behaviour data still produces physiology output, using unlabelled intervals, with a `partial` status rather than `error`.
+
 ## Working Rule
 
 Do not rewrite everything at once. Preserve working behaviour and improve one structural issue at a time.
