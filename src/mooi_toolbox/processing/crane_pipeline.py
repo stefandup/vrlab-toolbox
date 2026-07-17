@@ -3,22 +3,26 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 import pandera.pandas as pa
-from matplotlib.figure import Figure
 
-from mooi_toolbox.processing import biopac, eda
 from mooi_toolbox.processing import crane_behaviour as crane_behaviour
 from mooi_toolbox.processing import crane_debrief_behaviour as debrief
-from mooi_toolbox.processing.biodata import RawBioData
-from mooi_toolbox.processing.crane_trial_intervals import (
-    match_crane_behav_intervals_with_trigger_intervals,
+from mooi_toolbox.processing import pipeline
+from mooi_toolbox.processing.biopac import BiopacDataImportStartegy
+from mooi_toolbox.processing.crane_behaviour import (
+    ImportCraneBehaviourDataStrategyStep,
+    ProcessCraneBehaviourDataStrategyStep,
 )
+from mooi_toolbox.processing.crane_debrief_behaviour import (
+    ImportCraneDebriefDataProcessStrategyStep,
+    ProcessCraneDebriefBehaviourDataStrategyStep,
+)
+from mooi_toolbox.processing.crane_trial_intervals import CraneGetTrialIntervalStrategyStep
+from mooi_toolbox.processing.eda import ProcessEdaPhysiologyDataStrategyStep
 from mooi_toolbox.processing.input_data import ParticipantConfig
 from mooi_toolbox.processing.output_data import (
     PipelineOutputData,
     build_base_pipeline_output_schema,
 )
-from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
-from mooi_toolbox.processing.trial_intervals import get_raw_biopac_trigger_intervals
 
 logger = logging.getLogger(__name__)
 
@@ -118,120 +122,37 @@ class CranePipelineOutputData(PipelineOutputData):
         return build_crane_participant_output_schema().validate(self.subject_df_out)
 
 
-class CranePipeline:
-    pass
-
-
 def run_pipeline(config_in: ParticipantConfig) -> CranePipelineOutputData:
-    # TODO: PIpeline currently bit haphazard: difficult to figure out whats going on for new coders.
-    validated_behav_df = None
-    fig: Figure | None = None
-    # Assume OK unless and exception is raied
-    status = PipelineStatus()
 
-    # Input raw eda
+    import_behav_steps = pipeline.SequentialBehaviourImportSteps(
+        steps=[ImportCraneBehaviourDataStrategyStep(), ImportCraneDebriefDataProcessStrategyStep()]
+    )
+    process_behav_steps = pipeline.SequentialBehaviourProcessingSteps(
+        steps=[
+            ProcessCraneBehaviourDataStrategyStep(),
+            ProcessCraneDebriefBehaviourDataStrategyStep(),
+        ]
+    )
+    import_physiology_steps = pipeline.SequentialPhysiolgyImportSteps(
+        steps=[BiopacDataImportStartegy()]
+    )
+    process_physiology_steps = pipeline.SequentialPhysiologyProcessingSteps(
+        steps=[ProcessEdaPhysiologyDataStrategyStep()]
+    )
 
-    try:
-        raw_timestamped_data: RawBioData = biopac.BiopacDataImportStartegy().import_data(config_in)
-        eda_raw_timestamped = raw_timestamped_data["EDA"]
-        status.data_in = ProcessingStatus.OK
-    except (ValueError, FileNotFoundError) as e:
-        logger.warning("Error loading biopac eda data. %s", e)
-        status.data_in = ProcessingStatus.ERROR
-        return CranePipelineOutputData.error(config_in.subject_id, status)
+    crane_pipeline = pipeline.PipelineTemplate(
+        sequential_physiology_import_steps=import_physiology_steps,
+        sequential_behaviour_data_import_steps=import_behav_steps,
+        get_intervals_strategy=CraneGetTrialIntervalStrategyStep(),
+        sequential_behaviour_processing_steps=process_behav_steps,
+        sequential_physiology_processing_steps=process_physiology_steps,
+    )
 
-    participant_data_out = []
+    participant_pipeline_data_out = crane_pipeline.run(config_in)
+    # TODO: This needs a classmethod to avoid future errors when implementing pipeline
+    crane_pipeline_output_data = CranePipelineOutputData(config_in.subject_id)
+    crane_pipeline_output_data.subject_df_out = participant_pipeline_data_out.subject_df_out
+    crane_pipeline_output_data.status = participant_pipeline_data_out.status
+    crane_pipeline_output_data.figure_data_out = participant_pipeline_data_out.figure_data_out
 
-    # Import behaviour data
-    try:
-        behav_data_out, validated_behav_df = crane_behaviour.process(config_in)
-        behav_data_out.insert(0, "Subject_ID", config_in.subject_id)
-        behav_data_out = behav_data_out.reset_index(drop=True)
-        participant_data_out.append(behav_data_out)
-        logger.info("Processed behav data for subject %s", config_in.subject_id)
-        status.behaviour = ProcessingStatus.OK
-    except (ValueError, FileNotFoundError) as e:
-        logger.warning("Skipping behaviour analysis on %s. %s", config_in.subject_id, e)
-        status.behaviour = ProcessingStatus.ERROR
-
-    try:
-        debrief_data_out = debrief.process(config_in)
-        debrief_data_out = debrief_data_out.reset_index(drop=True)
-        participant_data_out.append(debrief_data_out)
-
-        logger.info("Processed debrief data for subject %s", config_in.subject_id)
-        status.debrief = ProcessingStatus.OK
-
-    except (ValueError, FileNotFoundError) as e:
-        logger.warning("Skipping debrief analysis on %s. %s", config_in.subject_id, e)
-        status.debrief = ProcessingStatus.ERROR
-
-    # Do QC
-    vr_intervals, status_out = get_raw_biopac_trigger_intervals(raw_timestamped_data["Trigger"])
-    # TODO: Remember this included the clean method below
-    interval_pairs, status = remove_crane_known_false_triggers(interval_pairs)
-    if len(vr_intervals) != EXPECTED_INTERVAL_NR:
-        logger.warning(
-            "Interval count is %d and not %d for subject %s.",
-            len(vr_intervals),
-            EXPECTED_INTERVAL_NR,
-            config_in.subject_id,
-        )
-        status.intervals = ProcessingStatus.ERROR
-    else:
-        status.intervals = status_out
-
-    scr_df_out = eda.run_eda_intervals(eda_raw_timestamped, vr_intervals)
-    if validated_behav_df is not None:
-        # Do labeled Physiology
-        try:
-            labeled_vr_intervals, behav_status = match_crane_behav_intervals_with_trigger_intervals(
-                vr_intervals, validated_behav_df
-            )
-            status.behaviour = behav_status
-            scr_interval_df_out = eda.run_eda_intervals(eda_raw_timestamped, labeled_vr_intervals)
-            scr_interval_df_out = scr_interval_df_out.reset_index(drop=True)
-
-            scr_interval_df_out_corr = eda.correct_order(scr_interval_df_out)
-            participant_data_out.append(scr_interval_df_out_corr)
-            fig = eda.run_eda_qc(eda_raw_timestamped, scr_df_out, labeled_vr_intervals)
-
-            if status.intervals == ProcessingStatus.ERROR:
-                status.physiology = ProcessingStatus.PARTIAL
-            else:
-                status.physiology = ProcessingStatus.OK
-
-        except ValueError as e:
-            logger.warning("Skipping physiology analysis on %s. %s", config_in.subject_id, e)
-            status.physiology = ProcessingStatus.ERROR
-    else:
-        status.behaviour = ProcessingStatus.ERROR
-        status.physiology = ProcessingStatus.ERROR
-
-    # Append the final status
-    participant_data_out.append(pd.DataFrame({"Processing_Status": [status.get_as_text()]}))
-
-    if fig is None:
-        fig = eda.run_eda_qc(eda_raw_timestamped, scr_df_out, vr_intervals)
-
-    df_out = pd.concat(participant_data_out, axis=1)
-
-    if "Subject_ID" not in df_out.columns:
-        df_out.insert(0, "Subject_ID", config_in.subject_id)
-
-    # Move processing to front
-
-    col_to_mv = "Processing_Status"
-
-    if col_to_mv in df_out.columns:
-        cols = df_out.columns.tolist()
-        cols.remove(col_to_mv)
-        cols.insert(1, col_to_mv)
-        df_out = df_out[cols]
-
-    pipeline_output = CranePipelineOutputData(subject_id=config_in.subject_id)
-    pipeline_output.subject_df_out = df_out
-    pipeline_output.figure_data_out = fig
-    pipeline_output.status = status
-
-    return pipeline_output
+    return crane_pipeline_output_data

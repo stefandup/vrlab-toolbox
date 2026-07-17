@@ -16,10 +16,11 @@ from mooi_toolbox.processing.trial_intervals import TrialIntervals
 logger = logging.getLogger(__name__)
 
 BehaviourDataType = TypeVar("BehaviourDataType", bound="RawBehaviourData")
+BehaviourDataOutType = TypeVar("BehaviourDataOutType", bound="RawBehaviourData", covariant=True)
 PhysiologyDataType = TypeVar("PhysiologyDataType", bound="RawBioData")
+PipelineOutputDataType = TypeVar("PipelineOutputDataType", bound="PipelineOutputData")
 
 
-# TODO: Probably can use a template method here for the StoreClass...
 @dataclass
 class RawBehaviourDataStore:
     items: dict[type[RawBehaviourData], RawBehaviourData] = field(default_factory=dict)
@@ -62,54 +63,58 @@ class ImportBioDataStrategyStep(Protocol):
     def run(self, config_in: ParticipantConfig) -> RawBioData: ...
 
 
-class ImportBehaviourDataStrategyStep(Protocol):
-    def run(self, config_in: ParticipantConfig) -> RawBehaviourData: ...
+class ImportBehaviourDataStrategyStep(Protocol[BehaviourDataOutType]):
+    def run(self, config_in: ParticipantConfig) -> BehaviourDataOutType: ...
 
 
-class ProcessBehaviourDataStrategyStep(Protocol):
-    input_data_type: type[RawBehaviourData]
+class ProcessBehaviourDataStrategyStep(Protocol[BehaviourDataType]):
+    input_data_type: type[BehaviourDataType]
 
     def run(
-        self, config_in: ParticipantConfig, raw_behaviour_data_in: RawBehaviourData
+        self, config_in: ParticipantConfig, raw_behaviour_data_in: BehaviourDataType
     ) -> PipelineOutputData: ...
 
 
-class GetTrialIntervalsStartegy(Protocol):
-    input_bio_data_type: type[RawBioData]
-    input_behaviour_data_type: type[RawBehaviourData]
+class GetTrialIntervalsStartegy(Protocol[PhysiologyDataType, BehaviourDataType]):
+    input_bio_data_type: type[PhysiologyDataType]
+    input_behaviour_data_type: type[BehaviourDataType]
 
     def run(
-        self, raw_biodata_in: RawBioData, raw_behaviour_data_in: RawBehaviourData
+        self, raw_biodata_in: PhysiologyDataType, raw_behaviour_data_in: BehaviourDataType
     ) -> tuple[TrialIntervals, PipelineStatus]: ...
 
 
-class ProcessPhysiologyDataStrategyStep(Protocol):
-    input_data_type: type[RawBioData]
+class ProcessPhysiologyDataStrategyStep(Protocol[PhysiologyDataType]):
+    input_data_type: type[PhysiologyDataType]
 
     def run(
         self,
         config_in: ParticipantConfig,
-        biodata_in: RawBioData,
-        trial_intervals: TrialIntervals | None = None,
+        biodata_in: PhysiologyDataType,
+        trial_intervals: TrialIntervals,
     ) -> PipelineOutputData: ...
 
 
-class SavingDataStrategy(Protocol):
-    def run(self, config_in: ParticipantConfig, data_in: PipelineOutputData) -> None: ...
-
-
+# TODO: Make the Sequentials unmodifiable i.e. you can inheret from them
 @dataclass
 class SequentialBehaviourImportSteps:
     raw_behaviour_data_Store: RawBehaviourDataStore = field(default_factory=RawBehaviourDataStore)
     steps: Sequence[ImportBehaviourDataStrategyStep] = field(default_factory=list)
 
-    def run(self, config_in: ParticipantConfig) -> RawBehaviourDataStore:
-
+    def run(self, config_in: ParticipantConfig) -> tuple[RawBehaviourDataStore, PipelineStatus]:
+        pipeline_status = PipelineStatus()
         for step in self.steps:
-            pipeline_raw_behav_data = step.run(config_in=config_in)
-            self.raw_behaviour_data_Store.add(pipeline_raw_behav_data)
+            try:
+                pipeline_raw_behav_data = step.run(config_in=config_in)
+                self.raw_behaviour_data_Store.add(pipeline_raw_behav_data)
+                pipeline_status.data_in = ProcessingStatus.OK
+            except (ValueError, FileNotFoundError) as e:
+                logger.warning(
+                    "Error importing behaviour data for participant %s. %s", config_in.subject_id, e
+                )
+                pipeline_status.data_in = ProcessingStatus.ERROR
 
-        return self.raw_behaviour_data_Store
+        return (self.raw_behaviour_data_Store, pipeline_status)
 
 
 @dataclass
@@ -120,16 +125,29 @@ class SequentialBehaviourProcessingSteps:
         self,
         config_in: ParticipantConfig,
         data_store_in: RawBehaviourDataStore,
-    ) -> PipelineOutputData:
+    ) -> tuple[PipelineOutputData, PipelineStatus]:
         behavioural_output_data = PipelineOutputData(config_in.subject_id)
+        pipeline_status = PipelineStatus()
         for step in self.steps:
-            in_data_type = step.input_data_type
-            raw_behav_data = data_store_in.get(in_data_type)
-            step_output: PipelineOutputData = step.run(
-                config_in=config_in, raw_behaviour_data_in=raw_behav_data
-            )
-            behavioural_output_data.merge(step_output)
-        return behavioural_output_data
+            try:
+                in_data_type = step.input_data_type
+                raw_behav_data = data_store_in.get(in_data_type)
+                step_output: PipelineOutputData = step.run(
+                    config_in=config_in, raw_behaviour_data_in=raw_behav_data
+                )
+                behavioural_output_data = behavioural_output_data.merge(step_output)
+                pipeline_status.behaviour = ProcessingStatus.OK
+            # TODO: Printout the rest also using data type
+            except (ValueError, FileNotFoundError) as e:
+                logger.warning(
+                    "Error processing %s for participant %s. %s",
+                    in_data_type,
+                    config_in.subject_id,
+                    e,
+                )
+                pipeline_status.behaviour = ProcessingStatus.ERROR
+
+        return (behavioural_output_data, pipeline_status)
 
 
 @dataclass
@@ -137,17 +155,26 @@ class SequentialPhysiolgyImportSteps:
     raw_physiology_store: RawPhysiologyDataStore = field(default_factory=RawPhysiologyDataStore)
     steps: Sequence[ImportBioDataStrategyStep] = field(default_factory=list)
 
-    def run(self, config_in: ParticipantConfig) -> RawPhysiologyDataStore:
+    def run(self, config_in: ParticipantConfig) -> tuple[RawPhysiologyDataStore, PipelineStatus]:
         for step in self.steps:
-            data_out = step.run(config_in)
-            self.raw_physiology_store.add(data_out)
+            pipeline_status = PipelineStatus()
+            try:
+                data_out = step.run(config_in)
+                self.raw_physiology_store.add(data_out)
+                pipeline_status.data_in = ProcessingStatus.OK
+            except (ValueError, FileNotFoundError) as e:
+                logger.warning(
+                    "Error importing raw physiology data for participant %s. %s",
+                    config_in.subject_id,
+                    e,
+                )
+                pipeline_status.data_in = ProcessingStatus.ERROR
 
-        return self.raw_physiology_store
+        return (self.raw_physiology_store, pipeline_status)
 
 
 @dataclass
 class SequentialPhysiologyProcessingSteps:
-    data_out: PipelineOutputData
     steps: Sequence[ProcessPhysiologyDataStrategyStep] = field(default_factory=list)
 
     def run(
@@ -155,51 +182,58 @@ class SequentialPhysiologyProcessingSteps:
         config_in: ParticipantConfig,
         data_store_in: RawPhysiologyDataStore,
         intervals_in: TrialIntervals,
-    ):
-
+    ) -> tuple[PipelineOutputData, PipelineStatus]:
+        data_out = PipelineOutputData(config_in.subject_id)
+        pipeline_status = PipelineStatus()
         for step in self.steps:
-            in_data_type = step.input_data_type
-            biodata_in = data_store_in.get(in_data_type)
-            step_data_out = step.run(config_in, biodata_in, intervals_in)
-            self.data_out.merge(step_data_out)
+            try:
+                in_data_type = step.input_data_type
+                biodata_in = data_store_in.get(in_data_type)
+                step_data_out = step.run(config_in, biodata_in, intervals_in)
+                data_out = data_out.merge(step_data_out)
+                pipeline_status.physiology = ProcessingStatus.OK
+            except (ValueError, FileNotFoundError) as e:
+                logger.warning(
+                    "Error processing physiology for participant %s. %s", config_in.subject_id, e
+                )
+                pipeline_status.physiology = ProcessingStatus.ERROR
 
-        return self.data_out
+        return (data_out, pipeline_status)
 
 
 # Pipeline base class
 class PipelineTemplate:
     def __init__(
         self,
-        behaviour_raw_data_store: RawBehaviourDataStore,
-        physiolgy_raw_data_store: RawPhysiologyDataStore,
         sequential_physiology_import_steps: SequentialPhysiolgyImportSteps,
         sequential_behaviour_data_import_steps: SequentialBehaviourImportSteps,
         sequential_behaviour_processing_steps: SequentialBehaviourProcessingSteps,
         get_intervals_strategy: GetTrialIntervalsStartegy,
         sequential_physiology_processing_steps: SequentialPhysiologyProcessingSteps,
-        save_strategy: SavingDataStrategy,
     ) -> None:
 
-        self.behaviour_raw_data_store = behaviour_raw_data_store
-        self.physiolgy_raw_data_store = physiolgy_raw_data_store
+        self.behaviour_raw_data_store = RawBehaviourDataStore()
+        self.physiolgy_raw_data_store = RawPhysiologyDataStore()
 
         self.sequential_physiology_import_steps = sequential_physiology_import_steps
         self.sequential_behaviour_data_import_steps = sequential_behaviour_data_import_steps
 
-        self.sequential_behaviour_steps = sequential_behaviour_processing_steps
+        self.sequential_behaviour_processing_steps = sequential_behaviour_processing_steps
         self.sequential_physiology_steps = sequential_physiology_processing_steps
         self.get_interval_strategy = get_intervals_strategy
-        self.save_strategy = save_strategy
 
-    def run(self, config_in: ParticipantConfig) -> None:
+    def run(self, config_in: ParticipantConfig) -> PipelineOutputData:
 
         pipeline_status = PipelineStatus()
+        trial_intervals: TrialIntervals | None = None
+        behaviour_pipeline_data = PipelineOutputData(config_in.subject_id)
+        physiology_pipeline_data = PipelineOutputData(config_in.subject_id)
 
         try:
-            self.behaviour_raw_data_store = self.sequential_behaviour_data_import_steps.run(
-                config_in
+            self.behaviour_raw_data_store, behav_import_status = (
+                self.sequential_behaviour_data_import_steps.run(config_in)
             )
-            pipeline_status.data_in = ProcessingStatus.OK
+            pipeline_status = pipeline_status.merge(behav_import_status)
         except (ValueError, FileNotFoundError) as e:
             logger.warning(
                 "Error importing raw biodata for participant %s. %s", config_in.subject_id, e
@@ -207,10 +241,12 @@ class PipelineTemplate:
             pipeline_status.data_in = ProcessingStatus.ERROR
 
         try:
-            pipeline_data = self.sequential_behaviour_steps.run(
-                config_in, self.behaviour_raw_data_store
+            behaviour_pipeline_data, behav_processing_status = (
+                self.sequential_behaviour_processing_steps.run(
+                    config_in, self.behaviour_raw_data_store
+                )
             )
-            pipeline_status.behaviour = ProcessingStatus.OK
+            pipeline_status = pipeline_status.merge(behav_processing_status)
         except (ValueError, FileNotFoundError) as e:
             logger.warning(
                 "Error importing behaviour data for participant %s. %s", config_in.subject_id, e
@@ -218,8 +254,10 @@ class PipelineTemplate:
             pipeline_status.behaviour = ProcessingStatus.ERROR
 
         try:
-            self.physiolgy_raw_data_store = self.sequential_physiology_import_steps.run(config_in)
-            pipeline_status.data_in = ProcessingStatus.OK
+            self.physiolgy_raw_data_store, physiology_data_status = (
+                self.sequential_physiology_import_steps.run(config_in)
+            )
+            pipeline_status = pipeline_status.merge(physiology_data_status)
         except (ValueError, FileNotFoundError) as e:
             logger.warning(
                 "Error importing raw biodata for participant %s. %s", config_in.subject_id, e
@@ -241,23 +279,26 @@ class PipelineTemplate:
             logger.warning(
                 "Error processing intervals for participant %s. %s", config_in.subject_id, e
             )
+            pipeline_status.intervals = ProcessingStatus.ERROR
 
         try:
-            pipeline_data = self.sequential_physiology_steps.run(
-                config_in, self.physiolgy_raw_data_store, trial_intervals
+            if trial_intervals is None:
+                raise ValueError("Trial intervals unavailable")
+            physiology_pipeline_data, physiology_processing_status = (
+                self.sequential_physiology_steps.run(
+                    config_in, self.physiolgy_raw_data_store, trial_intervals
+                )
             )
-            pipeline_status.physiology = ProcessingStatus.OK
+            pipeline_status = pipeline_status.merge(physiology_processing_status)
         except (ValueError, FileNotFoundError) as e:
             logger.warning(
                 "Error importing physiology data for participant %s. %s", config_in.subject_id, e
             )
             pipeline_status.physiology = ProcessingStatus.ERROR
 
-        try:
-            self.save_strategy.run(config_in, pipeline_data)
-            pipeline_status.saved = ProcessingStatus.OK
-        except (ValueError, FileNotFoundError) as e:
-            logger.warning(
-                "Error importing saved data for participant %s. %s", config_in.subject_id, e
-            )
-            pipeline_status.saved = ProcessingStatus.ERROR
+        pipeline_data_out = PipelineOutputData(config_in.subject_id)
+        pipeline_data_out.status = pipeline_status
+        pipeline_data_out = pipeline_data_out.merge(behaviour_pipeline_data)
+        pipeline_data_out = pipeline_data_out.merge(physiology_pipeline_data)
+
+        return pipeline_data_out

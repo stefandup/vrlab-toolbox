@@ -92,7 +92,7 @@ def build_crane_raw_behav_file_schema() -> pa.DataFrameSchema:
             has_balanced_conditions,
             name="balanced_block_trial_conditions",
             error=(
-                "Expected equal non-training trial counts for every BlockType x TrialType condition."
+                "Expected equal non-training trial counts for every BlockType x TrialType condition"
             ),
         ),
     )

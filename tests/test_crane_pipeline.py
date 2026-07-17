@@ -8,8 +8,9 @@ from mooi_toolbox.processing.crane_behaviour import (
     RawCraneBehaviourData,
     build_crane_raw_behav_file_schema,
 )
-from mooi_toolbox.processing.crane_pipeline import PipelineStatus, ProcessingStatus, run_pipeline
+from mooi_toolbox.processing.crane_pipeline import run_pipeline
 from mooi_toolbox.processing.input_data import ParticipantConfig
+from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
 
 example_crane_participant_correct = ParticipantConfig(
     subject_id="00020",
@@ -76,6 +77,14 @@ example_incorrect_medium_short_trigger = ParticipantConfig(
 )
 
 crane_participant_no_debrief = ParticipantConfig(
+    subject_id="PID8495",
+    physiology_fn=r"crane_data\\2026651331_PID8495_CraneOut.mat",
+    behav_folder=r"crane_data",
+    verbose=False,
+    show_plots=False,
+)
+
+crane_participant_incorrect_date = ParticipantConfig(
     subject_id="PID15868",
     physiology_fn=r"crane_data\\20265121237_PID15868_CraneOut.mat",
     behav_folder=r"crane_data",
@@ -83,11 +92,9 @@ crane_participant_no_debrief = ParticipantConfig(
     show_plots=False,
 )
 
-
 corrected_interval_str = PipelineStatus(
     data_in=ProcessingStatus.OK,
     behaviour=ProcessingStatus.OK,
-    debrief=ProcessingStatus.OK,
     intervals=ProcessingStatus.CORRECTED,
     physiology=ProcessingStatus.OK,
 ).get_as_text()
@@ -95,7 +102,6 @@ corrected_interval_str = PipelineStatus(
 all_ok_status_str = PipelineStatus(
     data_in=ProcessingStatus.OK,
     behaviour=ProcessingStatus.OK,
-    debrief=ProcessingStatus.OK,
     intervals=ProcessingStatus.OK,
     physiology=ProcessingStatus.OK,
 ).get_as_text()
@@ -103,9 +109,15 @@ all_ok_status_str = PipelineStatus(
 missing_debrief = PipelineStatus(
     data_in=ProcessingStatus.OK,
     physiology=ProcessingStatus.OK,
-    behaviour=ProcessingStatus.OK,
+    behaviour=ProcessingStatus.ERROR,
     intervals=ProcessingStatus.OK,
-    debrief=ProcessingStatus.ERROR,
+).get_as_text()
+
+dates_no_match = PipelineStatus(
+    data_in=ProcessingStatus.ERROR,
+    physiology=ProcessingStatus.ERROR,
+    behaviour=ProcessingStatus.ERROR,
+    intervals=ProcessingStatus.ERROR,
 ).get_as_text()
 
 
@@ -147,9 +159,17 @@ class TestCranePipeline(unittest.TestCase):
     def test_crane_pipeline_has_expected_output(self):
         pipeline_out = run_pipeline(example_crane_participant_correct)
         pipeline_out.validate_participant_output()
+        self.assertEqual(
+            pipeline_out.subject_df_out["Processing_Status"].iloc[0], all_ok_status_str
+        )
 
     def test_crane_pipeline_labels_missing_file_correctly(self):
-        input_processing_status = PipelineStatus(data_in=ProcessingStatus.ERROR).get_as_text()
+        input_processing_status = PipelineStatus(
+            data_in=ProcessingStatus.ERROR,
+            behaviour=ProcessingStatus.ERROR,
+            intervals=ProcessingStatus.ERROR,
+            physiology=ProcessingStatus.ERROR,
+        ).get_as_text()
         pipeline_out = run_pipeline(crane_participant_no_FILE)
         self.assertEqual(pipeline_out.status.data_in, ProcessingStatus.ERROR)
         self.assertEqual(
@@ -161,12 +181,11 @@ class TestCranePipeline(unittest.TestCase):
             data_in=ProcessingStatus.OK,
             physiology=ProcessingStatus.ERROR,
             behaviour=ProcessingStatus.ERROR,
-            intervals=ProcessingStatus.OK,
-            debrief=ProcessingStatus.ERROR,
+            intervals=ProcessingStatus.ERROR,
         ).get_as_text()
 
         pipeline_out = run_pipeline(crane_participant_no_BEHAV)
-        self.assertEqual(pipeline_out.status.debrief, ProcessingStatus.ERROR)
+        self.assertEqual(pipeline_out.status.behaviour, ProcessingStatus.ERROR)
         self.assertEqual(
             pipeline_out.subject_df_out["Processing_Status"].iloc[0], physiology_and_behav_error
         )
@@ -174,7 +193,7 @@ class TestCranePipeline(unittest.TestCase):
     def test_crane_missing_debrief_correct_label(self):
 
         pipeline_out = run_pipeline(crane_participant_no_debrief)
-        self.assertEqual(pipeline_out.status.debrief, ProcessingStatus.ERROR)
+        self.assertEqual(pipeline_out.status.behaviour, ProcessingStatus.ERROR)
         self.assertEqual(pipeline_out.subject_df_out["Processing_Status"].iloc[0], missing_debrief)
 
     def test_crane_corrects_error_for_incorrect_interval_nr(self):
@@ -185,10 +204,16 @@ class TestCranePipeline(unittest.TestCase):
             pipeline_out.subject_df_out["Processing_Status"].iloc[0], corrected_interval_str
         )
 
+    def test_crane_spots_errors_when_behav_physiology_no_match(self):
+        pipeline_out = run_pipeline(crane_participant_incorrect_date)
+        self.assertEqual(pipeline_out.subject_df_out["Processing_Status"].iloc[0], dates_no_match)
+
     def test_crane_returns_ok_for_correct_interval_nr(self):
-        pipeline_out = run_pipeline(example_correct_interval_nr)
+        pipeline_out = run_pipeline(example_crane_participant_correct)
         self.assertEqual(pipeline_out.status.intervals, ProcessingStatus.OK)
-        self.assertEqual(pipeline_out.subject_df_out["Processing_Status"].iloc[0], missing_debrief)
+        self.assertEqual(
+            pipeline_out.subject_df_out["Processing_Status"].iloc[0], all_ok_status_str
+        )
 
     def test_crane_handles_long_delay_time(self):
         """Currently no error with excessive delays"""
@@ -207,9 +232,8 @@ class TestCranePipeline(unittest.TestCase):
 
     def test_crane_handles_medium_short_triggers(self):
         corrected_interval_str = PipelineStatus(
-            data_in=ProcessingStatus.OK,
-            behaviour=ProcessingStatus.OK,
-            debrief=ProcessingStatus.ERROR,
+            data_in=ProcessingStatus.ERROR,  # Also has missing debrief...
+            behaviour=ProcessingStatus.ERROR,
             intervals=ProcessingStatus.CORRECTED,
             physiology=ProcessingStatus.OK,
         ).get_as_text()

@@ -15,12 +15,11 @@ _STATUS_RANK = list(ProcessingStatus)
 
 @dataclass
 class PipelineStatus:
+    # TODO: Split data_in into behav data, physiology data etc.
     data_in: ProcessingStatus = ProcessingStatus.NOT_RUN
     behaviour: ProcessingStatus = ProcessingStatus.NOT_RUN
-    debrief: ProcessingStatus = ProcessingStatus.NOT_RUN
     intervals: ProcessingStatus = ProcessingStatus.NOT_RUN
     physiology: ProcessingStatus = ProcessingStatus.NOT_RUN
-    saved: ProcessingStatus = ProcessingStatus.NOT_RUN
 
     def as_dict(self) -> dict[str, ProcessingStatus]:
         """For looping"""

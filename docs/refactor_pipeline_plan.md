@@ -650,3 +650,120 @@ CranePipeline
 ```
 
 This is the main benefit of the design: the pipeline skeleton stays the same even when individual pipelines include different combinations of steps.
+
+---
+
+## 12. Progress Log & Decisions
+
+### 2026-07-17
+
+**Decided - TypeVar variance split (not yet applied to code)**
+
+`pipeline.py` had a single shared `BehaviourDataType` TypeVar marked `covariant=True`, but it is used in two different roles across the Protocols in that file:
+
+- Output-only role: `ImportBehaviourDataStrategyStep` (`run()` only returns `BehaviourDataType`) - this position is safe as covariant.
+- Input role: `ProcessBehaviourDataStrategyStep` and `GetTrialIntervalsStartegy` (`run()` takes it as a parameter) - this position needs invariant.
+
+A single TypeVar object cannot satisfy both, since variance is per-usage, not a global property of the name. Decision: split into two TypeVars, following the `_in`/`_out` naming convention already used elsewhere in the file (`config_in`, `raw_behaviour_data_in`, `biodata_in`):
+
+```python
+BehaviourDataType = TypeVar("BehaviourDataType", bound="RawBehaviourData")
+BehaviourDataOutType = TypeVar("BehaviourDataOutType", bound="RawBehaviourData", covariant=True)
+```
+
+`ImportBehaviourDataStrategyStep` would use `BehaviourDataOutType`; the other two keep the invariant `BehaviourDataType`. **Not yet applied to the code.**
+
+**Found - bug in `ProcessCraneDebriefBehaviourDataStrategyStep.run()`**
+
+In `crane_debrief_behaviour.py`, `run()` is declared to return `CraneDebriefPipelineOutput` but does:
+
+```python
+return CraneDebriefPipelineOutput(config_in.subject_id).append_dataframe(
+    raw_behaviour_data_in.raw_behav_df, {}
+)
+```
+
+`PipelineOutputData.append_dataframe()` mutates `self.subject_df_out` in place and returns `None` (see `output_data.py`), so this method actually returns `None` at runtime despite its type signature. **Not yet fixed** - fix is on hold pending the consistency decision below, since fixing it by hand now would be inconsistent with whatever convention gets picked next.
+
+**Found - processing status does not report per-strategy (not yet fixed)**
+
+`PipelineStatus` in `processing_status.py` only tracks stage-level outcomes (`data_in`, `behaviour`, `intervals`, `physiology`). When a `Sequential*Steps` container runs multiple strategy steps, a failure in any one step only shows up as a single stage-level status - there is no way to tell which individual strategy within the sequence succeeded, was skipped, or failed. This needs to be fixed, likely by tracking status per-step (e.g. keyed by step/class) rather than only per-stage.
+
+**Open decision - mutate-in-place vs. return-new-instance consistency**
+
+The bug above surfaced a broader inconsistency in `PipelineOutputData` (`output_data.py`): `append_dataframe()` mutates and returns `None`, while `merge()` builds and returns a new instance (though it still calls `append_dataframe` internally for the mutation). This mismatch is what caused the bug - the debrief step assumed fluent/chained behaviour that `append_dataframe` does not provide.
+
+Two options under consideration, not yet decided:
+
+1. **Fluent style** - mutating methods return `self`, enabling `Output(id).append_dataframe(...)`. Smaller diff given existing call patterns, but makes mutation less visually obvious.
+2. **Void style** - mutating methods stay `-> None`, always require a separate variable before use. More explicit, but more verbose at call sites (`merge` in particular).
+
+---
+
+## 13. Outstanding TODOs (from codebase, collected 2026-07-17)
+
+This is a snapshot of existing `# TODO` comments across `src/mooi_toolbox`, grouped by file, for planning which ones the pipeline refactor should resolve along the way.
+
+**`processing/pipeline.py`**
+- Line 12: This could potentially form part of pipeline as a class override?
+- Line 98: Make the Sequentials unmodifiable i.e. you can inherit from them.
+
+**`processing/output_data.py`**
+- Line 30: Fix that on init it inits already an empty participant output data using config.
+
+**`processing/crane_pipeline.py`**
+- Line 76: Unlikely to be unique!
+- Line 84: Might be redundant as the physiology is less uniquely specified.
+- Line 88: This schema can be split into behaviour/debrief and physiology types.
+- Line 152: This needs a classmethod to avoid future errors when implementing pipeline.
+
+**`processing/crane_debrief_behaviour.py`**
+- Line 26: More checks possible here.
+- Line 90: Fix this as it is likely out of scope.
+
+**`processing/crane_behaviour.py`**
+- Line 12: convert to tuple.
+- Line 200: See if using bids might simplify things long run.
+- Line 254: Create strategy.
+
+**`processing/behaviour.py`**
+- Line 16: This is very messy. Not sure if half of these functions arent redundant!
+- Line 52: Decide what to do when multiple csv files are found.
+
+**`processing/processing_status.py`**
+- Line 18: Split data_in into behav data, physiology data etc.
+
+**`processing/crane_trial_intervals.py`**
+- Line 47: Improve! This needs to update with a partial.
+- Line 98: Needs to be generalized.
+- Line 164: Make more robust.
+
+**`processing/trial_intervals.py`**
+- Line 87: This should not be hardset to the platform.
+
+**`processing/foh_target_behaviour.py`**
+- Line 13: Consider logging what is dropped in the na below.
+- Line 14: Examine a better way of checking the hdr.
+- Line 41: BUG?
+- Line 58: This should be removed.
+
+**`processing/ecg.py`**
+- Line 15: nk has several warnings that will hopefully be addressed at update.
+- Line 26: Combine all these outputs together... maybe a dictionary?
+
+**`processing/long_walk_pipeline.py`**
+- Line 51: Make less of a messy pipeline! Fix Crane as well to be less messy!
+
+**`processing/input_data.py`**
+- Line 3: Dataclass can be used to also look for the variables and generate errors.
+
+**`cli/vrlab_crane_qc.py`**
+- Line 19: Add summary data processing here.
+
+**`cli/check_mobi_xdf.py`**
+- Line 24: Show missing streams.
+
+**`cli/vrlab_crane_process.py`**
+- Line 50: fix str to path.
+- Line 62: Fix fn to path.
+- Line 114: Do data labels for SPSS out.
