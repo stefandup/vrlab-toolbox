@@ -107,7 +107,7 @@ all_ok_status_str = PipelineStatus(
 ).get_as_text()
 
 missing_debrief = PipelineStatus(
-    data_in=ProcessingStatus.OK,
+    data_in=ProcessingStatus.ERROR,
     physiology=ProcessingStatus.OK,
     behaviour=ProcessingStatus.ERROR,
     intervals=ProcessingStatus.OK,
@@ -163,10 +163,10 @@ class TestCranePipeline(unittest.TestCase):
             pipeline_out.subject_df_out["Processing_Status"].iloc[0], all_ok_status_str
         )
 
-    def test_crane_pipeline_labels_missing_file_correctly(self):
+    def test_crane_pipeline_labels_missing_physiology_correctly(self):
         input_processing_status = PipelineStatus(
             data_in=ProcessingStatus.ERROR,
-            behaviour=ProcessingStatus.ERROR,
+            behaviour=ProcessingStatus.OK,
             intervals=ProcessingStatus.ERROR,
             physiology=ProcessingStatus.ERROR,
         ).get_as_text()
@@ -178,7 +178,7 @@ class TestCranePipeline(unittest.TestCase):
 
     def test_crane_pipeline_labels_missing_behav_correctly(self):
         physiology_and_behav_error = PipelineStatus(
-            data_in=ProcessingStatus.OK,
+            data_in=ProcessingStatus.ERROR,
             physiology=ProcessingStatus.ERROR,
             behaviour=ProcessingStatus.ERROR,
             intervals=ProcessingStatus.ERROR,
