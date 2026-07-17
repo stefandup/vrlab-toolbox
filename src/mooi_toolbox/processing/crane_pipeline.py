@@ -86,6 +86,7 @@ class CraneDebriefOutputData(PipelineOutputData):
 
 # Schema builds more or less automatically based on the constants set.
 # TODO THis schema can be split into behaviour/debrief and physiology types.
+# TODO: Can be rebuild from a CranePipelineOutputData.from_pipeline_output(...) classmethod
 def build_crane_participant_output_schema() -> pa.DataFrameSchema:
     """Create schema for the wide participant output produced by this pipeline."""
     behaviour_columns = {
