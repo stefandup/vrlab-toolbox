@@ -137,7 +137,8 @@ def load_group_debrief_data(behaviour_data_dir: str) -> pd.DataFrame:
 
 def process(config_in: ParticipantConfig) -> pd.DataFrame:
     debrief_df = load_group_debrief_data(config_in.behav_folder)
-    # Copy as to ensure the cache is read only. Cahce ensures that we dont reload the excel for every subject
+    # Copy as to ensure the cache is read only.
+    # Cahce ensures that we dont reload the excel for every subject
     subject_debrief_out = debrief_df.loc[
         debrief_df["Debrief_Subject_ID"] == config_in.subject_id
     ].copy()
