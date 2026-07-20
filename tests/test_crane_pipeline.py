@@ -95,7 +95,7 @@ crane_participant_incorrect_date = ParticipantConfig(
 corrected_interval_str = PipelineStatus(
     data_in=ProcessingStatus.OK,
     behaviour=ProcessingStatus.OK,
-    intervals=ProcessingStatus.CORRECTED,
+    intervals=ProcessingStatus.ERROR,
     physiology=ProcessingStatus.OK,
 ).get_as_text()
 
@@ -199,7 +199,7 @@ class TestCranePipeline(unittest.TestCase):
     def test_crane_corrects_error_for_incorrect_interval_nr(self):
 
         pipeline_out = run_pipeline(example_incorrect_interval_nr)
-        self.assertEqual(pipeline_out.status.intervals, ProcessingStatus.CORRECTED)
+        self.assertEqual(pipeline_out.status.intervals, ProcessingStatus.ERROR)
         self.assertEqual(
             pipeline_out.subject_df_out["Processing_Status"].iloc[0], corrected_interval_str
         )
@@ -225,7 +225,7 @@ class TestCranePipeline(unittest.TestCase):
 
     def test_crane_handles_very_short_triggers(self):
         pipeline_out = run_pipeline(example_incorrect_very_short_trigger)
-        self.assertEqual(pipeline_out.status.intervals, ProcessingStatus.CORRECTED)
+        self.assertEqual(pipeline_out.status.intervals, ProcessingStatus.ERROR)
         self.assertEqual(
             pipeline_out.subject_df_out["Processing_Status"].iloc[0], corrected_interval_str
         )
@@ -234,12 +234,12 @@ class TestCranePipeline(unittest.TestCase):
         corrected_interval_str = PipelineStatus(
             data_in=ProcessingStatus.ERROR,  # Also has missing debrief...
             behaviour=ProcessingStatus.ERROR,
-            intervals=ProcessingStatus.CORRECTED,
+            intervals=ProcessingStatus.ERROR,
             physiology=ProcessingStatus.OK,
         ).get_as_text()
 
         pipeline_out = run_pipeline(example_incorrect_medium_short_trigger)
-        self.assertEqual(pipeline_out.status.intervals, ProcessingStatus.CORRECTED)
+        self.assertEqual(pipeline_out.status.intervals, ProcessingStatus.ERROR)
         self.assertEqual(
             pipeline_out.subject_df_out["Processing_Status"].iloc[0], corrected_interval_str
         )
