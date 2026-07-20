@@ -44,7 +44,7 @@ class CraneGetTrialIntervalStrategyStep:
 def remove_crane_known_false_triggers(
     trigger_intervals_to_check: TrialIntervals,
 ) -> tuple[TrialIntervals, ProcessingStatus]:
-    # TODO: Improve! This needs to update with an partial
+    # TODO: Improve! This needs to update with partial
     # [start_end[1] - start_end[0] for start_end in trigger_interval_pairs]
     if not trigger_intervals_to_check.intervals:
         return (trigger_intervals_to_check, ProcessingStatus.ERROR)

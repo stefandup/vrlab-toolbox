@@ -32,7 +32,6 @@ def main(input_folder: str, behav_folder: str, output_folder: str, verbose: bool
     """CLI tool for batch processing VRLab crane behaviour and physiology data."""
 
     participant_data_out = None
-    fig = None
 
     logger.info("Looking into input folder: %s. Output folder: %s", input_folder, output_folder)
 
@@ -71,16 +70,19 @@ def main(input_folder: str, behav_folder: str, output_folder: str, verbose: bool
             try:
                 pipeline_output = run_crane_pipeline(pipeline_input)
                 participant_data_out = pipeline_output.subject_df_out
-                fig = pipeline_output.figure_data_out
+                figures = pipeline_output.figure_data_out
 
-                if fig is not None:
-                    try:
-                        save_plot(fig, output_folder, subject_id, f"Subject {subject_id} QC")
-                    finally:
-                        plt.close(fig)
-
-                else:
-                    logger.info("Error saving plot for %s", subject_id)
+                if figures:
+                    for fig_title, fig in figures.items():
+                        try:
+                            save_plot(
+                                fig,
+                                output_folder,
+                                subject_id,
+                                f"Subject {subject_id} - {fig_title}",
+                            )
+                        finally:
+                            plt.close(fig)
 
                 if participant_data_out.empty:
                     logger.warning("No participant output for subject %s", subject_id)

@@ -30,7 +30,7 @@ class PipelineOutputData:
     # TODO: Fix that on init it inits already an empty participant output data using config.
     subject_id: str
     subject_df_out: pd.DataFrame = field(init=False)
-    figure_data_out: Figure | None = field(default=None, init=False)
+    figure_data_out: dict[str, Figure] = field(default_factory=dict, init=False)
     validation_schema: pa.DataFrameSchema = field(default_factory=build_base_pipeline_output_schema)
     status: PipelineStatus = field(default_factory=PipelineStatus, init=False)
 
@@ -78,6 +78,7 @@ class PipelineOutputData:
         merged_output.subject_df_out = self.subject_df_out.copy()
         merged_output.append_dataframe(other.subject_df_out, other.validation_schema.columns)
         merged_output.subject_df_out["Processing_Status"] = merged_output.status.get_as_text()
+        merged_output.figure_data_out = {**self.figure_data_out, **other.figure_data_out}
 
         return merged_output
 
@@ -88,7 +89,7 @@ class PipelineOutputData:
         )
         result = cls(subject_id)
         result.subject_df_out = error_df_out
-        result.figure_data_out = None
+        result.figure_data_out = {}
         result.status = status_in
 
         return result

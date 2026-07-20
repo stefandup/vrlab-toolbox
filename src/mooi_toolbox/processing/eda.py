@@ -14,6 +14,7 @@ from mooi_toolbox.processing import trial_intervals
 from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.input_data import ParticipantConfig
 from mooi_toolbox.processing.output_data import PipelineOutputData
+from mooi_toolbox.processing.pipeline import ProcessPhysiologyFallbackStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -57,19 +58,41 @@ class nkEDAProcessingResult(TypedDict):
     eda_peaks_info: tuple[pd.DataFrame, dict]
 
 
+class ProcessEdaPhysiologyFallbackStrategyStep:
+    def run(self, config_in: ParticipantConfig, biodata_in: RawBioData) -> EdaPhysiologyOutputData:
+        trial_interval_data = trial_intervals.get_raw_biopac_trigger_intervals(
+            biodata_in.raw_data["Trigger"]
+        )
+
+        scr_df_out = run_eda_intervals(biodata_in.raw_data["EDA"], trial_interval_data.intervals)
+        eda_pipeline_out = EdaPhysiologyOutputData(config_in.subject_id)
+        eda_pipeline_out.append_dataframe(scr_df_out, {})
+        eda_pipeline_out.figure_data_out["eda_qc"] = run_eda_qc(
+            biodata_in.raw_data["EDA"], scr_df_out, trial_interval_data.intervals
+        )
+        return eda_pipeline_out
+
+
+@dataclass
 class ProcessEdaPhysiologyDataStrategyStep:
     input_data_type: type[RawBioData] = RawBioData
+    fallback_strategy: ProcessPhysiologyFallbackStrategy[RawBioData] | None = field(
+        default_factory=ProcessEdaPhysiologyFallbackStrategyStep
+    )
 
     def run(
         self,
         config_in: ParticipantConfig,
         biodata_in: RawBioData,
-        trial_intervals: trial_intervals.TrialIntervals,
+        trial_interval_data: trial_intervals.TrialIntervals,
     ) -> EdaPhysiologyOutputData:
 
-        scr_df = run_eda_intervals(biodata_in.raw_data["EDA"], trial_intervals.intervals)
+        scr_df = run_eda_intervals(biodata_in.raw_data["EDA"], trial_interval_data.intervals)
         eda_pipeline_out = EdaPhysiologyOutputData(config_in.subject_id)
         eda_pipeline_out.append_dataframe(scr_df, {})
+        eda_pipeline_out.figure_data_out["eda_qc"] = run_eda_qc(
+            biodata_in.raw_data["EDA"], scr_df, trial_interval_data.intervals
+        )
         return eda_pipeline_out
 
 
