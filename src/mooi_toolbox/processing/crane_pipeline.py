@@ -1,5 +1,5 @@
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import pandas as pd
 import pandera.pandas as pa
@@ -54,31 +54,10 @@ BEHAVIOUR_OUTPUT_METRICS = (
 )
 
 DEBRIEF_OUTPUT_METRICS = tuple(debrief.emotion_cols)
-EXPECTED_INTERVAL_NR = 23
 
 
 def _optional_float_column() -> pa.Column:
     return pa.Column(float, nullable=True, coerce=True, required=False)
-
-
-def build_crane_debrief_output_schema() -> pa.DataFrameSchema:
-    return pa.DataFrameSchema(
-        {
-            f"Debrief_{metric}_{trial_type}": _optional_float_column()
-            for metric in DEBRIEF_OUTPUT_METRICS
-            for trial_type in TRIAL_TYPES
-        },
-        coerce=True,
-        strict=False,
-    )
-
-
-# TODO Unlikely to be unique!
-
-
-@dataclass
-class CraneDebriefOutputData(PipelineOutputData):
-    validation_schema: pa.DataFrameSchema = field(default_factory=build_crane_debrief_output_schema)
 
 
 # TODO: Might be redundant as the physiology is less uniquely specified

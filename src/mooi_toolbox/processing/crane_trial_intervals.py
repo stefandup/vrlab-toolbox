@@ -12,6 +12,7 @@ from mooi_toolbox.processing.processing_status import PipelineStatus, Processing
 from mooi_toolbox.processing.trial_intervals import TrialIntervals, get_raw_biopac_trigger_intervals
 
 logger = logging.getLogger(__name__)
+EXPECTED_INTERVAL_NR = 23
 
 
 class CraneGetTrialIntervalStrategyStep:
@@ -25,6 +26,17 @@ class CraneGetTrialIntervalStrategyStep:
         interval_pipeline_status = PipelineStatus()
 
         raw_biopac_triggers = get_raw_biopac_trigger_intervals(raw_biodata_in["Trigger"])
+
+        if len(raw_biopac_triggers.intervals) != EXPECTED_INTERVAL_NR:
+            logger.warning(
+                "Interval count is %d and not %d for subject.",
+                len(raw_biopac_triggers.intervals),
+                EXPECTED_INTERVAL_NR,
+            )
+            interval_pipeline_status = interval_pipeline_status.merge(
+                PipelineStatus(intervals=ProcessingStatus.ERROR)
+            )
+
         corrected_triggers, corrected_status = remove_crane_known_false_triggers(
             raw_biopac_triggers
         )

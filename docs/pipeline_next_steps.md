@@ -113,6 +113,10 @@ Needed:
   instead of redeclaring;
 - update `crane_debrief_behaviour.py` to import `EMOTIONS_TESTED` /
   `TRIAL_TYPES` too, deciding on one canonical type (list vs. tuple);
+- remove the now-dead `from mooi_toolbox.processing import crane_behaviour as
+  crane_behaviour` import in `crane_pipeline.py` — nothing in the file
+  references `crane_behaviour.` anymore now that it has its own local copy of
+  `EMOTIONS_TESTED`;
 - add a small test asserting debrief and pipeline column names line up with
   the behaviour schema's.
 
@@ -260,6 +264,45 @@ Needed:
 - decide if this is a one-off manual check for participants already flagged
   as suspect, or a routine QC step run for every participant before trusting
   matched intervals.
+
+### 10. Document intentional behaviour change: partial data now survives biopac import failure
+
+Master's `crane_pipeline.run_pipeline` loaded biopac EDA data first and
+returned immediately via `CranePipelineOutput.error(...)` on failure — a bare
+row with only `Subject_ID`/`Processing_Status`, discarding behaviour and
+debrief data too. The `PipelineTemplate`-based pipeline processes
+behaviour/debrief and physiology as independent stages (`pipeline.py:254-348`),
+so a subject with a missing/corrupt biopac file now still gets full
+behaviour/debrief columns, with `data_in`/`physiology` marked `error` and
+physiology columns left empty, instead of an almost-empty row.
+
+This looks like the right behaviour (partial data beats no data), but it's a
+real change in what a "biopac failed" subject's output row looks like, so:
+
+- confirm with anyone consuming the CSV/SPSS output that partial rows are
+  expected and won't be mistaken for successfully-processed subjects;
+- consider whether downstream filtering (e.g. by `Processing_Status`) needs
+  updating now that `physiology=error` rows can still carry valid behaviour
+  data.
+
+### 11. Remove unused `CraneDebriefOutputData` / clarify naming vs. `CraneDebriefPipelineOutput`
+
+`crane_pipeline.py` defines `build_crane_debrief_output_schema()` and
+`CraneDebriefOutputData` (right under the `# TODO Unlikely to be unique!`
+comment tracked in item 8), but neither is referenced anywhere else in the
+codebase — the debrief step actually uses a different, similarly-named class,
+`CraneDebriefPipelineOutput` in `crane_debrief_behaviour.py`, which builds its
+own separate schema (`crane_debrief_pipeline_output_schema`). Two
+near-identically-named classes doing unrelated things is an easy way to edit
+the wrong one later.
+
+Needed:
+
+- delete `build_crane_debrief_output_schema()` and `CraneDebriefOutputData`
+  from `crane_pipeline.py` if confirmed dead;
+- if some debrief-schema consolidation is intended instead (see item 3), fold
+  this into that work rather than keeping two similarly-named classes in
+  play.
 
 ## Working Rule
 

@@ -88,10 +88,11 @@ class ProcessEdaPhysiologyDataStrategyStep:
     ) -> EdaPhysiologyOutputData:
 
         scr_df = run_eda_intervals(biodata_in.raw_data["EDA"], trial_interval_data.intervals)
+        scr_df_corrected = correct_order(scr_df)
         eda_pipeline_out = EdaPhysiologyOutputData(config_in.subject_id)
-        eda_pipeline_out.append_dataframe(scr_df, {})
+        eda_pipeline_out.append_dataframe(scr_df_corrected, {})
         eda_pipeline_out.figure_data_out["eda_qc"] = run_eda_qc(
-            biodata_in.raw_data["EDA"], scr_df, trial_interval_data.intervals
+            biodata_in.raw_data["EDA"], scr_df_corrected, trial_interval_data.intervals
         )
         return eda_pipeline_out
 
