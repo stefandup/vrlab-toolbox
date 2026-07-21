@@ -7,6 +7,8 @@ environment.yml
 for_mooi_xdf_processing.ipynb
 pyproject.toml
 requirements.txt
+vrlab_crane_process.spec
+.github/workflows/release.yml
 docs/clock_drift_error.md
 docs/pipeline_next_steps.md
 references/example_events.tsv
