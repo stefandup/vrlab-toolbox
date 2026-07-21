@@ -68,11 +68,15 @@ def main(input_folder: str, behav_folder: str, output_folder: str, verbose: bool
                 verbose=verbose,
                 show_plots=False,
             )
-
             try:
                 # TEMP: Check the handling of the trigger corrections.
                 run_crane_interval_qc(pipeline_input)
+            except (FileNotFoundError, ValueError, KeyError, TypeError, AttributeError) as e:
+                logger.warning(
+                    "Could not run TEMP QC for %s. Skipping. %s", ParticipantConfig.subject_id, e
+                )
 
+            try:
                 pipeline_output = run_crane_pipeline(pipeline_input)
                 participant_data_out = pipeline_output.subject_df_out
                 figures = pipeline_output.figure_data_out

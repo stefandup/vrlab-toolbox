@@ -90,7 +90,8 @@ def run(config_in: ParticipantConfig) -> None:
             raw_behav_interval_validated = TrialIntervals(intervals={})
 
     time_stamp_series = raw_bio_data.raw_data["Trigger"]["time_stamps"]
-    fig, axes = plt.subplots(3, 1, sharex=True, figsize=(12, 8))
+    fig, axes = plt.subplots(3, 1, sharex=True, figsize=(19.2, 10.8), dpi=300)
+    axes[0].set_xlim(0, 25)
 
     # Row 1: raw biopac vs raw behav, unprocessed baseline
     plot_interval_ax(
@@ -179,6 +180,7 @@ def plot_interval_ax(
             label_text = (
                 interval_name.replace("_", "\n") if len(interval_name) > 5 else interval_name
             )
+            duration_seconds = interval_end - interval_start
 
             # One label per interval, centered on its own bar
             axis_in.text(
@@ -190,6 +192,17 @@ def plot_interval_ax(
                 va="center",
                 ha="center",
                 fontsize=8,
+            )
+
+            # Trial length in seconds, pinned to the bottom of the bar
+            axis_in.text(
+                (interval_start_min + interval_end_min) / 2,
+                y0,
+                f"{duration_seconds:.1f}s",
+                color="black",
+                va="bottom",
+                ha="center",
+                fontsize=6,
             )
 
         # One bar per interval, spanning its start to end
