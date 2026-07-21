@@ -18,6 +18,7 @@ from mooi_toolbox.processing.crane_pipeline import build_crane_participant_outpu
 from mooi_toolbox.processing.crane_pipeline import run_pipeline as run_crane_pipeline
 from mooi_toolbox.processing.input_data import ParticipantConfig
 from mooi_toolbox.processing.plot_utils import save_plot
+from mooi_toolbox.qc.crane_interval_qc import run as run_crane_interval_qc
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,9 @@ def main(input_folder: str, behav_folder: str, output_folder: str, verbose: bool
             )
 
             try:
+                # TEMP: Check the handling of the trigger corrections.
+                run_crane_interval_qc(pipeline_input)
+
                 pipeline_output = run_crane_pipeline(pipeline_input)
                 participant_data_out = pipeline_output.subject_df_out
                 figures = pipeline_output.figure_data_out

@@ -1,3 +1,6 @@
+import logging
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import pandas as pd
 
@@ -12,27 +15,79 @@ from mooi_toolbox.processing.crane_trial_intervals import (
 )
 from mooi_toolbox.processing.input_data import ParticipantConfig
 
+logger = logging.getLogger(__name__)
 # TODO: Shouldnt this rather live in crane_trial_intervals?
-
-biopac_mat_fn = r"crane_data\\20262121130_TESTa_CraneOut.mat"
 
 
 def run(config_in: ParticipantConfig) -> None:
-    raw_bio_data = BiopacDataImportStartegy().run(config_in)
-    raw_behav_data = ImportCraneBehaviourDataStrategyStep().run(config_in)
-
-    raw_biopac_trigger_intervals = get_raw_biopac_trigger_intervals(raw_bio_data["Trigger"])
-    corrected_trigger_intervals, corrected_status = remove_crane_known_false_triggers(
-        raw_biopac_trigger_intervals
-    )
-    behav_matched_trigger_intervals, match_status = (
-        match_crane_behav_intervals_with_trigger_intervals(
-            corrected_trigger_intervals, raw_behav_data.raw_behav_df
+    try:
+        raw_bio_data = BiopacDataImportStartegy().run(config_in)
+    except (FileNotFoundError, ValueError) as e:
+        logger.error(
+            "Couldnt find Biopac data for %s at %s. %s",
+            config_in.subject_id,
+            config_in.physiology_fn,
+            e,
         )
-    )
-    # TODO: Fix that this works with TrialIntervals class. Change througout!
-    raw_behav_intervals = get_crane_trigger_behav_intervals(raw_behav_data.raw_behav_df)
-    raw_behav_interval_validated = TrialIntervals(intervals=raw_behav_intervals)
+        return
+
+    try:
+        raw_behav_data = ImportCraneBehaviourDataStrategyStep().run(config_in)
+    except (FileNotFoundError, ValueError) as e:
+        logger.warning(
+            "Problem with behaviour file for %s. Trying to continue. Error: %s",
+            config_in.subject_id,
+            e,
+        )
+        raw_behav_data = None
+
+    try:
+        raw_biopac_trigger_intervals = get_raw_biopac_trigger_intervals(raw_bio_data["Trigger"])
+    except (FileNotFoundError, ValueError) as e:
+        logger.error(
+            "Trouble importing trigger data from physiology for %s. Have to skip. %s",
+            config_in.subject_id,
+            e,
+        )
+        raw_biopac_trigger_intervals = TrialIntervals(intervals={})
+
+    try:
+        corrected_trigger_intervals, corrected_status = remove_crane_known_false_triggers(
+            raw_biopac_trigger_intervals
+        )
+    except (FileNotFoundError, ValueError) as e:
+        logger.warning(
+            "Error removing false triggers for %s. Trying to continue. %s", config_in.subject_id, e
+        )
+        corrected_trigger_intervals = TrialIntervals(intervals={})
+
+    if raw_behav_data is None:
+        behav_matched_trigger_intervals = TrialIntervals(intervals={})
+        raw_behav_interval_validated = TrialIntervals(intervals={})
+    else:
+        try:
+            behav_matched_trigger_intervals, _ = match_crane_behav_intervals_with_trigger_intervals(
+                corrected_trigger_intervals, raw_behav_data.raw_behav_df
+            )
+        except (FileNotFoundError, ValueError) as e:
+            logger.warning(
+                "Could not match behaviour to triggers for %s. Trying to continue. %s",
+                config_in.subject_id,
+                e,
+            )
+            behav_matched_trigger_intervals = TrialIntervals(intervals={})
+
+        try:
+            # TODO: Fix that this works with TrialIntervals class. Change througout!
+            raw_behav_intervals = get_crane_trigger_behav_intervals(raw_behav_data.raw_behav_df)
+            raw_behav_interval_validated = TrialIntervals(intervals=raw_behav_intervals)
+        except (FileNotFoundError, ValueError) as e:
+            logger.warning(
+                "Could not get raw behav intervals for %s. Trying to continue. %s",
+                config_in.subject_id,
+                e,
+            )
+            raw_behav_interval_validated = TrialIntervals(intervals={})
 
     time_stamp_series = raw_bio_data.raw_data["Trigger"]["time_stamps"]
     fig, axes = plt.subplots(3, 1, sharex=True, figsize=(12, 8))
@@ -89,7 +144,11 @@ def run(config_in: ParticipantConfig) -> None:
     )
 
     fig.suptitle(config_in.subject_id)
-    fig.show()
+    out_dir = Path(config_in.behav_folder) / "interval_qc"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"{config_in.subject_id}_interval_qc.png"
+    fig.savefig(out_path)
+    plt.close(fig)
 
 
 def plot_interval_ax(
@@ -106,7 +165,7 @@ def plot_interval_ax(
 
     trial_intervals = trial_intervals_in.intervals
 
-    if trial_intervals is not None:
+    if trial_intervals:
         color = f"C{color_nr % 10}"  # cycle through matplotlib default colors
         y0 = color_nr * 1.2  # each color gets its own horizontal lane
         height = 1
