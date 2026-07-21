@@ -108,6 +108,7 @@ def run(config_in: ParticipantConfig) -> None:
         time_stamp_series,
         color_nr=1,
         source_label="Raw behav",
+        show_gaps=True,
     )
 
     # Row 2: same baseline, with corrected trigger intervals overlaid to show the shift
@@ -125,6 +126,7 @@ def run(config_in: ParticipantConfig) -> None:
         time_stamp_series,
         color_nr=1,
         source_label="Raw behav",
+        show_gaps=True,
     )
     plot_interval_ax(
         axes[1],
@@ -142,6 +144,7 @@ def run(config_in: ParticipantConfig) -> None:
         color_nr=3,
         title="Matched with Behav",
         source_label="Matched with Behav",
+        show_gaps=True,
     )
 
     fig.suptitle(config_in.subject_id)
@@ -159,6 +162,7 @@ def plot_interval_ax(
     color_nr: int,
     title: str | None = None,
     source_label: str | None = None,
+    show_gaps: bool = False,
 ):
 
     if title is not None:
@@ -210,3 +214,23 @@ def plot_interval_ax(
 
         if source_label is not None:
             axis_in.legend(loc="upper right", fontsize=7)
+
+        if show_gaps:
+            sorted_intervals = sorted(trial_intervals.values())
+            for (_, prev_end), (next_start, _) in zip(
+                sorted_intervals, sorted_intervals[1:], strict=False
+            ):
+                gap_seconds = next_start - prev_end
+                gap_start_min = (prev_end - time_stamp_series.iloc[0]) / 60
+                gap_end_min = (next_start - time_stamp_series.iloc[0]) / 60
+
+                # Gap between consecutive intervals, pinned to the bottom
+                axis_in.text(
+                    (gap_start_min + gap_end_min) / 2,
+                    y0,
+                    f"{gap_seconds:.1f}s",
+                    color="dimgray",
+                    va="bottom",
+                    ha="center",
+                    fontsize=6,
+                )
