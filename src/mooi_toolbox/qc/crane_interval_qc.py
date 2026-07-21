@@ -90,12 +90,26 @@ def run(config_in: ParticipantConfig) -> None:
             raw_behav_interval_validated = TrialIntervals(intervals={})
 
     time_stamp_series = raw_bio_data.raw_data["Trigger"]["time_stamps"]
-    fig, axes = plt.subplots(3, 1, sharex=True, figsize=(19.2, 10.8), dpi=300)
+    fig, axes = plt.subplots(
+        4,
+        1,
+        sharex=True,
+        figsize=(19.2, 10.8),
+        dpi=300,
+        gridspec_kw={"height_ratios": [1, 2, 2, 2]},
+    )
     axes[0].set_xlim(0, 25)
+
+    # Row 0: raw trigger voltage signal
+    trigger_time_stamps, trigger_signal = get_raw_trigger_signal(raw_bio_data["Trigger"])
+    trigger_time_min = (trigger_time_stamps - time_stamp_series.iloc[0]) / 60
+    axes[0].plot(trigger_time_min, trigger_signal, color="black", linewidth=0.5)
+    axes[0].set_title("Raw Trigger Voltage")
+    # TODO: Flag points where voltage drops below ~4.8V (Arduino signal instability)
 
     # Row 1: raw biopac vs raw behav, unprocessed baseline
     plot_interval_ax(
-        axes[0],
+        axes[1],
         raw_biopac_trigger_intervals,
         time_stamp_series,
         color_nr=0,
@@ -103,7 +117,7 @@ def run(config_in: ParticipantConfig) -> None:
         source_label="Raw biopac",
     )
     plot_interval_ax(
-        axes[0],
+        axes[1],
         raw_behav_interval_validated,
         time_stamp_series,
         color_nr=1,
@@ -113,7 +127,7 @@ def run(config_in: ParticipantConfig) -> None:
 
     # Row 2: same baseline, with corrected trigger intervals overlaid to show the shift
     plot_interval_ax(
-        axes[1],
+        axes[2],
         raw_biopac_trigger_intervals,
         time_stamp_series,
         color_nr=0,
@@ -121,7 +135,7 @@ def run(config_in: ParticipantConfig) -> None:
         source_label="Raw biopac",
     )
     plot_interval_ax(
-        axes[1],
+        axes[2],
         raw_behav_interval_validated,
         time_stamp_series,
         color_nr=1,
@@ -129,7 +143,7 @@ def run(config_in: ParticipantConfig) -> None:
         show_gaps=True,
     )
     plot_interval_ax(
-        axes[1],
+        axes[2],
         corrected_trigger_intervals,
         time_stamp_series,
         color_nr=2,
@@ -138,7 +152,7 @@ def run(config_in: ParticipantConfig) -> None:
 
     # Row 3: final matched trigger intervals, labeled by behaviour key
     plot_interval_ax(
-        axes[2],
+        axes[3],
         behav_matched_trigger_intervals,
         time_stamp_series,
         color_nr=3,
@@ -234,3 +248,11 @@ def plot_interval_ax(
                     ha="center",
                     fontsize=6,
                 )
+
+
+def get_raw_trigger_signal(raw_trigger_data: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
+    """Extracts the raw trigger voltage signal and its timestamps, ready for plotting."""
+    time_stamps = raw_trigger_data["time_stamps"]
+    trigger_signal = raw_trigger_data["Trigger"]
+
+    return time_stamps, trigger_signal
