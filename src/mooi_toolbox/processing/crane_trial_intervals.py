@@ -9,6 +9,7 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import PolynomialFeatures
+from typing_extensions import deprecated
 
 from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.biopac import BiopacDataImportStartegy
@@ -46,23 +47,27 @@ class CraneGetTrialIntervalStrategyStep:
                 PipelineStatus(intervals=ProcessingStatus.ERROR)
             )
 
-        corrected_triggers, corrected_status = remove_crane_known_false_triggers(
+        corrected_triggers, corrected_status = remove_biopac_known_false_triggers(
             raw_biopac_triggers
         )
         interval_pipeline_status = interval_pipeline_status.merge(
             PipelineStatus(intervals=corrected_status)
         )
-        matched_triggers, match_status = match_crane_behav_intervals_with_trigger_intervals(
-            corrected_triggers, raw_behaviour_data_in.raw_behav_df
+
+        behav_intervals = get_crane_trigger_behav_intervals(raw_behaviour_data_in.raw_behav_df)
+
+        aligned_behav_with_triggers, match_status = (
+            align_crane_behav_intervals_with_trigger_intervals(corrected_triggers, behav_intervals)
         )
+
         interval_pipeline_status = interval_pipeline_status.merge(
             PipelineStatus(intervals=match_status)
         )
 
-        return (matched_triggers, interval_pipeline_status)
+        return (aligned_behav_with_triggers, interval_pipeline_status)
 
 
-def remove_crane_known_false_triggers(
+def remove_biopac_known_false_triggers(
     trigger_intervals_to_check: TrialIntervals,
 ) -> tuple[TrialIntervals, ProcessingStatus]:
     # TODO: Improve! This needs to update with partial
@@ -140,9 +145,13 @@ def get_crane_trigger_behav_intervals(
     return intervals_out
 
 
+@deprecated("Works only halfway. Working on a more general fix for trigger/behaviour mismatches.")
 def get_crane_predicted_trigger_intervals(
     behav_intervals: dict[str, tuple[float, float]],
 ) -> tuple[dict[str, tuple[float, float]], float]:
+    """
+    Uses a linear model to fit the trigger and behav intervals.
+    """
     # TODO Still very patchy and specific to the crane game
     base = getattr(sys, "_MEIPASS", ".")  # Is this frozen exe bin or running from source
     reference_path = os.path.join(base, "references", "matched_debug_df_testa.parquet")
@@ -181,21 +190,27 @@ def get_crane_predicted_trigger_intervals(
     return (pred_trigger_intervals, max_expected_delta)
 
 
-def match_crane_behav_intervals_with_trigger_intervals(
-    trial_intervals_in: TrialIntervals, validated_behav_df: pd.DataFrame
+@deprecated("Flawed matching algorithm specific to crane. Replace with a more general one")
+def align_crane_behav_intervals_with_trigger_intervals(
+    trial_intervals_in: TrialIntervals,
+    behav_intervals_in,
 ) -> tuple[TrialIntervals, ProcessingStatus]:
-    # TODO: Make more robust
+    """
+    Greedily matches each behavioural trial to its nearest predicted trigger interval,
+    using a regression model fit on reference start-time offsets.
+    """
+
     trigger_intervals = trial_intervals_in.intervals
-    behav_intervals = get_crane_trigger_behav_intervals(validated_behav_df)
     pred_trigger_intervals, max_expected_delta = get_crane_predicted_trigger_intervals(
-        behav_intervals
+        behav_intervals_in
     )
+
     status = ProcessingStatus.OK
     experiment_start = next(iter(trigger_intervals.values()))[0]  # Get first value of dict
 
     remaining_trigger_intervals = trigger_intervals.copy()
     matched_intervals = {}
-    unmatched_behav_keys = set(behav_intervals.keys())
+    unmatched_behav_keys = set(behav_intervals_in.keys())
     max_start_delta = max_expected_delta
     best_deltas = []
 
@@ -239,7 +254,7 @@ def match_crane_behav_intervals_with_trigger_intervals(
 # QC
 
 
-def run_crane_interval_qc(config_in: ParticipantConfig) -> None:
+def plot_crane_interval_qc(config_in: ParticipantConfig) -> None:
     try:
         raw_bio_data = BiopacDataImportStartegy().run(config_in)
     except (FileNotFoundError, ValueError) as e:
@@ -272,7 +287,7 @@ def run_crane_interval_qc(config_in: ParticipantConfig) -> None:
         raw_biopac_trigger_intervals = TrialIntervals(intervals={})
 
     try:
-        corrected_trigger_intervals, corrected_status = remove_crane_known_false_triggers(
+        corrected_trigger_intervals, corrected_status = remove_biopac_known_false_triggers(
             raw_biopac_trigger_intervals
         )
     except (FileNotFoundError, ValueError) as e:
@@ -286,7 +301,7 @@ def run_crane_interval_qc(config_in: ParticipantConfig) -> None:
         raw_behav_interval_validated = TrialIntervals(intervals={})
     else:
         try:
-            behav_matched_trigger_intervals, _ = match_crane_behav_intervals_with_trigger_intervals(
+            behav_matched_trigger_intervals, _ = align_crane_behav_intervals_with_trigger_intervals(
                 corrected_trigger_intervals, raw_behav_data.raw_behav_df
             )
         except (FileNotFoundError, ValueError) as e:

@@ -9,7 +9,7 @@ from mooi_toolbox.processing.crane_behaviour import (
     build_crane_raw_behav_file_schema,
 )
 from mooi_toolbox.processing.crane_pipeline import run_pipeline
-from mooi_toolbox.processing.crane_trial_intervals import run_crane_interval_qc
+from mooi_toolbox.processing.crane_trial_intervals import plot_crane_interval_qc
 from mooi_toolbox.processing.input_data import ParticipantConfig
 from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
 
@@ -124,7 +124,7 @@ dates_no_match = PipelineStatus(
 
 class TestCraneIntervalQC(unittest.TestCase):
     def test_graph_output(self):
-        run_crane_interval_qc(example_crane_participant_correct)
+        plot_crane_interval_qc(example_crane_participant_correct)
 
 
 class TestBehaviourClassWithBiopacData(unittest.TestCase):
