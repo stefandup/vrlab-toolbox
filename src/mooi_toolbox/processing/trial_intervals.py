@@ -1,9 +1,13 @@
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
+from matplotlib.figure import Figure
 
 from mooi_toolbox import config as cfg
+from mooi_toolbox.processing.processing_status import ProcessingStatus
 from mooi_toolbox.read_mobi_xdf import xdf_io
 
 logger = logging.getLogger(__name__)
@@ -19,7 +23,7 @@ class TrialIntervals:
     "Baseline": (0, 5) — the "Baseline" trial spans from 0 to 5 seconds.
     """
 
-    intervals: dict[str, tuple[float, float]]
+    intervals: dict[str, tuple[float, float]] = field(default_factory=dict)
 
     @classmethod
     def from_raw_interval_pairs(
@@ -31,6 +35,9 @@ class TrialIntervals:
                 for i, (start, end) in enumerate(trial_interval_pairs)
             }
         )
+
+
+# LSL interval concerns
 
 
 def get_lsl_event_time(
@@ -138,6 +145,186 @@ def slice_data_frame(
     return df_dict_out
 
 
+# Plotting
+
+
+def plot_biopac_interval_qc(
+    trigger_df: pd.DataFrame,
+    raw_biopac_trigger_intervals: TrialIntervals | None = None,
+    corrected_trigger_intervals: TrialIntervals | None = None,
+    behav_matched_trigger_intervals: TrialIntervals | None = None,
+    raw_behav_trial_intervals: TrialIntervals | None = None,
+) -> Figure:
+
+    if raw_biopac_trigger_intervals is None:
+        raw_biopac_trigger_intervals = TrialIntervals()
+
+    if corrected_trigger_intervals is None:
+        corrected_trigger_intervals = TrialIntervals()
+
+    if behav_matched_trigger_intervals is None:
+        behav_matched_trigger_intervals = TrialIntervals()
+
+    if raw_behav_trial_intervals is None:
+        raw_behav_trial_intervals = TrialIntervals()
+
+    fig, axes = plt.subplots(
+        4,
+        1,
+        sharex=True,
+        figsize=(19.2, 10.8),
+        dpi=300,
+        gridspec_kw={"height_ratios": [1, 2, 2, 2]},
+    )
+    axes[0].set_xlim(0, 25)
+
+    # Row 0: raw trigger voltage signal
+    trigger_time_stamps, trigger_signal = get_biopac_raw_trigger_signal(trigger_df)
+    time_stamp_series = trigger_df["Trigger"]
+    trigger_time_min = (trigger_time_stamps - time_stamp_series.iloc[0]) / 60
+    axes[0].plot(trigger_time_min, trigger_signal, color="black", linewidth=0.5)
+    axes[0].set_title("Raw Trigger Voltage")
+    # TODO: Flag points where voltage drops below ~4.8V (Arduino signal instability)
+
+    # Row 1: raw biopac vs raw behav, unprocessed baseline
+    plot_interval_ax(
+        axes[1],
+        raw_biopac_trigger_intervals,
+        time_stamp_series,
+        color_nr=0,
+        title="Raw",
+        source_label="Raw biopac",
+    )
+    plot_interval_ax(
+        axes[1],
+        raw_behav_trial_intervals,
+        time_stamp_series,
+        color_nr=1,
+        source_label="Raw behav",
+        show_gaps=True,
+    )
+
+    # Row 2: same baseline, with corrected trigger intervals overlaid to show the shift
+    plot_interval_ax(
+        axes[2],
+        raw_biopac_trigger_intervals,
+        time_stamp_series,
+        color_nr=0,
+        title="Corrected",
+        source_label="Raw biopac",
+    )
+    plot_interval_ax(
+        axes[2],
+        raw_behav_trial_intervals,
+        time_stamp_series,
+        color_nr=1,
+        source_label="Raw behav",
+        show_gaps=True,
+    )
+    plot_interval_ax(
+        axes[2],
+        corrected_trigger_intervals,
+        time_stamp_series,
+        color_nr=2,
+        source_label="Shrt Trigs Rmoved",
+    )
+
+    # Row 3: final matched trigger intervals, labeled by behaviour key
+    plot_interval_ax(
+        axes[3],
+        behav_matched_trigger_intervals,
+        time_stamp_series,
+        color_nr=3,
+        title="Matched with Behav",
+        source_label="Matched with Behav",
+        show_gaps=True,
+    )
+
+    return fig
+
+
+def plot_interval_ax(
+    axis_in,
+    trial_intervals_in: TrialIntervals,
+    time_stamp_series: pd.Series,
+    color_nr: int,
+    title: str | None = None,
+    source_label: str | None = None,
+    show_gaps: bool = False,
+):
+
+    if title is not None:
+        axis_in.set_title(title)
+
+    trial_intervals = trial_intervals_in.intervals
+
+    if trial_intervals:
+        color = f"C{color_nr % 10}"  # cycle through matplotlib default colors
+        y0 = color_nr * 1.2  # each color gets its own horizontal lane
+        height = 1
+        bars = []
+
+        for interval_name, (interval_start, interval_end) in trial_intervals.items():
+            interval_start_min = (interval_start - time_stamp_series.iloc[0]) / 60
+            interval_end_min = (interval_end - time_stamp_series.iloc[0]) / 60
+            bars.append((interval_start_min, interval_end_min - interval_start_min))
+
+            label_text = (
+                interval_name.replace("_", "\n") if len(interval_name) > 5 else interval_name
+            )
+            duration_seconds = interval_end - interval_start
+
+            # One label per interval, centered on its own bar
+            axis_in.text(
+                (interval_start_min + interval_end_min) / 2,
+                y0 + height / 2,
+                label_text,
+                color="black",
+                fontweight="bold",
+                va="center",
+                ha="center",
+                fontsize=8,
+            )
+
+            # Trial length in seconds, pinned to the bottom of the bar
+            axis_in.text(
+                (interval_start_min + interval_end_min) / 2,
+                y0,
+                f"{duration_seconds:.1f}s",
+                color="black",
+                va="bottom",
+                ha="center",
+                fontsize=6,
+            )
+
+        # One bar per interval, spanning its start to end
+        axis_in.broken_barh(bars, (y0, height), color=color, alpha=0.8, label=source_label)
+
+        if source_label is not None:
+            axis_in.legend(loc="upper right", fontsize=7)
+
+        if show_gaps:
+            sorted_intervals = sorted(trial_intervals.values())
+            for (_, prev_end), (next_start, _) in zip(
+                sorted_intervals, sorted_intervals[1:], strict=False
+            ):
+                gap_seconds = next_start - prev_end
+                gap_start_min = (prev_end - time_stamp_series.iloc[0]) / 60
+                gap_end_min = (next_start - time_stamp_series.iloc[0]) / 60
+
+                # Gap between consecutive intervals, pinned to the bottom
+                axis_in.text(
+                    (gap_start_min + gap_end_min) / 2,
+                    y0,
+                    f"{gap_seconds:.1f}s",
+                    color="dimgray",
+                    va="bottom",
+                    ha="center",
+                    fontsize=6,
+                )
+
+
+# Biopac interval concerns
 def get_raw_biopac_trigger_intervals(
     trigger_df_in: pd.DataFrame,
 ) -> TrialIntervals:
@@ -158,3 +345,89 @@ def get_raw_biopac_trigger_intervals(
     trigger_intervals_out = TrialIntervals.from_raw_interval_pairs(interval_pairs)
 
     return trigger_intervals_out
+
+
+def get_biopac_raw_trigger_signal(raw_trigger_data: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
+    """Extracts the raw trigger voltage signal and its timestamps, ready for plotting."""
+    time_stamps = raw_trigger_data["time_stamps"]
+    trigger_signal = raw_trigger_data["Trigger"]
+
+    return time_stamps, trigger_signal
+
+
+def remove_biopac_known_false_triggers(
+    trigger_intervals_to_check: TrialIntervals,
+) -> tuple[TrialIntervals, ProcessingStatus]:
+    # TODO: Improve! This needs to update with partial
+    # [start_end[1] - start_end[0] for start_end in trigger_interval_pairs]
+    if not trigger_intervals_to_check.intervals:
+        return (trigger_intervals_to_check, ProcessingStatus.ERROR)
+
+    trigger_interval_pairs = list(trigger_intervals_to_check.intervals.values())
+
+    tolerance = 0.1
+    valid_trigger_interval_pairs = []
+
+    status_out = ProcessingStatus.OK
+    for pair_nr, (start_time, end_time) in enumerate(trigger_interval_pairs):
+        if pair_nr == 0 and np.isclose(start_time, 0.0, atol=tolerance):
+            logger.warning(
+                "Removed first interval because its start is likely a false start: %s",
+                start_time,
+            )
+            status_out = ProcessingStatus.CORRECTED
+            continue
+
+        if np.isclose(end_time - start_time, 0.0, atol=tolerance):
+            logger.warning(
+                "Removed interval %.3f to %.3f because its duration is close to zero",
+                start_time,
+                end_time,
+            )
+            status_out = ProcessingStatus.CORRECTED
+            continue
+
+        if end_time - start_time < 10.0:
+            logger.warning(
+                "Removed interval %.3f to %.3f because its duration is too short: %.3f (s)",
+                start_time,
+                end_time,
+                end_time - start_time,
+            )
+            status_out = ProcessingStatus.CORRECTED
+            continue
+
+        valid_trigger_interval_pairs.append((start_time, end_time))
+
+    valid_trigger_interval_pairs = TrialIntervals.from_raw_interval_pairs(
+        valid_trigger_interval_pairs
+    )
+
+    return (valid_trigger_interval_pairs, status_out)
+
+
+def correct_biopac_trigger_drift_from_behav_file(
+    raw_trigger_intervals_in: TrialIntervals,
+    behav_trial_intervals_in: TrialIntervals,
+) -> tuple[TrialIntervals, ProcessingStatus]:
+    """
+    Corrects clock drift between the biopac trigger signal and the Unreal
+    behavioural trial timeline.
+
+    Each trial's trigger pulse is sent from Unreal to Biopac via an Arduino,
+    which introduces a small latency between the true (behavioural) trial
+    start and the recorded trigger edge. This latency is not constant: it
+    varies trial to trial (likely due to Unreal briefly lagging its own
+    trial-start signal), so the trigger-derived intervals run slightly
+    longer than their nominal behavioural duration. Because there is no
+    re-sync between trials, this per-trial excess accumulates, causing the
+    biopac trigger timeline to drift progressively later relative to the
+    behavioural (Unreal) timeline over the course of the session.
+
+    This function re-anchors the behavioural trial intervals onto the biopac
+    trigger onsets, correcting for the accumulated drift and expressing the
+    result in the physiology (biopac) timeframe.
+
+    """
+
+    return (TrialIntervals(), ProcessingStatus.NOT_RUN)
