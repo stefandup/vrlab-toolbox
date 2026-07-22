@@ -3,6 +3,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Protocol, TypeVar, cast
 
+from matplotlib.figure import Figure
+
 from mooi_toolbox.processing.behaviour import RawBehaviourData
 from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.input_data import ParticipantConfig
@@ -82,7 +84,7 @@ class GetTrialIntervalsStartegy(Protocol[PhysiologyDataType, BehaviourDataType])
 
     def run(
         self, raw_biodata_in: PhysiologyDataType, raw_behaviour_data_in: BehaviourDataType
-    ) -> tuple[TrialIntervals, PipelineStatus]: ...
+    ) -> tuple[TrialIntervals, Figure, PipelineStatus]: ...
 
 
 class ProcessPhysiologyFallbackStrategy(Protocol[PhysiologyInputDataType]):
@@ -255,6 +257,7 @@ class PipelineTemplate:
 
         pipeline_status = PipelineStatus()
         trial_intervals: TrialIntervals | None = None
+        interval_qc_figure: Figure | None = None
         behaviour_pipeline_data = PipelineOutputData(config_in.subject_id)
         physiology_pipeline_data = PipelineOutputData(config_in.subject_id)
 
@@ -308,8 +311,10 @@ class PipelineTemplate:
             raw_behav_data_for_intervals = self.behaviour_raw_data_store.get(
                 self.get_interval_strategy.input_behaviour_data_type
             )
-            trial_intervals, trial_interval_pipeline_status = self.get_interval_strategy.run(
-                raw_biodata_for_intervals, raw_behav_data_for_intervals
+            trial_intervals, interval_qc_figure, trial_interval_pipeline_status = (
+                self.get_interval_strategy.run(
+                    raw_biodata_for_intervals, raw_behav_data_for_intervals
+                )
             )
             pipeline_status = pipeline_status.merge(trial_interval_pipeline_status)
         except (ValueError, FileNotFoundError) as e:
@@ -322,7 +327,7 @@ class PipelineTemplate:
 
         try:
             if trial_intervals is None:
-                raise ValueError("Trial intervals unavailable")
+                raise ValueError(f"Trial intervals unavailable for {config_in.subject_id}")
             physiology_pipeline_data, physiology_processing_status = (
                 self.sequential_physiology_steps.run(
                     config_in, self.physiolgy_raw_data_store, trial_intervals
@@ -344,5 +349,7 @@ class PipelineTemplate:
         pipeline_data_out.status = pipeline_status
         pipeline_data_out = pipeline_data_out.merge(behaviour_pipeline_data)
         pipeline_data_out = pipeline_data_out.merge(physiology_pipeline_data)
+        if interval_qc_figure is not None:
+            pipeline_data_out.figure_data_out["Interval_qc"] = interval_qc_figure
 
         return pipeline_data_out

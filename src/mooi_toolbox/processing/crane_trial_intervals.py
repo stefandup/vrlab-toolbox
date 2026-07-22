@@ -1,23 +1,20 @@
 import logging
 import os
 import sys
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.figure import Figure
 from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import PolynomialFeatures
 from typing_extensions import deprecated
 
 from mooi_toolbox.processing.biodata import RawBioData
-from mooi_toolbox.processing.biopac import BiopacDataImportStartegy
 from mooi_toolbox.processing.crane_behaviour import (
-    ImportCraneBehaviourDataStrategyStep,
     RawCraneBehaviourData,
 )
-from mooi_toolbox.processing.input_data import ParticipantConfig
 from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
 from mooi_toolbox.processing.trial_intervals import TrialIntervals, get_raw_biopac_trigger_intervals
 
@@ -31,7 +28,7 @@ class CraneGetTrialIntervalStrategyStep:
 
     def run(
         self, raw_biodata_in: RawBioData, raw_behaviour_data_in: RawCraneBehaviourData
-    ) -> tuple[TrialIntervals, PipelineStatus]:
+    ) -> tuple[TrialIntervals, Figure, PipelineStatus]:
 
         interval_pipeline_status = PipelineStatus()
 
@@ -64,7 +61,15 @@ class CraneGetTrialIntervalStrategyStep:
             PipelineStatus(intervals=match_status)
         )
 
-        return (aligned_behav_with_triggers, interval_pipeline_status)
+        interval_qc_figure = plot_biopac_interval_qc(
+            raw_biodata_in["Trigger"],
+            raw_biopac_triggers,
+            corrected_triggers,
+            aligned_behav_with_triggers,
+            behav_intervals,
+        )
+
+        return (aligned_behav_with_triggers, interval_qc_figure, interval_pipeline_status)
 
 
 def remove_biopac_known_false_triggers(
@@ -120,7 +125,7 @@ def remove_biopac_known_false_triggers(
 
 def get_crane_trigger_behav_intervals(
     validated_behav_df: pd.DataFrame,
-) -> dict[str, tuple[float, float]]:
+) -> TrialIntervals:
     # TODO: Needs to be generalized
     intervals_out = {}
 
@@ -141,8 +146,8 @@ def get_crane_trigger_behav_intervals(
                     )
                 }
             )
-
-    return intervals_out
+    trial_intervals_out = TrialIntervals(intervals=intervals_out)
+    return trial_intervals_out
 
 
 @deprecated("Works only halfway. Working on a more general fix for trigger/behaviour mismatches.")
@@ -193,7 +198,7 @@ def get_crane_predicted_trigger_intervals(
 @deprecated("Flawed matching algorithm specific to crane. Replace with a more general one")
 def align_crane_behav_intervals_with_trigger_intervals(
     trial_intervals_in: TrialIntervals,
-    behav_intervals_in,
+    behav_intervals_in: TrialIntervals,
 ) -> tuple[TrialIntervals, ProcessingStatus]:
     """
     Greedily matches each behavioural trial to its nearest predicted trigger interval,
@@ -202,7 +207,7 @@ def align_crane_behav_intervals_with_trigger_intervals(
 
     trigger_intervals = trial_intervals_in.intervals
     pred_trigger_intervals, max_expected_delta = get_crane_predicted_trigger_intervals(
-        behav_intervals_in
+        behav_intervals_in.intervals
     )
 
     status = ProcessingStatus.OK
@@ -210,7 +215,7 @@ def align_crane_behav_intervals_with_trigger_intervals(
 
     remaining_trigger_intervals = trigger_intervals.copy()
     matched_intervals = {}
-    unmatched_behav_keys = set(behav_intervals_in.keys())
+    unmatched_behav_keys = set(behav_intervals_in.intervals.keys())
     max_start_delta = max_expected_delta
     best_deltas = []
 
@@ -254,77 +259,30 @@ def align_crane_behav_intervals_with_trigger_intervals(
 # QC
 
 
-def plot_crane_interval_qc(config_in: ParticipantConfig) -> None:
-    try:
-        raw_bio_data = BiopacDataImportStartegy().run(config_in)
-    except (FileNotFoundError, ValueError) as e:
-        logger.error(
-            "Couldnt find Biopac data for %s at %s. %s",
-            config_in.subject_id,
-            config_in.physiology_fn,
-            e,
-        )
-        return
+# TODO: this is now more biopac implementation of trial intervals?
+def plot_biopac_interval_qc(
+    trigger_df: pd.DataFrame,
+    raw_biopac_trigger_intervals: TrialIntervals | None = None,
+    corrected_trigger_intervals: TrialIntervals | None = None,
+    behav_matched_trigger_intervals: TrialIntervals | None = None,
+    raw_behav_trial_intervals: TrialIntervals | None = None,
+) -> Figure:
 
-    try:
-        raw_behav_data = ImportCraneBehaviourDataStrategyStep().run(config_in)
-    except (FileNotFoundError, ValueError) as e:
-        logger.warning(
-            "Problem with behaviour file for %s. Trying to continue. Error: %s",
-            config_in.subject_id,
-            e,
-        )
-        raw_behav_data = None
-
-    try:
-        raw_biopac_trigger_intervals = get_raw_biopac_trigger_intervals(raw_bio_data["Trigger"])
-    except (FileNotFoundError, ValueError) as e:
-        logger.error(
-            "Trouble importing trigger data from physiology for %s. Have to skip. %s",
-            config_in.subject_id,
-            e,
-        )
+    if raw_biopac_trigger_intervals is None:
         raw_biopac_trigger_intervals = TrialIntervals(intervals={})
 
-    try:
-        corrected_trigger_intervals, corrected_status = remove_biopac_known_false_triggers(
-            raw_biopac_trigger_intervals
-        )
-    except (FileNotFoundError, ValueError) as e:
-        logger.warning(
-            "Error removing false triggers for %s. Trying to continue. %s", config_in.subject_id, e
-        )
+    if corrected_trigger_intervals is None:
         corrected_trigger_intervals = TrialIntervals(intervals={})
 
-    if raw_behav_data is None:
+    if behav_matched_trigger_intervals is None:
         behav_matched_trigger_intervals = TrialIntervals(intervals={})
-        raw_behav_interval_validated = TrialIntervals(intervals={})
-    else:
-        try:
-            behav_matched_trigger_intervals, _ = align_crane_behav_intervals_with_trigger_intervals(
-                corrected_trigger_intervals, raw_behav_data.raw_behav_df
-            )
-        except (FileNotFoundError, ValueError) as e:
-            logger.warning(
-                "Could not match behaviour to triggers for %s. Trying to continue. %s",
-                config_in.subject_id,
-                e,
-            )
-            behav_matched_trigger_intervals = TrialIntervals(intervals={})
 
-        try:
-            # TODO: Fix that this works with TrialIntervals class. Change througout!
-            raw_behav_intervals = get_crane_trigger_behav_intervals(raw_behav_data.raw_behav_df)
-            raw_behav_interval_validated = TrialIntervals(intervals=raw_behav_intervals)
-        except (FileNotFoundError, ValueError) as e:
-            logger.warning(
-                "Could not get raw behav intervals for %s. Trying to continue. %s",
-                config_in.subject_id,
-                e,
-            )
-            raw_behav_interval_validated = TrialIntervals(intervals={})
+    if raw_biopac_trigger_intervals is None:
+        raw_biopac_trigger_intervals = TrialIntervals(intervals={})
 
-    time_stamp_series = raw_bio_data.raw_data["Trigger"]["time_stamps"]
+    if raw_behav_trial_intervals is None:
+        raw_behav_trial_intervals = TrialIntervals(intervals={})
+
     fig, axes = plt.subplots(
         4,
         1,
@@ -336,7 +294,8 @@ def plot_crane_interval_qc(config_in: ParticipantConfig) -> None:
     axes[0].set_xlim(0, 25)
 
     # Row 0: raw trigger voltage signal
-    trigger_time_stamps, trigger_signal = get_raw_trigger_signal(raw_bio_data["Trigger"])
+    trigger_time_stamps, trigger_signal = get_raw_trigger_signal(trigger_df)
+    time_stamp_series = trigger_df["Trigger"]
     trigger_time_min = (trigger_time_stamps - time_stamp_series.iloc[0]) / 60
     axes[0].plot(trigger_time_min, trigger_signal, color="black", linewidth=0.5)
     axes[0].set_title("Raw Trigger Voltage")
@@ -353,7 +312,7 @@ def plot_crane_interval_qc(config_in: ParticipantConfig) -> None:
     )
     plot_interval_ax(
         axes[1],
-        raw_behav_interval_validated,
+        raw_behav_trial_intervals,
         time_stamp_series,
         color_nr=1,
         source_label="Raw behav",
@@ -371,7 +330,7 @@ def plot_crane_interval_qc(config_in: ParticipantConfig) -> None:
     )
     plot_interval_ax(
         axes[2],
-        raw_behav_interval_validated,
+        raw_behav_trial_intervals,
         time_stamp_series,
         color_nr=1,
         source_label="Raw behav",
@@ -396,12 +355,7 @@ def plot_crane_interval_qc(config_in: ParticipantConfig) -> None:
         show_gaps=True,
     )
 
-    fig.suptitle(config_in.subject_id)
-    out_dir = Path(config_in.behav_folder) / "interval_qc"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"{config_in.subject_id}_interval_qc.png"
-    fig.savefig(out_path)
-    plt.close(fig)
+    return fig
 
 
 def plot_interval_ax(

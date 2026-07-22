@@ -16,7 +16,6 @@ from mooi_toolbox import mobi_logging
 from mooi_toolbox.processing import biopac
 from mooi_toolbox.processing.crane_pipeline import build_crane_participant_output_schema
 from mooi_toolbox.processing.crane_pipeline import run_pipeline as run_crane_pipeline
-from mooi_toolbox.processing.crane_trial_intervals import plot_crane_interval_qc
 from mooi_toolbox.processing.input_data import ParticipantConfig
 from mooi_toolbox.processing.plot_utils import save_plot
 
@@ -68,15 +67,6 @@ def main(input_folder: str, behav_folder: str, output_folder: str, verbose: bool
                 verbose=verbose,
                 show_plots=False,
             )
-
-            try:
-                # TEMP: Check the handling of the trigger corrections. Could be subsumed as a QC
-                # strategy
-                plot_crane_interval_qc(pipeline_input)
-            except (FileNotFoundError, ValueError, KeyError, TypeError, AttributeError) as e:
-                logger.warning(
-                    "Could not run TEMP QC for %s. Skipping. %s", ParticipantConfig.subject_id, e
-                )
 
             try:
                 pipeline_output = run_crane_pipeline(pipeline_input)
