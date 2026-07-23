@@ -11,6 +11,12 @@ from mooi_toolbox.processing.input_data import ParticipantConfig
 logger = logging.getLogger(__name__)
 
 
+class FindParticipantFilesWithBiopacStrategyStep:
+    def run(self, participant_id_in: str) -> ParticipantConfig:
+
+        return ParticipantConfig()
+
+
 class BiopacDataImportStartegy:
     def run(self, config_in: ParticipantConfig) -> RawBioData:
 

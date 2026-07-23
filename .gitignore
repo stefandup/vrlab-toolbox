@@ -23,6 +23,5 @@ __pycache__/
 logs/
 temp/
 spss_scripts/
-AGENTS.md
 build/
 dist/

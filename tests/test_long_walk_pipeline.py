@@ -16,7 +16,7 @@ example_long_walk_participant_correct = ParticipantConfig(
 
 class TestReadingBasicBiopacData(unittest.TestCase):
     def test_good_raw_data_should_return_ok(self):
-        raw_biodata_good: RawBioData = BiopacDataImportStartegy().import_data(
+        raw_biodata_good: RawBioData = BiopacDataImportStartegy().run(
             example_long_walk_participant_correct
         )
         self.assertIsInstance(raw_biodata_good, RawBioData)

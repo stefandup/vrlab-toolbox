@@ -1,4 +1,14 @@
+import warnings
+
 import pandas as pd
+
+"""Deprecated: This file needs to be incorporated into crane behaviour"""
+
+warnings.warn(
+    "This file needs to be incorporated into crane behaviour",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 def check_changes_in_velocity_over_time():

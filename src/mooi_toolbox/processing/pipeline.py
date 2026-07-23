@@ -62,6 +62,10 @@ class RawPhysiologyDataStore:
 # strategy base class
 
 
+class FindParticipantFilesStrategyStep(Protocol):
+    def run(self, participant_id_in: str) -> ParticipantConfig: ...
+
+
 class ImportBioDataStrategyStep(Protocol):
     def run(self, config_in: ParticipantConfig) -> RawBioData: ...
 

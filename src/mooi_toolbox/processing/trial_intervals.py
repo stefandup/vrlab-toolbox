@@ -13,6 +13,7 @@ from mooi_toolbox.read_mobi_xdf import xdf_io
 logger = logging.getLogger(__name__)
 
 
+# TODO: Look into using types.MappingProxyType to guard the sorted nature of "intervals"
 @dataclass
 class TrialIntervals:
     """
@@ -24,6 +25,69 @@ class TrialIntervals:
     """
 
     intervals: dict[str, tuple[float, float]] = field(default_factory=dict)
+
+    def __post_init__(self):
+        self.sort()
+
+    def sort(self):
+        self.intervals = dict(sorted(self.intervals.items(), key=lambda item: item[1]))
+
+    def fill_in_gaps(self) -> None:
+        sorted_intervals_out = self.intervals.copy()
+        sorted_interval_values = sorted(self.intervals.values())
+        counter = 0
+        for (_, prev_end), (next_start, _) in zip(
+            sorted_interval_values, sorted_interval_values[1:], strict=False
+        ):
+            if next_start > prev_end:
+                sorted_intervals_out.update({f"ITI_{counter}": (prev_end, next_start)})
+                counter = counter + 1
+
+        self.intervals = sorted_intervals_out
+        self.sort()
+
+    def relabel_with(self, other) -> "TrialIntervals":
+        relabelled_trial_intervals = self.intervals.copy()
+
+        if not isinstance(other, TrialIntervals):
+            raise ValueError("Cannot relabel of non TrialInterval class")
+
+        if len(self.intervals) != len(other.intervals):
+            raise ValueError("Cannot relabel when the other set of intervals is not the same size.")
+
+        other_intervals_sorted = dict(sorted(other.intervals.items(), key=lambda item: item[1]))
+
+        for other_item_key, self_item_key in zip(
+            other_intervals_sorted.keys(), self.intervals.keys(), strict=False
+        ):
+            relabelled_trial_intervals[other_item_key] = relabelled_trial_intervals.pop(
+                self_item_key
+            )
+
+        relabelled_intervals_out = TrialIntervals(intervals=relabelled_trial_intervals)
+
+        return relabelled_intervals_out
+
+    def get_overlap(self, other) -> list[float]:
+        if not isinstance(other, TrialIntervals):
+            raise ValueError("Cannot get overlap of non TrialInterval class")
+
+        if len(self.intervals) != len(other.intervals):
+            raise ValueError(
+                "Cannot get overlap when the other set of intervals is not the same size."
+            )
+
+        deltas = []
+        for other_vals, self_vals in zip(
+            other.intervals.values(),
+            self.intervals.values(),
+            strict=False,
+        ):
+            other_duration = other_vals[1] - other_vals[0]
+            self_duration = self_vals[1] - self_vals[0]
+            deltas.append(self_duration - other_duration)
+
+        return deltas
 
     @classmethod
     def from_raw_interval_pairs(
@@ -406,7 +470,7 @@ def remove_biopac_known_false_triggers(
     return (valid_trigger_interval_pairs, status_out)
 
 
-def correct_biopac_trigger_drift_from_behav_file(
+def align_biopac_trigger_drift_from_behav_file(
     raw_trigger_intervals_in: TrialIntervals,
     behav_trial_intervals_in: TrialIntervals,
 ) -> tuple[TrialIntervals, ProcessingStatus]:
@@ -429,5 +493,12 @@ def correct_biopac_trigger_drift_from_behav_file(
     result in the physiology (biopac) timeframe.
 
     """
+
+    behav_trial_intervals_in.fill_in_gaps()
+    raw_trigger_intervals_in.fill_in_gaps()
+
+    deltas = raw_trigger_intervals_in.get_overlap(behav_trial_intervals_in)
+    print(f"Mean difference is: {np.mean(np.abs(deltas))}")
+    relabelled_trigger_intervals = raw_trigger_intervals_in.relabel_with(behav_trial_intervals_in)
 
     return (TrialIntervals(), ProcessingStatus.NOT_RUN)

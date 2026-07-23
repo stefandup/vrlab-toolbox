@@ -9,6 +9,7 @@ from mooi_toolbox.processing.crane_behaviour import (
     build_crane_raw_behav_file_schema,
 )
 from mooi_toolbox.processing.crane_pipeline import run_pipeline
+from mooi_toolbox.processing.crane_trial_intervals import CraneGetTrialIntervalStrategyStep
 from mooi_toolbox.processing.input_data import ParticipantConfig
 from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
 
@@ -127,6 +128,38 @@ class TestCraneIntervalQC(unittest.TestCase):
         pass
 
 
+class TestCraneGetIntervalStrategy(unittest.TestCase):
+    def test_interval_correction_with_correct_intervals(self):
+        raw_bio_data = BiopacDataImportStartegy().run(example_crane_participant_correct)
+        raw_behav_data = ImportCraneBehaviourDataStrategyStep().run(
+            example_crane_participant_correct
+        )
+        trial_intervals, interval_figure_out, interval_pipeline_status = (
+            CraneGetTrialIntervalStrategyStep().run(raw_bio_data, raw_behav_data)
+        )
+        print("Done!")
+
+    def test_interval_correction_with_missing_initial_trigger_tp(self):
+        # PID16186
+        pass
+
+    def test_interval_correction_with_initial_double_trigger(self):
+        # PID16407
+        pass
+
+    def test_interval_correction_with_double_trigger_and_missing_init_tp(self):
+        # PID5753 and PID4572
+        pass
+
+    def test_interval_correction_with_missing_last_and_initial_triggers(self):
+        # PID16230
+        pass
+
+    def test_interval_correction_with_multiple_double_triggers(self):
+        # PID9188 and PID7177(worse!)
+        pass
+
+
 class TestBehaviourClassWithBiopacData(unittest.TestCase):
     def test_biopac_behav_import(self):
         correct_behaviour = RawCraneBehaviourData.load_from_config(
@@ -135,6 +168,14 @@ class TestBehaviourClassWithBiopacData(unittest.TestCase):
         build_crane_raw_behav_file_schema().validate(correct_behaviour.raw_behav_df)
 
     def test_behaviour_processing_strategy(self):
+        pass
+
+
+class TestParticipantConfigFileHandling(unittest.TestCase):
+    def test_detection_of_missing_behav_file(self):
+        pass
+
+    def test_finds_and_populates_config_file_correctly(self):
         pass
 
 

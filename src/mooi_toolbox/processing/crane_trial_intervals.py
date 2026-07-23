@@ -17,6 +17,7 @@ from mooi_toolbox.processing.crane_behaviour import (
 from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
 from mooi_toolbox.processing.trial_intervals import (
     TrialIntervals,
+    align_biopac_trigger_drift_from_behav_file,
     get_raw_biopac_trigger_intervals,
     plot_biopac_interval_qc,
     remove_biopac_known_false_triggers,
@@ -57,20 +58,22 @@ class CraneGetTrialIntervalStrategyStep:
 
         behav_intervals = get_crane_trigger_behav_intervals(raw_behaviour_data_in.raw_behav_df)
 
-        aligned_behav_with_triggers, match_status = (
-            align_crane_behav_intervals_with_trigger_intervals(corrected_triggers, behav_intervals)
+        aligned_behav_with_triggers, match_status = align_biopac_trigger_drift_from_behav_file(
+            raw_biopac_triggers, behav_intervals
         )
 
         interval_pipeline_status = interval_pipeline_status.merge(
             PipelineStatus(intervals=match_status)
         )
 
+        behav_intervals_gaps_filled = behav_intervals.fill_in_gaps()
+
         interval_qc_figure = plot_biopac_interval_qc(
             raw_biodata_in["Trigger"],
             raw_biopac_triggers,
             corrected_triggers,
             aligned_behav_with_triggers,
-            behav_intervals,
+            behav_intervals_gaps_filled,
         )
 
         return (aligned_behav_with_triggers, interval_qc_figure, interval_pipeline_status)
