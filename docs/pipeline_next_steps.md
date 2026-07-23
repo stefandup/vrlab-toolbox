@@ -372,6 +372,46 @@ Agreed next steps, not yet implemented:
 Also confirmed and no longer open: `RawCraneBehaviourData`'s inherited
 `filename_glob` pattern matches real Crane behaviour filenames.
 
+### 13. Date-string extraction in `from_physiology_data` breaks on the data folder's path separator
+
+Found during review of `crane_pipeline.py`/`FindCraneParticipantFilesStrategyStep`, while
+chasing why `tests/test_crane_pipeline.py` couldn't even collect. Two other bugs in the
+same code path were found and fixed first (both now resolved):
+
+- `BiopacDataImportStartegy.input_data_file_format` (`biopac.py`) was `PhysiologyFileFormat.BIOPAC`
+  (`.acq`) even though `load_biopac_data` loads `.mat` files via `scipy.io.loadmat` — fixed to
+  `PhysiologyFileFormat.MATLAB`.
+- The physiology glob in `from_physiology_data` (`input_data.py`) was
+  `f"*{id_in}_{physiology_data_type_in.value}"`, which assumes the id is immediately followed
+  by the extension with nothing in between. Real filenames are
+  `{date}_{id}_CraneOut.{ext}`, so nothing ever matched. Fixed to
+  `f"*_{id_in}_*{physiology_data_type_in.value}"` and confirmed against all fixture IDs in
+  `crane_data/`.
+
+With both of those fixed, collection gets further but still fails:
+
+```
+FileNotFoundError: No file matches for RawCraneBehaviourData for participant 00020
+```
+
+Root cause, `input_data.py`:
+
+```python
+expected_date_string_from_physiology = str(physiology_fn).split("_")[0]
+```
+
+`physiology_fn` is a `Path`; `str(path)` on Windows renders with backslashes
+(`crane_data\2026481120_00020_CraneOut.mat`). Splitting on `"_"` doesn't split on the
+backslash, so the first token is `"crane"` (from `crane_data`) instead of the intended
+date prefix `2026481120`. Confirmed by testing directly: `physiology_fn.name.split("_")[0]`
+gives the correct value; `str(physiology_fn).split("_")[0]` does not. This wrong date string
+then feeds the behaviour-file glob (`{date_string}_{participant_id}_*.csv`), so no behaviour
+CSV is ever found for any participant.
+
+This is the remaining blocker on `tests/test_crane_pipeline.py` collecting/running at all —
+pick up here next. Likely overlaps with item 4's "don't assume filename conventions hold"
+and item 12's broader file-discovery cleanup.
+
 ## Working Rule
 
 Do not rewrite everything at once. Preserve working behaviour and improve

@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class BiopacDataImportStartegy:
-    input_data_file_format = PhysiologyFileFormat.BIOPAC
+    input_data_file_format = PhysiologyFileFormat.MATLAB
 
     def run(self, config_in: ParticipantConfig) -> RawBioData:
 

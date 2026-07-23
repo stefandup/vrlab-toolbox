@@ -47,7 +47,7 @@ class ParticipantConfig:
                 f"Participant ID {id_in} is not valid as it contains non alphanumeric characters"
             )
         search_root = data_folder_in
-        physiology_fn_list = list(search_root.rglob(f"*{id_in}_{physiology_data_type_in.value}"))
+        physiology_fn_list = list(search_root.rglob(f"*_{id_in}_*{physiology_data_type_in.value}"))
 
         if not physiology_fn_list:
             raise FileNotFoundError(f"No matching physiology files found for {id_in}")
