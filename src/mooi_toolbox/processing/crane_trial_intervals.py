@@ -57,9 +57,6 @@ class CraneGetTrialIntervalStrategyStep:
 
         behav_intervals = get_crane_trigger_behav_intervals(raw_behaviour_data_in.raw_behav_df)
 
-        # aligned_behav_with_triggers, match_status = align_biopac_trigger_drift_from_behav_file(
-        #    raw_biopac_triggers, behav_intervals
-        # )
         aligned_behav_with_triggers, match_status = (
             align_crane_behav_intervals_with_trigger_intervals(raw_biopac_triggers, behav_intervals)
         )
