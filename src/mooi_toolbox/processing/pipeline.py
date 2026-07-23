@@ -1,13 +1,14 @@
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Protocol, TypeVar, cast
 
 from matplotlib.figure import Figure
 
 from mooi_toolbox.processing.behaviour import RawBehaviourData
 from mooi_toolbox.processing.biodata import RawBioData
-from mooi_toolbox.processing.input_data import ParticipantConfig
+from mooi_toolbox.processing.input_data import ParticipantConfig, PhysiologyFileFormat
 from mooi_toolbox.processing.output_data import PipelineOutputData
 
 # from mooi_toolbox.processing.vr_intervals import
@@ -63,10 +64,15 @@ class RawPhysiologyDataStore:
 
 
 class FindParticipantFilesStrategyStep(Protocol):
-    def run(self, participant_id_in: str) -> ParticipantConfig: ...
+    physiology_data_type: PhysiologyFileFormat
+    behaviour_data_types: list[type]
+
+    def run(self, participant_id_in: str, data_folder_in: Path) -> ParticipantConfig: ...
 
 
 class ImportBioDataStrategyStep(Protocol):
+    input_data_file_format: PhysiologyFileFormat
+
     def run(self, config_in: ParticipantConfig) -> RawBioData: ...
 
 

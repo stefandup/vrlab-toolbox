@@ -12,6 +12,8 @@ from mooi_toolbox.processing.output_data import PipelineOutputData
 
 logger = logging.getLogger(__name__)
 
+REDCAP_FN = "CraneGame_Emotional Experience Form.xlsx"
+
 EMOTIONS_TESTED = (
     "Boredom",
     "Dissatisfaction",
@@ -62,6 +64,7 @@ class CraneDebriefPipelineOutput(PipelineOutputData):
 
 class RawDebriefBehaviourData(RawBehaviourData):
     validation_schema = crane_raw_debrief_file_schema
+    filename_glob = REDCAP_FN
 
     @classmethod
     def load_from_config(cls, config_in: ParticipantConfig) -> Self:
@@ -90,7 +93,7 @@ class ProcessCraneDebriefBehaviourDataStrategyStep:
 # TODO: Fix this as it is likely out of scope
 @cache
 def load_group_debrief_data(behaviour_data_dir: str) -> pd.DataFrame:
-    red_cap_fn = r"CraneGame_Emotional Experience Form.xlsx"
+    red_cap_fn = REDCAP_FN
     data_fn = os.path.join(behaviour_data_dir, red_cap_fn)
 
     df = pd.read_excel(data_fn, dtype={"Subject_ID": str})

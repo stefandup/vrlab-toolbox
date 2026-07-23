@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 
 import pandas as pd
 import pandera.pandas as pa
@@ -94,6 +95,23 @@ def build_crane_participant_output_schema() -> pa.DataFrameSchema:
     return build_base_pipeline_output_schema(
         {**behaviour_columns, **debrief_columns, **physiology_columns}
     )
+
+
+class FindCraneParticipantFilesStrategyStep:
+    physiology_data_type = BiopacDataImportStartegy.input_data_file_format
+    behaviour_data_types = [
+        ProcessCraneBehaviourDataStrategyStep.input_data_type,
+        ProcessCraneDebriefBehaviourDataStrategyStep.input_data_type,
+    ]
+
+    def run(self, participant_id_in: str, data_folder_in: Path) -> ParticipantConfig:
+
+        return ParticipantConfig.from_physiology_data(
+            id_in=participant_id_in,
+            physiology_data_type_in=self.physiology_data_type,
+            data_folder_in=data_folder_in,
+            behaviour_data_types_in=self.behaviour_data_types,
+        )
 
 
 @dataclass

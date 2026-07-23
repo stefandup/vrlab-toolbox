@@ -6,18 +6,14 @@ import pandas as pd
 import scipy.io as sio
 
 from mooi_toolbox.processing.biodata import RawBioData
-from mooi_toolbox.processing.input_data import ParticipantConfig
+from mooi_toolbox.processing.input_data import ParticipantConfig, PhysiologyFileFormat
 
 logger = logging.getLogger(__name__)
 
 
-class FindParticipantFilesWithBiopacStrategyStep:
-    def run(self, participant_id_in: str) -> ParticipantConfig:
-
-        return ParticipantConfig()
-
-
 class BiopacDataImportStartegy:
+    input_data_file_format = PhysiologyFileFormat.BIOPAC
+
     def run(self, config_in: ParticipantConfig) -> RawBioData:
 
         raw_data_for_pipeline = load_biopac_data(config_in)

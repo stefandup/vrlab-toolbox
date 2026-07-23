@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.biopac import BiopacDataImportStartegy
@@ -8,89 +9,43 @@ from mooi_toolbox.processing.crane_behaviour import (
     RawCraneBehaviourData,
     build_crane_raw_behav_file_schema,
 )
-from mooi_toolbox.processing.crane_pipeline import run_pipeline
+from mooi_toolbox.processing.crane_pipeline import (
+    FindCraneParticipantFilesStrategyStep,
+    run_pipeline,
+)
 from mooi_toolbox.processing.crane_trial_intervals import CraneGetTrialIntervalStrategyStep
-from mooi_toolbox.processing.input_data import ParticipantConfig
 from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
 
-example_crane_participant_correct = ParticipantConfig(
-    subject_id="00020",
-    physiology_fn=r"crane_data\\2026481120_00020_CraneOut.mat",
-    behav_folder=r"crane_data",
-    verbose=False,
-    show_plots=False,
+data_folder = Path(r"crane_data\\")
+
+example_crane_participant_correct = FindCraneParticipantFilesStrategyStep().run(
+    "00020", data_folder
 )
 
-crane_participant_no_FILE = ParticipantConfig(
-    subject_id="00020",
-    physiology_fn=r"crane_data\\NOFILE.mat",
-    behav_folder=r"crane_data",
-    verbose=False,
-    show_plots=False,
+crane_participant_no_FILE = FindCraneParticipantFilesStrategyStep().run("NOFILES", data_folder)
+
+crane_participant_no_BEHAV_bad_date = FindCraneParticipantFilesStrategyStep().run(
+    "PID11136", data_folder
 )
 
-crane_participant_no_BEHAV = ParticipantConfig(
-    subject_id="00020",
-    physiology_fn=r"crane_data\\2026481120_00020_CraneOut.mat",
-    behav_folder=r"NO_BEHAV_FOLDER",
-    verbose=False,
-    show_plots=False,
+example_incorrect_interval_nr = FindCraneParticipantFilesStrategyStep().run("00007", data_folder)
+
+example_correct_interval_nr = FindCraneParticipantFilesStrategyStep().run("TESTa", data_folder)
+
+example_long_delay = FindCraneParticipantFilesStrategyStep().run("00011", data_folder)
+
+example_incorrect_very_short_trigger = FindCraneParticipantFilesStrategyStep().run(
+    "00006", data_folder
 )
 
-example_incorrect_interval_nr = ParticipantConfig(
-    subject_id="00007",
-    physiology_fn=r"crane_data\\2026371237_00007_CraneOut.mat",
-    behav_folder=r"crane_data",
-    verbose=False,
-    show_plots=False,
+example_incorrect_medium_short_trigger = FindCraneParticipantFilesStrategyStep().run(
+    "PID16407", data_folder
 )
 
-example_correct_interval_nr = ParticipantConfig(
-    subject_id="TESTa",
-    physiology_fn=r"crane_data\\20262121130_TESTa_CraneOut.mat",
-    behav_folder=r"crane_data",
-    verbose=False,
-    show_plots=False,
-)
+crane_participant_no_debrief = FindCraneParticipantFilesStrategyStep().run("PID8495", data_folder)
 
-example_long_delay = ParticipantConfig(
-    subject_id="00011",
-    physiology_fn=r"crane_data\\2026325120_00011_CraneOut.mat",
-    behav_folder=r"crane_data",
-    verbose=False,
-    show_plots=False,
-)
-
-example_incorrect_very_short_trigger = ParticipantConfig(
-    subject_id="00006",
-    physiology_fn=r"crane_data\\202637138_00006_CraneOut.mat",
-    behav_folder=r"crane_data",
-    verbose=False,
-    show_plots=False,
-)
-
-example_incorrect_medium_short_trigger = ParticipantConfig(
-    subject_id="PID16407",
-    physiology_fn=r"crane_data\\20265221116_PID16407_CraneOut.mat",
-    behav_folder=r"crane_data",
-    verbose=False,
-    show_plots=False,
-)
-
-crane_participant_no_debrief = ParticipantConfig(
-    subject_id="PID8495",
-    physiology_fn=r"crane_data\\2026651331_PID8495_CraneOut.mat",
-    behav_folder=r"crane_data",
-    verbose=False,
-    show_plots=False,
-)
-
-crane_participant_incorrect_date = ParticipantConfig(
-    subject_id="PID15868",
-    physiology_fn=r"crane_data\\20265121237_PID15868_CraneOut.mat",
-    behav_folder=r"crane_data",
-    verbose=False,
-    show_plots=False,
+crane_participant_incorrect_date = FindCraneParticipantFilesStrategyStep().run(
+    "PID15868", data_folder
 )
 
 corrected_interval_str = PipelineStatus(
@@ -231,7 +186,7 @@ class TestCranePipeline(unittest.TestCase):
             intervals=ProcessingStatus.ERROR,
         ).get_as_text()
 
-        pipeline_out = run_pipeline(crane_participant_no_BEHAV)
+        pipeline_out = run_pipeline(crane_participant_no_BEHAV_bad_date)
         self.assertEqual(pipeline_out.status.behaviour, ProcessingStatus.ERROR)
         self.assertEqual(
             pipeline_out.subject_df_out["Processing_Status"].iloc[0], physiology_and_behav_error
