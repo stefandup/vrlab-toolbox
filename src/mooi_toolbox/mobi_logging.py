@@ -3,6 +3,9 @@ import os
 import sys
 from pathlib import Path
 
+LOG_FORMAT = "{asctime} - {name} - {levelname} - {message}"
+LOG_DATE_FORMAT = "%Y-%m-%d %H:%M"
+
 
 # Configure logging
 def init(caller_file):
@@ -22,9 +25,9 @@ def init(caller_file):
         filename=LOG_FILE,
         encoding="utf-8",
         filemode="a",
-        format="{asctime} - {name} - {levelname} - {message}",
+        format=LOG_FORMAT,
         style="{",
-        datefmt="%Y-%m-%d %H:%M",
+        datefmt=LOG_DATE_FORMAT,
         level=logging.INFO,
     )
 

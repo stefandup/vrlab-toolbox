@@ -16,7 +16,6 @@ from mooi_toolbox import mobi_logging
 from mooi_toolbox.processing import biopac
 from mooi_toolbox.processing.crane_pipeline import build_crane_participant_output_schema
 from mooi_toolbox.processing.crane_pipeline import run_pipeline as run_crane_pipeline
-from mooi_toolbox.processing.input_data import ParticipantConfig
 from mooi_toolbox.processing.plot_utils import save_plot
 
 logger = logging.getLogger(__name__)
@@ -24,12 +23,15 @@ logger = logging.getLogger(__name__)
 
 @click.command()
 @click.version_option(package_name="mooi-toolbox")
-@click.argument("input_folder", type=click.Path(exists=True, dir_okay=True), required=True)
-@click.argument("behav_folder", type=click.Path(exists=True, dir_okay=True), required=True)
-@click.argument("output_folder", type=click.Path(exists=True, dir_okay=True), required=True)
+@click.argument(
+    "input_folder", type=click.Path(exists=True, dir_okay=True, path_type=Path), required=True
+)
+@click.argument(
+    "output_folder", type=click.Path(exists=True, dir_okay=True, path_type=Path), required=True
+)
 @click.option("--subject_id", required=False, default="", help="Process a single participant")
 @click.option("--verbose", is_flag=True, help="Give verbose output")
-def main(input_folder: str, behav_folder: str, output_folder: str, verbose: bool, subject_id: str):
+def main(input_folder: Path, output_folder: Path, verbose: bool, subject_id: str):
     """CLI tool for batch processing VRLab crane behaviour and physiology data."""
 
     participant_data_out = None
@@ -59,17 +61,8 @@ def main(input_folder: str, behav_folder: str, output_folder: str, verbose: bool
             mobi_logging.log_section(logger, f"Subject {subject_id}")
             logger.info("Trying to read file %s", biopac_mat_fn)
 
-            # TODO: Fix fn to path
-            pipeline_input = ParticipantConfig(
-                subject_id=subject_id,
-                physiology_fn=str(biopac_mat_fn),
-                behav_folder=behav_folder,
-                verbose=verbose,
-                show_plots=False,
-            )
-
             try:
-                pipeline_output = run_crane_pipeline(pipeline_input)
+                pipeline_output = run_crane_pipeline(subject_id, input_folder)
                 participant_data_out = pipeline_output.subject_df_out
                 figures = pipeline_output.figure_data_out
 
@@ -78,7 +71,7 @@ def main(input_folder: str, behav_folder: str, output_folder: str, verbose: bool
                         try:
                             save_plot(
                                 fig,
-                                output_folder,
+                                str(output_folder),  # TODO: Convert to Path
                                 subject_id,
                                 f"Subject {subject_id} - {fig_title}",
                             )
