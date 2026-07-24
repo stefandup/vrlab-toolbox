@@ -1,4 +1,5 @@
 import logging
+import math
 from dataclasses import dataclass, field
 
 import matplotlib.pyplot as plt
@@ -7,10 +8,12 @@ import pandas as pd
 from matplotlib.figure import Figure
 
 from mooi_toolbox import config as cfg
-from mooi_toolbox.processing.processing_status import ProcessingStatus
+from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
 from mooi_toolbox.read_mobi_xdf import xdf_io
 
 logger = logging.getLogger(__name__)
+UNREAL_START_DELAY_SECONDS = 5
+START_TOLERANCE_SECONDS = 5
 
 
 # TODO: Look into using types.MappingProxyType to guard the sorted nature of "intervals"
@@ -32,19 +35,26 @@ class TrialIntervals:
     def sort(self):
         self.intervals = dict(sorted(self.intervals.items(), key=lambda item: item[1]))
 
-    def fill_in_gaps(self) -> None:
-        sorted_intervals_out = self.intervals.copy()
+    def fill_in_gaps(self) -> "TrialIntervals":
+
+        gap_filled_intervals = self.intervals.copy()
         sorted_interval_values = sorted(self.intervals.values())
+
+        if not math.isclose(
+            sorted_interval_values[0][0],
+            0,
+            abs_tol=START_TOLERANCE_SECONDS + UNREAL_START_DELAY_SECONDS,
+        ):
+            sorted_interval_values.insert(0, (0, 0))
         counter = 0
         for (_, prev_end), (next_start, _) in zip(
             sorted_interval_values, sorted_interval_values[1:], strict=False
         ):
             if next_start > prev_end:
-                sorted_intervals_out.update({f"ITI_{counter}": (prev_end, next_start)})
+                gap_filled_intervals.update({f"ITI_{counter}": (prev_end, next_start)})
                 counter = counter + 1
 
-        self.intervals = sorted_intervals_out
-        self.sort()
+        return TrialIntervals(intervals=gap_filled_intervals)
 
     def relabel_with(self, other) -> "TrialIntervals":
         relabelled_trial_intervals = self.intervals.copy()
@@ -269,14 +279,7 @@ def plot_biopac_interval_qc(
     )
 
     # Row 2: same baseline, with corrected trigger intervals overlaid to show the shift
-    plot_interval_ax(
-        axes[2],
-        raw_biopac_trigger_intervals,
-        time_stamp_series,
-        color_nr=0,
-        title="Corrected",
-        source_label="Raw biopac",
-    )
+
     plot_interval_ax(
         axes[2],
         raw_behav_trial_intervals,
@@ -471,9 +474,9 @@ def remove_biopac_known_false_triggers(
 
 
 def align_biopac_trigger_drift_from_behav_file(
-    raw_trigger_intervals_in: TrialIntervals,
+    trigger_intervals_in: TrialIntervals,
     behav_trial_intervals_in: TrialIntervals,
-) -> tuple[TrialIntervals, ProcessingStatus]:
+) -> tuple[TrialIntervals, PipelineStatus]:
     """
     Corrects clock drift between the biopac trigger signal and the Unreal
     behavioural trial timeline.
@@ -493,12 +496,16 @@ def align_biopac_trigger_drift_from_behav_file(
     result in the physiology (biopac) timeframe.
 
     """
+    pipeline_status = PipelineStatus()
 
-    behav_trial_intervals_in.fill_in_gaps()
-    raw_trigger_intervals_in.fill_in_gaps()
+    try:
+        deltas = trigger_intervals_in.get_overlap(behav_trial_intervals_in)
+        print(f"Mean difference is: {np.mean(np.abs(deltas))}")
+        relabelled_trigger_intervals = trigger_intervals_in.relabel_with(behav_trial_intervals_in)
+        pipeline_status.intervals = ProcessingStatus.OK
+    except ValueError as error:
+        print(f"Error! {error}")
+        pipeline_status.intervals = ProcessingStatus.ERROR
+        relabelled_trigger_intervals = TrialIntervals()
 
-    deltas = raw_trigger_intervals_in.get_overlap(behav_trial_intervals_in)
-    print(f"Mean difference is: {np.mean(np.abs(deltas))}")
-    relabelled_trigger_intervals = raw_trigger_intervals_in.relabel_with(behav_trial_intervals_in)
-
-    return (TrialIntervals(), ProcessingStatus.NOT_RUN)
+    return (relabelled_trigger_intervals, pipeline_status)

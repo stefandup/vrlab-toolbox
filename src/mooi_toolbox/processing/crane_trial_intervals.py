@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 import sys
 
@@ -49,36 +50,41 @@ class CraneGetTrialIntervalStrategyStep:
                 PipelineStatus(intervals=ProcessingStatus.ERROR)
             )
 
-        corrected_triggers, corrected_status = remove_biopac_known_false_triggers(
+        corrected_raw_triggers, corrected_status = remove_biopac_known_false_triggers(
             raw_biopac_triggers
         )
         interval_pipeline_status = interval_pipeline_status.merge(
             PipelineStatus(intervals=corrected_status)
         )
 
-        behav_intervals = get_crane_trigger_behav_intervals(raw_behaviour_data_in.raw_behav_df)
+        raw_behav_trial_intervals = get_crane_trigger_behav_intervals(
+            raw_behaviour_data_in.raw_behav_df
+        )
+
+        corrected_raw_trigger_intervals_gaps_filled = corrected_raw_triggers.fill_in_gaps()
+        behav_trial_intervals_gaps_filled = raw_behav_trial_intervals.fill_in_gaps()
+
+        corrected_raw_trigger_intervals_gaps_filled = remove_crane_delayed_start(
+            corrected_raw_trigger_intervals_gaps_filled
+        )
 
         aligned_behav_with_triggers, match_status = align_biopac_trigger_drift_from_behav_file(
-            raw_biopac_triggers, behav_intervals
+            corrected_raw_trigger_intervals_gaps_filled, behav_trial_intervals_gaps_filled
         )
 
-        aligned_behav_with_triggers, match_status = (
-            align_crane_behav_intervals_with_trigger_intervals(raw_biopac_triggers, behav_intervals)
-        )
-
-        interval_pipeline_status = interval_pipeline_status.merge(
-            PipelineStatus(intervals=match_status)
-        )
-
-        behav_intervals_gaps_filled = behav_intervals.fill_in_gaps()
+        interval_pipeline_status = interval_pipeline_status.merge(match_status)
 
         interval_qc_figure = plot_biopac_interval_qc(
             raw_biodata_in["Trigger"],
             raw_biopac_triggers,
-            corrected_triggers,
+            corrected_raw_trigger_intervals_gaps_filled,
             aligned_behav_with_triggers,
-            behav_intervals_gaps_filled,
+            behav_trial_intervals_gaps_filled,
         )
+        # import matplotlib.pyplot as plt
+
+        # interval_qc_figure.set_dpi(100)
+        # plt.show()
 
         return (aligned_behav_with_triggers, interval_qc_figure, interval_pipeline_status)
 
@@ -153,6 +159,14 @@ def get_crane_predicted_trigger_intervals(
         for nr, key in enumerate(behav_intervals.keys())
     }
     return (pred_trigger_intervals, max_expected_delta)
+
+
+def remove_crane_delayed_start(trigger_intervals_in: TrialIntervals) -> TrialIntervals:
+    first_key, first_tp = next(iter(trigger_intervals_in.intervals.items()))
+    if not math.isclose(first_tp[1] - first_tp[0], 60, abs_tol=1):
+        trigger_intervals_in.intervals.pop(first_key, None)
+
+    return trigger_intervals_in
 
 
 @deprecated("Flawed matching algorithm specific to crane. Replace with a more general one")

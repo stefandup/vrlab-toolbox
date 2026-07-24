@@ -71,7 +71,7 @@ def main(input_folder: Path, output_folder: Path, verbose: bool, subject_id: str
                         try:
                             save_plot(
                                 fig,
-                                str(output_folder),  # TODO: Convert to Path
+                                output_folder,
                                 subject_id,
                                 f"Subject {subject_id} - {fig_title}",
                             )

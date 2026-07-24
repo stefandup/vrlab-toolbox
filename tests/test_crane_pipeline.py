@@ -15,6 +15,7 @@ from mooi_toolbox.processing.crane_pipeline import (
 )
 from mooi_toolbox.processing.crane_trial_intervals import CraneGetTrialIntervalStrategyStep
 from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
+from mooi_toolbox.processing.trial_intervals import TrialIntervals
 
 data_folder = Path(r"crane_data\\")
 
@@ -69,35 +70,51 @@ class TestCraneGetIntervalStrategy(unittest.TestCase):
             EXAMPLE_CRANE_PARTICIPANT_CORRECT_ID, data_folder
         )
 
-    def test_interval_correction_with_correct_intervals(self):
-        raw_bio_data = BiopacDataImportStartegy().run(self.example_crane_participant_correct)
-        raw_behav_data = ImportCraneBehaviourDataStrategyStep().run(
-            self.example_crane_participant_correct
-        )
+    def _run_interval_strategy_for(self, subject_id: str) -> TrialIntervals:
+        participant_config = FindCraneParticipantFilesStrategyStep().run(subject_id, data_folder)
+        raw_bio_data = BiopacDataImportStartegy().run(participant_config)
+        raw_behav_data = ImportCraneBehaviourDataStrategyStep().run(participant_config)
         trial_intervals, interval_figure_out, interval_pipeline_status = (
             CraneGetTrialIntervalStrategyStep().run(raw_bio_data, raw_behav_data)
         )
-        print("Done!")
+        print(subject_id, interval_pipeline_status)
+        return trial_intervals
+
+    def test_interval_correction_with_correct_intervals(self):
+        self.assertTrue(
+            self._run_interval_strategy_for(EXAMPLE_CRANE_PARTICIPANT_CORRECT_ID).intervals
+        )
 
     def test_interval_correction_with_missing_initial_trigger_tp(self):
-        # PID16186
-        pass
+        MISSING_INITIAL_TRIGGER = "PID16186"
+        self.assertTrue(self._run_interval_strategy_for(MISSING_INITIAL_TRIGGER).intervals)
 
     def test_interval_correction_with_initial_double_trigger(self):
-        # PID16407
-        pass
+        INITIAL_DOUBLE_TRIGGER = "PID16407"
+        self.assertTrue(self._run_interval_strategy_for(INITIAL_DOUBLE_TRIGGER).intervals)
 
-    def test_interval_correction_with_double_trigger_and_missing_init_tp(self):
-        # PID5753 and PID4572
-        pass
+    def test_interval_correction_with_double_trigger_and_missing_init_tp_nr1(self):
+        MISSING_TRIGGER_AND_INIT_TP_1 = "PID5753"
+
+        self.assertTrue(self._run_interval_strategy_for(MISSING_TRIGGER_AND_INIT_TP_1).intervals)
+
+    def test_interval_correction_with_double_trigger_and_missing_init_tp_nr2(self):
+
+        MISSING_TRIGGER_AND_INIT_TP_2 = "PID4572"
+
+        self.assertTrue(self._run_interval_strategy_for(MISSING_TRIGGER_AND_INIT_TP_2).intervals)
 
     def test_interval_correction_with_missing_last_and_initial_triggers(self):
-        # PID16230
-        pass
+        MISSING_LAST_AND_INITIAL_TRIGGERS = "PID16230"
+        self.assertTrue(
+            self._run_interval_strategy_for(MISSING_LAST_AND_INITIAL_TRIGGERS).intervals
+        )
 
     def test_interval_correction_with_multiple_double_triggers(self):
-        # PID9188 and PID7177(worse!)
-        pass
+        MULTIPLE_DOUBLE_TRIGGERS_1 = "PID9188"
+        MULTIPLE_DOUBLE_TRIGGERS_2 = "PID7177"  # worse!
+        self.assertTrue(self._run_interval_strategy_for(MULTIPLE_DOUBLE_TRIGGERS_1).intervals)
+        self.assertTrue(self._run_interval_strategy_for(MULTIPLE_DOUBLE_TRIGGERS_2).intervals)
 
 
 class TestBehaviourClassWithBiopacData(unittest.TestCase):
