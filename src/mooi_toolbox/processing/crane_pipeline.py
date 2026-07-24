@@ -120,7 +120,7 @@ class CranePipelineOutputData(PipelineOutputData):
         return build_crane_participant_output_schema().validate(self.subject_df_out)
 
 
-def run_pipeline(config_in: ParticipantConfig) -> CranePipelineOutputData:
+def run_pipeline(participant_id_in: str, data_folder_in: Path) -> CranePipelineOutputData:
 
     import_behav_steps = pipeline.SequentialBehaviourImportSteps(
         steps=[ImportCraneBehaviourDataStrategyStep(), ImportCraneDebriefDataProcessStrategyStep()]
@@ -139,6 +139,7 @@ def run_pipeline(config_in: ParticipantConfig) -> CranePipelineOutputData:
     )
 
     crane_pipeline = pipeline.PipelineTemplate(
+        find_participant_strategy_step=FindCraneParticipantFilesStrategyStep(),
         sequential_physiology_import_steps=import_physiology_steps,
         sequential_behaviour_data_import_steps=import_behav_steps,
         get_intervals_strategy=CraneGetTrialIntervalStrategyStep(),
@@ -146,9 +147,11 @@ def run_pipeline(config_in: ParticipantConfig) -> CranePipelineOutputData:
         sequential_physiology_processing_steps=process_physiology_steps,
     )
 
-    participant_pipeline_data_out = crane_pipeline.run(config_in)
+    participant_config, participant_pipeline_data_out = crane_pipeline.run(
+        participant_id_in, data_folder_in
+    )
     # TODO: This needs a classmethod to avoid future errors when implementing pipeline
-    crane_pipeline_output_data = CranePipelineOutputData(config_in.subject_id)
+    crane_pipeline_output_data = CranePipelineOutputData(participant_config.subject_id)
     crane_pipeline_output_data.subject_df_out = participant_pipeline_data_out.subject_df_out
     crane_pipeline_output_data.status = participant_pipeline_data_out.status
     crane_pipeline_output_data.figure_data_out = participant_pipeline_data_out.figure_data_out

@@ -3,14 +3,11 @@ from pathlib import Path
 
 from mooi_toolbox.processing.bids import BidsEventsData
 from mooi_toolbox.processing.crane_behaviour import RawCraneBehaviourData
-from mooi_toolbox.processing.input_data import ParticipantConfig
+from mooi_toolbox.processing.crane_pipeline import FindCraneParticipantFilesStrategyStep
 
-example_crane_participant_correct = ParticipantConfig(
-    subject_id="00020",
-    physiology_fn=r"crane_data\\2026481120_00020_CraneOut.mat",
-    behav_folder=r"crane_data",
-    verbose=False,
-    show_plots=False,
+data_folder = Path("crane_data")
+example_crane_participant_correct = FindCraneParticipantFilesStrategyStep().run(
+    "00020", data_folder
 )
 
 example_correct_bids_events_file_fn = Path(r"references\\example_events.tsv")

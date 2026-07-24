@@ -62,6 +62,10 @@ class CraneGetTrialIntervalStrategyStep:
             raw_biopac_triggers, behav_intervals
         )
 
+        aligned_behav_with_triggers, match_status = (
+            align_crane_behav_intervals_with_trigger_intervals(raw_biopac_triggers, behav_intervals)
+        )
+
         interval_pipeline_status = interval_pipeline_status.merge(
             PipelineStatus(intervals=match_status)
         )
