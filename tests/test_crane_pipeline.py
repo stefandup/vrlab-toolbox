@@ -18,35 +18,15 @@ from mooi_toolbox.processing.processing_status import PipelineStatus, Processing
 
 data_folder = Path(r"crane_data\\")
 
-example_crane_participant_correct = FindCraneParticipantFilesStrategyStep().run(
-    "00020", data_folder
-)
-
-crane_participant_no_FILE = FindCraneParticipantFilesStrategyStep().run("NOFILES", data_folder)
-
-crane_participant_no_BEHAV_bad_date = FindCraneParticipantFilesStrategyStep().run(
-    "PID11136", data_folder
-)
-
-example_incorrect_interval_nr = FindCraneParticipantFilesStrategyStep().run("00007", data_folder)
-
-example_correct_interval_nr = FindCraneParticipantFilesStrategyStep().run("TESTa", data_folder)
-
-example_long_delay = FindCraneParticipantFilesStrategyStep().run("00011", data_folder)
-
-example_incorrect_very_short_trigger = FindCraneParticipantFilesStrategyStep().run(
-    "00006", data_folder
-)
-
-example_incorrect_medium_short_trigger = FindCraneParticipantFilesStrategyStep().run(
-    "PID16407", data_folder
-)
-
-crane_participant_no_debrief = FindCraneParticipantFilesStrategyStep().run("PID8495", data_folder)
-
-crane_participant_incorrect_date = FindCraneParticipantFilesStrategyStep().run(
-    "PID15868", data_folder
-)
+EXAMPLE_CRANE_PARTICIPANT_CORRECT_ID = "00020"
+CRANE_PARTICIPANT_NO_FILE_ID = "NOFILES"
+CRANE_PARTICIPANT_NO_BEHAV_BAD_DATE_ID = "PID11136"
+EXAMPLE_INCORRECT_INTERVAL_NR_ID = "00007"
+EXAMPLE_LONG_DELAY_ID = "00011"
+EXAMPLE_INCORRECT_VERY_SHORT_TRIGGER_ID = "00006"
+EXAMPLE_INCORRECT_MEDIUM_SHORT_TRIGGER_ID = "PID16407"
+CRANE_PARTICIPANT_NO_DEBRIEF_ID = "PID8495"
+CRANE_PARTICIPANT_INCORRECT_DATE_ID = "PID15868"
 
 corrected_interval_str = PipelineStatus(
     data_in=ProcessingStatus.OK,
@@ -84,10 +64,15 @@ class TestCraneIntervalQC(unittest.TestCase):
 
 
 class TestCraneGetIntervalStrategy(unittest.TestCase):
+    def setUp(self):
+        self.example_crane_participant_correct = FindCraneParticipantFilesStrategyStep().run(
+            EXAMPLE_CRANE_PARTICIPANT_CORRECT_ID, data_folder
+        )
+
     def test_interval_correction_with_correct_intervals(self):
-        raw_bio_data = BiopacDataImportStartegy().run(example_crane_participant_correct)
+        raw_bio_data = BiopacDataImportStartegy().run(self.example_crane_participant_correct)
         raw_behav_data = ImportCraneBehaviourDataStrategyStep().run(
-            example_crane_participant_correct
+            self.example_crane_participant_correct
         )
         trial_intervals, interval_figure_out, interval_pipeline_status = (
             CraneGetTrialIntervalStrategyStep().run(raw_bio_data, raw_behav_data)
@@ -116,9 +101,14 @@ class TestCraneGetIntervalStrategy(unittest.TestCase):
 
 
 class TestBehaviourClassWithBiopacData(unittest.TestCase):
+    def setUp(self):
+        self.example_crane_participant_correct = FindCraneParticipantFilesStrategyStep().run(
+            EXAMPLE_CRANE_PARTICIPANT_CORRECT_ID, data_folder
+        )
+
     def test_biopac_behav_import(self):
         correct_behaviour = RawCraneBehaviourData.load_from_config(
-            example_crane_participant_correct
+            self.example_crane_participant_correct
         )
         build_crane_raw_behav_file_schema().validate(correct_behaviour.raw_behav_df)
 
@@ -135,24 +125,37 @@ class TestParticipantConfigFileHandling(unittest.TestCase):
 
 
 class TestBasicDataHandling(unittest.TestCase):
+    def setUp(self):
+        self.example_crane_participant_correct = FindCraneParticipantFilesStrategyStep().run(
+            EXAMPLE_CRANE_PARTICIPANT_CORRECT_ID, data_folder
+        )
+        self.crane_participant_no_FILE = FindCraneParticipantFilesStrategyStep().run(
+            CRANE_PARTICIPANT_NO_FILE_ID, data_folder
+        )
+
     def test_good_raw_data_init_should_return_ok(self):
         raw_biodata_good: RawBioData = BiopacDataImportStartegy().run(
-            example_crane_participant_correct
+            self.example_crane_participant_correct
         )
         self.assertIsInstance(raw_biodata_good, RawBioData)
 
     def test_no_data_should_return_error(self):
         with self.assertRaises(FileNotFoundError):
-            BiopacDataImportStartegy().run(crane_participant_no_FILE)
+            BiopacDataImportStartegy().run(self.crane_participant_no_FILE)
 
 
 class TestCraneBehaviourStrategy(unittest.TestCase):
+    def setUp(self):
+        self.example_crane_participant_correct = FindCraneParticipantFilesStrategyStep().run(
+            EXAMPLE_CRANE_PARTICIPANT_CORRECT_ID, data_folder
+        )
+
     def test_crane_process_behaviour(self):
         import_strategy = ImportCraneBehaviourDataStrategyStep()
         process_strategy = ProcessCraneBehaviourDataStrategyStep()
-        raw_behaviour_data = import_strategy.run(config_in=example_crane_participant_correct)
+        raw_behaviour_data = import_strategy.run(config_in=self.example_crane_participant_correct)
         crane_behav_output_data = process_strategy.run(
-            example_crane_participant_correct, raw_behaviour_data
+            self.example_crane_participant_correct, raw_behaviour_data
         )
         self.assertEqual(crane_behav_output_data.subject_df_out["Subject_ID"].iloc[0], "00020")
 
@@ -160,7 +163,7 @@ class TestCraneBehaviourStrategy(unittest.TestCase):
 class TestCranePipeline(unittest.TestCase):
     def test_crane_pipeline_has_expected_output(self):
         pipeline_out = run_pipeline(
-            "00020",
+            EXAMPLE_CRANE_PARTICIPANT_CORRECT_ID,
             data_folder,
         )
         pipeline_out.validate_participant_output()
@@ -175,9 +178,7 @@ class TestCranePipeline(unittest.TestCase):
             intervals=ProcessingStatus.ERROR,
             physiology=ProcessingStatus.ERROR,
         ).get_as_text()
-        pipeline_out = run_pipeline(
-            crane_participant_no_FILE.subject_id, crane_participant_no_FILE.data_folder
-        )
+        pipeline_out = run_pipeline(CRANE_PARTICIPANT_NO_FILE_ID, data_folder)
         self.assertEqual(pipeline_out.status.data_in, ProcessingStatus.ERROR)
         self.assertEqual(
             pipeline_out.subject_df_out["Processing_Status"].iloc[0], input_processing_status
@@ -191,10 +192,7 @@ class TestCranePipeline(unittest.TestCase):
             intervals=ProcessingStatus.ERROR,
         ).get_as_text()
 
-        pipeline_out = run_pipeline(
-            crane_participant_no_BEHAV_bad_date.subject_id,
-            crane_participant_no_BEHAV_bad_date.data_folder,
-        )
+        pipeline_out = run_pipeline(CRANE_PARTICIPANT_NO_BEHAV_BAD_DATE_ID, data_folder)
         self.assertEqual(pipeline_out.status.behaviour, ProcessingStatus.ERROR)
         self.assertEqual(
             pipeline_out.subject_df_out["Processing_Status"].iloc[0], physiology_and_behav_error
@@ -202,34 +200,24 @@ class TestCranePipeline(unittest.TestCase):
 
     def test_crane_missing_debrief_correct_label(self):
 
-        pipeline_out = run_pipeline(
-            crane_participant_no_debrief.subject_id, crane_participant_no_debrief.data_folder
-        )
+        pipeline_out = run_pipeline(CRANE_PARTICIPANT_NO_DEBRIEF_ID, data_folder)
         self.assertEqual(pipeline_out.status.behaviour, ProcessingStatus.ERROR)
         self.assertEqual(pipeline_out.subject_df_out["Processing_Status"].iloc[0], missing_debrief)
 
     def test_crane_corrects_error_for_incorrect_interval_nr(self):
 
-        pipeline_out = run_pipeline(
-            example_incorrect_interval_nr.subject_id, example_incorrect_interval_nr.data_folder
-        )
+        pipeline_out = run_pipeline(EXAMPLE_INCORRECT_INTERVAL_NR_ID, data_folder)
         self.assertEqual(pipeline_out.status.intervals, ProcessingStatus.ERROR)
         self.assertEqual(
             pipeline_out.subject_df_out["Processing_Status"].iloc[0], corrected_interval_str
         )
 
     def test_crane_spots_errors_when_behav_physiology_no_match(self):
-        pipeline_out = run_pipeline(
-            crane_participant_incorrect_date.subject_id,
-            crane_participant_incorrect_date.data_folder,
-        )
+        pipeline_out = run_pipeline(CRANE_PARTICIPANT_INCORRECT_DATE_ID, data_folder)
         self.assertEqual(pipeline_out.subject_df_out["Processing_Status"].iloc[0], dates_no_match)
 
     def test_crane_returns_ok_for_correct_interval_nr(self):
-        pipeline_out = run_pipeline(
-            example_crane_participant_correct.subject_id,
-            example_crane_participant_correct.data_folder,
-        )
+        pipeline_out = run_pipeline(EXAMPLE_CRANE_PARTICIPANT_CORRECT_ID, data_folder)
         self.assertEqual(pipeline_out.status.intervals, ProcessingStatus.OK)
         self.assertEqual(
             pipeline_out.subject_df_out["Processing_Status"].iloc[0], all_ok_status_str
@@ -237,17 +225,14 @@ class TestCranePipeline(unittest.TestCase):
 
     def test_crane_handles_long_delay_time(self):
         """Currently no error with excessive delays"""
-        pipeline_out = run_pipeline(example_long_delay.subject_id, example_long_delay.data_folder)
+        pipeline_out = run_pipeline(EXAMPLE_LONG_DELAY_ID, data_folder)
         self.assertEqual(pipeline_out.status.intervals, ProcessingStatus.OK)
         self.assertEqual(
             pipeline_out.subject_df_out["Processing_Status"].iloc[0], all_ok_status_str
         )
 
     def test_crane_handles_very_short_triggers(self):
-        pipeline_out = run_pipeline(
-            example_incorrect_very_short_trigger.subject_id,
-            example_incorrect_very_short_trigger.data_folder,
-        )
+        pipeline_out = run_pipeline(EXAMPLE_INCORRECT_VERY_SHORT_TRIGGER_ID, data_folder)
         self.assertEqual(pipeline_out.status.intervals, ProcessingStatus.ERROR)
         self.assertEqual(
             pipeline_out.subject_df_out["Processing_Status"].iloc[0], corrected_interval_str
@@ -261,10 +246,7 @@ class TestCranePipeline(unittest.TestCase):
             physiology=ProcessingStatus.OK,
         ).get_as_text()
 
-        pipeline_out = run_pipeline(
-            example_incorrect_medium_short_trigger.subject_id,
-            example_incorrect_medium_short_trigger.data_folder,
-        )
+        pipeline_out = run_pipeline(EXAMPLE_INCORRECT_MEDIUM_SHORT_TRIGGER_ID, data_folder)
         self.assertEqual(pipeline_out.status.intervals, ProcessingStatus.ERROR)
         self.assertEqual(
             pipeline_out.subject_df_out["Processing_Status"].iloc[0], corrected_interval_str
