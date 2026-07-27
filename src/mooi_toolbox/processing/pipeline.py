@@ -391,7 +391,8 @@ class PipelineTemplate:
                 )
                 pipeline_status.physiology = ProcessingStatus.ERROR
 
-            # Perform fallback if there are no interval data or if there is an error with the interval
+            # Perform fallback if there are no interval data or if there is an
+            # error with the interval
             # data
 
             # Output single subject data

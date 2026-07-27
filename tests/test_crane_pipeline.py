@@ -98,6 +98,10 @@ class TestCraneGetIntervalStrategy(unittest.TestCase):
 
         self.assertTrue(self._run_interval_strategy_for(MISSING_TRIGGER_AND_INIT_TP_1).intervals)
 
+    def test_shifting_algorithm_for_missing_first_last_tp(self):
+        MISSING_INIT_AND_LAST_TP = "PID1267"
+        self.assertTrue(self._run_interval_strategy_for(MISSING_INIT_AND_LAST_TP).intervals)
+
     def test_interval_correction_with_double_trigger_and_missing_init_tp_nr2(self):
 
         MISSING_TRIGGER_AND_INIT_TP_2 = "PID4572"

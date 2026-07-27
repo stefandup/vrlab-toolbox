@@ -17,6 +17,7 @@ START_TOLERANCE_SECONDS = 5
 
 
 # TODO: Look into using types.MappingProxyType to guard the sorted nature of "intervals"
+# TODO: Add Dunder overrides to simplify
 @dataclass
 class TrialIntervals:
     """
@@ -62,7 +63,7 @@ class TrialIntervals:
         if not isinstance(other, TrialIntervals):
             raise ValueError("Cannot relabel of non TrialInterval class")
 
-        if len(self.intervals) != len(other.intervals):
+        if len(self) != len(other):
             raise ValueError("Cannot relabel when the other set of intervals is not the same size.")
 
         other_intervals_sorted = dict(sorted(other.intervals.items(), key=lambda item: item[1]))
@@ -99,6 +100,20 @@ class TrialIntervals:
 
         return deltas
 
+    def shift_intervals_forward_by(self, nr_of_steps: int):
+        padding = dict(
+            [(f"ITI{nr}", (float("nan"), float("nan"))) for nr in range(0, nr_of_steps, 1)]
+        )
+
+        self.intervals = {**padding, **self.intervals}
+
+    def drop_nan_intervals(self):
+        self.intervals = {
+            key: interval
+            for key, interval in self.intervals.items()
+            if not any(math.isnan(t) for t in interval)
+        }
+
     @classmethod
     def from_raw_interval_pairs(
         cls, trial_interval_pairs: list[tuple[float, float]]
@@ -109,6 +124,9 @@ class TrialIntervals:
                 for i, (start, end) in enumerate(trial_interval_pairs)
             }
         )
+
+    def __len__(self):
+        return len(self.intervals)
 
 
 # LSL interval concerns
@@ -496,12 +514,19 @@ def align_biopac_trigger_drift_from_behav_file(
     result in the physiology (biopac) timeframe.
 
     """
+    # TODO: reaftor code based on doodle below
     pipeline_status = PipelineStatus()
+
+    if len(trigger_intervals_in) < len(behav_trial_intervals_in):
+        trigger_intervals_in.shift_intervals_forward_by(
+            len(behav_trial_intervals_in) - len(trigger_intervals_in)
+        )
 
     try:
         deltas = trigger_intervals_in.get_overlap(behav_trial_intervals_in)
-        print(f"Mean difference is: {np.mean(np.abs(deltas))}")
+        print(f"Mean difference is: {np.nanmean(np.abs(deltas))}")
         relabelled_trigger_intervals = trigger_intervals_in.relabel_with(behav_trial_intervals_in)
+        relabelled_trigger_intervals.drop_nan_intervals()
         pipeline_status.intervals = ProcessingStatus.OK
     except ValueError as error:
         print(f"Error! {error}")
