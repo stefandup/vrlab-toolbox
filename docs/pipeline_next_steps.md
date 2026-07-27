@@ -153,6 +153,15 @@ Needed:
   types) hold for every participant;
 - remove the redundant/dead loading functions once the used path is clear.
 
+**Update:** the core "find this participant's file(s) of type X" contract now
+exists — `ParticipantConfig.from_physiology_data` (`input_data.py`) does
+physiology + behaviour file discovery via a per-type `filename_glob` class
+attribute (`RawBehaviourData.filename_glob`, overridden on
+`RawCraneBehaviourData`/`RawDebriefBehaviourData`), driven by
+`FindCraneParticipantFilesStrategyStep` (`crane_pipeline.py`). It still
+raises on failure rather than reporting distinguishable reasons in
+logs/status — see item 12 for the remaining work.
+
 ### 5. Add a fallback for partial/missing behaviour data using unlabelled intervals
 
 If behaviour data is partial or missing, interval matching currently has no
@@ -303,6 +312,105 @@ Needed:
 - if some debrief-schema consolidation is intended instead (see item 3), fold
   this into that work rather than keeping two similarly-named classes in
   play.
+
+### 12. ParticipantConfig file discovery: make failures report status instead of raising
+
+`ParticipantConfig.from_physiology_data` (added this session, `input_data.py`)
+now self-populates a participant's config from a bare subject ID: it finds
+the physiology file, derives a date string from its filename, and finds each
+configured behaviour file type (via `filename_glob` class attributes on
+`RawBehaviourData` subclasses) under `behav_folder`.
+`FindCraneParticipantFilesStrategyStep` (`crane_pipeline.py`) wires this up
+for Crane, using `PhysiologyFileFormat` (Enum, `input_data.py`) and the two
+Crane behaviour types.
+
+**Current behaviour:** every failure path (physiology missing/ambiguous, a
+behaviour type missing/ambiguous, or a date mismatch between the physiology
+and behaviour filenames) raises `FileNotFoundError`/`ValueError` immediately,
+at construction time.
+
+**Why physiology stays required/raising for now:** kept intentionally simple
+for this first pass, to get behaviour-file discovery working first — not a
+technical constraint. Revisiting it is explicitly open question 3 below.
+
+**This broke `tests/test_crane_pipeline.py`:** several fixtures
+(`crane_participant_no_FILE`, `crane_participant_no_BEHAV_bad_date`,
+`crane_participant_no_debrief`, `crane_participant_incorrect_date`)
+deliberately construct a `ParticipantConfig` for known-bad data, as bare
+module-level statements. Since construction now raises for exactly these
+cases, importing the test module crashes before any test can run — the old
+tests relied on `ParticipantConfig` being buildable even when it pointed at
+nonexistent files, with `run_pipeline`'s own per-stage error handling being
+what caught the failure later. That assumption no longer holds.
+
+Agreed next steps, not yet implemented:
+
+1. Change `_behaviour_file_names` to `dict[type, Path | None]` — every
+   requested behaviour type is always present as a key; the value is `None`
+   if no file was found (instead of omitting the key, or raising).
+2. Change `from_physiology_data`'s return type to
+   `tuple[ParticipantConfig, PipelineStatus]`, matching the convention
+   already used by every `Sequential*Steps.run()` in `pipeline.py`. Each
+   raise site becomes: log a warning (add a module-level
+   `logger = logging.getLogger(__name__)` to `input_data.py` — it doesn't
+   have one yet, unlike every other module here) and mark the relevant
+   `PipelineStatus` field, then continue with `None` instead of raising.
+3. Open question, not yet decided: does "subject doesn't exist" (no files
+   match at all) apply only to behaviour files, or also to physiology?
+   Extending it to physiology means reversing the "physiology required"
+   choice above, and needs the same optional-field treatment for
+   `physiology_fn`.
+4. Once (1)-(2) land: decide where the returned `PipelineStatus` merges into
+   `PipelineTemplate.run()`'s own status — it currently always starts from a
+   fresh `PipelineStatus()`, with no mechanism to seed it from an earlier
+   (config-construction) stage.
+5. Once (1)-(3) are settled: fix `tests/test_crane_pipeline.py`'s four
+   "bad data" fixtures — likely move their construction inside the relevant
+   test method rather than as shared module-level globals, since what they're
+   actually testing depends on the answer to (3).
+
+Also confirmed and no longer open: `RawCraneBehaviourData`'s inherited
+`filename_glob` pattern matches real Crane behaviour filenames.
+
+### 13. Date-string extraction in `from_physiology_data` breaks on the data folder's path separator
+
+Found during review of `crane_pipeline.py`/`FindCraneParticipantFilesStrategyStep`, while
+chasing why `tests/test_crane_pipeline.py` couldn't even collect. Two other bugs in the
+same code path were found and fixed first (both now resolved):
+
+- `BiopacDataImportStartegy.input_data_file_format` (`biopac.py`) was `PhysiologyFileFormat.BIOPAC`
+  (`.acq`) even though `load_biopac_data` loads `.mat` files via `scipy.io.loadmat` — fixed to
+  `PhysiologyFileFormat.MATLAB`.
+- The physiology glob in `from_physiology_data` (`input_data.py`) was
+  `f"*{id_in}_{physiology_data_type_in.value}"`, which assumes the id is immediately followed
+  by the extension with nothing in between. Real filenames are
+  `{date}_{id}_CraneOut.{ext}`, so nothing ever matched. Fixed to
+  `f"*_{id_in}_*{physiology_data_type_in.value}"` and confirmed against all fixture IDs in
+  `crane_data/`.
+
+With both of those fixed, collection gets further but still fails:
+
+```
+FileNotFoundError: No file matches for RawCraneBehaviourData for participant 00020
+```
+
+Root cause, `input_data.py`:
+
+```python
+expected_date_string_from_physiology = str(physiology_fn).split("_")[0]
+```
+
+`physiology_fn` is a `Path`; `str(path)` on Windows renders with backslashes
+(`crane_data\2026481120_00020_CraneOut.mat`). Splitting on `"_"` doesn't split on the
+backslash, so the first token is `"crane"` (from `crane_data`) instead of the intended
+date prefix `2026481120`. Confirmed by testing directly: `physiology_fn.name.split("_")[0]`
+gives the correct value; `str(physiology_fn).split("_")[0]` does not. This wrong date string
+then feeds the behaviour-file glob (`{date_string}_{participant_id}_*.csv`), so no behaviour
+CSV is ever found for any participant.
+
+This is the remaining blocker on `tests/test_crane_pipeline.py` collecting/running at all —
+pick up here next. Likely overlaps with item 4's "don't assume filename conventions hold"
+and item 12's broader file-discovery cleanup.
 
 ## Working Rule
 

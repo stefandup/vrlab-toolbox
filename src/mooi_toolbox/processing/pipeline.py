@@ -1,19 +1,40 @@
 import logging
 from collections.abc import Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Protocol, TypeVar, cast
 
 from matplotlib.figure import Figure
 
+from mooi_toolbox.mobi_logging import LOG_DATE_FORMAT, LOG_FORMAT
 from mooi_toolbox.processing.behaviour import RawBehaviourData
 from mooi_toolbox.processing.biodata import RawBioData
-from mooi_toolbox.processing.input_data import ParticipantConfig
+from mooi_toolbox.processing.input_data import ParticipantConfig, PhysiologyFileFormat
 from mooi_toolbox.processing.output_data import PipelineOutputData
 
 # from mooi_toolbox.processing.vr_intervals import
 # TODO: This could potentially form part of pipeline as a class override?
 from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
 from mooi_toolbox.processing.trial_intervals import TrialIntervals
+
+
+@contextmanager
+def participant_log_handler(participant_config_file_in: ParticipantConfig):
+    handler = logging.FileHandler(
+        participant_config_file_in.log_folder / f"{participant_config_file_in.subject_id}.log"
+    )
+
+    handler.setFormatter(logging.Formatter(LOG_FORMAT, LOG_DATE_FORMAT, style="{"))
+
+    root_logger = logging.getLogger()
+    root_logger.addHandler(handler)
+    try:
+        yield
+    finally:
+        root_logger.removeHandler(handler)
+        handler.close()
+
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +84,15 @@ class RawPhysiologyDataStore:
 
 
 class FindParticipantFilesStrategyStep(Protocol):
-    def run(self, participant_id_in: str) -> ParticipantConfig: ...
+    physiology_data_type: PhysiologyFileFormat
+    behaviour_data_types: list[type]
+
+    def run(self, participant_id_in: str, data_folder_in: Path) -> ParticipantConfig: ...
 
 
 class ImportBioDataStrategyStep(Protocol):
+    input_data_file_format: PhysiologyFileFormat
+
     def run(self, config_in: ParticipantConfig) -> RawBioData: ...
 
 
@@ -240,6 +266,7 @@ class PipelineTemplate:
 
     def __init__(
         self,
+        find_participant_strategy_step: FindParticipantFilesStrategyStep,
         sequential_physiology_import_steps: SequentialPhysiolgyImportSteps,
         sequential_behaviour_data_import_steps: SequentialBehaviourImportSteps,
         sequential_behaviour_processing_steps: SequentialBehaviourProcessingSteps,
@@ -247,6 +274,7 @@ class PipelineTemplate:
         sequential_physiology_processing_steps: SequentialPhysiologyProcessingSteps,
     ) -> None:
 
+        self.find_participant_strategy_step = find_participant_strategy_step
         self.behaviour_raw_data_store = RawBehaviourDataStore()
         self.physiolgy_raw_data_store = RawPhysiologyDataStore()
 
@@ -257,103 +285,123 @@ class PipelineTemplate:
         self.sequential_physiology_steps = sequential_physiology_processing_steps
         self.get_interval_strategy = get_intervals_strategy
 
-    def run(self, config_in: ParticipantConfig) -> PipelineOutputData:
+    def run(
+        self, participant_id_in: str, data_folder_in: Path
+    ) -> tuple[ParticipantConfig, PipelineOutputData]:
 
         pipeline_status = PipelineStatus()
         trial_intervals: TrialIntervals | None = None
         interval_qc_figure: Figure | None = None
-        behaviour_pipeline_data = PipelineOutputData(config_in.subject_id)
-        physiology_pipeline_data = PipelineOutputData(config_in.subject_id)
 
-        # Import behaviour data
+        participant_config = self.find_participant_strategy_step.run(
+            participant_id_in, data_folder_in
+        )
+        with participant_log_handler(participant_config):
+            behaviour_pipeline_data = PipelineOutputData(participant_config.subject_id)
+            physiology_pipeline_data = PipelineOutputData(participant_config.subject_id)
 
-        try:
-            self.behaviour_raw_data_store, behav_import_status = (
-                self.sequential_behaviour_data_import_steps.run(config_in)
-            )
-            pipeline_status = pipeline_status.merge(behav_import_status)
-        except (ValueError, FileNotFoundError) as e:
-            logger.warning(
-                "Error importing raw biodata for participant %s. %s", config_in.subject_id, e
-            )
-            pipeline_status.data_in = ProcessingStatus.ERROR
+            # Import behaviour data
 
-        # Process behaviour
-
-        try:
-            behaviour_pipeline_data, behav_processing_status = (
-                self.sequential_behaviour_processing_steps.run(
-                    config_in, self.behaviour_raw_data_store
+            try:
+                self.behaviour_raw_data_store, behav_import_status = (
+                    self.sequential_behaviour_data_import_steps.run(participant_config)
                 )
-            )
-            pipeline_status = pipeline_status.merge(behav_processing_status)
-        except (ValueError, FileNotFoundError) as e:
-            logger.warning(
-                "Error importing behaviour data for participant %s. %s", config_in.subject_id, e
-            )
-            pipeline_status.behaviour = ProcessingStatus.ERROR
-
-        # Import Physiology
-
-        try:
-            self.physiolgy_raw_data_store, physiology_data_status = (
-                self.sequential_physiology_import_steps.run(config_in)
-            )
-            pipeline_status = pipeline_status.merge(physiology_data_status)
-        except (ValueError, FileNotFoundError) as e:
-            logger.warning(
-                "Error importing raw biodata for participant %s. %s", config_in.subject_id, e
-            )
-            pipeline_status.data_in = ProcessingStatus.ERROR
-
-        # Process trial intervals
-
-        try:
-            raw_biodata_for_intervals = self.physiolgy_raw_data_store.get(
-                self.get_interval_strategy.input_bio_data_type
-            )
-            raw_behav_data_for_intervals = self.behaviour_raw_data_store.get(
-                self.get_interval_strategy.input_behaviour_data_type
-            )
-            trial_intervals, interval_qc_figure, trial_interval_pipeline_status = (
-                self.get_interval_strategy.run(
-                    raw_biodata_for_intervals, raw_behav_data_for_intervals
+                pipeline_status = pipeline_status.merge(behav_import_status)
+            except (ValueError, FileNotFoundError) as e:
+                logger.warning(
+                    "Error importing raw biodata for participant %s. %s",
+                    participant_config.subject_id,
+                    e,
                 )
-            )
-            pipeline_status = pipeline_status.merge(trial_interval_pipeline_status)
-        except (ValueError, FileNotFoundError) as e:
-            logger.warning(
-                "Error processing intervals for participant %s. %s", config_in.subject_id, e
-            )
-            pipeline_status.intervals = ProcessingStatus.ERROR
+                pipeline_status.data_in = ProcessingStatus.ERROR
 
-        # Run Physiology
+            # Process behaviour
 
-        try:
-            if trial_intervals is None:
-                raise ValueError(f"Trial intervals unavailable for {config_in.subject_id}")
-            physiology_pipeline_data, physiology_processing_status = (
-                self.sequential_physiology_steps.run(
-                    config_in, self.physiolgy_raw_data_store, trial_intervals
+            try:
+                behaviour_pipeline_data, behav_processing_status = (
+                    self.sequential_behaviour_processing_steps.run(
+                        participant_config, self.behaviour_raw_data_store
+                    )
                 )
-            )
-            pipeline_status = pipeline_status.merge(physiology_processing_status)
-        except (ValueError, FileNotFoundError) as e:
-            logger.warning(
-                "Error importing physiology data for participant %s. %s", config_in.subject_id, e
-            )
-            pipeline_status.physiology = ProcessingStatus.ERROR
+                pipeline_status = pipeline_status.merge(behav_processing_status)
+            except (ValueError, FileNotFoundError) as e:
+                logger.warning(
+                    "Error importing behaviour data for participant %s. %s",
+                    participant_config.subject_id,
+                    e,
+                )
+                pipeline_status.behaviour = ProcessingStatus.ERROR
 
-        # Perform fallback if there are no interval data or if there is an error with the interval
-        # data
+            # Import Physiology
 
-        # Output single subject data
+            try:
+                self.physiolgy_raw_data_store, physiology_data_status = (
+                    self.sequential_physiology_import_steps.run(participant_config)
+                )
+                pipeline_status = pipeline_status.merge(physiology_data_status)
+            except (ValueError, FileNotFoundError) as e:
+                logger.warning(
+                    "Error importing raw biodata for participant %s. %s",
+                    participant_config.subject_id,
+                    e,
+                )
+                pipeline_status.data_in = ProcessingStatus.ERROR
 
-        pipeline_data_out = PipelineOutputData(config_in.subject_id)
-        pipeline_data_out.status = pipeline_status
-        pipeline_data_out = pipeline_data_out.merge(behaviour_pipeline_data)
-        pipeline_data_out = pipeline_data_out.merge(physiology_pipeline_data)
-        if interval_qc_figure is not None:
-            pipeline_data_out.figure_data_out["Interval_qc"] = interval_qc_figure
+            # Process trial intervals
 
-        return pipeline_data_out
+            try:
+                raw_biodata_for_intervals = self.physiolgy_raw_data_store.get(
+                    self.get_interval_strategy.input_bio_data_type
+                )
+                raw_behav_data_for_intervals = self.behaviour_raw_data_store.get(
+                    self.get_interval_strategy.input_behaviour_data_type
+                )
+                trial_intervals, interval_qc_figure, trial_interval_pipeline_status = (
+                    self.get_interval_strategy.run(
+                        raw_biodata_for_intervals, raw_behav_data_for_intervals
+                    )
+                )
+                pipeline_status = pipeline_status.merge(trial_interval_pipeline_status)
+            except (ValueError, FileNotFoundError) as e:
+                logger.warning(
+                    "Error processing intervals for participant %s. %s",
+                    participant_config.subject_id,
+                    e,
+                )
+                pipeline_status.intervals = ProcessingStatus.ERROR
+
+            # Run Physiology
+
+            try:
+                if trial_intervals is None:
+                    raise ValueError(
+                        f"Trial intervals unavailable for {participant_config.subject_id}"
+                    )
+                physiology_pipeline_data, physiology_processing_status = (
+                    self.sequential_physiology_steps.run(
+                        participant_config, self.physiolgy_raw_data_store, trial_intervals
+                    )
+                )
+                pipeline_status = pipeline_status.merge(physiology_processing_status)
+            except (ValueError, FileNotFoundError) as e:
+                logger.warning(
+                    "Error importing physiology data for participant %s. %s",
+                    participant_config.subject_id,
+                    e,
+                )
+                pipeline_status.physiology = ProcessingStatus.ERROR
+
+            # Perform fallback if there are no interval data or if there is an
+            # error with the interval
+            # data
+
+            # Output single subject data
+
+            pipeline_data_out = PipelineOutputData(participant_config.subject_id)
+            pipeline_data_out.status = pipeline_status
+            pipeline_data_out = pipeline_data_out.merge(behaviour_pipeline_data)
+            pipeline_data_out = pipeline_data_out.merge(physiology_pipeline_data)
+            if interval_qc_figure is not None:
+                pipeline_data_out.figure_data_out["Interval_qc"] = interval_qc_figure
+
+        return (participant_config, pipeline_data_out)

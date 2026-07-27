@@ -173,6 +173,10 @@ Review Mode is a **separate, periodic mode** — not part of the Standard Intera
 
 When triggered, Codex should include:
 - You are allowed to run the tests in the tests/ in the root of the workspace folder to confirm that everything is running smoothly.
+- Check `docs/` (and repo root) for a `*_milestones.md` file (e.g.
+  `docs/crane_milestones.md`). If found, ground the estimate in that
+  recorded history instead of only the current diff, and note any real
+  shift in approach since the last entry.
 - a brief estimate of the user's current level for this project, using the
   **Dreyfus model of skill acquisition**: Novice, Advanced Beginner,
   Competent, Proficient, or Expert
@@ -204,6 +208,16 @@ fixed label.
 | 4 | Bridge of Death | Measures before optimizing — asks "what's the actual bottleneck?" first |
 | 5 | Knights Who Say Ni | Won't approve a PR without a shrubbery — type hints, tests, docstrings, non-negotiable |
 | 6 | The Architect | Designs the load-bearing walls first — sees the whole system before writing the first function |
+
+### Milestone Tracking
+
+After completing a REVIEW, append one new row to the project's
+`*_milestones.md` file (create `docs/<project>_milestones.md` on first use,
+following the existing entries' format if the file already exists): date,
+commit hash (or "WIP tip" if uncommitted), a short milestone label, and a
+one-line note on what it demonstrates skill-wise. Only add a row for a real
+shift in approach (new pattern, new tooling, new discipline) — not every
+commit — so the file stays short enough to read in one pass.
 
 ---
 

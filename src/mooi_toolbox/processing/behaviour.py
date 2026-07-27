@@ -30,6 +30,7 @@ class RawBehaviourData:
     subject_config: ParticipantConfig
     raw_behav_df: pd.DataFrame
     validation_schema: pa.DataFrameSchema = field(default_factory=build_base_output_schema)
+    filename_glob = "{date_string}_{participant_id}_*.csv"
 
     def __post_init__(self):
         self.raw_behav_df = self.validate_behav_data()
