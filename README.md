@@ -4,6 +4,19 @@
 
 ---
 
+## Documentation
+
+This README covers setup and command-line usage. For a fuller, browsable guide — getting started, how the code is organized, the design patterns behind the pipeline, testing, and more — see the docs site in `docs/`, built with [MkDocs](https://www.mkdocs.org/):
+
+```bash
+pip install -r requirements-dev.txt
+mkdocs serve
+```
+
+Then open `http://127.0.0.1:8000/` in a browser. It's local-only for now (see the docs site's Code Organization page for why); there's no public link yet.
+
+---
+
 ## Current functionality
 
 The toolbox currently supports internal MOBI/MOOI workflows around VR physiology and behavioural data processing.
@@ -18,7 +31,7 @@ Main areas:
 - **Target/SCR plotting**: create per-subject plots from FOH batch output showing target latency values alongside SCR-per-minute summaries.
 - **Window management utilities**: save and reapply multi-monitor window layouts for lab workflow setup.
 
-The processing code is still being actively refactored. See `project_next_steps.md` for the current direction, especially the planned Pandera dataframe-contract work.
+The processing code is still being actively refactored. See `docs/pipeline_next_steps.md` for the current direction, especially the planned Pandera dataframe-contract work.
 
 ---
 
@@ -145,10 +158,11 @@ If no arguments are supplied, the script uses its default paths under `local_lsl
 
 Run the Crane pipeline for Biopac `.mat` files and matching behaviour data.
 Crane now uses one command for both batch-style processing and single-subject
-processing:
+processing, and searches a single input folder recursively for both the
+`.mat` files and the behaviour/debrief CSV files:
 
 ```bash
-vrlab_crane_process path/to/crane_mat_folder path/to/behaviour_folder path/to/output_folder
+vrlab_crane_process path/to/crane_data_folder path/to/output_folder
 ```
 
 By default, the command searches recursively under the input folder for all
@@ -158,13 +172,13 @@ and writes combined participant-level output files.
 To process one participant, pass the subject ID:
 
 ```bash
-vrlab_crane_process path/to/crane_mat_folder path/to/behaviour_folder path/to/output_folder --subject_id P00018
+vrlab_crane_process path/to/crane_data_folder path/to/output_folder --subject_id P00018
 ```
 
 With verbose output:
 
 ```bash
-vrlab_crane_process path/to/crane_mat_folder path/to/behaviour_folder path/to/output_folder --verbose
+vrlab_crane_process path/to/crane_data_folder path/to/output_folder --verbose
 ```
 
 The combined Crane output files are written as:

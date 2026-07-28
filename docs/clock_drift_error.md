@@ -121,3 +121,22 @@ Add a small correction step after initial matching:
 3. Convert all behavior interval starts and ends into trigger/recorder time.
 4. Use corrected behavior intervals for slicing physiology data.
 
+## Update: this approach is now deprecated
+
+The linear-fit approach above was implemented as
+`get_crane_predicted_trigger_intervals` (a `PolynomialFeatures` +
+`LinearRegression` pipeline) and
+`align_crane_behav_intervals_with_trigger_intervals`, both in
+`crane_trial_intervals.py`. Both are now marked `@deprecated` — see
+[Golden Rules](golden-rules.md#mark-old-code-deprecated-dont-just-delete-it-or-leave-it-silently)
+for what that decorator does. The reason, from the decorator's own message:
+"Flawed matching algorithm specific to crane. Replace with a more general
+one."
+
+They've been superseded by `align_biopac_trigger_drift_from_behav_file`
+(`trial_intervals.py`) — a more general implementation, not tied to Crane
+specifically, now called from `CraneGetTrialIntervalStrategyStep.run()`. See
+[Interval QC Plot](interval-qc.md) for how its output is checked, and item 9
+in [Next Steps](pipeline_next_steps.md#9-manual-qc-tool-for-clock-drift-verification)
+for the fuller history of this change.
+

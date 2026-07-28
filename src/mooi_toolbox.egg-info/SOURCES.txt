@@ -7,6 +7,7 @@ build_mac.sh
 environment.yml
 for_mooi_xdf_processing.ipynb
 pyproject.toml
+requirements-dev.txt
 requirements.txt
 vrlab_crane_process.spec
 .github/workflows/release.yml

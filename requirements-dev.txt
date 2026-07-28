@@ -1,2 +1,4 @@
 pyright
 ruff
+mkdocs
+mkdocs-material
