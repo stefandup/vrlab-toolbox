@@ -22,6 +22,7 @@ nav:
   - Testing: testing.md
   - API Reference: api-reference.md
   - For Contributors: contributing.md
+  - Building & Releasing: packaging.md
   - Project Notes:
       - Next Steps: pipeline_next_steps.md
       - Milestones: crane_milestones.md

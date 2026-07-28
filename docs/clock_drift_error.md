@@ -140,3 +140,43 @@ specifically, now called from `CraneGetTrialIntervalStrategyStep.run()`. See
 in [Next Steps](pipeline_next_steps.md#9-manual-qc-tool-for-clock-drift-verification)
 for the fuller history of this change.
 
+## Update: how it's actually solved now — not a curve fit
+
+Worth spelling out, because it turned out to be a different (and simpler)
+idea than this doc originally planned: `align_biopac_trigger_drift_from_behav_file`
+does **not** fit a slope/intercept correction at all. No regression, no
+fitted conversion between clocks.
+
+**The realization that made the fit unnecessary:** trigger timestamps
+don't need "correcting" — they're already recorded on the physiology
+recording's own clock, which is the timebase everything eventually gets
+sliced against anyway. The real problem was never "what's the true time,"
+it was "which trigger pulse belongs to which named behaviour trial." That
+gets solved by *position*, not by time-matching:
+
+1. If there are fewer trigger intervals than behaviour trials (a trigger
+   got missed — see `TrialIntervals.shift_intervals_forward_by`), pad the
+   *front* of the trigger list with NaN-valued placeholders until the
+   counts match.
+2. `TrialIntervals.relabel_with` pairs the two sets up **by sorted
+   position** — 1st trigger ↔ 1st behaviour trial, 2nd ↔ 2nd, and so on —
+   and copies each *trigger interval's own `(start, end)` values*, just
+   renamed to the matching behaviour trial's name. The trigger's original
+   time values are never adjusted or transformed.
+3. `drop_nan_intervals()` then removes any padded placeholder that ended up
+   "matched" to a behaviour name — correctly leaving that trial unlabelled,
+   rather than assigning it a fabricated time.
+4. A diagnostic-only check, `TrialIntervals.get_overlap`, compares each
+   matched pair's *duration* (not start time) and logs the mean
+   difference, purely as a sanity check on the matching — this is what
+   ends up visible in the [Interval QC Plot](interval-qc.md)'s "Matched
+   with Behav" row.
+
+So the fix for "clock drift" turned out to be an ordering/counting
+problem, not a timebase-conversion one: as long as the *sequence* of
+triggers lines up with the *sequence* of behaviour trial names, no
+clock-fitting is needed at all. That's also why this function generalizes
+beyond Crane, unlike the deprecated regression-based matcher above — it
+never assumed anything Crane-specific about *how* the drift behaved, only
+that trials happen in the same order on both sides.
+

@@ -111,6 +111,31 @@ start guessing at an implementation.
   `pyproject.toml`), so `logger.info(...)` calls show up in the test output
   — useful for seeing *why* a pipeline step failed, not just *that* it did.
 
+### Running tests in VS Code
+
+Rather than typing `pytest` in a terminal every time, VS Code can discover
+and run tests through its own **Testing** panel (the flask/beaker icon in
+the sidebar) — click a test to run just that one, with pass/fail shown
+inline next to the code.
+
+To enable it, add to `.vscode/settings.json` (the same file used for the
+venv setting in [Getting Started](getting-started.md#vs-code-auto-activate-this-venv-in-every-new-terminal)):
+
+```json
+{
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestArgs": ["tests"]
+}
+```
+
+Or without editing JSON by hand: open the Command Palette
+(`Ctrl+Shift+P` / `Cmd+Shift+P`), run **Python: Configure Tests**, choose
+**pytest**, then point it at the `tests` folder — this writes the same
+settings for you. Once configured, the Testing panel lists every test
+found in `tests/`; running or debugging one from there uses the same
+active virtual environment as your terminal.
+
 !!! note "Going further"
     If tests fail intermittently with a `_tkinter`/`TclError` message,
     that's a known local-machine plotting-backend issue, not a real

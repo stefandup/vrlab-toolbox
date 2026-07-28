@@ -32,6 +32,38 @@ in your editor, containing everything below:
     *contributor* does. Splitting them out keeps the toolbox itself
     lightweight to install.
 
+### How `pyproject.toml` works
+
+`pyproject.toml` is the standard, modern place Python projects put their
+build/packaging config — one file instead of the older scattered
+`setup.py`/`setup.cfg`/`MANIFEST.in`. The sections that matter here:
+
+- **`[project]`** — package metadata: name, and `dynamic = ["version"]`
+  (the version isn't written by hand — see next point).
+- **`[tool.setuptools_scm]`** — its presence tells `setuptools` to derive
+  the package's version automatically from **git tags**, rather than a
+  hand-maintained version string anywhere in the code. Push a tag like
+  `v1.2.0`, and that becomes the installed package's version. More on why
+  that matters in [Building & Releasing](packaging.md).
+- **`[tool.setuptools.dynamic]`** — points `dependencies` at
+  `requirements.txt`, which is why `pip install -e .` alone is enough (see
+  [Getting Started](getting-started.md)).
+- **`[project.scripts]`** — declares each CLI command as
+  `command_name = "python.module.path:function"`, e.g.
+  `vrlab_crane_process = "mooi_toolbox.cli.vrlab_crane_process:main"`. This
+  is what turns a plain Python function into a command you can type on its
+  own.
+
+!!! note "Going further"
+    When you `pip install -e .`, every name under `[project.scripts]` gets
+    written as an actual small executable/script file **inside your
+    virtual environment** — `.venv\Scripts\` on Windows,
+    `.venv/bin/` on macOS/Linux (see [Getting Started](getting-started.md#1-set-up-a-virtual-environment)
+    for what a venv is). That's genuinely why typing `vrlab_crane_process`
+    works once your venv is active: your shell finds that file on its
+    `PATH`. Worth browsing that folder once, next to `site-packages/` — it
+    demystifies where CLI commands actually come from.
+
 ### Building and previewing this documentation site
 
 This site (`docs/`) is built with `mkdocs`. From the workspace root:

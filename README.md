@@ -4,16 +4,72 @@
 
 ---
 
-## Documentation
+## Getting the code
 
-This README covers setup and command-line usage. For a fuller, browsable guide — getting started, how the code is organized, the design patterns behind the pipeline, testing, and more — see the docs site in `docs/`, built with [MkDocs](https://www.mkdocs.org/):
+### Clone the repository
+
+"Cloning" just means downloading a full copy of this repo, with its git history, onto your machine. A sensible default location is your **home directory** — a predictable place you can always find:
+
+- **Windows (PowerShell):** `echo $HOME` (usually `C:\Users\<your-username>`)
+- **macOS / Linux:** `echo $HOME` (usually `/Users/<your-username>` on macOS, `/home/<your-username>` on Linux)
+
+From there:
 
 ```bash
-pip install -r requirements-dev.txt
-mkdocs serve
+cd ~
+git clone <repo-url> mobi_mooi_toolbox
+cd mobi_mooi_toolbox
 ```
 
-Then open `http://127.0.0.1:8000/` in a browser. It's local-only for now (see the docs site's Code Organization page for why); there's no public link yet.
+(Get `<repo-url>` from this repo's GitHub page — the green "Code" button.)
+
+**On Windows:** use **PowerShell**, not the older `cmd.exe` — the commands throughout this README and the docs site assume it. For Python itself, installing from the **Microsoft Store** (search "Python" in the Start menu) is the simplest route — no manual installer, no PATH setup for `python.exe` itself. One known gotcha with Store Python specifically: its Tk/Tcl install can be incomplete, which shows up as intermittent plotting-related test failures — see the docs site's Testing page for the workaround if you hit it.
+
+**On macOS:** the usual route — Terminal.app, Python already present or installed via [python.org](https://www.python.org/) or Homebrew.
+
+### Getting the latest changes later
+
+Once cloned, pull in everyone else's latest committed changes any time with:
+
+```bash
+git pull
+```
+
+Run this from inside the `mobi_mooi_toolbox` folder. See the docs site's Testing page for more git basics, and For Contributors for branching/merging.
+
+### Just want to run the compiled `.exe`, not the full source?
+
+Two different routes end up with `vrlab_crane_process` available as a typed command, and they get onto your **`PATH`** (the list of folders your terminal searches when you type a command name) differently:
+
+- **Clone + `pip install -e .`** (the [Setup](#setup) section below) — once your virtual environment is active, `vrlab_crane_process` just works. That's because activating a venv automatically adds its own `Scripts/`(Windows)/`bin/`(macOS/Linux) folder — where `pip install` put the command — onto your `PATH` for you. Nothing to configure by hand.
+- **A standalone `vrlab_crane_process.exe`** (built with PyInstaller, no Python install needed — see the docs site's Building & Releasing page for how and why) — this one **isn't** on your `PATH` automatically. You either run it by typing its full path every time, or add its containing folder to `PATH` yourself:
+
+  ```powershell
+  # Windows (PowerShell) — permanent, for your user account
+  $exeFolder = "C:\path\to\folder\containing\vrlab_crane_process.exe"
+  [Environment]::SetEnvironmentVariable("Path", "$env:Path;$exeFolder", "User")
+  # then open a new terminal
+  ```
+
+  ```bash
+  # macOS/Linux (bash/zsh) — add to your shell profile
+  echo 'export PATH="$PATH:/path/to/folder/containing/vrlab_crane_process"' >> ~/.zshrc   # or ~/.bashrc
+  source ~/.zshrc
+  ```
+
+  Once that folder is on `PATH`, you can type `vrlab_crane_process` from any terminal, in any folder, same as the pip-installed version.
+
+---
+
+## Setup
+
+From the project root, install the package in editable mode so imports like `mooi_toolbox` work in scripts and notebooks:
+
+```bash
+pip install -e .
+```
+
+This exposes the command-line scripts defined in `pyproject.toml` — see [Just want to run the compiled `.exe`?](#just-want-to-run-the-compiled-exe-not-the-full-source) above for what that means for your `PATH`.
 
 ---
 
@@ -32,65 +88,6 @@ Main areas:
 - **Window management utilities**: save and reapply multi-monitor window layouts for lab workflow setup.
 
 The processing code is still being actively refactored. See `docs/pipeline_next_steps.md` for the current direction, especially the planned Pandera dataframe-contract work.
-
----
-
-## Setup
-
-From the project root, install the package in editable mode so imports like `mooi_toolbox` work in scripts and notebooks:
-
-```bash
-pip install -e .
-```
-
-This exposes the command-line scripts defined in `pyproject.toml`.
-
----
-
-## Build executable
-
-This project includes small PyInstaller wrapper scripts for building the
-`vrlab_crane_process` command as a single executable.
-
-The useful part is portability: the built executable in `dist/` can be copied
-to another folder, including a folder on your `PATH`, without copying the rest
-of this project source code.
-
-Install PyInstaller in your active virtual environment first:
-
-```bash
-python -m pip install pyinstaller
-```
-
-On Windows:
-
-```powershell
-.\build.ps1
-```
-
-On macOS or Linux:
-
-```bash
-bash build_mac.sh
-```
-
-Both scripts run:
-
-```bash
-pyinstaller --onefile src/mooi_toolbox/cli/vrlab_crane_process.py
-```
-
-PyInstaller writes temporary build files to `build/` and the executable to
-`dist/`. If PyInstaller reports that the obsolete `pathlib` backport is
-installed in the virtual environment, uninstall that package:
-
-```bash
-python -m pip uninstall pathlib
-```
-
-Modern Python already includes `pathlib` in the standard library, so removing
-the old backport should not break normal imports such as
-`from pathlib import Path`.
 
 ---
 
@@ -195,6 +192,19 @@ files.
 
 ---
 
+## Documentation
+
+This README covers setup and command-line usage. For a fuller, browsable guide — getting started, how the code is organized, the design patterns behind the pipeline, testing, and more — see the docs site in `docs/`, built with [MkDocs](https://www.mkdocs.org/):
+
+```bash
+pip install -r requirements-dev.txt
+mkdocs serve
+```
+
+Then open `http://127.0.0.1:8000/` in a browser. It's local-only for now (see the docs site's Code Organization page for why); there's no public link yet.
+
+---
+
 ## Package layout
 
 The codebase is organized into submodules (e.g. `window_manager`, `processing`, …) that can be reused and, when ready, published as standalone or combined public packages. What stays private vs. public is decided later.
@@ -205,6 +215,55 @@ Important package areas:
 - `src/mooi_toolbox/processing/` - physiology, behaviour, interval, and pipeline code.
 - `src/mooi_toolbox/read_mobi_xdf/` - XDF stream loading helpers.
 - `src/mooi_toolbox/window_manager/` - window layout and lab automation utilities.
+
+---
+
+## Build executable
+
+This project includes small PyInstaller wrapper scripts for building the
+`vrlab_crane_process` command as a single executable.
+
+The useful part is portability: the built executable in `dist/` can be copied
+to another folder, including a folder on your `PATH`, without copying the rest
+of this project source code. See the docs site's Building & Releasing page
+for *why* PyInstaller specifically, what the `.spec` file actually bundles,
+how version tags work, and how this build runs automatically on a tag push.
+
+Install PyInstaller in your active virtual environment first:
+
+```bash
+python -m pip install pyinstaller
+```
+
+On Windows:
+
+```powershell
+.\build.ps1
+```
+
+On macOS or Linux:
+
+```bash
+bash build_mac.sh
+```
+
+Both scripts run:
+
+```bash
+pyinstaller --onefile src/mooi_toolbox/cli/vrlab_crane_process.py
+```
+
+PyInstaller writes temporary build files to `build/` and the executable to
+`dist/`. If PyInstaller reports that the obsolete `pathlib` backport is
+installed in the virtual environment, uninstall that package:
+
+```bash
+python -m pip uninstall pathlib
+```
+
+Modern Python already includes `pathlib` in the standard library, so removing
+the old backport should not break normal imports such as
+`from pathlib import Path`.
 
 ---
 

@@ -97,5 +97,5 @@ terminal-only route.
 
 ---
 
-**Next: Project Notes** (in the sidebar) — the project's own history and
-still-open work, if you're looking for something to contribute to.
+**Next: [Building & Releasing](packaging.md)** — how a merged change
+actually turns into a distributable `.exe`.
