@@ -388,50 +388,59 @@ configured behaviour file type (via `filename_glob` class attributes on
 for Crane, using `PhysiologyFileFormat` (Enum, `input_data.py`) and the two
 Crane behaviour types.
 
-**Current behaviour:** every failure path (physiology missing/ambiguous, a
-behaviour type missing/ambiguous, or a date mismatch between the physiology
-and behaviour filenames) raises `FileNotFoundError`/`ValueError` immediately,
-at construction time.
+**Current behaviour (revised — the paragraph below is stale, kept for
+history):** ~~every failure path (physiology missing/ambiguous, a behaviour
+type missing/ambiguous, or a date mismatch between the physiology and
+behaviour filenames) raises `FileNotFoundError`/`ValueError` immediately, at
+construction time.~~ As of this pass, `from_physiology_data` no longer raises
+on any of these paths: a missing/ambiguous physiology file, a missing/
+ambiguous behaviour file, a date mismatch, and a non-alphanumeric participant
+ID all go through `logger.warning(...)` instead, and construction always
+returns a `ParticipantConfig`. Missing behaviour files store `None` in
+`_behaviour_file_names[type]`; a missing physiology file is tracked
+internally as `None` too, but flattened to `physiology_fn=""` on the returned
+dataclass rather than kept as an optional `Path` — an inconsistency with the
+behaviour side worth resolving (see revised step 3 below).
 
-**Why physiology stays required/raising for now:** kept intentionally simple
-for this first pass, to get behaviour-file discovery working first — not a
-technical constraint. Revisiting it is explicitly open question 3 below.
+**Why physiology stays required/raising for now:** superseded — physiology is
+already effectively optional in practice (warns instead of raising, same as
+behaviour), just represented with an empty-string sentinel instead of `None`.
 
-**This broke `tests/test_crane_pipeline.py`:** several fixtures
-(`crane_participant_no_FILE`, `crane_participant_no_BEHAV_bad_date`,
-`crane_participant_no_debrief`, `crane_participant_incorrect_date`)
-deliberately construct a `ParticipantConfig` for known-bad data, as bare
-module-level statements. Since construction now raises for exactly these
-cases, importing the test module crashes before any test can run — the old
-tests relied on `ParticipantConfig` being buildable even when it pointed at
-nonexistent files, with `run_pipeline`'s own per-stage error handling being
-what caught the failure later. That assumption no longer holds.
+**This broke `tests/test_crane_pipeline.py`:** superseded. The four bad-data
+IDs (`CRANE_PARTICIPANT_NO_FILE_ID`, `CRANE_PARTICIPANT_NO_BEHAV_BAD_DATE_ID`,
+`CRANE_PARTICIPANT_NO_DEBRIEF_ID`, `CRANE_PARTICIPANT_INCORRECT_DATE_ID`) are
+now plain module-level string constants, passed straight into `run_pipeline(...)`
+or built into a `ParticipantConfig` lazily inside a test's `setUp`/method body
+— not eagerly-constructed `ParticipantConfig` objects at module import time.
+Import-time crashes from this are no longer possible, both because of this
+restructuring and because construction itself no longer raises.
 
-Agreed next steps, not yet implemented:
+Agreed next steps, revisited:
 
-1. Change `_behaviour_file_names` to `dict[type, Path | None]` — every
-   requested behaviour type is always present as a key; the value is `None`
-   if no file was found (instead of omitting the key, or raising).
-2. Change `from_physiology_data`'s return type to
-   `tuple[ParticipantConfig, PipelineStatus]`, matching the convention
-   already used by every `Sequential*Steps.run()` in `pipeline.py`. Each
-   raise site becomes: log a warning (add a module-level
-   `logger = logging.getLogger(__name__)` to `input_data.py` — it doesn't
-   have one yet, unlike every other module here) and mark the relevant
-   `PipelineStatus` field, then continue with `None` instead of raising.
-3. Open question, not yet decided: does "subject doesn't exist" (no files
-   match at all) apply only to behaviour files, or also to physiology?
-   Extending it to physiology means reversing the "physiology required"
-   choice above, and needs the same optional-field treatment for
-   `physiology_fn`.
-4. Once (1)-(2) land: decide where the returned `PipelineStatus` merges into
-   `PipelineTemplate.run()`'s own status — it currently always starts from a
-   fresh `PipelineStatus()`, with no mechanism to seed it from an earlier
-   (config-construction) stage.
-5. Once (1)-(3) are settled: fix `tests/test_crane_pipeline.py`'s four
-   "bad data" fixtures — likely move their construction inside the relevant
-   test method rather than as shared module-level globals, since what they're
-   actually testing depends on the answer to (3).
+1. **Done.** `_behaviour_file_names` is `dict[type, Path | None]`; every
+   requested behaviour type is always present as a key, `None` if no file was
+   found.
+2. **Not done.** `from_physiology_data` still returns a bare
+   `ParticipantConfig`; failures only reach a `logger.warning(...)` call, with
+   nothing structured returned for a caller (e.g. `PipelineTemplate.run()`) to
+   fold into its own `PipelineStatus`. (The module-level
+   `logger = logging.getLogger(__name__)` this step called for already exists
+   in `input_data.py` now — that part of the original note is stale.) Still
+   needed: return `tuple[ParticipantConfig, PipelineStatus]` and mark the
+   relevant status field at each warning site instead of only logging.
+3. **Answered in practice, but inconsistently.** "Subject doesn't exist"
+   already applies to physiology as well as behaviour — physiology no longer
+   raises. The open part now is representation: behaviour uses `Path | None`
+   per type, physiology uses `""` as its missing-sentinel on a `str`-typed
+   field. Worth standardizing both to `Path | None`, or writing down why the
+   physiology field stays string-typed if that's intentional.
+4. **Still open**, blocked on (2): once `from_physiology_data` returns a
+   `PipelineStatus`, decide where it merges into `PipelineTemplate.run()`'s
+   own status, which currently always starts fresh with no way to seed it
+   from a config-construction stage.
+5. **Resolved / no longer applicable.** See the "This broke..." note above —
+   the fixtures were restructured (or never needed restructuring, since
+   construction stopped raising) and no longer crash test collection.
 
 Also confirmed and no longer open: `RawCraneBehaviourData`'s inherited
 `filename_glob` pattern matches real Crane behaviour filenames.
@@ -598,6 +607,75 @@ fixed, un-skip them and update their assertions to match real output (the
 `missing_debrief` constant in the same file has a comment flagging the
 `RawCraneBehaviourData` artifact for `PID8495`, which should disappear once
 this is fixed).
+
+**Update:** both crashes are fixed, using the described pattern —
+`SequentialBehaviourImportSteps.run()` now captures `step.behaviour_output_type`
+before the `try`; `SequentialPhysiolgyImportSteps.run()` now has an
+`output_data_type` attribute added to `ImportBioDataStrategyStep` (and to
+`BiopacDataImportStartegy`, to satisfy the protocol structurally) captured the
+same way. A third bug in the same method, not originally documented here, was
+also found and fixed: `pipeline_status = PipelineStatus()` was re-created
+*inside* the `for step in self.steps:` loop, so with more than one physiology
+import strategy only the last step's status would have survived to the
+returned tuple — moved above the loop so status now accumulates across all
+steps. The three skipped tests above still need un-skipping and their
+assertions checked against real output. See item 17 for a follow-on issue
+found while chasing a runtime crash caused by this fix landing.
+
+### 17. `PipelineTemplate.run()` interval step: `None` inputs surfacing as `AttributeError`, papered over by widening the except tuple
+
+Found immediately after item 16's fixes landed: with the `UnboundLocalError`
+crashes gone, the pipeline runs further and hits a new crash at the
+trial-interval step ([pipeline.py:361-377](../src/mooi_toolbox/processing/pipeline.py#L361-L377)).
+When either physiology or behaviour data is missing from its store,
+`raw_biodata_for_intervals` / `raw_behav_data_for_intervals` are deliberately
+set to `None` a few lines above (lines 344, 354) — but `self.get_interval_strategy.run(...)`
+is then still called with those `None`s, and whatever attribute access happens
+first inside the strategy's `run()` raises `AttributeError` on `None`.
+
+The crash was silenced by adding `AttributeError` to the `except` tuple at
+line 368 (previously `(TypeError, ValueError)`). This works, but only
+incidentally:
+
+- it will also swallow an unrelated `AttributeError` raised by a genuine bug
+  anywhere inside `get_interval_strategy.run()`, silently routing it into the
+  fallback path instead of surfacing it;
+- it depends on the strategy happening to hit an attribute access (not, say,
+  an item access on `None`, which raises `TypeError` instead) — fragile,
+  works by luck rather than by design.
+
+Needed:
+
+- before calling `self.get_interval_strategy.run(...)`, explicitly check
+  `raw_biodata_for_intervals is None or raw_behav_data_for_intervals is None`
+  and skip straight to the "no intervals" handling already at line 390,
+  rather than calling `.run()` with `None` and catching whatever exception
+  results;
+- once that guard exists, reconsider whether `AttributeError` still needs to
+  be in the `except` tuple at line 368, or whether it was only ever masking
+  the `None`-input case.
+
+**Update: fixed.** `PipelineTemplate.run()` now guards with
+`if raw_biodata_for_intervals is not None and raw_behav_data_for_intervals is not None:`
+before calling `self.get_interval_strategy.run(...)` — matching the two
+variables actually populated by the `try/except ValueError` blocks just
+above. `AttributeError` was removed from the `except` tuple (back to
+`(TypeError, ValueError)`), since the `None`-input case it was masking can no
+longer reach that call. The inner `raw_biodata_for_intervals is not None`
+recheck inside the `except` block is now redundant (the outer guard already
+guarantees it) — harmless, candidate for a later cleanup pass, not urgent.
+
+One behavioural note surfaced while fixing this: previously, catching
+`AttributeError` let a missing-behaviour-data run crash inside
+`get_interval_strategy.run()` and, as a side effect of that crash being
+caught, fall into `fallback_strategy` (which only needs biodata) — so
+physiology would still run on unlabelled intervals when behaviour was
+missing, purely by accident. With the explicit guard, a missing-behaviour run
+now skips straight to "no trial intervals, skip physiology" instead, which
+matches this doc's own item 5 ("missing/partial behaviour import cascades
+into `intervals=error` and physiology is skipped entirely... needs to be
+reintroduced") — i.e. this removed an accidental, undocumented side-channel
+into item 5's still-open gap, it didn't create a new regression.
 
 ## Working Rule
 

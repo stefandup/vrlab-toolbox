@@ -30,9 +30,6 @@ EXAMPLE_INCORRECT_MEDIUM_SHORT_TRIGGER_ID = "PID16407"
 CRANE_PARTICIPANT_NO_DEBRIEF_ID = "PID8495"
 CRANE_PARTICIPANT_INCORRECT_DATE_ID = "PID15868"
 
-# PipelineStatus is now keyed by data type rather than by fixed stage names. Order matters for
-# get_as_text() (it reflects dict insertion order), so these mirror the order a real pipeline run
-# actually populates: behaviour import/processing (crane, then debrief), physiology, intervals.
 all_ok_status_str = PipelineStatus(
     status={
         RawCraneBehaviourData: ProcessingStatus.OK,
@@ -51,15 +48,9 @@ corrected_interval_str = PipelineStatus(
     }
 ).get_as_text()
 
-# Note: RawCraneBehaviourData shows ERROR here too, even though crane behaviour import itself
-# succeeds for this participant (only the debrief file is missing). This reflects a known bug in
-# SequentialBehaviourImportSteps.run() (pipeline.py): when a later step in the same import loop
-# raises, its except block marks whatever type the *previous* successful step happened to leave
-# behind, not the type that actually failed. Left unfixed per explicit scope decision for this
-# test-file-only pass.
 missing_debrief = PipelineStatus(
     status={
-        RawCraneBehaviourData: ProcessingStatus.ERROR,
+        RawCraneBehaviourData: ProcessingStatus.OK,
         RawDebriefBehaviourData: ProcessingStatus.ERROR,
         RawBioData: ProcessingStatus.OK,
         TrialIntervals: ProcessingStatus.OK,

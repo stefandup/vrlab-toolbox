@@ -15,6 +15,7 @@ from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.crane_behaviour import (
     RawCraneBehaviourData,
 )
+from mooi_toolbox.processing.pipeline import GetTrialIntervalsFallbackStartegy
 from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
 from mooi_toolbox.processing.trial_intervals import (
     TrialIntervals,
@@ -62,7 +63,7 @@ class CraneGetTrialIntervalStrategyFallbackStep:
 class CraneGetTrialIntervalStrategyStep:
     input_bio_data_type: type[RawBioData] = RawBioData
     input_behaviour_data_type: type[RawCraneBehaviourData] = RawCraneBehaviourData
-    fallback_strategy: CraneGetTrialIntervalStrategyFallbackStep = (
+    fallback_strategy: "GetTrialIntervalsFallbackStartegy" = (
         CraneGetTrialIntervalStrategyFallbackStep()
     )
 

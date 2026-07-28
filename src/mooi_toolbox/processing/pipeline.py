@@ -357,28 +357,28 @@ class PipelineTemplate:
                 pipeline_status.set(
                     self.get_interval_strategy.input_behaviour_data_type, ProcessingStatus.ERROR
                 )
-
-            try:
-                trial_intervals, interval_qc_figure, trial_interval_pipeline_status = (
-                    self.get_interval_strategy.run(
-                        raw_biodata_for_intervals, raw_behav_data_for_intervals
-                    )
-                )
-                pipeline_status = pipeline_status.merge(trial_interval_pipeline_status)
-            except (TypeError, ValueError) as error:
-                logger.warning(f"Error running trial intervals.{error}")
-                if (
-                    self.get_interval_strategy.fallback_strategy is not None
-                    and raw_biodata_for_intervals is not None
-                ):
+            if raw_biodata_for_intervals is not None and raw_behav_data_for_intervals is not None:
+                try:
                     trial_intervals, interval_qc_figure, trial_interval_pipeline_status = (
-                        self.get_interval_strategy.fallback_strategy.run(raw_biodata_for_intervals)
+                        self.get_interval_strategy.run(
+                            raw_biodata_for_intervals, raw_behav_data_for_intervals
+                        )
                     )
                     pipeline_status = pipeline_status.merge(trial_interval_pipeline_status)
+                except (TypeError, ValueError) as error:
+                    logger.warning(f"Error running trial intervals.{error}")
+                    if (
+                        self.get_interval_strategy.fallback_strategy is not None
+                        and raw_biodata_for_intervals is not None
+                    ):
+                        trial_intervals, interval_qc_figure, trial_interval_pipeline_status = (
+                            self.get_interval_strategy.fallback_strategy.run(
+                                raw_biodata_for_intervals
+                            )
+                        )
+                        pipeline_status = pipeline_status.merge(trial_interval_pipeline_status)
 
             # Run Physiology
-
-            # TODO: Have a failure backup if there are no intervals!
 
             if trial_intervals is not None:
                 physiology_pipeline_data, physiology_processing_status = (

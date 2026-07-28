@@ -73,7 +73,7 @@ class ParticipantConfig:
         output_folder_in.mkdir(parents=True, exist_ok=True)
 
         if log_folder_in is None:
-            log_folder_in = data_folder_in / "logs"
+            log_folder_in = output_folder_in / "logs"
 
         log_folder_in.mkdir(parents=True, exist_ok=True)
 
