@@ -8,10 +8,7 @@
 
 ### Clone the repository
 
-"Cloning" just means downloading a full copy of this repo, with its git history, onto your machine. A sensible default location is your **home directory** — a predictable place you can always find:
-
-- **Windows (PowerShell):** `echo $HOME` (usually `C:\Users\<your-username>`)
-- **macOS / Linux:** `echo $HOME` (usually `/Users/<your-username>` on macOS, `/home/<your-username>` on Linux)
+"Cloning" just means downloading a full copy of this repo, with its git history, onto your machine. A sensible default location is your **home directory** — a predictable place you can always find by running `echo $HOME` (works the same in PowerShell, bash, and zsh) — usually `C:\Users\<your-username>` on Windows, `/Users/<your-username>` on macOS, or `/home/<your-username>` on Linux.
 
 From there:
 
@@ -44,15 +41,19 @@ Two different routes end up with `vrlab_crane_process` available as a typed comm
 - **Clone + `pip install -e .`** (the [Setup](#setup) section below) — once your virtual environment is active, `vrlab_crane_process` just works. That's because activating a venv automatically adds its own `Scripts/`(Windows)/`bin/`(macOS/Linux) folder — where `pip install` put the command — onto your `PATH` for you. Nothing to configure by hand.
 - **A standalone `vrlab_crane_process.exe`** (built with PyInstaller, no Python install needed — see the docs site's Building & Releasing page for how and why) — this one **isn't** on your `PATH` automatically. You either run it by typing its full path every time, or add its containing folder to `PATH` yourself:
 
-  ```powershell
-  # Windows (PowerShell) — permanent, for your user account
-  $exeFolder = "C:\path\to\folder\containing\vrlab_crane_process.exe"
-  [Environment]::SetEnvironmentVariable("Path", "$env:Path;$exeFolder", "User")
-  # then open a new terminal
-  ```
+  **Windows, using the GUI (no PowerShell needed):**
+
+  1. Press the Windows key and search for **"Edit the system environment variables"**, then open it.
+  2. Click the **Environment Variables...** button.
+  3. Under **User variables**, select **Path**, then click **Edit...**.
+  4. Click **New**, paste in the folder containing `vrlab_crane_process.exe` (e.g. `C:\path\to\folder`), then click **OK** on every open dialog.
+  5. Open a **new** terminal window — the change only applies to terminals opened after this point.
+
+  For a fuller walkthrough with screenshots: [ComputerHope: How to add a directory to the Windows PATH](https://www.computerhope.com/issues/ch000549.htm).
+
+  **macOS/Linux, add to your shell profile:**
 
   ```bash
-  # macOS/Linux (bash/zsh) — add to your shell profile
   echo 'export PATH="$PATH:/path/to/folder/containing/vrlab_crane_process"' >> ~/.zshrc   # or ~/.bashrc
   source ~/.zshrc
   ```
@@ -235,11 +236,7 @@ Install PyInstaller in your active virtual environment first:
 python -m pip install pyinstaller
 ```
 
-On Windows:
-
-```powershell
-.\build.ps1
-```
+On Windows, run `.\build.ps1` (in PowerShell).
 
 On macOS or Linux:
 
