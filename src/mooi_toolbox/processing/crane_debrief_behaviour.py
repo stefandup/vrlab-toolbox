@@ -73,6 +73,8 @@ class RawDebriefBehaviourData(RawBehaviourData):
 
 
 class ImportCraneDebriefDataProcessStrategyStep:
+    behaviour_output_type = RawDebriefBehaviourData
+
     def run(self, config_in: ParticipantConfig) -> RawDebriefBehaviourData:
 
         return RawDebriefBehaviourData.load_from_config(config_in)

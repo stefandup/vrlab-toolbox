@@ -114,10 +114,12 @@ class TestCraneGetIntervalStrategy(unittest.TestCase):
             self._run_interval_strategy_for(MISSING_LAST_AND_INITIAL_TRIGGERS).intervals
         )
 
-    def test_interval_correction_with_multiple_double_triggers(self):
+    def test_interval_correction_with_multiple_double_triggers_1(self):
         MULTIPLE_DOUBLE_TRIGGERS_1 = "PID9188"
-        MULTIPLE_DOUBLE_TRIGGERS_2 = "PID7177"  # worse!
         self.assertTrue(self._run_interval_strategy_for(MULTIPLE_DOUBLE_TRIGGERS_1).intervals)
+
+    def test_interval_correction_with_multiple_double_triggers_2(self):
+        MULTIPLE_DOUBLE_TRIGGERS_2 = "PID7177"  # worse!
         self.assertTrue(self._run_interval_strategy_for(MULTIPLE_DOUBLE_TRIGGERS_2).intervals)
 
 

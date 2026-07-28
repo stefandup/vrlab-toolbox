@@ -73,6 +73,14 @@ Guidance for picking, generally:
 Apply the chosen convention consistently across `PipelineOutputData`,
 `PipelineStatus`, and any future strategy result objects.
 
+**Further rethink needed:** per-step tracking (above) still isn't enough on
+its own. `PipelineStatus.merge()` currently combines statuses into a single
+enum per stage/step, with no room to record *which data type* produced an
+error or *why*. Storing datatype + error detail per data type, rather than
+folding everything into one merged enum, is likely necessary — otherwise a
+merged status can say `intervals=error` without retaining the underlying
+cause once several sources have been merged together.
+
 ### 2. Track processing status per-strategy, not just per-stage
 
 `PipelineStatus` (`processing_status.py`) only tracks stage-level outcomes
@@ -222,36 +230,73 @@ participant-level output) rather than every intermediate dataframe.
 
 ### 8. Outstanding `# TODO` comments (still present in code)
 
-- `processing/pipeline.py:12` — could this form part of pipeline as a class
+Reconciled against a fresh `grep -rn TODO src/` — three previously-tracked
+comments no longer exist in the code (removed below; the code they annotated
+was resolved/deleted), one moved file/line without changing meaning, and six
+comments exist in code but weren't tracked here yet (added below, each with a
+short guess at intent since none had one).
+
+- `processing/pipeline.py:17` — could this form part of pipeline as a class
   override?
-- `processing/pipeline.py:98` — make the Sequentials unmodifiable, i.e. you
+- `processing/pipeline.py:139` — make the Sequentials unmodifiable, i.e. you
   can inherit from them.
 - `processing/output_data.py:30` — fix that on init it already inits an
   empty participant output data using config.
-- `processing/crane_pipeline.py:76` — unlikely to be unique.
-- `processing/crane_pipeline.py:84` — might be redundant, since physiology is
+- `processing/crane_pipeline.py:64` — might be redundant, since physiology is
   less uniquely specified.
-- `processing/crane_pipeline.py:88` — this schema can be split into
+- `processing/crane_pipeline.py:68` — this schema can be split into
   behaviour/debrief and physiology types.
 - `processing/crane_pipeline.py:153` — needs a classmethod to avoid future
   errors when implementing pipeline.
-- `processing/crane_debrief_behaviour.py:26` — more checks possible here.
-- `processing/crane_debrief_behaviour.py:90` — fix this, likely out of
+- `processing/crane_debrief_behaviour.py:28` — more checks possible here.
+- `processing/crane_debrief_behaviour.py:93` — fix this, likely out of
   scope.
 - `processing/crane_behaviour.py:12` — convert to tuple.
 - `processing/crane_behaviour.py:200` — see if using BIDS might simplify
   things long-run.
-- `processing/crane_behaviour.py:254` — create strategy.
 - `processing/behaviour.py:16` — messy, half these functions may be
   redundant (see item 4 above).
-- `processing/behaviour.py:52` — decide what to do when multiple CSV files
+- `processing/behaviour.py:53` — decide what to do when multiple CSV files
   are found.
 - `processing/processing_status.py:18` — split `data_in` into behav data,
   physiology data, etc. (see item 2 above).
-- `processing/crane_trial_intervals.py:47` — needs to update with a
-  `partial` status.
-- `processing/crane_trial_intervals.py:98` — needs to be generalized.
-- `processing/crane_trial_intervals.py:164` — make more robust.
+- `processing/crane_trial_intervals.py:95` — needs to be generalized.
+- `processing/trial_intervals.py:446` (moved from the now-deprecated
+  `crane_trial_intervals.py`) — needs to update with a `partial` status.
+
+Newly found, not previously tracked here — descriptions below are this
+assistant's best guess at intent, not confirmed with the code's author:
+
+- `processing/input_data.py:16` — "Add PipelineStatus to config." Likely the
+  seed of item 12: `ParticipantConfig` construction currently raises
+  immediately on file-discovery failure; giving the config its own
+  `PipelineStatus` field is what would let failures be recorded instead of
+  raised.
+- `processing/input_data.py:81` — "implement cross checking for this
+  toolbox." Reads as a check that the physiology file and each discovered
+  behaviour file actually belong to the same session/date, rather than
+  trusting the filename match — the kind of check that would have caught the
+  `PID15868` timestamp-mismatch bug (item 4) before it cascaded.
+- `processing/pipeline.py:181` — "Printout the rest also using data type."
+  Ties to item 2: once status is tracked per strategy/data type instead of
+  one merged stage-level enum, this is the corresponding printout that would
+  break results out by data type instead of one summary line.
+- `processing/trial_intervals.py:19-20` — `MappingProxyType` guard and dunder
+  overrides. About hardening the `TrialIntervals` container itself: guard
+  against accidental mutation of the sorted interval list, and add
+  `__len__`/`__eq__`/etc. so intervals can be compared/iterated directly
+  instead of reaching into an internal attribute.
+- `processing/trial_intervals.py:279` — "Flag points where voltage drops
+  below ~4.8V (Arduino signal instability)." Directly relevant to item 15:
+  the working theory is voltage sag causes spurious threshold crossings: this
+  TODO is a proposed diagnostic to confirm that theory, rather than only
+  filtering the resulting double triggers after the fact.
+- `processing/crane_pipeline.py:69` — "Can be rebuilt from a
+  `CranePipelineOutputData.from_pipeline_output(...)` classmethod." Ties to
+  item 11: rather than deleting the unused `CraneDebriefOutputData` /
+  `build_crane_debrief_output_schema` outright, this suggests reconstructing
+  it via a classmethod off the pipeline output — worth resolving alongside
+  item 11's delete-vs-consolidate decision.
 
 ### 9. Manual QC tool for clock drift verification
 
@@ -273,6 +318,25 @@ Needed:
 - decide if this is a one-off manual check for participants already flagged
   as suspect, or a routine QC step run for every participant before trusting
   matched intervals.
+
+**Update (trigger re-alignment refactor, merged to master):** the
+crane-specific regression matcher `align_crane_behav_intervals_with_trigger_intervals`
+(`crane_trial_intervals.py`, `@deprecated`) has been superseded by a more
+general `align_biopac_trigger_drift_from_behav_file` (`trial_intervals.py`),
+now called from `CraneGetTrialIntervalStrategyStep.run`. The surrounding
+pipeline also gained: a check on trigger interval count against
+`EXPECTED_INTERVAL_NR`, known-false-trigger removal
+(`remove_biopac_known_false_triggers`), gap filling, and removal of a
+spurious extra trigger caused by a late experiment start
+(`remove_crane_delayed_start`). Per the WIP commit history on the refactor
+branch, interval matching and test-run coverage improved, but the last
+recorded state before merge still had some subjects not passing — this needs
+re-verification against current `tests/test_crane_pipeline.py` results, and
+is exactly the kind of per-subject check this manual QC tool is meant to
+cover. `align_crane_behav_intervals_with_trigger_intervals` and its
+`get_crane_predicted_trigger_intervals` helper are no longer called anywhere
+in the pipeline and are candidates for deletion once the new path is
+confirmed stable across subjects.
 
 ### 10. Document intentional behaviour change: partial data now survives biopac import failure
 
@@ -411,6 +475,47 @@ CSV is ever found for any participant.
 This is the remaining blocker on `tests/test_crane_pipeline.py` collecting/running at all —
 pick up here next. Likely overlaps with item 4's "don't assume filename conventions hold"
 and item 12's broader file-discovery cleanup.
+
+### 14. Write a rename script for participant files with label mismatches
+
+Many participant files are currently skipped during import not because the
+data is missing, but because filenames don't match the expected
+`filename_glob` pattern (`ParticipantConfig.from_physiology_data`, items 12
+and 13) — inconsistent or mislabelled filenames across sessions cause the
+matcher to silently find nothing.
+
+Needed:
+
+- audit how many currently-excluded files are label mismatches vs. genuinely
+  missing data;
+- write a rename script to normalize filenames to the expected convention,
+  rather than continuing to special-case each mismatch inside the
+  glob/matching logic itself;
+- decide whether this is a one-off, hand-reviewed cleanup pass or a
+  repeatable normalization step run before each import;
+- keep a record (log or mapping file) of any renames performed, so original
+  filenames aren't silently lost.
+
+### 15. Double triggers still causing problems
+
+Even after the trigger re-alignment refactor (item 9 update), double/duplicate
+triggers are still causing problems in interval matching. The current
+filtering (`remove_biopac_known_false_triggers`, `trial_intervals.py`) drops
+intervals with near-zero or too-short duration, and raw trigger detection
+itself (`get_raw_biopac_trigger_intervals`) is a simple threshold-crossing
+diff (`trigger_df_in["Trigger"].diff() > 0.47`) — neither appears sufficient
+to catch every double-trigger case in practice.
+
+Needed:
+
+- characterize when/why double triggers occur (Arduino bounce? voltage noise
+  near the threshold? something else) rather than only filtering symptoms
+  after the fact;
+- decide whether stricter detection at the source (`get_raw_biopac_trigger_intervals`)
+  or better post-hoc filtering (`remove_biopac_known_false_triggers`) is the
+  right fix, or both;
+- add a regression test/fixture using data known to exhibit double triggers,
+  so this doesn't silently regress again.
 
 ## Working Rule
 
