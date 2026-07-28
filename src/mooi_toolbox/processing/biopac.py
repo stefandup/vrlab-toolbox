@@ -1,5 +1,6 @@
 import logging
 import os
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -59,5 +60,5 @@ def load_biopac_data(config_in: ParticipantConfig) -> RawBioData:
     return raw_bio_data_out
 
 
-def get_subject_id_from_mat(biopac_mat_fn: str) -> str:
-    return os.path.basename(biopac_mat_fn).split(".")[0].strip().replace(" ", "").split("_")[1]
+def get_subject_id_from_mat(biopac_mat_fn: Path) -> str:
+    return os.path.basename(str(biopac_mat_fn)).split(".")[0].strip().replace(" ", "").split("_")[1]

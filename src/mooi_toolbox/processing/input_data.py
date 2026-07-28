@@ -58,7 +58,8 @@ class ParticipantConfig:
 
             if len(physiology_fn_list) > 1:
                 logger.warning(
-                    f"Multiple files detected for subject {id_in}. Expect only 1 {physiology_fn_list}"
+                    f"Multiple files detected for subject {id_in}."
+                    f"Expect only 1 {physiology_fn_list}"
                 )
         else:
             logger.warning(f"No matching physiology files found for {id_in}")
@@ -96,8 +97,8 @@ class ParticipantConfig:
 
                 if behav_date_mismatches:
                     logger.warning(
-                        f"Date mismatch between {behav_date_mismatches} and the physiology file date - "
-                        f"{expected_date_string_from_physiology}."
+                        f"Date mismatch between {behav_date_mismatches} "
+                        f"and the physiology file date - {expected_date_string_from_physiology}."
                     )
 
             if not behav_file_matches:

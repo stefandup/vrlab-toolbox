@@ -87,7 +87,9 @@ class FindParticipantFilesStrategyStep(Protocol):
     physiology_data_type: PhysiologyFileFormat
     behaviour_data_types: list[type]
 
-    def run(self, participant_id_in: str, data_folder_in: Path) -> ParticipantConfig: ...
+    def run(
+        self, participant_id_in: str, data_folder_in: Path, output_folder_in: Path | None = None
+    ) -> ParticipantConfig: ...
 
 
 class ImportBioDataStrategyStep(Protocol):
@@ -297,7 +299,7 @@ class PipelineTemplate:
         self.get_interval_strategy = get_intervals_strategy
 
     def run(
-        self, participant_id_in: str, data_folder_in: Path
+        self, participant_id_in: str, data_folder_in: Path, output_folder_in: Path | None = None
     ) -> tuple[ParticipantConfig, PipelineOutputData]:
 
         pipeline_status = PipelineStatus()
@@ -305,7 +307,7 @@ class PipelineTemplate:
         interval_qc_figure: Figure | None = None
 
         participant_config = self.find_participant_strategy_step.run(
-            participant_id_in, data_folder_in
+            participant_id_in, data_folder_in, output_folder_in
         )
         with participant_log_handler(participant_config):
             behaviour_pipeline_data = PipelineOutputData(participant_config.subject_id)
