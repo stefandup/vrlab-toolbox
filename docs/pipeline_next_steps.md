@@ -728,6 +728,35 @@ file references `crane_behaviour.` — this is the same dead import flagged in i
 only as a pointer since it's easy to miss inside item 3's larger consolidation ask and cheap to
 delete on its own before that lands.
 
+### 20. Publish project documentation via MkDocs (`docs/` folder), local-only while the repo stays private
+
+Decided during a REVIEW follow-up conversation: use MkDocs (with the
+`mkdocs-material` theme) to build browsable docs from Markdown sources in
+`docs/`, aimed at helping students/new contributors ramp up on the pipeline.
+
+While the repo stays private, docs are generated **locally only**
+(`mkdocs serve` for a live-reload preview, `mkdocs build` for a static
+`site/` folder) — no GitHub Pages deploy yet. This isn't just a preference:
+**GitHub Pages does not build from a private repository on the free plan** —
+it requires GitHub Pro/Team/Enterprise. So "local-only until the repo is
+public (or the plan is upgraded)" is the actual constraint, not a stopgap.
+
+Needed:
+
+- confirm `mkdocs` + `mkdocs-material` are available (check if already
+  installed in `.venv`, otherwise add as a dev dependency alongside `ruff` —
+  follow whatever pattern this repo already uses for dev-only tools);
+- decide the docs source layout: flat `docs/*.md` vs. nested by topic (e.g.
+  `docs/guide/`, `docs/reference/`);
+- add a minimal `mkdocs.yml` (site name, `docs_dir`, nav) and a starter
+  `docs/index.md`;
+- sketch the nav/table-of-contents sections before writing content — likely
+  something like "Getting Started", "Pipeline Concepts" (Template/Strategy
+  architecture, per the note at the top of this doc), "API Reference";
+- once the repo goes public (or moves to a paid plan), add a GitHub Actions
+  workflow to build and deploy to GitHub Pages (`mkdocs gh-deploy` or an
+  action-based equivalent) — not needed yet.
+
 ## Working Rule
 
 Do not rewrite everything at once. Preserve working behaviour and improve
