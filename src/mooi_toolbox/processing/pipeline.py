@@ -92,6 +92,7 @@ class FindParticipantFilesStrategyStep(Protocol):
 
 class ImportBioDataStrategyStep(Protocol):
     input_data_file_format: PhysiologyFileFormat
+    output_data_type: type[RawBioData] = RawBioData
 
     def run(self, config_in: ParticipantConfig) -> RawBioData: ...
 
@@ -155,12 +156,12 @@ class SequentialBehaviourImportSteps:
             try:
                 pipeline_raw_behav_data = step.run(config_in=config_in)
                 self.raw_behaviour_data_Store.add(pipeline_raw_behav_data)
-                pipeline_status.set(type(pipeline_raw_behav_data), ProcessingStatus.OK)
+                pipeline_status.set(step.behaviour_output_type, ProcessingStatus.OK)
             except (ValueError, FileNotFoundError) as e:
                 logger.warning(
                     "Error importing behaviour data for participant %s. %s", config_in.subject_id, e
                 )
-                pipeline_status.set(type(pipeline_raw_behav_data), ProcessingStatus.ERROR)
+                pipeline_status.set(step.behaviour_output_type, ProcessingStatus.ERROR)
 
         return (self.raw_behaviour_data_Store, pipeline_status)
 
@@ -184,16 +185,16 @@ class SequentialBehaviourProcessingSteps:
                     config_in=config_in, raw_behaviour_data_in=raw_behav_data
                 )
                 behavioural_output_data = behavioural_output_data.merge(step_output)
-                pipeline_status.set(in_data_type, ProcessingStatus.OK)
+                pipeline_status.set(step.input_data_type, ProcessingStatus.OK)
 
             except (ValueError, FileNotFoundError) as e:
                 logger.warning(
                     "Error processing %s for participant %s. %s",
-                    in_data_type,
+                    step.input_data_type,
                     config_in.subject_id,
                     e,
                 )
-                pipeline_status.set(in_data_type, ProcessingStatus.ERROR)
+                pipeline_status.set(step.input_data_type, ProcessingStatus.ERROR)
 
         return (behavioural_output_data, pipeline_status)
 
@@ -204,19 +205,21 @@ class SequentialPhysiolgyImportSteps:
     steps: Sequence[ImportBioDataStrategyStep] = field(default_factory=list)
 
     def run(self, config_in: ParticipantConfig) -> tuple[RawPhysiologyDataStore, PipelineStatus]:
+        pipeline_status = PipelineStatus()
+
         for step in self.steps:
-            pipeline_status = PipelineStatus()
+            data_out_type = step.output_data_type
             try:
                 data_out = step.run(config_in)
                 self.raw_physiology_store.add(data_out)
-                pipeline_status.set(type(data_out), ProcessingStatus.OK)
+                pipeline_status.set(data_out_type, ProcessingStatus.OK)
             except (ValueError, FileNotFoundError) as e:
                 logger.warning(
                     "Error importing raw physiology data for participant %s. %s",
                     config_in.subject_id,
                     e,
                 )
-                pipeline_status.set(type(data_out), ProcessingStatus.ERROR)
+                pipeline_status.set(data_out_type, ProcessingStatus.ERROR)
 
         return (self.raw_physiology_store, pipeline_status)
 
