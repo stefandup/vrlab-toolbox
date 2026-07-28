@@ -98,6 +98,23 @@ Needed:
 - serialize statuses in a fixed order so tests and CSV/SPSS outputs don't
   depend on update order.
 
+**Update:** the first bullet is done — `PipelineStatus.status`
+(`processing_status.py`) is now `dict[type, ProcessingStatus]`, keyed by data
+type (`RawCraneBehaviourData`, `RawDebriefBehaviourData`, `RawBioData`,
+`TrialIntervals`, …) instead of fixed `data_in`/`behaviour`/`intervals`/
+`physiology` fields, and `tests/test_crane_pipeline.py` asserts against
+per-type entries directly (e.g. `pipeline_out.status.status[RawBioData]`).
+The two leftover `# TODO` comments on the class (`processing_status.py:18-19`)
+are now stale relative to the code and can be removed. The third bullet
+(fixed serialization order) is **not** explicitly done: `get_as_text()`
+iterates `self.status.items()` in dict-insertion order, which is stable today
+only because `PipelineTemplate.run()` always calls `.merge()` in the same
+fixed sequence — reordering pipeline steps in the future would silently
+change the output string and break tests doing exact-string comparison
+(`all_ok_status_str` and friends in `tests/test_crane_pipeline.py`). Worth an
+explicit sort (e.g. by type name) in `get_as_text()` rather than relying on
+call-order coincidence.
+
 ### 3. Consolidate duplicated Crane behaviour constants
 
 `EMOTIONS_TESTED`, `BLOCK_TYPES`, `TRIAL_TYPES`, and `BEHAVIOUR_OUTPUT_METRICS`
@@ -199,6 +216,23 @@ Needed:
   produces physiology output, using unlabelled intervals, with a `partial`
   status rather than `error`.
 
+**Update:** a fallback mechanism now exists —
+`CraneGetTrialIntervalStrategyFallbackStep` (`crane_trial_intervals.py`) is
+wired as `CraneGetTrialIntervalStrategyStep.fallback_strategy`, and
+`PipelineTemplate.run()` (`pipeline.py:370-381`) calls it when
+`get_interval_strategy.run()` raises `(TypeError, ValueError)`, returning
+unlabelled trigger intervals via `get_raw_biopac_trigger_intervals` +
+`get_biopac_trigger_intervals_pipeline`, marked `TrialIntervals=ERROR` in the
+resulting status. This covers the "behaviour data present but alignment
+fails" case. It does **not** yet cover this item's original "behaviour data
+missing entirely" case: `raw_behav_data_for_intervals` being `None` is
+handled by an outer guard (`pipeline.py:362`) that skips straight to "no
+trial intervals, skip physiology" *before* `get_interval_strategy.run()` (and
+therefore the fallback) is ever reached — see item 17's own note on this. Still
+needed: decide whether the `None`-behaviour-data case should also route
+through `fallback_strategy`, or whether that's a deliberately separate
+decision from the present-but-failed case.
+
 ### 6. Extend Pandera dataframe contracts beyond Crane's own schemas
 
 Crane already has schemas for its own dataframe shapes: raw behaviour CSV
@@ -230,57 +264,50 @@ participant-level output) rather than every intermediate dataframe.
 
 ### 8. Outstanding `# TODO` comments (still present in code)
 
-Reconciled against a fresh `grep -rn TODO src/` — three previously-tracked
-comments no longer exist in the code (removed below; the code they annotated
-was resolved/deleted), one moved file/line without changing meaning, and six
-comments exist in code but weren't tracked here yet (added below, each with a
-short guess at intent since none had one).
+Reconciled again against a fresh `grep -rn TODO src/` during this REVIEW.
+Since the last reconciliation: the two `crane_pipeline.py` TODOs that
+annotated `CraneDebriefOutputData`/`build_crane_debrief_output_schema` are
+gone, because that dead code was deleted (see the now-removed item 11); the
+`pipeline.py:181` "printout the rest" TODO and the `behaviour.py:16` "messy,
+half these functions may be redundant" TODO have also disappeared from the
+code (the comments were dropped, not the underlying issues — item 2's
+ordering gap and item 4's dead-code cleanup are both still genuinely open,
+just no longer marked inline); several other TODOs shifted by a line or two
+from unrelated edits nearby (noted below) without changing meaning.
 
 - `processing/pipeline.py:17` — could this form part of pipeline as a class
   override?
-- `processing/pipeline.py:139` — make the Sequentials unmodifiable, i.e. you
-  can inherit from them.
+- `processing/pipeline.py:149` (was `:139`) — make the Sequentials
+  unmodifiable, i.e. you can inherit from them.
 - `processing/output_data.py:30` — fix that on init it already inits an
   empty participant output data using config.
-- `processing/crane_pipeline.py:64` — might be redundant, since physiology is
-  less uniquely specified.
-- `processing/crane_pipeline.py:68` — this schema can be split into
-  behaviour/debrief and physiology types.
-- `processing/crane_pipeline.py:153` — needs a classmethod to avoid future
-  errors when implementing pipeline.
+- `processing/crane_pipeline.py:155` (was `:153`) — needs a classmethod to
+  avoid future errors when implementing pipeline.
 - `processing/crane_debrief_behaviour.py:28` — more checks possible here.
-- `processing/crane_debrief_behaviour.py:93` — fix this, likely out of
-  scope.
+- `processing/crane_debrief_behaviour.py:95` (was `:93`) — fix this, likely
+  out of scope.
 - `processing/crane_behaviour.py:12` — convert to tuple.
-- `processing/crane_behaviour.py:200` — see if using BIDS might simplify
-  things long-run.
-- `processing/behaviour.py:16` — messy, half these functions may be
-  redundant (see item 4 above).
-- `processing/behaviour.py:53` — decide what to do when multiple CSV files
-  are found.
-- `processing/processing_status.py:18` — split `data_in` into behav data,
-  physiology data, etc. (see item 2 above).
-- `processing/crane_trial_intervals.py:95` — needs to be generalized.
+- `processing/crane_behaviour.py:202` (was `:200`) — see if using BIDS might
+  simplify things long-run.
+- `processing/behaviour.py:52` (was `:53`) — decide what to do when multiple
+  CSV files are found.
+- `processing/processing_status.py:18-19` — split `data_in` into behav data,
+  physiology data, etc.; might need a builder in the pipeline template. Both
+  now stale — see item 2's update above; safe to delete once someone
+  confirms nothing else was meant by the second line.
 - `processing/trial_intervals.py:446` (moved from the now-deprecated
   `crane_trial_intervals.py`) — needs to update with a `partial` status.
-
-Newly found, not previously tracked here — descriptions below are this
-assistant's best guess at intent, not confirmed with the code's author:
-
 - `processing/input_data.py:16` — "Add PipelineStatus to config." Likely the
   seed of item 12: `ParticipantConfig` construction currently raises
   immediately on file-discovery failure; giving the config its own
   `PipelineStatus` field is what would let failures be recorded instead of
   raised.
-- `processing/input_data.py:81` — "implement cross checking for this
-  toolbox." Reads as a check that the physiology file and each discovered
-  behaviour file actually belong to the same session/date, rather than
-  trusting the filename match — the kind of check that would have caught the
-  `PID15868` timestamp-mismatch bug (item 4) before it cascaded.
-- `processing/pipeline.py:181` — "Printout the rest also using data type."
-  Ties to item 2: once status is tracked per strategy/data type instead of
-  one merged stage-level enum, this is the corresponding printout that would
-  break results out by data type instead of one summary line.
+- `processing/input_data.py:82` (was `:81`) — "implement cross checking for
+  this toolbox." Reads as a check that the physiology file and each
+  discovered behaviour file actually belong to the same session/date, rather
+  than trusting the filename match — the kind of check that would have
+  caught the `PID15868` timestamp-mismatch bug (item 4) before it cascaded,
+  and would also have caught item 13's still-open date-string bug sooner.
 - `processing/trial_intervals.py:19-20` — `MappingProxyType` guard and dunder
   overrides. About hardening the `TrialIntervals` container itself: guard
   against accidental mutation of the sorted interval list, and add
@@ -291,12 +318,6 @@ assistant's best guess at intent, not confirmed with the code's author:
   the working theory is voltage sag causes spurious threshold crossings: this
   TODO is a proposed diagnostic to confirm that theory, rather than only
   filtering the resulting double triggers after the fact.
-- `processing/crane_pipeline.py:69` — "Can be rebuilt from a
-  `CranePipelineOutputData.from_pipeline_output(...)` classmethod." Ties to
-  item 11: rather than deleting the unused `CraneDebriefOutputData` /
-  `build_crane_debrief_output_schema` outright, this suggests reconstructing
-  it via a classmethod off the pipeline output — worth resolving alongside
-  item 11's delete-vs-consolidate decision.
 
 ### 9. Manual QC tool for clock drift verification
 
@@ -357,25 +378,6 @@ real change in what a "biopac failed" subject's output row looks like, so:
 - consider whether downstream filtering (e.g. by `Processing_Status`) needs
   updating now that `physiology=error` rows can still carry valid behaviour
   data.
-
-### 11. Remove unused `CraneDebriefOutputData` / clarify naming vs. `CraneDebriefPipelineOutput`
-
-`crane_pipeline.py` defines `build_crane_debrief_output_schema()` and
-`CraneDebriefOutputData` (right under the `# TODO Unlikely to be unique!`
-comment tracked in item 8), but neither is referenced anywhere else in the
-codebase — the debrief step actually uses a different, similarly-named class,
-`CraneDebriefPipelineOutput` in `crane_debrief_behaviour.py`, which builds its
-own separate schema (`crane_debrief_pipeline_output_schema`). Two
-near-identically-named classes doing unrelated things is an easy way to edit
-the wrong one later.
-
-Needed:
-
-- delete `build_crane_debrief_output_schema()` and `CraneDebriefOutputData`
-  from `crane_pipeline.py` if confirmed dead;
-- if some debrief-schema consolidation is intended instead (see item 3), fold
-  this into that work rather than keeping two similarly-named classes in
-  play.
 
 ### 12. ParticipantConfig file discovery: make failures report status instead of raising
 
@@ -481,9 +483,25 @@ gives the correct value; `str(physiology_fn).split("_")[0]` does not. This wrong
 then feeds the behaviour-file glob (`{date_string}_{participant_id}_*.csv`), so no behaviour
 CSV is ever found for any participant.
 
-This is the remaining blocker on `tests/test_crane_pipeline.py` collecting/running at all —
-pick up here next. Likely overlaps with item 4's "don't assume filename conventions hold"
-and item 12's broader file-discovery cleanup.
+**Update — stale, corrected:** the line itself (`input_data.py:57`) is still unfixed today,
+but the paragraph above overstates its consequence. The actual behaviour-file glob
+(`input_data.py:85-89`) is built with `glob_pattern = behav_data_type.filename_glob.format(date_string=TEMP, ...)`
+where `TEMP = "*"` — a hardcoded wildcard, not `expected_date_string_from_physiology`. That
+variable is only used ~10 lines later to build a diagnostic mismatch warning
+(`behav_date_mismatches`), so the bug never actually blocked file discovery, and does not
+explain any test failure. `tests/test_crane_pipeline.py` collects and mostly passes today (see
+item 16's update).
+
+The bug is still real, though, and worth fixing on its own terms: `expected_date_string_from_physiology`
+evaluates to `"crane"` in this repo (`str(Path("crane_data/2026481120_00020_CraneOut.mat")).split("_")[0]`),
+and the mismatch check (`not str(file).startswith(expected_date_string_from_physiology)`) currently
+never fires as a false positive purely because every real file path here starts with `crane_data\`,
+which also starts with `"crane"` — coincidence, not correctness. Point `data_folder_in` at a path that
+doesn't start with `"crane"` (an absolute path, a different-named folder) and every file would wrongly
+be flagged as a date mismatch; conversely, a real date mismatch that doesn't happen to also fail the
+`"crane"` prefix check would go undetected. Fix: use `physiology_fn.name.split("_")[0]` instead of
+`str(physiology_fn).split("_")[0]`, same as originally diagnosed. Likely overlaps with item 4's
+"don't assume filename conventions hold" and item 12's broader file-discovery cleanup.
 
 ### 14. Write a rename script for participant files with label mismatches
 
@@ -597,16 +615,14 @@ this purpose — see item 12/13 area of history) *before* the `try`, and use
 that captured type in the `except` block instead of introspecting a variable
 that may not exist yet or may be stale from a prior iteration.
 
-**Current test coverage:** `tests/test_crane_pipeline.py` marks the three
-affected tests `@unittest.skip(...)` with a reason referencing this item,
-rather than guessing at post-fix behaviour:
+**Update — done:** all three tests are un-skipped and pass:
 `test_crane_pipeline_labels_missing_physiology_correctly`,
 `test_crane_pipeline_labels_missing_behav_correctly`,
-`test_crane_spots_errors_when_behav_physiology_no_match`. Once these bugs are
-fixed, un-skip them and update their assertions to match real output (the
-`missing_debrief` constant in the same file has a comment flagging the
-`RawCraneBehaviourData` artifact for `PID8495`, which should disappear once
-this is fixed).
+`test_crane_spots_errors_when_behav_physiology_no_match`. The `missing_debrief`
+status constant no longer needs (and no longer has) a comment flagging a
+`RawCraneBehaviourData` artifact for `PID8495` — `test_crane_missing_debrief_correct_label`
+now asserts `RawCraneBehaviourData=OK` / `RawDebriefBehaviourData=ERROR` directly, confirming
+the artifact described above is gone.
 
 **Update:** both crashes are fixed, using the described pattern —
 `SequentialBehaviourImportSteps.run()` now captures `step.behaviour_output_type`
@@ -677,6 +693,41 @@ into `intervals=error` and physiology is skipped entirely... needs to be
 reintroduced") — i.e. this removed an accidental, undocumented side-channel
 into item 5's still-open gap, it didn't create a new regression.
 
+### 18. Test suite is flaky on an interactive matplotlib backend, and leaks figures
+
+Found while running the full suite for this REVIEW: `python -m pytest tests/` gave a different
+2 failures each run (`TestCraneGetIntervalStrategy::test_interval_correction_with_*`, varying
+which one), all `_tkinter.TclError` inside `plot_biopac_interval_qc` (`trial_intervals.py:263`,
+via `plt.subplots`) — but each failing test passes in isolation. Root cause: nothing in
+`tests/` (no `conftest.py`, no `pytest.ini` setting) forces a non-interactive matplotlib
+backend, so the suite falls back to whatever GUI backend is available (`TkAgg` here), and this
+machine's Tk/Tcl install (Microsoft Store Python) is incomplete — `init.tcl`/`tk.tcl` fail to
+load, apparently only once enough figures have accumulated across tests to trigger it, which is
+why failures move around between runs rather than hitting the same test every time. Running with
+`MPLBACKEND=Agg` made all 27 non-skipped tests pass consistently, and also surfaced a real
+resource leak: `RuntimeWarning: More than 20 figures have been opened. Figures created through
+the pyplot interface... are retained until explicitly closed` — plotting code (`eda.py:180`,
+`trial_intervals.py:263`) never calls `plt.close()`.
+
+The CLI already does the right thing (`matplotlib.use("Agg")` in `cli/vrlab_crane_process.py:12`);
+the test suite doesn't inherit that and shouldn't need to guess a machine's GUI toolkit is even
+installed to run reliably.
+
+Needed:
+
+- add a `tests/conftest.py` that calls `matplotlib.use("Agg")` before any test imports
+  plotting code, so the suite doesn't depend on a working local Tk install;
+- close figures after they're used/asserted-on in tests and in production plotting functions
+  (`plt.close(fig)`), rather than leaving them to accumulate for the process lifetime.
+
+### 19. Small note: `crane_pipeline.py`'s `import crane_behaviour as crane_behaviour` is still dead
+
+Confirmed again this REVIEW: `crane_pipeline.py:8` still imports
+`from mooi_toolbox.processing import crane_behaviour as crane_behaviour`, and nothing in the
+file references `crane_behaviour.` — this is the same dead import flagged in item 3, kept here
+only as a pointer since it's easy to miss inside item 3's larger consolidation ask and cheap to
+delete on its own before that lands.
+
 ## Working Rule
 
 Do not rewrite everything at once. Preserve working behaviour and improve
@@ -701,7 +752,10 @@ noted here so they aren't lost, not expanded on for now.
   generate errors.
 - `cli/vrlab_crane_qc.py:19` — add summary data processing.
 - `cli/check_mobi_xdf.py:24` — show missing streams.
-- `cli/vrlab_crane_process.py:50,62` — fix str-to-path handling; `:114` —
-  data labels for SPSS output.
+- `cli/vrlab_crane_process.py:109` — data labels for SPSS output.
+  (The str-to-path handling previously tracked here is resolved:
+  `biopac.get_subject_id_from_mat` now takes a `Path` directly, and the CLI
+  passes `output_folder` through to `run_crane_pipeline` instead of a bare
+  `input_folder`.)
 - `processing/ecg.py:15,26` — NeuroKit warnings to address on update; combine
   outputs (maybe a dict).
