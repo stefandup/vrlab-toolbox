@@ -184,6 +184,8 @@ class CraneBehaviourOutputData(PipelineOutputData):
 
 
 class ImportCraneBehaviourDataStrategyStep:
+    behaviour_output_type: type[RawCraneBehaviourData] = RawCraneBehaviourData
+
     def run(self, config_in: ParticipantConfig) -> RawCraneBehaviourData:
 
         return RawCraneBehaviourData.load_from_config(config_in)

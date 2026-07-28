@@ -444,7 +444,7 @@ def remove_biopac_known_false_triggers(
     trigger_intervals_to_check: TrialIntervals,
 ) -> tuple[TrialIntervals, ProcessingStatus]:
     # TODO: Improve! This needs to update with partial
-    # [start_end[1] - start_end[0] for start_end in trigger_interval_pairs]
+    # [start_end[1] - start_end[0] for
     if not trigger_intervals_to_check.intervals:
         return (trigger_intervals_to_check, ProcessingStatus.ERROR)
 
@@ -514,23 +514,29 @@ def align_biopac_trigger_drift_from_behav_file(
     result in the physiology (biopac) timeframe.
 
     """
-    # TODO: reaftor code based on doodle below
+
     pipeline_status = PipelineStatus()
 
     if len(trigger_intervals_in) < len(behav_trial_intervals_in):
         trigger_intervals_in.shift_intervals_forward_by(
             len(behav_trial_intervals_in) - len(trigger_intervals_in)
         )
+        logger.warning(
+            "There are less trigger intervals than trial intervals. Shifting to compensate."
+        )
+        pipeline_status.set(TrialIntervals, ProcessingStatus.CORRECTED)
 
     try:
         deltas = trigger_intervals_in.get_overlap(behav_trial_intervals_in)
-        print(f"Mean difference is: {np.nanmean(np.abs(deltas))}")
+        logger.info(
+            f"Mean difference between trigger and behav intervals is: {np.nanmean(np.abs(deltas))}"
+        )
         relabelled_trigger_intervals = trigger_intervals_in.relabel_with(behav_trial_intervals_in)
         relabelled_trigger_intervals.drop_nan_intervals()
-        pipeline_status.intervals = ProcessingStatus.OK
+        pipeline_status.set(TrialIntervals, ProcessingStatus.OK)
     except ValueError as error:
-        print(f"Error! {error}")
-        pipeline_status.intervals = ProcessingStatus.ERROR
+        logger.warning(f"Error in matching intervals: {error}")
+        pipeline_status.set(TrialIntervals, ProcessingStatus.ERROR)
         relabelled_trigger_intervals = TrialIntervals()
 
     return (relabelled_trigger_intervals, pipeline_status)

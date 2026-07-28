@@ -13,7 +13,6 @@ from mooi_toolbox.processing.input_data import ParticipantConfig
 logger = logging.getLogger(__name__)
 
 
-# TODO: This is very messy. Not sure if half of these functions arent redundant!
 def build_base_output_schema(
     additional_columns: dict[str, pa.Column] | None = None,
 ) -> pa.DataFrameSchema:

@@ -61,12 +61,7 @@ def _optional_float_column() -> pa.Column:
     return pa.Column(float, nullable=True, coerce=True, required=False)
 
 
-# TODO: Might be redundant as the physiology is less uniquely specified
-
-
 # Schema builds more or less automatically based on the constants set.
-# TODO THis schema can be split into behaviour/debrief and physiology types.
-# TODO: Can be rebuild from a CranePipelineOutputData.from_pipeline_output(...) classmethod
 def build_crane_participant_output_schema() -> pa.DataFrameSchema:
     """Create schema for the wide participant output produced by this pipeline."""
     behaviour_columns = {
@@ -104,13 +99,16 @@ class FindCraneParticipantFilesStrategyStep:
         ProcessCraneDebriefBehaviourDataStrategyStep.input_data_type,
     ]
 
-    def run(self, participant_id_in: str, data_folder_in: Path) -> ParticipantConfig:
+    def run(
+        self, participant_id_in: str, data_folder_in: Path, output_folder_in: Path | None = None
+    ) -> ParticipantConfig:
 
         return ParticipantConfig.from_physiology_data(
             id_in=participant_id_in,
             physiology_data_type_in=self.physiology_data_type,
             data_folder_in=data_folder_in,
             behaviour_data_types_in=self.behaviour_data_types,
+            output_folder_in=output_folder_in,
         )
 
 
@@ -120,7 +118,9 @@ class CranePipelineOutputData(PipelineOutputData):
         return build_crane_participant_output_schema().validate(self.subject_df_out)
 
 
-def run_pipeline(participant_id_in: str, data_folder_in: Path) -> CranePipelineOutputData:
+def run_pipeline(
+    participant_id_in: str, data_folder_in: Path, output_folder_in: Path | None = None
+) -> CranePipelineOutputData:
 
     import_behav_steps = pipeline.SequentialBehaviourImportSteps(
         steps=[ImportCraneBehaviourDataStrategyStep(), ImportCraneDebriefDataProcessStrategyStep()]
@@ -148,7 +148,9 @@ def run_pipeline(participant_id_in: str, data_folder_in: Path) -> CranePipelineO
     )
 
     participant_config, participant_pipeline_data_out = crane_pipeline.run(
-        participant_id_in, data_folder_in
+        participant_id_in,
+        data_folder_in,
+        output_folder_in,
     )
     # TODO: This needs a classmethod to avoid future errors when implementing pipeline
     crane_pipeline_output_data = CranePipelineOutputData(participant_config.subject_id)

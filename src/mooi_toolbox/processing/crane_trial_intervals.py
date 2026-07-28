@@ -15,6 +15,7 @@ from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.crane_behaviour import (
     RawCraneBehaviourData,
 )
+from mooi_toolbox.processing.pipeline import GetTrialIntervalsFallbackStartegy
 from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
 from mooi_toolbox.processing.trial_intervals import (
     TrialIntervals,
@@ -28,9 +29,43 @@ logger = logging.getLogger(__name__)
 EXPECTED_INTERVAL_NR = 23
 
 
+class CraneGetTrialIntervalStrategyFallbackStep:
+    def run(self, raw_biodata_in: RawBioData) -> tuple[TrialIntervals, Figure, PipelineStatus]:
+        interval_pipeline_status = PipelineStatus()
+
+        raw_biopac_triggers = get_raw_biopac_trigger_intervals(raw_biodata_in["Trigger"])
+
+        if len(raw_biopac_triggers.intervals) != EXPECTED_INTERVAL_NR:
+            logger.warning(
+                "Interval count is %d and not %d for subject.",
+                len(raw_biopac_triggers.intervals),
+                EXPECTED_INTERVAL_NR,
+            )
+        interval_pipeline_status.set(TrialIntervals, ProcessingStatus.ERROR)
+
+        corrected_raw_trigger_intervals_gaps_filled = get_biopac_trigger_intervals_pipeline(
+            raw_biopac_triggers
+        )
+
+        interval_qc_figure = plot_biopac_interval_qc(
+            raw_biodata_in["Trigger"],
+            raw_biopac_triggers,
+            corrected_raw_trigger_intervals_gaps_filled,
+        )
+
+        return (
+            corrected_raw_trigger_intervals_gaps_filled,
+            interval_qc_figure,
+            interval_pipeline_status,
+        )
+
+
 class CraneGetTrialIntervalStrategyStep:
     input_bio_data_type: type[RawBioData] = RawBioData
     input_behaviour_data_type: type[RawCraneBehaviourData] = RawCraneBehaviourData
+    fallback_strategy: "GetTrialIntervalsFallbackStartegy" = (
+        CraneGetTrialIntervalStrategyFallbackStep()
+    )
 
     def run(
         self, raw_biodata_in: RawBioData, raw_behaviour_data_in: RawCraneBehaviourData
@@ -46,27 +81,17 @@ class CraneGetTrialIntervalStrategyStep:
                 len(raw_biopac_triggers.intervals),
                 EXPECTED_INTERVAL_NR,
             )
-            interval_pipeline_status = interval_pipeline_status.merge(
-                PipelineStatus(intervals=ProcessingStatus.ERROR)
-            )
+            interval_pipeline_status.set(TrialIntervals, ProcessingStatus.ERROR)
 
-        corrected_raw_triggers, corrected_status = remove_biopac_known_false_triggers(
+        corrected_raw_trigger_intervals_gaps_filled = get_biopac_trigger_intervals_pipeline(
             raw_biopac_triggers
-        )
-        interval_pipeline_status = interval_pipeline_status.merge(
-            PipelineStatus(intervals=corrected_status)
         )
 
         raw_behav_trial_intervals = get_crane_trigger_behav_intervals(
             raw_behaviour_data_in.raw_behav_df
         )
 
-        corrected_raw_trigger_intervals_gaps_filled = corrected_raw_triggers.fill_in_gaps()
         behav_trial_intervals_gaps_filled = raw_behav_trial_intervals.fill_in_gaps()
-
-        corrected_raw_trigger_intervals_gaps_filled = remove_crane_delayed_start(
-            corrected_raw_trigger_intervals_gaps_filled
-        )
 
         aligned_behav_with_triggers, match_status = align_biopac_trigger_drift_from_behav_file(
             corrected_raw_trigger_intervals_gaps_filled, behav_trial_intervals_gaps_filled
@@ -81,18 +106,29 @@ class CraneGetTrialIntervalStrategyStep:
             aligned_behav_with_triggers,
             behav_trial_intervals_gaps_filled,
         )
-        # import matplotlib.pyplot as plt
-
-        # interval_qc_figure.set_dpi(100)
-        # plt.show()
 
         return (aligned_behav_with_triggers, interval_qc_figure, interval_pipeline_status)
+
+
+def get_biopac_trigger_intervals_pipeline(raw_biopac_triggers) -> TrialIntervals:
+
+    biopac_interval_pipeline_status = PipelineStatus()
+
+    corrected_raw_triggers, corrected_status = remove_biopac_known_false_triggers(
+        raw_biopac_triggers
+    )
+    biopac_interval_pipeline_status.set(TrialIntervals, corrected_status)
+    corrected_raw_trigger_intervals_gaps_filled = corrected_raw_triggers.fill_in_gaps()
+    corrected_raw_trigger_intervals_gaps_filled = remove_crane_delayed_start(
+        corrected_raw_trigger_intervals_gaps_filled
+    )
+
+    return corrected_raw_trigger_intervals_gaps_filled
 
 
 def get_crane_trigger_behav_intervals(
     validated_behav_df: pd.DataFrame,
 ) -> TrialIntervals:
-    # TODO: Needs to be generalized
     intervals_out = {}
 
     for _, row in validated_behav_df.iterrows():
@@ -123,7 +159,6 @@ def get_crane_predicted_trigger_intervals(
     """
     Uses a linear model to fit the trigger and behav intervals.
     """
-    # TODO Still very patchy and specific to the crane game
     base = getattr(sys, "_MEIPASS", ".")  # Is this frozen exe bin or running from source
     reference_path = os.path.join(base, "references", "matched_debug_df_testa.parquet")
     reference_df = pd.read_parquet(reference_path)

@@ -49,8 +49,7 @@ def main(input_folder: Path, output_folder: Path, verbose: bool, subject_id: str
         task = progress.add_task("Processing subjects", total=len(subject_mat_files))
 
         for biopac_mat_fn in subject_mat_files:
-            # TODO: fix str to path
-            subject_id = biopac.get_subject_id_from_mat(str(biopac_mat_fn))
+            subject_id = biopac.get_subject_id_from_mat(biopac_mat_fn)
 
             progress.update(
                 task,
@@ -62,7 +61,7 @@ def main(input_folder: Path, output_folder: Path, verbose: bool, subject_id: str
             logger.info("Trying to read file %s", biopac_mat_fn)
 
             try:
-                pipeline_output = run_crane_pipeline(subject_id, input_folder)
+                pipeline_output = run_crane_pipeline(subject_id, input_folder, output_folder)
                 participant_data_out = pipeline_output.subject_df_out
                 figures = pipeline_output.figure_data_out
 
