@@ -191,9 +191,11 @@ class TestCranePipeline(unittest.TestCase):
             EXAMPLE_CRANE_PARTICIPANT_CORRECT_ID,
             data_folder,
         )
+        # Order not NB
+        pipeline_status_str: str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
         pipeline_out.validate_participant_output()
         self.assertEqual(
-            pipeline_out.subject_df_out["Processing_Status"].iloc[0], all_ok_status_str
+            sorted(pipeline_status_str.split(" ")), sorted(all_ok_status_str.split(" "))
         )
 
     def test_crane_pipeline_labels_missing_physiology_correctly(self):
@@ -210,14 +212,16 @@ class TestCranePipeline(unittest.TestCase):
         self.assertEqual(
             pipeline_out.status.status[RawDebriefBehaviourData], ProcessingStatus.ERROR
         )
-        self.assertEqual(pipeline_out.subject_df_out["Processing_Status"].iloc[0], missing_debrief)
+        pipeline_status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
+        self.assertEqual(sorted(pipeline_status_str.split(" ")), sorted(missing_debrief.split(" ")))
 
     def test_crane_corrects_error_for_incorrect_interval_nr(self):
 
         pipeline_out = run_pipeline(EXAMPLE_INCORRECT_INTERVAL_NR_ID, data_folder)
         self.assertEqual(pipeline_out.status.status[TrialIntervals], ProcessingStatus.ERROR)
+        pipeline_status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
         self.assertEqual(
-            pipeline_out.subject_df_out["Processing_Status"].iloc[0], corrected_interval_str
+            sorted(pipeline_status_str.split(" ")), sorted(corrected_interval_str.split(" "))
         )
 
     def test_crane_spots_errors_when_behav_physiology_no_match(self):
@@ -226,23 +230,26 @@ class TestCranePipeline(unittest.TestCase):
     def test_crane_returns_ok_for_correct_interval_nr(self):
         pipeline_out = run_pipeline(EXAMPLE_CRANE_PARTICIPANT_CORRECT_ID, data_folder)
         self.assertEqual(pipeline_out.status.status[TrialIntervals], ProcessingStatus.OK)
+        pipeline_status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
         self.assertEqual(
-            pipeline_out.subject_df_out["Processing_Status"].iloc[0], all_ok_status_str
+            sorted(pipeline_status_str.split(" ")), sorted(all_ok_status_str.split(" "))
         )
 
     def test_crane_handles_long_delay_time(self):
         """Currently no error with excessive delays"""
         pipeline_out = run_pipeline(EXAMPLE_LONG_DELAY_ID, data_folder)
         self.assertEqual(pipeline_out.status.status[TrialIntervals], ProcessingStatus.OK)
+        pipeline_status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
         self.assertEqual(
-            pipeline_out.subject_df_out["Processing_Status"].iloc[0], all_ok_status_str
+            sorted(pipeline_status_str.split(" ")), sorted(all_ok_status_str.split(" "))
         )
 
     def test_crane_handles_very_short_triggers(self):
         pipeline_out = run_pipeline(EXAMPLE_INCORRECT_VERY_SHORT_TRIGGER_ID, data_folder)
         self.assertEqual(pipeline_out.status.status[TrialIntervals], ProcessingStatus.ERROR)
+        pipeline_status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
         self.assertEqual(
-            pipeline_out.subject_df_out["Processing_Status"].iloc[0], corrected_interval_str
+            sorted(pipeline_status_str.split(" ")), sorted(corrected_interval_str.split(" "))
         )
 
     def test_crane_handles_medium_short_triggers(self):
@@ -259,6 +266,7 @@ class TestCranePipeline(unittest.TestCase):
 
         pipeline_out = run_pipeline(EXAMPLE_INCORRECT_MEDIUM_SHORT_TRIGGER_ID, data_folder)
         self.assertEqual(pipeline_out.status.status[TrialIntervals], ProcessingStatus.ERROR)
+        pipeline_status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
         self.assertEqual(
-            pipeline_out.subject_df_out["Processing_Status"].iloc[0], corrected_interval_str
+            sorted(pipeline_status_str.split(" ")), sorted(corrected_interval_str.split(" "))
         )

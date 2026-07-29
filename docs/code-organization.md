@@ -205,6 +205,56 @@ Two automatic tools help keep the code consistent — config for both lives in
 - **[pyright](https://microsoft.github.io/pyright/)** — checks type hints
   for mistakes before you run the code.
 
+### Turning on Pylance type checking in VS Code
+
+Running `pyright` from the terminal checks the whole project at once, but
+you don't have to wait for that to see a problem — **Pylance**, the
+extension VS Code already uses for Python (autocomplete, go-to-definition,
+etc.), is built on the *same* `pyright` engine. It can underline type
+errors live, in the editor, as you type, before you ever run the file or
+the terminal check.
+
+This project's own `.vscode/settings.json` doesn't set a
+`python.analysis.typeCheckingMode` — it only configures the interpreter
+path, the integrated terminal, and `ruff` as the on-save formatter:
+
+```json
+{
+    "python.defaultInterpreterPath": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true
+    }
+}
+```
+
+So Pylance's live type checking currently runs at whichever level is the
+extension's own built-in default on your machine — nothing in this repo
+pins it. If you want it to check more (or less) as you type, that's a
+setting you'd add to `.vscode/settings.json` yourself, e.g.:
+
+```json
+{
+    "python.analysis.typeCheckingMode": "basic"
+}
+```
+
+Pyright's three levels, from lightest to strictest: `"off"` (no live type
+checking at all), `"basic"`, and `"strict"`. (Some pyright versions also
+expose an in-between `"standard"` level — check what your installed
+Pylance version offers via the setting's autocomplete in VS Code before
+picking one.)
+
+**Why this is worth turning on, not just noise to silence:** it catches
+real mistakes *before* you run anything — passing the wrong concrete type
+into a strategy step's `run()`, forgetting a required argument, or calling
+a function marked `@deprecated` (see [Golden Rules](golden-rules.md#mark-old-code-deprecated--dont-just-delete-it-or-leave-it-silently)
+for a real example of that last one). In a codebase built around typed
+`Protocol` contracts like this one ([Design Patterns](design-patterns.md#strategy)),
+that's exactly the class of bug type checking is designed to catch —
+finding out at edit time, not after a participant's data has half-run
+through the pipeline.
+
 !!! note "Going further"
     Our style follows [PEP 8](https://realpython.com/python-pep8/), Python's
     official style guide — Real Python's PEP 8 guide is a good, readable

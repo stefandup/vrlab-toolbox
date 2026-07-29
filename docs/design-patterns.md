@@ -11,7 +11,7 @@ Four" or "GoF" book.
 [Pipeline Concepts](pipeline-concepts.md) gave the short version with a toy
 example. This page goes deeper, with real code from this repository.
 
-## Template Method
+## Template Method Pattern
 
 **Idea:** fix the *order* steps happen in; let each individual step's
 behaviour vary.
@@ -94,6 +94,80 @@ class FindCraneParticipantFilesStrategyStep:
 
 `PipelineTemplate` calls `.run()` on whatever it's given here — it never
 needs to know this specific class exists.
+
+### Try it yourself: run a single strategy directly
+
+Because every strategy step is just an object with a `run()` method, you
+can call any one of them on its own — no `PipelineTemplate` involved —
+useful for exploring or debugging one stage in isolation. This is exactly
+how `tests/test_crane_pipeline.py` does it:
+
+```python
+from pathlib import Path
+from mooi_toolbox.processing.crane_pipeline import FindCraneParticipantFilesStrategyStep
+
+data_folder = Path("crane_data")
+participant_config = FindCraneParticipantFilesStrategyStep().run("00020", data_folder)
+```
+
+`participant_config` is a `ParticipantConfig` — the input contract from
+the [next section](#input-and-output-contracts) — ready to be passed into
+any other strategy step.
+
+### Required vs. optional data: splitting a Strategy Protocol in two
+
+`pipeline.py` actually defines *two* Protocols for processing behaviour
+data — `ProcessBehaviourDataStrategyStep` and
+`ProcessBehaviourDataWithIntervalsStrategyStep` — rather than one Protocol
+whose `run()` takes `trial_intervals_in: TrialIntervals | None`:
+
+```python
+class ProcessBehaviourDataStrategyStep(Protocol[BehaviourDataType]):
+    input_data_type: type[BehaviourDataType]
+
+    def run(
+        self, config_in: ParticipantConfig, raw_behaviour_data_in: BehaviourDataType
+    ) -> PipelineOutputData: ...
+
+
+class ProcessBehaviourDataWithIntervalsStrategyStep(Protocol[BehaviourDataType]):
+    input_data_type: type[BehaviourDataType]
+
+    def run(
+        self,
+        config_in: ParticipantConfig,
+        raw_behaviour_data_in: BehaviourDataType,
+        trial_intervals_in: TrialIntervals,
+    ) -> PipelineOutputData: ...
+```
+
+A single Protocol with an `Optional` parameter would work at runtime, but
+it pushes a `None`-check into every implementation that actually needs
+intervals, and lets a step that *requires* intervals be built and called
+without them — the mistake only surfaces when `run()` executes, not when
+the type checker looks at it.
+
+Splitting the Protocol instead makes "needs intervals" part of the type:
+
+- **`ProcessBehaviourDataStrategyStep`** — never touches trial intervals
+  (e.g. a step that summarises raw survey answers as a whole).
+- **`ProcessBehaviourDataWithIntervalsStrategyStep`** — takes a *required*
+  `trial_intervals_in: TrialIntervals` (e.g. a step that slices behaviour
+  data into per-trial windows). There is no valid way to call one of these
+  without real intervals, so nothing downstream has to defend against a
+  missing value.
+
+Restaurant analogy: a `PlateStarter` step that just plates a starter has
+no use for a table's seating time; a `ServeMainCourse` step that must be
+timed against the table being seated should require
+`seating_time: datetime`, not `datetime | None` with an "oh, it's `None`,
+skip" branch copy-pasted into every course that needs timing.
+
+!!! note "Open gap"
+    `SequentialBehaviourProcessingSteps.run()` currently only iterates
+    `self.steps`, not `self.steps_with_trial_intervals` — so right now
+    `ProcessBehaviourDataWithIntervalsStrategyStep` is defined but not yet
+    wired into the pipeline run loop.
 
 ## Composite: the `Sequential*Steps` classes
 
@@ -259,29 +333,11 @@ does, across participants). See
 [Getting Started](getting-started.md#what-you-get-out) for where that
 combined file actually comes from.
 
-## Try it yourself
+### Try it yourself: chain strategies through the contracts
 
-### Import one participant
-
-This is exactly how `tests/test_crane_pipeline.py` does it — call a
-strategy step's `run()` directly, no `PipelineTemplate` involved:
-
-```python
-from pathlib import Path
-from mooi_toolbox.processing.crane_pipeline import FindCraneParticipantFilesStrategyStep
-
-data_folder = Path("crane_data")
-participant_config = FindCraneParticipantFilesStrategyStep().run("00020", data_folder)
-```
-
-`participant_config` is a `ParticipantConfig` — the input contract above —
-ready to be passed into any other strategy step.
-
-### Run a single strategy directly
-
-Because every strategy step is just an object with a `run()` method, you
-can call any one of them on its own — useful for exploring or debugging one
-stage without running the whole pipeline:
+Each strategy step's output is the next one's input — that's the contract
+doing its job. Run three real strategies back to back, feeding one's output
+into the next, no `PipelineTemplate` involved:
 
 ```python
 from mooi_toolbox.processing.biopac import BiopacDataImportStartegy
@@ -296,49 +352,10 @@ trial_intervals, interval_figure, interval_status = (
 )
 ```
 
-### Sketch your own pipeline
-
-`crane_pipeline.py`'s `run_pipeline()` is the template to copy for a new
-experiment. The shape is always: build your `Sequential*Steps` containers
-out of your own strategy steps, hand them to `PipelineTemplate`, call
-`.run()`:
-
-```python
-from mooi_toolbox.processing import pipeline
-
-def run_pipeline(participant_id_in, data_folder_in, output_folder_in=None):
-    import_behav_steps = pipeline.SequentialBehaviourImportSteps(
-        steps=[MyImportBehaviourStep()]           # your own strategy step(s)
-    )
-    process_behav_steps = pipeline.SequentialBehaviourProcessingSteps(
-        steps=[MyProcessBehaviourStep()]
-    )
-    import_physiology_steps = pipeline.SequentialPhysiolgyImportSteps(
-        steps=[MyPhysiologyImportStep()]
-    )
-    process_physiology_steps = pipeline.SequentialPhysiologyProcessingSteps(
-        steps=[MyPhysiologyProcessStep()]
-    )
-
-    my_pipeline = pipeline.PipelineTemplate(
-        find_participant_strategy_step=MyFindParticipantFilesStep(),
-        sequential_physiology_import_steps=import_physiology_steps,
-        sequential_behaviour_data_import_steps=import_behav_steps,
-        get_intervals_strategy=MyGetTrialIntervalStep(),
-        sequential_behaviour_processing_steps=process_behav_steps,
-        sequential_physiology_processing_steps=process_physiology_steps,
-    )
-
-    participant_config, output_data = my_pipeline.run(
-        participant_id_in, data_folder_in, output_folder_in
-    )
-    return output_data
-```
-
-Everything in `My...Step()` above needs to satisfy the matching `Protocol`
-from the [Strategy](#strategy) section — have the right `run()` signature
-and return the right contract type — and nothing else. `PipelineTemplate`
-itself never needs to change.
+`raw_bio_data` and `raw_behav_data` are `RawBioData` / `RawBehaviourData` —
+the intermediate contract above — which is exactly why
+`CraneGetTrialIntervalStrategyStep` can accept them without knowing which
+concrete importer produced either one.
 
 ## Going further
 
@@ -362,6 +379,40 @@ itself never needs to change.
   to write `my_intervals.intervals.items()` to loop over one, rather than
   `for name, (start, end) in my_intervals:` directly. A real spot where
   that book's material on the Python data model would apply directly.
+
+## Write your own pipeline
+
+`crane_pipeline.py`'s `run_pipeline()` is the template to copy for a new
+experiment: build your `Sequential*Steps` containers out of your own
+strategy steps, hand them to `PipelineTemplate`, call `.run()`.
+
+```python
+from mooi_toolbox.processing import pipeline
+
+def run_pipeline(participant_id_in, data_folder_in, output_folder_in=None):
+    my_pipeline = pipeline.PipelineTemplate(
+        find_participant_strategy_step=MyFindParticipantFilesStep(),
+        sequential_physiology_import_steps=pipeline.SequentialPhysiolgyImportSteps(
+            steps=[MyPhysiologyImportStep()]
+        ),
+        sequential_behaviour_data_import_steps=pipeline.SequentialBehaviourImportSteps(
+            steps=[MyImportBehaviourStep()]
+        ),
+        get_intervals_strategy=MyGetTrialIntervalStep(),
+        sequential_behaviour_processing_steps=pipeline.SequentialBehaviourProcessingSteps(
+            steps=[MyProcessBehaviourStep()]
+        ),
+        sequential_physiology_processing_steps=pipeline.SequentialPhysiologyProcessingSteps(
+            steps=[MyPhysiologyProcessStep()]
+        ),
+    )
+    _, output_data = my_pipeline.run(participant_id_in, data_folder_in, output_folder_in)
+    return output_data
+```
+
+Every `My...Step()` above just needs to satisfy the matching
+[Strategy](#strategy) `Protocol` — right `run()` signature, right contract
+type in and out. `PipelineTemplate` itself never changes.
 
 ---
 

@@ -113,6 +113,17 @@ class ProcessBehaviourDataStrategyStep(Protocol[BehaviourDataType]):
     ) -> PipelineOutputData: ...
 
 
+class ProcessBehaviourDataWithIntervalsStrategyStep(Protocol[BehaviourDataType]):
+    input_data_type: type[BehaviourDataType]
+
+    def run(
+        self,
+        config_in: ParticipantConfig,
+        raw_behaviour_data_in: BehaviourDataType,
+        trial_intervals_in: TrialIntervals,
+    ) -> PipelineOutputData: ...
+
+
 class GetTrialIntervalsFallbackStartegy(Protocol):
     def run(self, raw_biodata_in: RawBioData) -> tuple[TrialIntervals, Figure, PipelineStatus]: ...
 
@@ -171,11 +182,15 @@ class SequentialBehaviourImportSteps:
 @dataclass
 class SequentialBehaviourProcessingSteps:
     steps: Sequence[ProcessBehaviourDataStrategyStep] = field(default_factory=list)
+    steps_with_trial_intervals: Sequence[ProcessBehaviourDataWithIntervalsStrategyStep] = field(
+        default_factory=list
+    )
 
     def run(
         self,
         config_in: ParticipantConfig,
         data_store_in: RawBehaviourDataStore,
+        trial_intervals_in: TrialIntervals | None,
     ) -> tuple[PipelineOutputData, PipelineStatus]:
         behavioural_output_data = PipelineOutputData(config_in.subject_id)
         pipeline_status = PipelineStatus()
@@ -197,6 +212,35 @@ class SequentialBehaviourProcessingSteps:
                     e,
                 )
                 pipeline_status.set(step.input_data_type, ProcessingStatus.ERROR)
+
+        if trial_intervals_in is not None:
+            for step_with_interval in self.steps_with_trial_intervals:
+                try:
+                    in_data_type = step_with_interval.input_data_type
+                    raw_behav_data = data_store_in.get(in_data_type)
+                    step_with_interval_output: PipelineOutputData = step_with_interval.run(
+                        config_in=config_in,
+                        raw_behaviour_data_in=raw_behav_data,
+                        trial_intervals_in=trial_intervals_in,
+                    )
+                    behavioural_output_data = behavioural_output_data.merge(
+                        step_with_interval_output
+                    )
+                    pipeline_status.set(step_with_interval.input_data_type, ProcessingStatus.OK)
+                except (ValueError, FileNotFoundError) as e:
+                    logger.warning(
+                        "Error processing %s for participant %s. %s",
+                        step_with_interval.input_data_type,
+                        config_in.subject_id,
+                        e,
+                    )
+                    pipeline_status.set(step_with_interval.input_data_type, ProcessingStatus.ERROR)
+        elif self.steps_with_trial_intervals:
+            logger.warning(
+                f"No intervals for behav pipeline for {config_in.subject_id}. Skipping. "
+            )
+            for step_with_interval in self.steps_with_trial_intervals:
+                pipeline_status.set(step_with_interval.input_data_type, ProcessingStatus.ERROR)
 
         return (behavioural_output_data, pipeline_status)
 
@@ -306,12 +350,23 @@ class PipelineTemplate:
         trial_intervals: TrialIntervals | None = None
         interval_qc_figure: Figure | None = None
 
+        # TODO: can this be run inside the log handler loop?
+
         participant_config = self.find_participant_strategy_step.run(
             participant_id_in, data_folder_in, output_folder_in
         )
         with participant_log_handler(participant_config):
             behaviour_pipeline_data = PipelineOutputData(participant_config.subject_id)
             physiology_pipeline_data = PipelineOutputData(participant_config.subject_id)
+
+            # Import Data
+
+            # Import Physiology
+
+            self.physiolgy_raw_data_store, physiology_data_status = (
+                self.sequential_physiology_import_steps.run(participant_config)
+            )
+            pipeline_status = pipeline_status.merge(physiology_data_status)
 
             # Import behaviour data
 
@@ -320,20 +375,7 @@ class PipelineTemplate:
             )
             pipeline_status = pipeline_status.merge(behav_import_status)
 
-            # Process behaviour
-
-            behaviour_pipeline_data, behav_processing_status = (
-                self.sequential_behaviour_processing_steps.run(
-                    participant_config, self.behaviour_raw_data_store
-                )
-            )
-            pipeline_status = pipeline_status.merge(behav_processing_status)
-            # Import Physiology
-
-            self.physiolgy_raw_data_store, physiology_data_status = (
-                self.sequential_physiology_import_steps.run(participant_config)
-            )
-            pipeline_status = pipeline_status.merge(physiology_data_status)
+            # Process Data
 
             # Process trial intervals
 
@@ -380,7 +422,16 @@ class PipelineTemplate:
                         )
                         pipeline_status = pipeline_status.merge(trial_interval_pipeline_status)
 
-            # Run Physiology
+            # Process behaviour
+
+            behaviour_pipeline_data, behav_processing_status = (
+                self.sequential_behaviour_processing_steps.run(
+                    participant_config, self.behaviour_raw_data_store, trial_intervals
+                )
+            )
+            pipeline_status = pipeline_status.merge(behav_processing_status)
+
+            # Process Physiology
 
             if trial_intervals is not None:
                 physiology_pipeline_data, physiology_processing_status = (
