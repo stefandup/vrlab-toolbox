@@ -138,6 +138,11 @@ class GetTrialIntervalsStartegy(Protocol[PhysiologyDataType, BehaviourDataType])
     ) -> tuple[TrialIntervals, Figure, PipelineStatus]: ...
 
 
+# TODO: fill out for LSL
+class GetTrialIntervalsFromBehaviourStrategy:
+    def run(self): ...
+
+
 class ProcessPhysiologyFallbackStrategy(Protocol[PhysiologyInputDataType]):
     def run(
         self, config_in: ParticipantConfig, biodata_in: PhysiologyInputDataType

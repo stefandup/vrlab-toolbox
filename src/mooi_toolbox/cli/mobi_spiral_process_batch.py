@@ -1,16 +1,16 @@
-import click
 import logging
 import os
 from pathlib import Path
 
+import click
 import pandas as pd
 
 from mooi_toolbox import mobi_logging
-from mooi_toolbox.processing import eda
-from mooi_toolbox.processing.eeg import run_spiral_eeg_processing, EEGProcessingError
-from mooi_toolbox.processing.plot_utils import save_plot
-from mooi_toolbox.read_mobi_xdf import xdf_io
 from mooi_toolbox.cli.check_mobi_xdf import check_mobi_xdf as get_and_check_xdf
+from mooi_toolbox.processing import eda
+from mooi_toolbox.processing.eeg import EEGProcessingError, run_spiral_eeg_processing
+from mooi_toolbox.processing.plot_utils import save_plot
+from mooi_toolbox.read_mobi_xdf import lsl
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +159,7 @@ def find_best_xdf_files(root: Path, verbose: bool = False) -> list[Path]:
     best_files = {}
 
     for xdf_fn in root.rglob("*.xdf"):
-        subject_id = xdf_io.get_subject_id(xdf_fn)
+        subject_id = lsl.get_subject_id(xdf_fn)
 
         try:
             streams = get_and_check_xdf(xdf_fn, verbose=False)
@@ -207,9 +207,7 @@ def process_eda_stream(
     eda_raw_timestamped = stream_to_dataframe(stream)
 
     if eda_column != "EDA":
-        eda_raw_timestamped = eda_raw_timestamped.rename(
-            columns={eda_column: "EDA"}
-        )
+        eda_raw_timestamped = eda_raw_timestamped.rename(columns={eda_column: "EDA"})
 
     sampling_rate = get_effective_srate(stream)
 
@@ -285,7 +283,7 @@ def main(input_folder: str, output_folder: str, verbose: bool):
         return
 
     for xdf_fn in best_xdf_files:
-        subject_id = xdf_io.get_subject_id(xdf_fn)
+        subject_id = lsl.get_subject_id(xdf_fn)
 
         mobi_logging.log_section(logger, f"Subject {subject_id}")
 

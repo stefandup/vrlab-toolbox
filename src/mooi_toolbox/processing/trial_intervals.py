@@ -8,8 +8,9 @@ import pandas as pd
 from matplotlib.figure import Figure
 
 from mooi_toolbox import config as cfg
+from mooi_toolbox.processing.input_data import PhysiologyFileFormat
 from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
-from mooi_toolbox.read_mobi_xdf import xdf_io
+from mooi_toolbox.read_mobi_xdf import lsl
 
 logger = logging.getLogger(__name__)
 UNREAL_START_DELAY_SECONDS = 5
@@ -29,6 +30,7 @@ class TrialIntervals:
     """
 
     intervals: dict[str, tuple[float, float]] = field(default_factory=dict)
+    physiology_file_format: PhysiologyFileFormat | None = None
 
     def __post_init__(self):
         self.sort()
@@ -55,7 +57,9 @@ class TrialIntervals:
                 gap_filled_intervals.update({f"ITI_{counter}": (prev_end, next_start)})
                 counter = counter + 1
 
-        return TrialIntervals(intervals=gap_filled_intervals)
+        return TrialIntervals(
+            intervals=gap_filled_intervals, physiology_file_format=self.physiology_file_format
+        )
 
     def relabel_with(self, other) -> "TrialIntervals":
         relabelled_trial_intervals = self.intervals.copy()
@@ -75,7 +79,9 @@ class TrialIntervals:
                 self_item_key
             )
 
-        relabelled_intervals_out = TrialIntervals(intervals=relabelled_trial_intervals)
+        relabelled_intervals_out = TrialIntervals(
+            intervals=relabelled_trial_intervals, physiology_file_format=self.physiology_file_format
+        )
 
         return relabelled_intervals_out
 
@@ -116,13 +122,16 @@ class TrialIntervals:
 
     @classmethod
     def from_raw_interval_pairs(
-        cls, trial_interval_pairs: list[tuple[float, float]]
+        cls,
+        trial_interval_pairs: list[tuple[float, float]],
+        physiology_file_format_in: PhysiologyFileFormat | None = None,
     ) -> "TrialIntervals":
         return cls(
             intervals={
                 f"TP{i}": (float(start), float(end))
                 for i, (start, end) in enumerate(trial_interval_pairs)
-            }
+            },
+            physiology_file_format=physiology_file_format_in,
         )
 
     def __len__(self):
@@ -232,7 +241,7 @@ def slice_data_frame(
     df_dict_out = {}
 
     for key, start_end in trial_intervals.items():
-        df_dict_out.update({f"{key}": xdf_io.cut_df_per_interval(start_end, timestamped_df_in)})
+        df_dict_out.update({f"{key}": lsl.cut_df_per_interval(start_end, timestamped_df_in)})
 
     return df_dict_out
 
@@ -427,7 +436,9 @@ def get_raw_biopac_trigger_intervals(
         )
     )
 
-    trigger_intervals_out = TrialIntervals.from_raw_interval_pairs(interval_pairs)
+    trigger_intervals_out = TrialIntervals.from_raw_interval_pairs(
+        interval_pairs, physiology_file_format_in=PhysiologyFileFormat.BIOPAC
+    )
 
     return trigger_intervals_out
 
@@ -485,7 +496,7 @@ def remove_biopac_known_false_triggers(
         valid_trigger_interval_pairs.append((start_time, end_time))
 
     valid_trigger_interval_pairs = TrialIntervals.from_raw_interval_pairs(
-        valid_trigger_interval_pairs
+        valid_trigger_interval_pairs, physiology_file_format_in=PhysiologyFileFormat.BIOPAC
     )
 
     return (valid_trigger_interval_pairs, status_out)
