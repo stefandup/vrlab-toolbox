@@ -7,9 +7,9 @@ import pandas as pd
 
 from mooi_toolbox import mobi_logging
 from mooi_toolbox.cli.check_mobi_xdf import check_mobi_xdf as get_and_check_xdf
+from mooi_toolbox.processing import lsl
 from mooi_toolbox.processing.foh_pipeline import run_lsl_pipeline as run_lsl_foh_pipeline
 from mooi_toolbox.processing.plot_utils import save_plot
-from mooi_toolbox.read_mobi_xdf import xdf_io
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ def main(input_folder, output_folder, verbose):
     out_file_parts = []
 
     for xdf_fn in root.rglob("*.xdf"):
-        subject_id = xdf_io.get_subject_id(xdf_fn)
+        subject_id = lsl.get_subject_id(xdf_fn)
         # hier updated
         try:
             streams = get_and_check_xdf(xdf_fn, verbose=False)
@@ -64,11 +64,11 @@ def main(input_folder, output_folder, verbose):
         mobi_logging.log_section(logger, f"Subject {subject_id}")
         try:
             participant_data_out, fig = run_lsl_foh_pipeline(xdf_fn, verbose, show_plots=False)
-
-            try:
-                save_plot(fig, output_folder, subject_id, f"Subject {subject_id} QC")
-            except AttributeError as e:
-                logger.info("Error saving plot.%s", e)
+            if fig is not None:
+                try:
+                    save_plot(fig, output_folder, subject_id, f"Subject {subject_id} QC")
+                except AttributeError as e:
+                    logger.info("Error saving plot.%s", e)
 
             if participant_data_out.empty:
                 logger.warning("No participant output for subject %s", subject_id)

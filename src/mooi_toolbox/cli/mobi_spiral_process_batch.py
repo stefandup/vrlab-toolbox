@@ -7,10 +7,9 @@ import pandas as pd
 
 from mooi_toolbox import mobi_logging
 from mooi_toolbox.cli.check_mobi_xdf import check_mobi_xdf as get_and_check_xdf
-from mooi_toolbox.processing import eda
+from mooi_toolbox.processing import eda, lsl
 from mooi_toolbox.processing.eeg import EEGProcessingError, run_spiral_eeg_processing
 from mooi_toolbox.processing.plot_utils import save_plot
-from mooi_toolbox.read_mobi_xdf import lsl
 
 logger = logging.getLogger(__name__)
 
@@ -202,7 +201,7 @@ def process_eda_stream(
     stream,
     eda_column: str,
     subject_id: str,
-    output_folder: str,
+    output_folder: Path,
 ) -> pd.DataFrame:
     eda_raw_timestamped = stream_to_dataframe(stream)
 
@@ -259,7 +258,7 @@ def process_eda_stream(
     required=True,
 )
 @click.option("--verbose", is_flag=True, help="Give verbose output")
-def main(input_folder: str, output_folder: str, verbose: bool):
+def main(input_folder: str, output_folder: Path, verbose: bool):
     """CLI tool for batch processing spiral task EEG and EDA data."""
 
     logger.info(
@@ -319,7 +318,7 @@ def main(input_folder: str, output_folder: str, verbose: bool):
 
         participant_parts = []
 
-        if eda_stream is not None:
+        if eda_stream is not None and eda_column is not None:
             try:
                 eda_data_out = process_eda_stream(
                     stream=eda_stream,

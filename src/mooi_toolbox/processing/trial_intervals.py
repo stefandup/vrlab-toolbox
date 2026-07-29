@@ -8,9 +8,9 @@ import pandas as pd
 from matplotlib.figure import Figure
 
 from mooi_toolbox import config as cfg
+from mooi_toolbox.processing import lsl
 from mooi_toolbox.processing.input_data import PhysiologyFileFormat
 from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
-from mooi_toolbox.read_mobi_xdf import lsl
 
 logger = logging.getLogger(__name__)
 UNREAL_START_DELAY_SECONDS = 5

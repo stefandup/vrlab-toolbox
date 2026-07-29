@@ -3,10 +3,6 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
-import pyxdf
-
-from mooi_toolbox.read_mobi_xdf.lsl import all_streams_empty, gather_xdf_data_streams
-
 
 # TODO: fix consistency here, i.e. BIOPAC vs LSL better
 class PhysiologyFileFormat(Enum):
@@ -33,56 +29,6 @@ class ParticipantConfig:
     verbose: bool
     show_plots: bool
     # _expected_date_format = "%Y%m%d%H%M"
-
-    @classmethod
-    def from_lsl_data(
-        cls,
-        id_in: str,
-        data_folder_in: Path,
-        lsl_streams_to_get: list[str],
-        physiology_data_type_in: PhysiologyFileFormat,
-        behav_folder_in: Path | None = None,
-        output_folder_in: Path | None = None,
-        log_folder_in: Path | None = None,
-        verbose: bool = False,
-        show_plots: bool = False,
-    ):
-
-        if behav_folder_in is None:
-            behav_folder_in = data_folder_in
-
-        if output_folder_in is None:
-            output_folder_in = data_folder_in / "output"
-
-        output_folder_in.mkdir(parents=True, exist_ok=True)
-
-        if log_folder_in is None:
-            log_folder_in = output_folder_in / "logs"
-
-        log_folder_in.mkdir(parents=True, exist_ok=True)
-
-        for xdf_path in data_folder_in.rglob(f"*{id_in}*{physiology_data_type_in}"):
-            streams: list[dict]
-            header: dict[str, dict]
-            streams, header = pyxdf.load_xdf(xdf_path)
-
-            lsl_streams_dfs = gather_xdf_data_streams(streams, lsl_streams_to_get)
-            if all_streams_empty(lsl_streams_dfs):
-                logger.info(f"All streams empty for path {xdf_path}. Skipping...")
-                continue
-
-        return cls(
-            subject_id=id_in,
-            physiology_fn=str(physiology_fn) if physiology_fn else "",
-            physiology_data_type=physiology_data_type_in,
-            data_folder=data_folder_in,
-            behav_folder=behav_folder_in,
-            _behaviour_file_names=behaviour_fn_dict,
-            log_folder=log_folder_in,
-            output_folder=output_folder_in,
-            verbose=verbose,
-            show_plots=show_plots,
-        )
 
     @classmethod
     def from_physiology_data(

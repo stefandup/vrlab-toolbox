@@ -1,11 +1,98 @@
 import logging
 import os
+from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pyxdf
+
+from mooi_toolbox.processing.input_data import ParticipantConfig, PhysiologyFileFormat
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class LslParticipantConfig(ParticipantConfig):
+    stream_to_run: dict
+    missing_streams: list[str]
+
+    @classmethod
+    def from_lsl_data(
+        cls,
+        id_in: str,
+        data_folder_in: Path,
+        lsl_streams_to_get: list[str],
+        physiology_data_type_in: PhysiologyFileFormat,
+        behav_folder_in: Path | None = None,
+        output_folder_in: Path | None = None,
+        log_folder_in: Path | None = None,
+        verbose: bool = False,
+        show_plots: bool = False,
+    ):
+
+        if behav_folder_in is None:
+            behav_folder_in = data_folder_in
+
+        if output_folder_in is None:
+            output_folder_in = data_folder_in / "output"
+
+        output_folder_in.mkdir(parents=True, exist_ok=True)
+
+        if log_folder_in is None:
+            log_folder_in = output_folder_in / "logs"
+
+        log_folder_in.mkdir(parents=True, exist_ok=True)
+        stream_sets_to_run = []
+        for xdf_path in data_folder_in.rglob(f"*{id_in}*{physiology_data_type_in.value}"):
+            print(f"Found {xdf_path}")
+            streams: list[dict]
+
+            streams, _ = pyxdf.load_xdf(xdf_path)
+
+            selected_lsl_streams_dfs = gather_xdf_data_streams(streams, lsl_streams_to_get)
+            file_to_run_key = str(xdf_path.name).split("_")[-1]
+
+            if file_to_run_key != "eeg.xdf":
+                logger.warning(
+                    f"{xdf_path} seems to be an old run as it ends on {file_to_run_key}.Skipping..."
+                )
+                continue
+
+            if all_streams_empty(selected_lsl_streams_dfs):
+                logger.warning(f"All streams empty for path {xdf_path}. Skipping...")
+                continue
+            print(f"Storing {xdf_path}")
+
+            stream_sets_to_run.append(selected_lsl_streams_dfs)
+
+        if len(stream_sets_to_run) > 0:
+            logger.warning(
+                f"Multiple sets for subject {id_in}. Chosing last one: {stream_sets_to_run[-1]}"
+            )
+
+        streams_out = stream_sets_to_run[-1]
+        missing_streams_out = lsl_streams_to_get - streams_out
+
+        if missing_streams_out:
+            logger.warning(f"Missing streams {missing_streams_out} for {id_in}")
+
+        # TODO: Make Crane config as well to avoid all these empties
+        return cls(
+            subject_id=id_in,
+            physiology_fn="",
+            physiology_data_type=physiology_data_type_in,
+            data_folder=data_folder_in,
+            behav_folder=behav_folder_in,
+            _behaviour_file_names=dict(),
+            log_folder=log_folder_in,
+            output_folder=output_folder_in,
+            verbose=verbose,
+            show_plots=show_plots,
+            stream_to_run=streams_out,
+            missing_streams=missing_streams_out,
+        )
 
 
 class xdfIOException(Exception):
@@ -108,7 +195,7 @@ def get_start_time(header):
     return datetime.fromisoformat(header["info"]["datetime"][0])
 
 
-def get_subject_id(xdf_fn: str) -> str:
+def get_subject_id(xdf_fn: Path) -> str:
     return os.path.basename(xdf_fn).split("_")[0]
 
 

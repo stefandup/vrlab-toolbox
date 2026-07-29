@@ -1,11 +1,12 @@
 import logging
+from pathlib import Path
 
 import pandas as pd
 from matplotlib.figure import Figure
 
 from mooi_toolbox import config as cfg
-from mooi_toolbox import read_mobi_xdf as xdf
 from mooi_toolbox.cli.check_mobi_xdf import check_mobi_xdf as get_and_check_xdf
+from mooi_toolbox.processing import lsl as xdf
 
 from . import ecg, eda
 from . import foh_target_behaviour as tp
@@ -19,7 +20,7 @@ def has_missing_requirements(missing: set, required: list[str]) -> bool:
 
 
 def run_lsl_pipeline(
-    xdf_fn: str, verbose: bool, show_plots: bool
+    xdf_fn: Path, verbose: bool, show_plots: bool
 ) -> tuple[pd.DataFrame, Figure | None]:
     """Run FOH pipeline for LSL EDA, ECG and Behavioural (i.e. Target) data. Tries to be robust wrt missing data."""
     if not xdf_fn:

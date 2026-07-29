@@ -5,9 +5,9 @@ from pathlib import Path
 import click
 
 from mooi_toolbox import mobi_logging
+from mooi_toolbox.processing import lsl
 from mooi_toolbox.processing.foh_pipeline import run_lsl_pipeline as run_foh_pipeline
 from mooi_toolbox.processing.plot_utils import save_plot
-from mooi_toolbox.read_mobi_xdf import lsl
 
 logger = logging.getLogger(__name__)
 
