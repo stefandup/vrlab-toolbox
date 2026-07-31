@@ -260,6 +260,11 @@ through the pipeline.
     official style guide — Real Python's PEP 8 guide is a good, readable
     walkthrough of the reasoning behind it.
 
+See the [AI Style Guide](ai-style-guide.md) for this same stack — `click`,
+`pandera`, `dataclasses`/`Protocol`, `pytest`, `rich` — written up as an
+explicit reference for AI coding assistants, so a new tool or pattern
+doesn't get introduced alongside what's already here.
+
 ---
 
 **Next: [Golden Rules](golden-rules.md)** — a handful of coding rules of

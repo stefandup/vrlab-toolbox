@@ -39,7 +39,7 @@ Running the pipeline and understanding its output — no code changes needed.
 
 Changing the code and sharing that change back.
 
-- **AI use guidelines:** [AI Use Guidelines](ai-use.md)
+- **AI use guidelines:** [AI Use Guidelines](ai-use.md), [AI Style Guide](ai-style-guide.md)
 - **Understand the code:** [Code Organization](code-organization.md), [Golden Rules](golden-rules.md)
 - **Understand the architecture:** [Pipeline Concepts](pipeline-concepts.md), [Design Patterns](design-patterns.md)
 - **GitHub guidelines:** [For Contributors](contributing.md)

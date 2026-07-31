@@ -34,3 +34,4 @@ nav:
       - Milestones: crane_milestones.md
       - Clock Drift Notes: clock_drift_error.md
       - Interactive QC Plan: crane_interactive_qc_plan.md
+  - AI Style Guide: ai-style-guide.md

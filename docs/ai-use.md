@@ -91,7 +91,10 @@ why the guardrail matters more here, not less:
 
 "Unless absolutely needed" leaves room for real exceptions — but the bar
 stays the same either way: you understand every line before it lands, and
-you could have written it yourself given more time. This is for things
+you could have written it yourself given more time. Even then, keep it on
+this project's existing rails — see the [AI Style Guide](ai-style-guide.md)
+for the established stack, patterns, and what *not* to introduce. This is
+for things
 like repetitive boilerplate with no learning value, not for the actual
 logic of a pipeline, a schema, or a design pattern — that's the part this
 project exists to teach, and where writing it yourself matters most.
@@ -105,6 +108,14 @@ assistant reads a different config file (e.g. `CLAUDE.md`, `.cursorrules`,
 `.github/copilot-instructions.md`), it's worth setting up something
 similar for yourself, with the same shape: explain first, guide instead of
 solve, one step, consent before any edit.
+
+That covers *behaviour* — how an assistant should interact with you. Pair
+it with the [AI Style Guide](ai-style-guide.md), which covers *output* —
+the established stack, patterns, and style an assistant should stick to
+on the rare occasion code does get proposed. Point your assistant at both:
+`AGENTS.md` (or your tool's equivalent) for how to behave, the
+[AI Style Guide](ai-style-guide.md) for what "correct" looks like here if
+it ever writes anything.
 
 ---
 

@@ -4,6 +4,117 @@ A handful of rules of thumb this codebase actually follows — not abstract
 advice, but things you can point at in the code and in this project's own
 history. Worth knowing before you write new code here.
 
+If you're using an AI assistant, also see the [AI Style Guide](ai-style-guide.md) —
+it turns these rules into a concrete established-stack/avoid-list an
+assistant can be pointed at directly.
+
+## Write Pythonic code — don't fight the language
+
+**Pythonic** means writing code the way Python itself is designed to be
+written — using the language's own idioms and standard library, instead
+of patterns carried over wholesale from another language you happen to
+know better (C-style index loops, Java-style getters/setters). Python has
+a short, semi-official statement of this philosophy — run `import this`
+in any Python shell to see it ("The Zen of Python"). A few lines from it
+that matter most here: *"Readability counts."* *"Explicit is better than
+implicit."* *"There should be one — and preferably only one — obvious way
+to do it."*
+
+Concrete examples, contrasted with the non-Pythonic version scientists
+coming from another language often reach for first:
+
+```python
+# Not Pythonic — manual index loop, a C/Java habit
+squared_totals = []
+for i in range(len(orders)):
+    squared_totals.append(orders[i]["total"] ** 2)
+
+# Pythonic — list comprehension
+squared_totals = [order["total"] ** 2 for order in orders]
+```
+
+```python
+# Not Pythonic — manual index tracking
+i = 0
+for order in orders:
+    print(i, order)
+    i += 1
+
+# Pythonic — enumerate()
+for i, order in enumerate(orders):
+    print(i, order)
+```
+
+```python
+# Not Pythonic — length check standing in for truthiness
+if len(kitchen_queue) > 0:
+    ...
+
+# Pythonic — empty containers are already falsy
+if kitchen_queue:
+    ...
+```
+
+```python
+# Not Pythonic — manual string building
+message = "Order " + str(order_id) + " is " + status
+
+# Pythonic — f-string
+message = f"Order {order_id} is {status}"
+```
+
+This project's own [EAFP rule](#ask-forgiveness-not-permission-eafp)
+below is itself a Pythonic-vs-not example, not a separate idea — `try`/
+`except` over manual precondition checks is this same principle applied
+to error handling.
+
+### Why this matters *more*, not less, for non-programmers
+
+It's tempting to assume idiomatic Python is a "once you already know
+Python" nicety, and that someone new to coding is better off writing
+whatever gets the job done, however verbose. We think the opposite:
+
+- **Every beginner-facing Python resource teaches the idiomatic way.**
+  Tutorials, official docs, and Stack Overflow answers all model list
+  comprehensions, `with` blocks, f-strings, and so on. Code that goes
+  against the grain cuts you off from being able to look up your way
+  through a problem — the answer you find won't look like the code in
+  front of you.
+- **Non-Pythonic code carried over from another language brings that
+  language's bugs with it.** Manual index loops are exactly where
+  off-by-one errors live; `if len(x) > 0` and `if x` quietly diverge the
+  moment `x` turns out to be `None` instead of just empty.
+- **It's what the rest of this codebase already looks like.** Reading
+  Pythonic code elsewhere in this project and then writing non-Pythonic
+  code yourself doubles the number of styles you have to hold in your
+  head at once — code that reads like what you write is part of what
+  makes a codebase learnable in the first place.
+
+### Prefer boring, stock-standard Python
+
+Related but distinct: even within idiomatic Python, prefer the plain,
+well-known feature over the clever or exotic one. Standard library over a
+dependency that reinvents it; a straightforward function over a
+metaclass or decorator trick doing the same job less legibly;
+`pathlib.Path` over hand-rolled string path-joining.
+
+Reasons this earns its place as a rule, not just a stylistic preference:
+
+- **Boring code fails predictably.** When something breaks in a script
+  built from stock `for` loops and `if` statements, the error is usually
+  exactly where it looks like it is. Clever code — deeply nested
+  comprehensions, `__getattr__` magic, monkey-patching — can make the
+  actual failure point invisible.
+- **Debuggable by more people.** Someone a few months into Python can
+  step through boring code and understand every line. That's not true of
+  code leaning on rarely-used corners of the language — which, in a lab
+  where people rotate through every few years, is exactly the code most
+  likely to get quietly abandoned rather than fixed.
+- **It ages well.** Flashy patterns tend to be trend-driven; basic
+  control flow and the standard library have stayed the same for two
+  decades and will likely outlast whichever clever technique looked good
+  this year.
+
 ## Ask forgiveness, not permission (EAFP)
 
 Python has a strong, named idiom for how to handle things that might go

@@ -9,7 +9,10 @@ Ralph Johnson & John Vlissides (1994) — often just called "the Gang of
 Four" or "GoF" book.
 
 [Pipeline Concepts](pipeline-concepts.md) gave the short version with a toy
-example. This page goes deeper, with real code from this repository.
+example. This page goes deeper, with real code from this repository. The
+[AI Style Guide](ai-style-guide.md) lists these same patterns — Strategy
+contracts, Pandera boundary validation — as the ones to reuse rather than
+replace with something new.
 
 ## Template Method Pattern
 
