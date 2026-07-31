@@ -8,7 +8,7 @@ import pandera.pandas as pa
 from mooi_toolbox.processing import crane_behaviour as crane_behaviour
 from mooi_toolbox.processing import crane_debrief_behaviour as debrief
 from mooi_toolbox.processing import pipeline
-from mooi_toolbox.processing.biopac import BiopacDataImportStartegy
+from mooi_toolbox.processing.biopac import BiopacPhysiologyDataImportStartegy
 from mooi_toolbox.processing.crane_behaviour import (
     ImportCraneBehaviourDataStrategyStep,
     ProcessCraneBehaviourDataStrategyStep,
@@ -93,7 +93,7 @@ def build_crane_participant_output_schema() -> pa.DataFrameSchema:
 
 
 class FindCraneParticipantFilesStrategyStep:
-    physiology_data_type = BiopacDataImportStartegy.input_data_file_format
+    physiology_data_type = BiopacPhysiologyDataImportStartegy.input_data_file_format
     behaviour_data_types = [
         ProcessCraneBehaviourDataStrategyStep.input_data_type,
         ProcessCraneDebriefBehaviourDataStrategyStep.input_data_type,
@@ -132,7 +132,7 @@ def run_pipeline(
         ]
     )
     import_physiology_steps = pipeline.SequentialPhysiolgyImportSteps(
-        steps=[BiopacDataImportStartegy()]
+        steps=[BiopacPhysiologyDataImportStartegy()]
     )
     process_physiology_steps = pipeline.SequentialPhysiologyProcessingSteps(
         steps=[ProcessEdaPhysiologyDataStrategyStep()]

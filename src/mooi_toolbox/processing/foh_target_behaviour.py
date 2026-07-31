@@ -13,7 +13,7 @@ class TPProcessingError(Exception):
     """Raised when Target processing fails."""
 
 
-class FohTargetBehaviour(RawBehaviourData):
+class FohTargetBehaviourData(RawBehaviourData):
     filename_glob = "xdf"
 
 

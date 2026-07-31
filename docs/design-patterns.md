@@ -275,6 +275,31 @@ schemas you'll run into: `build_base_pipeline_output_schema` (below),
 `build_crane_participant_output_schema` (`crane_pipeline.py`, the full
 Crane output row), and `build_eda_physiology_output_schema` (`eda.py`).
 
+**Why bother with this, in plain terms:**
+
+1. **Clarity.** Everyone working on a step — now or in six months — can
+   look at a schema and know exactly what data it's supposed to hold,
+   instead of guessing from example files.
+2. **The pipeline works, and fails loudly when it shouldn't.** Steps can
+   be swapped and chained (see [Try it yourself](#try-it-yourself-chain-strategies-through-the-contracts)
+   below) *because* they all agree on the same shape. If a step ever
+   breaks that agreement, Pandera raises immediately, with a specific
+   error, instead of the pipeline quietly producing something wrong.
+3. **Downstream software cares about types.** SPSS, Stata, and (later) R
+   are strict about column types on import. Catching a type problem here,
+   before export, means the export step just works instead of failing —
+   or worse, silently mis-typing a column — on the SPSS side.
+4. **Safety net for data that's technically valid but still wrong.**
+   Right column, right type, still garbled — e.g. a timestamp column
+   that's the right dtype but all zeros, or a value pasted into the wrong
+   row. A `Check` in a Pandera schema can catch this kind of thing too
+   (not just "is this a float column", but "are these floats within a
+   sane range"), so bad-but-well-typed data doesn't sail through
+   unnoticed.
+5. **Faster debugging.** Because validation happens at the boundary where
+   data is produced, the error points at the step that made the bad data
+   — not the step three calls later that happened to trip over it.
+
 `PipelineOutputData` carries the matching *output* contract — always a
 one-row `subject_df_out` DataFrame, a `status` (`PipelineStatus`), and any
 QC `figure_data_out`:

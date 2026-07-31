@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pyxdf
 
+from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.input_data import ParticipantConfig, PhysiologyFileFormat
 
 logger = logging.getLogger(__name__)
@@ -15,8 +16,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class LslParticipantConfig(ParticipantConfig):
-    stream_to_run: dict
-    missing_streams: list[str]
+    streams_to_run: dict[str, pd.DataFrame]
+    missing_streams: set[str]
 
     @classmethod
     def from_lsl_data(
@@ -44,7 +45,7 @@ class LslParticipantConfig(ParticipantConfig):
             log_folder_in = output_folder_in / "logs"
 
         log_folder_in.mkdir(parents=True, exist_ok=True)
-        stream_sets_to_run = []
+        stream_sets_to_run: list[dict[str, pd.DataFrame]] = []
         for xdf_path in data_folder_in.rglob(f"*{id_in}*{physiology_data_type_in.value}"):
             print(f"Found {xdf_path}")
             streams: list[dict]
@@ -72,8 +73,8 @@ class LslParticipantConfig(ParticipantConfig):
                 f"Multiple sets for subject {id_in}. Chosing last one: {stream_sets_to_run[-1]}"
             )
 
-        streams_out = stream_sets_to_run[-1]
-        missing_streams_out = lsl_streams_to_get - streams_out
+        streams_out: dict[str, pd.DataFrame] = stream_sets_to_run[-1]
+        missing_streams_out = set(lsl_streams_to_get) - set(streams_out.keys())
 
         if missing_streams_out:
             logger.warning(f"Missing streams {missing_streams_out} for {id_in}")
@@ -90,13 +91,29 @@ class LslParticipantConfig(ParticipantConfig):
             output_folder=output_folder_in,
             verbose=verbose,
             show_plots=show_plots,
-            stream_to_run=streams_out,
+            streams_to_run=streams_out,
             missing_streams=missing_streams_out,
         )
 
 
+class LslPhysiologyDataImportStrategy:
+    input_data_file_format = PhysiologyFileFormat.LSL
+    output_data_type = RawBioData
+
+    def run(self, config_in: LslParticipantConfig) -> RawBioData:
+        if has_missing_requirements(config_in.missing_streams, ["OpenSignals"]):
+            logger.warning("Missing physiology data.")
+            return RawBioData()
+
+        return RawBioData(raw_data={"OpenSignals": config_in.streams_to_run["OpenSignals"]})
+
+
 class xdfIOException(Exception):
     """Raised when an XDF stream cannot be read or extracted."""
+
+
+def has_missing_requirements(missing: set, required: list[str]) -> bool:
+    return any(stream in missing for stream in required)
 
 
 def create_intervals_from_df(marker_df: pd.DataFrame):

@@ -12,7 +12,7 @@ from mooi_toolbox.processing.input_data import ParticipantConfig, PhysiologyFile
 logger = logging.getLogger(__name__)
 
 
-class BiopacDataImportStartegy:
+class BiopacPhysiologyDataImportStartegy:
     input_data_file_format = PhysiologyFileFormat.MATLAB
     output_data_type = RawBioData
 

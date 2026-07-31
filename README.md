@@ -195,7 +195,7 @@ files.
 
 ## Documentation
 
-This README covers setup and command-line usage. For a fuller, browsable guide — getting started, how the code is organized, the design patterns behind the pipeline, testing, and more — see the docs site in `docs/`, built with [MkDocs](https://www.mkdocs.org/):
+This README covers setup and command-line usage. For a fuller, browsable guide — why the toolbox exists, getting started, how the code is organized, the design patterns behind the pipeline, testing, and more — see the docs site in `docs/`, built with [MkDocs](https://www.mkdocs.org/):
 
 ```bash
 pip install -r requirements-dev.txt

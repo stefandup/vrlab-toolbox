@@ -10,21 +10,25 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Getting Started: getting-started.md
-  - Code Organization: code-organization.md
-  - Golden Rules: golden-rules.md
-  - Pipeline Rules: pipeline-rules.md
-  - Interval QC Plot: interval-qc.md
-  - EDA & SCRs: eda.md
-  - Lab Streaming (LSL/XDF): lab-streaming.md
-  - Pipeline Concepts: pipeline-concepts.md
-  - Design Patterns: design-patterns.md
-  - Data Stores: data-stores.md
-  - Core Data Classes: core-classes.md
-  - Testing: testing.md
-  - API Reference: api-reference.md
-  - For Contributors: contributing.md
-  - Building & Releasing: packaging.md
+  - Why This Toolbox Exists: philosophy.md
+  - For Users:
+      - Getting Started: getting-started.md
+      - Pipeline Rules: pipeline-rules.md
+      - Interval QC Plot: interval-qc.md
+      - EDA & SCRs: eda.md
+      - Lab Streaming (LSL/XDF): lab-streaming.md
+      - Testing: testing.md
+      - API Reference: api-reference.md
+  - For Contributors:
+      - AI Use Guidelines: ai-use.md
+      - Code Organization: code-organization.md
+      - Golden Rules: golden-rules.md
+      - Pipeline Concepts: pipeline-concepts.md
+      - Design Patterns: design-patterns.md
+      - Data Stores: data-stores.md
+      - Core Data Classes: core-classes.md
+      - GitHub Guidelines: contributing.md
+      - Building & Releasing: packaging.md
   - Project Notes:
       - Next Steps: pipeline_next_steps.md
       - Milestones: crane_milestones.md

@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 
 from mooi_toolbox.processing.biodata import RawBioData
-from mooi_toolbox.processing.biopac import BiopacDataImportStartegy
+from mooi_toolbox.processing.biopac import BiopacPhysiologyDataImportStartegy
 from mooi_toolbox.processing.crane_behaviour import (
     ImportCraneBehaviourDataStrategyStep,
     ProcessCraneBehaviourDataStrategyStep,
@@ -72,7 +72,7 @@ class TestCraneGetIntervalStrategy(unittest.TestCase):
 
     def _run_interval_strategy_for(self, subject_id: str) -> TrialIntervals:
         participant_config = FindCraneParticipantFilesStrategyStep().run(subject_id, data_folder)
-        raw_bio_data = BiopacDataImportStartegy().run(participant_config)
+        raw_bio_data = BiopacPhysiologyDataImportStartegy().run(participant_config)
         raw_behav_data = ImportCraneBehaviourDataStrategyStep().run(participant_config)
         trial_intervals, interval_figure_out, interval_pipeline_status = (
             CraneGetTrialIntervalStrategyStep().run(raw_bio_data, raw_behav_data)
@@ -159,14 +159,14 @@ class TestBasicDataHandling(unittest.TestCase):
         )
 
     def test_good_raw_data_init_should_return_ok(self):
-        raw_biodata_good: RawBioData = BiopacDataImportStartegy().run(
+        raw_biodata_good: RawBioData = BiopacPhysiologyDataImportStartegy().run(
             self.example_crane_participant_correct
         )
         self.assertIsInstance(raw_biodata_good, RawBioData)
 
     def test_no_data_should_return_error(self):
         with self.assertRaises(FileNotFoundError):
-            BiopacDataImportStartegy().run(self.crane_participant_no_FILE)
+            BiopacPhysiologyDataImportStartegy().run(self.crane_participant_no_FILE)
 
 
 class TestCraneBehaviourStrategy(unittest.TestCase):

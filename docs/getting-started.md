@@ -5,6 +5,91 @@ walks through running one real pipeline — the Crane pipeline — end to end,
 as a worked example. The other command-line tools (FOH and friends) follow
 the same overall shape; see [Other pipelines](#other-pipelines) below.
 
+If you just want to *run* the pipeline, not set any of that up, skip ahead
+to [Just want to run the compiled binary?](#just-want-to-run-the-compiled-binary)
+below.
+
+## Just want to run the compiled binary?
+
+If you're a data collector and just need to run `vrlab_crane_process` —
+not read, change, or even clone the code — you don't need Python, a venv,
+or any of the setup below. A compiled `vrlab_crane_process.exe` is built
+automatically and attached to this repo's **GitHub Releases** page every
+time a version tag is pushed (the [Building & Releasing](packaging.md)
+page covers how, if you're curious).
+
+To get it:
+
+1. On GitHub, open this repo's **Releases** page (the "Releases" link in
+   the right-hand sidebar of the repo's main page, or `.../releases` at
+   the end of the repo URL).
+2. Pick the release you want — usually the latest one at the top.
+3. Under **Assets**, download `vrlab_crane_process.exe`.
+
+That one file *is* the tool — no Python install, no `pip install`, nothing
+else to download. Run it exactly like the `vrlab_crane_process` command
+used throughout this page, just by its full path:
+
+```bash
+C:\path\to\vrlab_crane_process.exe crane_data crane_data/output
+```
+
+### Add it to your PATH (do this — it's the preferred way to run it)
+
+There's no installer for this yet — a proper one is on the bucket list,
+but isn't built. Until then, adding the `.exe`'s folder to your `PATH` is
+the recommended way to run it: type `vrlab_crane_process` from any folder,
+in any terminal, same as if you'd `pip install`-ed it, without retyping
+(or mistyping) a long file path every single time.
+
+**Windows, using the GUI (no PowerShell needed):**
+
+1. Press the Windows key and search for **"Edit the system environment
+   variables"**, then open it.
+2. Click the **Environment Variables...** button.
+3. Under **User variables**, select **Path**, then click **Edit...**.
+4. Click **New**, paste in the folder containing `vrlab_crane_process.exe`
+   (e.g. `C:\path\to\folder`), then click **OK** on every open dialog.
+5. Open a **new** terminal window — the change only applies to terminals
+   opened after this point.
+
+For a fuller walkthrough with screenshots: [ComputerHope: How to add a
+directory to the Windows PATH](https://www.computerhope.com/issues/ch000549.htm).
+
+**macOS/Linux**, add to your shell profile — see the project's
+`README.md` (in the workspace root), section "Just want to run the
+compiled `.exe`, not the full source?", for the exact command.
+
+Once that folder is on `PATH`, run it exactly like the commands used
+throughout the rest of this page:
+
+```bash
+vrlab_crane_process crane_data crane_data/output
+```
+
+### Checking it's the right file, and getting help
+
+Two flags work without needing to run a full pipeline:
+
+```bash
+vrlab_crane_process --help       # lists every argument and option, with what each does
+vrlab_crane_process --version    # confirms which version you downloaded
+```
+
+`--help` is the fastest way to check `input_folder`/`output_folder`
+ordering or an option name (`--subject_id`, `--verbose`) without coming
+back to this page. `--version` is worth checking against the release
+you meant to download, especially if more than one version's `.exe` is
+floating around a shared machine.
+
+!!! note "Going further"
+    Only a Windows build (`windows-latest` in the release workflow) is
+    produced automatically right now — see
+    [Building & Releasing](packaging.md#automatic-builds-on-tag-push) for
+    the current gap on macOS/Linux. On those platforms, building it
+    yourself (also covered on that page) is currently the only route to a
+    standalone binary.
+
 ## 1. Set up a virtual environment
 
 First, check which Python you actually have:

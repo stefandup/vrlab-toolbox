@@ -8,7 +8,7 @@ from pandas.core.api import DataFrame as DataFrame
 
 from mooi_toolbox.processing import eda
 from mooi_toolbox.processing.biodata import RawBioData
-from mooi_toolbox.processing.biopac import BiopacDataImportStartegy
+from mooi_toolbox.processing.biopac import BiopacPhysiologyDataImportStartegy
 from mooi_toolbox.processing.input_data import ParticipantConfig
 from mooi_toolbox.processing.output_data import (
     PipelineOutputData,
@@ -56,7 +56,7 @@ def run_pipeline(data_in: ParticipantConfig) -> LongWalkPipelineOutputData:
     # Input raw eda
 
     try:
-        raw_timestamped_data: RawBioData = BiopacDataImportStartegy().import_data(data_in)
+        raw_timestamped_data: RawBioData = BiopacPhysiologyDataImportStartegy().import_data(data_in)
         eda_raw_timestamped = raw_timestamped_data["EDA"]
         status.data_in = ProcessingStatus.OK
     except (ValueError, FileNotFoundError) as e:

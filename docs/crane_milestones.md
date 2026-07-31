@@ -20,6 +20,8 @@ new discipline), so progress over months is visible at a glance.
 | 2026-07-24 | `cc639d9` (WIP tip) | Placeholder `pass` tests replaced with real assertions; `align_biopac_trigger_drift_from_behav_file` stopped discarding its own result | The 6 edge-case tests that were silent `pass` stubs now assert and fail loudly where the algorithm genuinely can't yet handle the subject's data — test red is now signal, not a gap in coverage. Also added a `remove_crane_delayed_start` heuristic and switched `fill_in_gaps` to return a new sorted `TrialIntervals` instead of mutating in place. |
 | 2026-07-28 | `669645e` | `PipelineStatus` rewritten to type-keyed tracking; two `UnboundLocalError` classes of bug root-caused and fixed via captured-output-type-before-`try`; `None`-input guard added instead of widening an `except` tuple; dead code (`CraneDebriefOutputData`) deleted rather than left to rot | The two `SequentialBehaviourImportSteps`/`SequentialPhysiolgyImportSteps` bugs and the `AttributeError`-swallowing fix show a specific, reusable diagnostic move — noticing that catching a broad exception type is "working by luck," not by design — and choosing the narrower, more correct fix over the shortcut, even after the shortcut already made tests pass. All three previously-`@unittest.skip`ped tests are unskipped and green. |
 
+| 2026-07-30 | `af1d483` (WIP tip) | LSL/FOH begins moving onto shared raw-data contracts | `LslPhysiologyDataImportStrategy` now returns `RawBioData`, and raw physiology labels are normalized at the contract boundary; this shows the pipeline architecture starting to become reusable toolbox infrastructure rather than Crane-only structure. |
+
 ## How this file grows
 
 After each REVIEW, append one new row: date, commit hash (or "WIP tip" if
