@@ -72,6 +72,27 @@ pip install -e .
 
 This exposes the command-line scripts defined in `pyproject.toml` — see [Just want to run the compiled `.exe`?](#just-want-to-run-the-compiled-exe-not-the-full-source) above for what that means for your `PATH`.
 
+### Generate sample data
+
+Real Crane participant recordings (`crane_data/`) aren't in this repo and
+never will be — it's real physiology/behavioural data, and committing it
+would keep it in the project's git history forever, on every clone.
+
+Instead, generate a small synthetic dataset locally, once your virtual
+environment is active:
+
+```bash
+crane_generate_sample_data sample_data/crane_templates examples --with-errors --seed 42
+```
+
+This clones the templates in `sample_data/crane_templates/` and perturbs
+the numbers, writing the result into `examples/`. `--seed` makes it
+reproducible (same seed, same output); `--with-errors` also generates one
+participant per known pipeline error scenario (missing files, date
+mismatches, bad triggers, ...). Run `crane_generate_sample_data --help`
+for all options. See the docs site's Testing page for what `examples/` is
+used for.
+
 ---
 
 ## Current functionality

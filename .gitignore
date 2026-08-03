@@ -27,3 +27,4 @@ spss_scripts/
 build/
 dist/
 /site/
+examples/*

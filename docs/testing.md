@@ -85,9 +85,18 @@ will fail with a file-not-found style error — that's expected, not a bug.
 ## The `examples/` folder
 
 `examples/` holds a small **synthetic** Crane dataset — no real participant
-ever touched it, so unlike `crane_data/` it's safe to commit and *is*
-checked into the repo. `tests/test_crane_pipeline.py` reads several of its
-scenarios directly, the same way it reads from `crane_data/`.
+ever touched it, so unlike `crane_data/` nothing about it needs to stay
+secret. It's still **not** checked into the repo, though: generated at
+full length and full sampling rate, it runs to hundreds of MB, and git
+handles large binary files badly — every regeneration would add another
+full copy to the repo's history, forever. `sample_data/crane_templates/`
+(the small seed files it's generated *from*) **is** committed; `examples/`
+itself is gitignored and built locally instead.
+
+`tests/test_crane_pipeline.py` reads several of its scenarios directly, the
+same way it reads from `crane_data/` — so you need to generate `examples/`
+yourself before running the full test suite (see below), much like you
+need someone to hand you a `crane_data/` folder.
 
 ### Where it comes from
 
@@ -118,31 +127,25 @@ Each name matches a status the pipeline is supposed to catch — see
 `ERROR_SCENARIO_STATUS_KEY` in `tests/test_crane_dummy_data.py` for exactly
 which `ProcessingStatus` each one should produce.
 
-### Try it yourself: regenerate it
+### Generate it yourself
 
-```python
-from pathlib import Path
-from mooi_toolbox.processing.crane_dummy_data import generate_dummy_dataset
+`generate_dummy_dataset()` is wrapped by a CLI command, so you don't need
+to write any Python to build `examples/` — see the README's "Generate
+sample data" section:
 
-generate_dummy_dataset(
-    template_folder=Path("sample_data/crane_templates"),
-    output_folder=Path("examples"),
-    n_clean=5,
-    with_errors=True,
-    seed=42,
-)
+```bash
+crane_generate_sample_data sample_data/crane_templates examples --with-errors --seed 42
 ```
 
-Run it and diff `examples/` against what git already has — with the same
-`seed`, nothing should change. Bump `n_clean` and rerun to see how new
-`DUMMY0XX` participants get added.
+`--seed` makes the output reproducible — same seed, same bytes, every
+time. Bump `--n-clean` and rerun to see how new `DUMMY0XX` participants get
+added; drop `--with-errors` for clean participants only.
 
 !!! note "Going further"
-    `tests/test_crane_dummy_data.py` calls the same function into a
-    throwaway `tempfile` folder on every test run — that copy is never
-    committed. `examples/` is a second, *committed* snapshot from the same
-    generator, kept around so docs and other tests have a stable set of
-    filenames to point at without regenerating data first.
+    `tests/test_crane_dummy_data.py` calls `generate_dummy_dataset()`
+    directly (not the CLI) into a throwaway `tempfile` folder on every test
+    run — that copy is separate from, and never touches, your local
+    `examples/`.
 
 ## Test-Driven Development (TDD), briefly
 

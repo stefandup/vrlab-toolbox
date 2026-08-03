@@ -43,5 +43,3 @@ class TestFOHPipeline(unittest.TestCase):
         df_out, fig_out = run_lsl_pipeline(
             participant_config.physiology_fn, verbose=False, show_plots=False
         )
-
-        # df_out, fig = run_lsl_pipeline(data_folder=data_folder, verbose=False, show_plots=False)

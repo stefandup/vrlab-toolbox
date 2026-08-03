@@ -144,10 +144,10 @@ and it can produce the QC image below via `plot_biopac_interval_qc`
 
 ![Example interval QC plot: four stacked rows showing raw trigger voltage, raw biopac vs. raw behaviour intervals, cleaned trigger intervals vs. raw behaviour, and the final behaviour-matched trigger intervals.](assets/images/crane-interval-qc-example.png)
 
-*(Generated from `DUMMY000`, the synthetic clean participant in the
-committed `examples/` dataset — see [Testing](testing.md#the-examples-folder).
-No real participant data was used to produce this plot, and you can
-regenerate it yourself.)*
+*(Generated from `DUMMY000`, the synthetic clean participant produced by
+`examples/` — see [Testing](testing.md#the-examples-folder) for how to
+generate it locally. No real participant data was used to produce this
+plot.)*
 
 ## Row by row
 
