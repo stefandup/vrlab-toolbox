@@ -1,6 +1,7 @@
 import unittest
 from pathlib import Path
 
+from mooi_toolbox.processing.foh_pipeline import run_lsl_pipeline
 from mooi_toolbox.processing.input_data import PhysiologyFileFormat
 from mooi_toolbox.processing.lsl import LslParticipantConfig, LslPhysiologyDataImportStrategy
 
@@ -34,8 +35,13 @@ class TestFOHPipeline(unittest.TestCase):
         participant_config = LslParticipantConfig.from_lsl_data(
             "P00015",
             data_folder,
-            ["FOH_target", "VR_trial_events", "VR_markers"],
+            ["OpenSignals", "FOH_target", "VR_trial_events", "VR_markers"],
             PhysiologyFileFormat.LSL,
+        )
+
+        raw_bio_data_out = LslPhysiologyDataImportStrategy().run(participant_config)
+        df_out, fig_out = run_lsl_pipeline(
+            participant_config.physiology_fn, verbose=False, show_plots=False
         )
 
         # df_out, fig = run_lsl_pipeline(data_folder=data_folder, verbose=False, show_plots=False)

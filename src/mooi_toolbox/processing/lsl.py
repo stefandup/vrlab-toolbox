@@ -82,7 +82,7 @@ class LslParticipantConfig(ParticipantConfig):
         # TODO: Make Crane config as well to avoid all these empties
         return cls(
             subject_id=id_in,
-            physiology_fn="",
+            physiology_fn=str(xdf_path),
             physiology_data_type=physiology_data_type_in,
             data_folder=data_folder_in,
             behav_folder=behav_folder_in,
@@ -216,7 +216,7 @@ def get_subject_id(xdf_fn: Path) -> str:
     return os.path.basename(xdf_fn).split("_")[0]
 
 
-def gather_xdf_data_streams(streams: list, stream_ids: list) -> dict:
+def gather_xdf_data_streams(streams: list, stream_ids: list[str]) -> dict:
 
     dict_out = dict()
 

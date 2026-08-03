@@ -303,6 +303,42 @@ Crane output row), and `build_eda_physiology_output_schema` (`eda.py`).
    data is produced, the error points at the step that made the bad data
    — not the step three calls later that happened to trip over it.
 
+### What this actually looks like
+
+Using the synthetic `DUMMY000` participant in `examples/` (see
+[Testing](testing.md#the-examples-folder) for where that data comes from),
+here's what actually flows through these two contracts.
+
+`RawCraneBehaviourData.raw_behav_df` — straight from
+`examples/2026100_DUMMY000_CraneOut.csv`, one row per trial:
+
+```
+   TrialNr  TrialStartTime  TrialEndTime       BlockType     TrialType
+0        1        4.999999     65.011109  NonStressBlock  NonSlipTrial
+1        2       94.066658    154.077774  NonStressBlock     SlipTrial
+2        3      204.444427    264.455536  NonStressBlock  NonSlipTrial
+3        4      290.155548    350.166657  NonStressBlock     SlipTrial
+4        5      377.555542    437.566651  NonStressBlock  NonSlipTrial
+```
+
+`RawBioData.raw_data["EDA"]` — one of three channels (`ECG`, `Trigger`,
+`EDA`), pulled out of the same participant's `.mat` file, each its own
+DataFrame:
+
+```
+   time_stamps       EDA
+0       0.0000  1.686899
+1       0.0005  1.689124
+2       0.0010  1.689590
+3       0.0015  1.691005
+4       0.0020  1.688195
+```
+
+Same shape, different source file — exactly the point of the contract:
+whichever import step produced either of these, a processing step
+downstream only ever needs to know it's a `pd.DataFrame` with these
+columns, not which file format it came from.
+
 `PipelineOutputData` carries the matching *output* contract — always a
 one-row `subject_df_out` DataFrame, a `status` (`PipelineStatus`), and any
 QC `figure_data_out`:

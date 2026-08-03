@@ -1,5 +1,4 @@
 import logging
-from pathlib import Path
 
 import pandas as pd
 from matplotlib.figure import Figure
@@ -20,7 +19,7 @@ def has_missing_requirements(missing: set, required: list[str]) -> bool:
 
 
 def run_lsl_pipeline(
-    xdf_fn: Path, verbose: bool, show_plots: bool
+    xdf_fn: str, verbose: bool, show_plots: bool
 ) -> tuple[pd.DataFrame, Figure | None]:
     """Run FOH pipeline for LSL EDA, ECG and Behavioural (i.e. Target) data. Tries to be robust wrt missing data."""
     if not xdf_fn:

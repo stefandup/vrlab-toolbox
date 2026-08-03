@@ -101,6 +101,27 @@ labelling the orange **"Raw behav"** row below. Matching *this* object
 against the unlabelled one above (correcting for clock drift along the
 way) is exactly what the rest of this page is about.
 
+### Real example 3: what the matched result actually contains
+
+Running the full matching step (`CraneGetTrialIntervalStrategyStep`) on
+the synthetic `DUMMY000` participant in `examples/` produces a
+`TrialIntervals` with 23 entries — this is `.intervals`, first five shown:
+
+```
+{
+    'NonStressBlock_NonSlipTrial_1_Training': (4.9845, 65.3135),
+    'ITI_0': (65.3135, 94.522),
+    'NonStressBlock_SlipTrial_2_Training': (94.522, 155.1415),
+    'ITI_1': (155.1415, 205.774),
+    'NonStressBlock_NonSlipTrial_3_Training': (205.774, 266.104),
+    ...
+}
+```
+
+This is exactly the object drawn as the **red "Matched with Behav"** row
+in the example plot below — real trial names, timestamps corrected onto
+the trigger channel's clock.
+
 ## Why this exists
 
 Trial timing comes from two places that don't share a clock:
@@ -122,6 +143,11 @@ and it can produce the QC image below via `plot_biopac_interval_qc`
 ## Example
 
 ![Example interval QC plot: four stacked rows showing raw trigger voltage, raw biopac vs. raw behaviour intervals, cleaned trigger intervals vs. raw behaviour, and the final behaviour-matched trigger intervals.](assets/images/crane-interval-qc-example.png)
+
+*(Generated from `DUMMY000`, the synthetic clean participant in the
+committed `examples/` dataset — see [Testing](testing.md#the-examples-folder).
+No real participant data was used to produce this plot, and you can
+regenerate it yourself.)*
 
 ## Row by row
 
