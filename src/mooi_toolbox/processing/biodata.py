@@ -4,7 +4,13 @@ from dataclasses import dataclass, field
 import pandas as pd
 import pandera.pandas as pa
 
-CANONICAL_LABEL_SPELLING = {"trigger": "Trigger", "eda": "EDA", "ecg": "ECG", "nseq": "nSeq"}
+CANONICAL_LABEL_SPELLING = {
+    "trigger": "Trigger",
+    "eda": "EDA",
+    "ecg": "ECG",
+    "nseq": "nSeq",
+    "markers": "Markers",
+}
 ACCEPTED_LABEL_PATTERN = re.compile(
     rf"^(?P<base>{'|'.join(re.escape(label) for label in CANONICAL_LABEL_SPELLING)})_?\d*$",
     re.IGNORECASE,

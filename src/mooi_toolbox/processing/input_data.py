@@ -129,6 +129,68 @@ class ParticipantConfig:
             show_plots=show_plots,
         )
 
+    @classmethod
+    def from_lsl_data(
+        cls,
+        id_in: str,
+        data_folder_in: Path,
+        physiology_data_type_in: PhysiologyFileFormat,
+        behav_folder_in: Path | None = None,
+        output_folder_in: Path | None = None,
+        log_folder_in: Path | None = None,
+        verbose: bool = False,
+        show_plots: bool = False,
+    ):
+
+        if behav_folder_in is None:
+            behav_folder_in = data_folder_in
+
+        if output_folder_in is None:
+            output_folder_in = data_folder_in / "output"
+
+        output_folder_in.mkdir(parents=True, exist_ok=True)
+
+        if log_folder_in is None:
+            log_folder_in = output_folder_in / "logs"
+
+        log_folder_in.mkdir(parents=True, exist_ok=True)
+
+        selected_stream_fns = []
+        for xdf_path in data_folder_in.rglob(f"*{id_in}*{physiology_data_type_in.value}"):
+            print(f"Found {xdf_path}")
+
+            file_to_run_key = str(xdf_path.name).split("_")[-1]
+            if file_to_run_key != "eeg.xdf":
+                logger.warning(
+                    f"{xdf_path} seems to be an old run as it ends on {file_to_run_key}.Skipping..."
+                )
+                continue
+            selected_stream_fns.append(xdf_path)
+
+        if not selected_stream_fns:
+            logger.warning("No matching physiology files found.")
+            selected_stream_fn = ""
+
+        else:
+            if len(selected_stream_fns) > 1:
+                logger.warning(
+                    f"Multiple sets for subject {id_in}. Chosing last one: {selected_stream_fns[-1]}"
+                )
+            selected_stream_fn = selected_stream_fns[-1]
+
+        return cls(
+            subject_id=id_in,
+            physiology_fn=str(selected_stream_fn),
+            physiology_data_type=physiology_data_type_in,
+            data_folder=data_folder_in,
+            behav_folder=behav_folder_in,
+            _behaviour_file_names=dict(),
+            log_folder=log_folder_in,
+            output_folder=output_folder_in,
+            verbose=verbose,
+            show_plots=show_plots,
+        )
+
     def get_behaviour_file_name(self, behaviour_type: type) -> Path | None:
 
         try:

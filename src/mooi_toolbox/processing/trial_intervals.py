@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.figure import Figure
+from typing_extensions import deprecated
 
 from mooi_toolbox import config as cfg
 from mooi_toolbox.processing import lsl
@@ -189,6 +190,7 @@ def get_lsl_event_time_with_fallback(
         ) from fallback_error
 
 
+@deprecated("Older non pipeline method of creating intervals")
 def create_lsl_trial_intervals(
     vr_markers_df: pd.DataFrame, VR_trial_events_df: pd.DataFrame
 ) -> dict[str, tuple[float, float]]:

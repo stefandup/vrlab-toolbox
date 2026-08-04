@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 @click.argument("output_folder", type=click.Path(exists=True, dir_okay=True), required=False)
 @click.option("--verbose", is_flag=True, help="Give verbose output")
 @click.option("--show-plots", is_flag=True, help="Show complete plots. Default is to save plots.")
-def main(xdf_fn: str, output_folder: str, verbose: bool, show_plots: bool):
+def main(xdf_fn: Path, output_folder: str, verbose: bool, show_plots: bool):
 
     if not output_folder:
         output_folder = os.path.join(Path(xdf_fn).resolve().parents[3], "_out")
@@ -30,12 +30,12 @@ def main(xdf_fn: str, output_folder: str, verbose: bool, show_plots: bool):
     logger.info(f"Starting FOH pipeline for subject {subject_id}")
 
     print("Running mobi FOH pipeline...")
-    participant_data_out, fig = run_foh_pipeline(xdf_fn, verbose, show_plots)
-
-    try:
-        save_plot(fig, output_folder, subject_id, plot_label=f"Subject {subject_id} QC")
-    except AttributeError as e:
-        logger.info("Error saving plot.%s", e)
+    participant_data_out, fig = run_foh_pipeline(str(xdf_fn), verbose, show_plots)
+    if fig is not None:
+        try:
+            save_plot(fig, Path(output_folder), subject_id, plot_label=f"Subject {subject_id} QC")
+        except AttributeError as e:
+            logger.info("Error saving plot.%s", e)
 
     logger.info(f"FOH pipeline done for subject {subject_id}")
 

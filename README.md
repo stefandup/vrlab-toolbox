@@ -8,7 +8,7 @@
 
 ### Clone the repository
 
-"Cloning" just means downloading a full copy of this repo, with its git history, onto your machine. A sensible default location is your **home directory** — a predictable place you can always find by running `echo $HOME` (works the same in PowerShell, bash, and zsh) — usually `C:\Users\<your-username>` on Windows, `/Users/<your-username>` on macOS, or `/home/<your-username>` on Linux.
+"Cloning" just means downloading a full copy of this repo, with its git history, onto your machine. A sensible default location is your **home directory** — a predictable place you can always find by running `echo $HOME` (works the same in PowerShell and bash) — usually `C:\Users\<your-username>` on Windows, `/Users/<your-username>` on macOS, or `/home/<your-username>` on Linux.
 
 From there:
 
@@ -54,8 +54,8 @@ Two different routes end up with `vrlab_crane_process` available as a typed comm
   **macOS/Linux, add to your shell profile:**
 
   ```bash
-  echo 'export PATH="$PATH:/path/to/folder/containing/vrlab_crane_process"' >> ~/.zshrc   # or ~/.bashrc
-  source ~/.zshrc
+  echo 'export PATH="$PATH:/path/to/folder/containing/vrlab_crane_process"' >> ~/.bashrc
+  source ~/.bashrc
   ```
 
   Once that folder is on `PATH`, you can type `vrlab_crane_process` from any terminal, in any folder, same as the pip-installed version.

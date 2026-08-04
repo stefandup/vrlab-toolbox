@@ -2,8 +2,10 @@ import unittest
 from pathlib import Path
 
 from mooi_toolbox.processing.foh_pipeline import run_lsl_pipeline
-from mooi_toolbox.processing.input_data import PhysiologyFileFormat
-from mooi_toolbox.processing.lsl import LslParticipantConfig, LslPhysiologyDataImportStrategy
+
+# from mooi_toolbox.processing.foh_behaviour import
+from mooi_toolbox.processing.input_data import ParticipantConfig, PhysiologyFileFormat
+from mooi_toolbox.processing.lsl import FohLslPhysiologyDataImportStrategy
 
 # from mooi_toolbox.processing.foh_target_behaviour import run_processing
 # from mooi_toolbox.processing.be
@@ -11,16 +13,15 @@ from mooi_toolbox.processing.lsl import LslParticipantConfig, LslPhysiologyDataI
 
 # @unittest.skip("Busy")
 class TestFOHPipeline(unittest.TestCase):
-    def test_data_import_strategy(self):
+    def test_biodata_import_strategy(self):
         data_folder = Path(r"local_lsl_data\\Participant Data")
 
-        participant_config = LslParticipantConfig.from_lsl_data(
+        participant_config = ParticipantConfig.from_lsl_data(
             "P00015",
             data_folder,
-            ["OpenSignals", "FOH_target", "VR_trial_events", "VR_markers"],
             PhysiologyFileFormat.LSL,
         )
-        raw_bio_data_out = LslPhysiologyDataImportStrategy().run(participant_config)
+        raw_bio_data_out = FohLslPhysiologyDataImportStrategy().run(participant_config)
 
         self.assertTrue(raw_bio_data_out)
 
@@ -29,17 +30,33 @@ class TestFOHPipeline(unittest.TestCase):
         # run_processing()
         pass
 
-    def test_basic_pipeline(self):
+    def test_physiology_data_import_strategy(self):
+        pass
+
+    def test_interval_get_strategy(self):
         data_folder = Path(r"local_lsl_data\\Participant Data")
 
-        participant_config = LslParticipantConfig.from_lsl_data(
+        participant_config = ParticipantConfig.from_lsl_data(
             "P00015",
             data_folder,
-            ["OpenSignals", "FOH_target", "VR_trial_events", "VR_markers"],
             PhysiologyFileFormat.LSL,
         )
 
-        raw_bio_data_out = LslPhysiologyDataImportStrategy().run(participant_config)
+        raw_bio_data = FohLslPhysiologyDataImportStrategy().run(participant_config)
+        # FohGetTrialIntervalStrategyStep().run(
+        #    raw_bio_data,
+        # )
+
+    def test_basic_pipeline(self):
+        data_folder = Path(r"local_lsl_data\\Participant Data")
+
+        participant_config = ParticipantConfig.from_lsl_data(
+            "P00015",
+            data_folder,
+            PhysiologyFileFormat.LSL,
+        )
+
+        raw_bio_data_out = FohLslPhysiologyDataImportStrategy().run(participant_config)
         df_out, fig_out = run_lsl_pipeline(
             participant_config.physiology_fn, verbose=False, show_plots=False
         )

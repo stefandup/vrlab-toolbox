@@ -131,7 +131,9 @@ class GetTrialIntervalsFallbackStartegy(Protocol):
 class GetTrialIntervalsStartegy(Protocol[PhysiologyDataType, BehaviourDataType]):
     input_bio_data_type: type[PhysiologyDataType]
     input_behaviour_data_type: type[BehaviourDataType]
-    fallback_strategy: GetTrialIntervalsFallbackStartegy
+
+    @property
+    def fallback_strategy(self) -> GetTrialIntervalsFallbackStartegy | None: ...
 
     def run(
         self, raw_biodata_in: PhysiologyDataType, raw_behaviour_data_in: BehaviourDataType

@@ -3,8 +3,13 @@ import logging
 
 import numpy as np
 import pandas as pd
+import pyxdf
 
 from mooi_toolbox.processing.behaviour import RawBehaviourData
+from mooi_toolbox.processing.input_data import ParticipantConfig
+from mooi_toolbox.processing.lsl import gather_xdf_data_streams
+from mooi_toolbox.processing.output_data import PipelineOutputData
+from mooi_toolbox.processing.trial_intervals import TrialIntervals
 
 logger = logging.getLogger(__name__)
 
@@ -13,56 +18,92 @@ class TPProcessingError(Exception):
     """Raised when Target processing fails."""
 
 
-class FohTargetBehaviourData(RawBehaviourData):
+class FohRawTargetBehaviourData(RawBehaviourData):
     filename_glob = "xdf"
+    pass
+
+
+class ImportFohTargetBehaviourDataStrategyStep:
+    behaviour_output_type: type[FohRawTargetBehaviourData] = FohRawTargetBehaviourData
+
+    def run(self, config_in: ParticipantConfig) -> FohRawTargetBehaviourData:
+        streams: list[dict]
+        lsl_behav_stream_to_get = "FOH_target"
+        expected_hdr = "TimeSpawned,TimeHit,HitLatency,TargetType"
+        xdf_path = config_in.physiology_fn
+        streams, _ = pyxdf.load_xdf(xdf_path)
+        FOH_target_df_list = gather_xdf_data_streams(streams, [lsl_behav_stream_to_get])
+        FOH_target_df = FOH_target_df_list["FOH_target"]
+
+        try:
+            lines = FOH_target_df["FOH_target"].dropna().astype(str).tolist()
+
+            if not lines:
+                raise TPProcessingError("No target data found.")
+
+            if FOH_target_df["FOH_target"].iloc[0] != expected_hdr:
+                logger.warning("Missing header info. Trying to compensate...")
+                lines = [expected_hdr] + lines
+
+        except KeyError as e:
+            raise TPProcessingError("Error in reading target data") from e
+
+        csv_text = "\n".join(lines)
+        if not csv_text:
+            raise TPProcessingError("Error reading target data.")
+
+        try:
+            target_csvdata_df = pd.read_csv(io.StringIO(csv_text), header=0)
+        except (KeyError, pd.errors.ParserError, pd.errors.EmptyDataError) as e:
+            raise TPProcessingError("Error reading target data.") from e
+
+        # Remove rows where 'FOH_target' is any unwanted header string or is empty
+
+        unwanted_rows = ["TimeSpawned,TimeHit,HitLatency,TargetType", ""]
+        # TODO: BUG?
+        filtered_FOH_target_df = FOH_target_df[~FOH_target_df["FOH_target"].isin(unwanted_rows)]
+        # filtered_FOH_target_df = filtered_FOH_target_df[~FOH_target_df["FOH_target"].isna()]
+        # Prevent index mismatch during filtering
+        filtered_FOH_target_df = filtered_FOH_target_df[
+            ~filtered_FOH_target_df["FOH_target"].isna()
+        ]
+
+        # Concatenate target_csvdata_df with FOH_target_df["time_stamps"] horizontally
+        try:
+            target_csvdata_df = pd.concat(
+                [target_csvdata_df, filtered_FOH_target_df[["time_stamps"]].reset_index(drop=True)],
+                axis=1,
+            )
+        except (KeyError, TypeError, IndexError) as e:
+            raise TPProcessingError("Error in time stamps") from e
+
+        return FohRawTargetBehaviourData(subject_config=config_in, raw_behav_df=target_csvdata_df)
+
+
+class ProcessFohTargetDataWithIntervalsStrategyStep:
+    input_data_type: type[FohRawTargetBehaviourData] = FohRawTargetBehaviourData
+
+    def run(
+        self,
+        config_in: ParticipantConfig,
+        raw_behaviour_data_in: FohRawTargetBehaviourData,
+        trial_intervals_in: TrialIntervals,
+    ) -> PipelineOutputData:
+
+        target_df_out, df2 = run_processing(
+            raw_behaviour_data_in.raw_behav_df, trial_intervals_in.intervals
+        )
+        # TODO: Create PipelineOutput!
+
+        return PipelineOutputData(config_in.subject_id)
 
 
 def run_processing(
-    FOH_target_df: pd.DataFrame, vr_intervals: dict[str, tuple[float, float]]
+    target_csvdata_df: pd.DataFrame, vr_intervals: dict[str, tuple[float, float]]
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Process text data received from lsl for FOH behavioural targets"""
     # TODO: Consider logging what is dropped in the na below
     # TODO: examine a better way of checking the hdr.
-    expected_hdr = "TimeSpawned,TimeHit,HitLatency,TargetType"
-    try:
-        lines = FOH_target_df["FOH_target"].dropna().astype(str).tolist()
-
-        if not lines:
-            raise TPProcessingError("No target data found.")
-
-        if FOH_target_df["FOH_target"].iloc[0] != expected_hdr:
-            logger.warning("Missing header info. Trying to compensate...")
-            lines = [expected_hdr] + lines
-
-    except KeyError as e:
-        raise TPProcessingError("Error in reading target data") from e
-
-    csv_text = "\n".join(lines)
-    if not csv_text:
-        raise TPProcessingError("Error reading target data.")
-
-    try:
-        target_csvdata_df = pd.read_csv(io.StringIO(csv_text), header=0)
-    except (KeyError, pd.errors.ParserError, pd.errors.EmptyDataError) as e:
-        raise TPProcessingError("Error reading target data.") from e
-
-    # Remove rows where 'FOH_target' is any unwanted header string or is empty
-
-    unwanted_rows = ["TimeSpawned,TimeHit,HitLatency,TargetType", ""]
-    # TODO: BUG?
-    filtered_FOH_target_df = FOH_target_df[~FOH_target_df["FOH_target"].isin(unwanted_rows)]
-    # filtered_FOH_target_df = filtered_FOH_target_df[~FOH_target_df["FOH_target"].isna()]
-    # Prevent index mismatch during filtering
-    filtered_FOH_target_df = filtered_FOH_target_df[~filtered_FOH_target_df["FOH_target"].isna()]
-
-    # Concatenate target_csvdata_df with FOH_target_df["time_stamps"] horizontally
-    try:
-        target_csvdata_df = pd.concat(
-            [target_csvdata_df, filtered_FOH_target_df[["time_stamps"]].reset_index(drop=True)],
-            axis=1,
-        )
-    except (KeyError, TypeError, IndexError) as e:
-        raise TPProcessingError("Error in time stamps") from e
 
     for interval_id, interval in vr_intervals.items():
         # TODO: This should be removed.
