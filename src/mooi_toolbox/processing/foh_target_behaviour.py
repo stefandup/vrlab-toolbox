@@ -14,7 +14,7 @@ from mooi_toolbox.processing.trial_intervals import TrialIntervals
 logger = logging.getLogger(__name__)
 
 
-class TPProcessingError(Exception):
+class TPProcessingError(ValueError):
     """Raised when Target processing fails."""
 
 

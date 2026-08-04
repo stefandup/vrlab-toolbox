@@ -21,7 +21,9 @@ optional QC figure, and a `PipelineStatus`.
 
 **Focus:** get Crane's contract, tests, and cleanup solid first.
 **Deferred:** FOH and LongWalk alignment work waits until Crane passes (see
-[Deferred: FOH & LongWalk](#deferred-foh--longwalk) at the end).
+[Deferred: FOH & LongWalk](#deferred-foh--longwalk) at the end). **Update:**
+FOH's exception-handling gap was investigated and partly fixed ahead of this
+plan, on its own branch — see item 21.
 
 ### Note on the original design doc vs. what was actually built
 
@@ -756,6 +758,165 @@ Needed:
 - once the repo goes public (or moves to a paid plan), add a GitHub Actions
   workflow to build and deploy to GitHub Pages (`mkdocs gh-deploy` or an
   action-based equivalent) — not needed yet.
+
+### 21. FOH pipeline: exception-handling parity with Crane, trial-interval config migration
+
+Started on `refactor/foh-pipeline`, prompted by a review request comparing
+`foh_pipeline.py`'s exception handling against `crane_pipeline.py`'s. Ahead
+of this doc's own "Crane first, FOH deferred" plan — noted as a deviation,
+not a silent reprioritization.
+
+**Root cause of the original asymmetry:** Crane's behaviour/physiology
+modules only ever raise plain `ValueError`/`FileNotFoundError`, which
+`pipeline.py`'s generic `except (ValueError, FileNotFoundError)` handlers
+catch everywhere. FOH's `TPProcessingError` (`foh_target_behaviour.py`),
+`ECGProcessingError` (`ecg.py`), and `EDAProcessingError` (`eda.py`) were all
+bare `Exception` subclasses — invisible to those same handlers, so a raise
+anywhere inside them could crash a whole participant run instead of being
+caught and marked `ERROR`. **Fixed:** all three now subclass `ValueError`.
+
+**Not FOH-specific, found along the way, still open:** `pandera.errors.SchemaError`/
+`SchemaErrors` (raised by `RawBehaviourData.__post_init__`'s schema
+validation on construction, `behaviour.py:34-38`) also aren't `ValueError`
+subclasses — confirmed via `SchemaError.__mro__` / `SchemaErrors.__mro__` at
+runtime. This affects Crane too, not just FOH, since `RawCraneBehaviourData`
+goes through the same base-class validation. Not fixed anywhere yet; worth
+folding into item 6 (Pandera dataframe contracts) or handling at the
+`pipeline.py` template level.
+
+**Silent-degradation import bugs, found and fixed:**
+- `lsl.py`'s `FohLslPhysiologyDataImportStrategy.run()` returned an empty
+  `RawBioData()` on missing streams instead of raising — briefly changed to
+  `raise ValueError`, then reverted (see "still open" below) in favour of a
+  "let it through" redesign that isn't finished yet.
+- `foh_behaviour.py`'s `ImportFohBehaviourDataStrategyStep.run()` logged a
+  warning on missing streams but then still indexed the missing key
+  unconditionally, crashing via a bare `KeyError` (uncaught by `pipeline.py`).
+  Fixed: now `raise ValueError` on the missing-stream path.
+
+**`FohGetTrialIntervalStrategyStep` bugs, found and fixed:**
+- It discarded `create_lsl_trial_intervals(...)`'s return value entirely and
+  always returned an empty `TrialIntervals()`, regardless of input.
+- `create_lsl_trial_intervals` was being called with the whole `RawBioData`/
+  `RawFohBehaviourData` wrapper objects instead of the DataFrames inside
+  them — `get_lsl_event_time`'s `xdf_df_in["time_stamps"]` access would
+  `KeyError` on the wrapper immediately, for every subject, VR_markers
+  present or not. Fixed by extracting `raw_biodata_in["VR_markers"]` /
+  `raw_behaviour_data_in.raw_behav_df` at the call site.
+- `get_lsl_event_time` (`trial_intervals.py`) re-raised its internal
+  `KeyError` as `KeyError` instead of `ValueError`, which broke
+  `get_lsl_event_time_with_fallback`'s own fallback logic and every
+  `except ValueError` layer above it, including `pipeline.py`'s outer catch
+  around the interval strategy. Fixed: now re-raises as `ValueError`.
+
+**Still open — `FohGetTrialIntervalStrategyStep.run()`
+(`foh_trial_intervals.py:26-33`):** its local
+`try: ... except ValueError as e: logger.warning(...)` never assigns
+`trial_intervals`/`interval_processing_status` on the except path, so the
+following `return` raises `UnboundLocalError` if `create_lsl_trial_intervals`
+(or the dict-access it depends on) ever raises. Flagged repeatedly, not yet
+fixed. Considered removing this local try/except entirely and relying on
+`pipeline.py`'s own outer `except (TypeError, ValueError)` handler around the
+interval strategy call instead — matching how `CraneGetTrialIntervalStrategyStep.run()`
+has no try/except of its own — but not done.
+
+**Still open — `lsl.py`'s `FohLslPhysiologyDataImportStrategy.run()`:** still
+unconditionally does `selected_lsl_physiology_streams_dfs["VR_markers"]`
+after only logging a warning on missing streams — bare `KeyError`, uncaught,
+if `VR_markers` is genuinely absent. Needs to build `RawBioData` with only
+the streams actually present, now that the downstream fallback logic is
+designed to handle a missing `VR_markers` gracefully (see next point). Coupled
+with the item above: fixing one without the other just relocates the crash.
+
+**Finding: `VR_markers` is not actually required by the interval-building
+logic.** Per the trial-interval config (now `foh_config.py`, see below),
+`VR_markers` is only ever the *primary* source for `baseline`'s start event,
+and that already has a working fallback to `VR_trial_events`. `stress` and
+`recovery` never reference `VR_markers` at all. But `mobi_FOH_process_batch.py`'s
+`has_foh_markers` pre-filter and the deprecated `run_lsl_pipeline`'s
+`has_missing_requirements(missing_streams, ["VR_markers", "VR_trial_events"])`
+both gate on the *stream's existence*, not on whether any interval actually
+needs it — so the fallback never gets a chance to run, and files lacking
+`VR_markers` are silently skipped (`logger.info`, not a warning or error) well
+before either the CLI or the batch summary would say anything looked wrong.
+This is the likely explanation for "the data processed successfully" while
+most files actually lack `VR_markers`: the ones that don't have it are
+dropped silently, not processed with degraded data.
+
+**Trial-interval config migrated out of `pyproject.toml`:** the
+`[tool.mooi_toolbox.trial_intervals.*]` TOML section and `cfg.get_trial_intervals()`
+(`config.py`) were untyped, string-keyed, and only ever consumed by FOH
+(Crane has always had its own separate, hardcoded interval logic in
+`crane_trial_intervals.py`). Replaced with typed constants: `LslEventSpecification`
+/ `LslIntervalSpecifications` dataclasses in `lsl.py`, concrete
+`BASELINE_INTERVAL` / `STRESS_INTERVAL` / `RECOVERY_INTERVAL` /
+`FOH_TRIAL_INTERVALS` in new `processing/foh_config.py`. `trial_intervals.py`'s
+`get_lsl_event_time_from_spec` / `get_lsl_event_time_with_fallback` updated
+from dict access to attribute access to match. `LslEventSpecification.stream`
+is typed `Literal["VR_markers", "VR_trial_events"]` rather than plain `str`,
+specifically so a typo'd stream name is a type-checker error instead of a
+runtime `KeyError`.
+
+This deliberately breaks the deprecated `trial_intervals.create_lsl_trial_intervals`
+(`@deprecated`, still called by `run_lsl_pipeline`, still wired into both
+`mobi_FOH_process.py` and `mobi_FOH_process_batch.py`) — accepted as
+intentional rather than routed around, on the basis that the deprecated path
+is being kept "just in case" until `run_pipeline` checks out, then deleted
+outright rather than kept in sync. `pyproject.toml`'s TOML section is now
+dead weight for the new path but still read by the (now-broken) deprecated
+one — cleanup candidate for the same pass that deletes `run_lsl_pipeline`.
+
+**Near-misses caught during the migration, worth remembering as a pattern:**
+transcribing the TOML into `foh_config.py` by hand initially dropped
+`baseline_start_fallback`'s `offset_seconds=-300`, which would have made the
+fallback path silently compute a zero-length baseline interval (identical to
+`baseline_end`'s spec) with no exception anywhere — caught in review before
+landing, not by any test. A typo'd stream name (`"VR_tiral_events"`) in the
+same file was the concrete motivation for the `Literal` type above. Neither
+would have been caught by the type system as it existed before this pass.
+
+**Other gaps noted, not yet fixed:**
+- `foh_pipeline.py`'s `import_behav_steps` still doesn't include
+  `ImportFohTargetBehaviourDataStrategyStep` — FOH target behaviour data is
+  never actually imported into the new pipeline yet.
+- `ProcessFohTargetDataWithIntervalsStrategyStep.run()` (`foh_target_behaviour.py`)
+  computes `target_df_out` via `run_processing(...)` and discards it, returning
+  an empty `PipelineOutputData` (`# TODO: Create PipelineOutput!` in the code
+  itself). Even once the item above is wired in, no target data reaches the
+  output until this is filled in.
+- `foh_pipeline.py`'s `build_foh_participant_output_schema()` returns a bare
+  `pa.DataFrameSchema()` — validation is currently a no-op, unlike Crane's
+  fully-built schema (`crane_pipeline.py:65-92`).
+
+**Test added:** `tests/test_foh_pipeline.py::test_foh_target_behav_strategy`
+now exercises the real import → interval → process chain (mirroring
+`test_crane_pipeline.py`'s `test_crane_process_behaviour` shape), replacing
+the previous `@unittest.skip` stub. Its final assertion is weak (only
+`assertIsInstance(target_output, PipelineOutputData)`) given the
+`ProcessFohTargetDataWithIntervalsStrategyStep` stub above — it can't yet
+catch a regression in the actual target-processing output, only that the
+step doesn't crash.
+
+Needed, roughly in dependency order:
+- fix the `UnboundLocalError` trap in `FohGetTrialIntervalStrategyStep.run()`;
+- finish the "let it through" fix in `lsl.py` so a genuinely-missing
+  `VR_markers` doesn't crash upstream of the fallback logic that now exists
+  to handle it;
+- decide whether to relax `mobi_FOH_process_batch.py`'s `has_foh_markers`
+  gate (and the deprecated path's equivalent) now that the fallback can
+  actually handle a missing `VR_markers` — moot once the deprecated path and
+  its CLIs are deleted, live until then;
+- wire `ImportFohTargetBehaviourDataStrategyStep` into `foh_pipeline.py`;
+- fill in `ProcessFohTargetDataWithIntervalsStrategyStep`'s TODO;
+- build out `build_foh_participant_output_schema()`, mirroring how Crane's
+  schema is built from constants (item 3 territory);
+- once `run_pipeline` is validated end-to-end for FOH: delete
+  `run_lsl_pipeline`, update/retire `mobi_FOH_process.py` and
+  `mobi_FOH_process_batch.py`, and remove the now-stale `pyproject.toml`
+  trial-interval TOML section and `cfg.get_trial_intervals()` in the same
+  pass;
+- decide the fate of the `pandera.errors.SchemaError`/`SchemaErrors` gap —
+  affects Crane as much as FOH, likely belongs with item 6.
 
 ## Working Rule
 

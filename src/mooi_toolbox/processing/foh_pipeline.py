@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
-import pandera as pa
+import pandera.pandas as pa
 from matplotlib.figure import Figure
 from typing_extensions import deprecated
 
@@ -12,8 +12,12 @@ from mooi_toolbox.cli.check_mobi_xdf import check_mobi_xdf as get_and_check_xdf
 from mooi_toolbox.processing import lsl as xdf
 from mooi_toolbox.processing import pipeline
 from mooi_toolbox.processing.eda import ProcessEdaPhysiologyDataStrategyStep
-from mooi_toolbox.processing.foh_behaviour import ProcessFohBehaviouralDataStrateyStep
+from mooi_toolbox.processing.foh_behaviour import (
+    ImportFohBehaviourDataStrategyStep,
+    ProcessFohBehaviouralDataStrateyStep,
+)
 from mooi_toolbox.processing.foh_target_behaviour import (
+    ImportFohTargetBehaviourDataStrategyStep,
     ProcessFohTargetDataWithIntervalsStrategyStep,
 )
 from mooi_toolbox.processing.foh_trial_intervals import FohGetTrialIntervalStrategyStep
@@ -43,11 +47,10 @@ class FindFohParticipantFilesStrategyStep:
         self, participant_id_in: str, data_folder_in: Path, output_folder_in: Path | None = None
     ) -> ParticipantConfig:
 
-        return ParticipantConfig.from_physiology_data(
+        return ParticipantConfig.from_lsl_data(
             id_in=participant_id_in,
             physiology_data_type_in=self.physiology_data_type,
             data_folder_in=data_folder_in,
-            behaviour_data_types_in=self.behaviour_data_types,
             output_folder_in=output_folder_in,
         )
 
@@ -66,7 +69,9 @@ def run_pipeline(
     participant_id_in: str, data_folder_in: Path, output_folder_in: Path | None = None
 ) -> FohPipelineOutputData:
 
-    import_behav_steps = pipeline.SequentialBehaviourImportSteps(steps=[])
+    import_behav_steps = pipeline.SequentialBehaviourImportSteps(
+        steps=[ImportFohBehaviourDataStrategyStep(), ImportFohTargetBehaviourDataStrategyStep()]
+    )
     process_behav_steps = pipeline.SequentialBehaviourProcessingSteps(
         steps=[], steps_with_trial_intervals=[ProcessFohTargetDataWithIntervalsStrategyStep()]
     )

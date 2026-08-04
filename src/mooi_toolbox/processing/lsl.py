@@ -1,7 +1,9 @@
 import logging
 import os
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 import pandas as pd
@@ -11,6 +13,22 @@ from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.input_data import ParticipantConfig, PhysiologyFileFormat
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class LslEventSpecification:
+    stream: Literal["VR_markers", "VR_trial_events"]
+    column: str
+    event: str | int
+    offset_seconds: float = 0
+
+
+@dataclass
+class LslIntervalSpecifications:
+    start: LslEventSpecification
+    end: LslEventSpecification
+    start_fallback: LslEventSpecification | None = None
+    end_fallback: LslEventSpecification | None = None
 
 
 # TODO: generalize or move out!
@@ -26,8 +44,7 @@ class FohLslPhysiologyDataImportStrategy:
         missing_streams = set(streams_to_get) - set(selected_lsl_physiology_streams_dfs.keys())
 
         if has_missing_requirements(missing_streams, streams_to_get):
-            logger.warning("Missing physiology data.")
-            return RawBioData()
+            logger.warning(f"Missing physiology data - {missing_streams}")
 
         open_signal_data = selected_lsl_physiology_streams_dfs["OpenSignals"]
         marker_data = selected_lsl_physiology_streams_dfs["VR_markers"]

@@ -1,10 +1,12 @@
 import logging
 
+import pandas as pd
 from matplotlib.figure import Figure
 
 from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.foh_behaviour import RawFohBehaviourData
-from mooi_toolbox.processing.output_data import PipelineStatus
+from mooi_toolbox.processing.foh_config import FOH_TRIAL_INTERVALS
+from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
 from mooi_toolbox.processing.trial_intervals import (
     TrialIntervals,
     get_lsl_event_time_with_fallback,
@@ -21,14 +23,19 @@ class FohGetTrialIntervalStrategyStep:
     def run(
         self, raw_biodata_in: RawBioData, raw_behaviour_data_in: RawFohBehaviourData
     ) -> tuple[TrialIntervals, Figure, PipelineStatus]:
-        create_lsl_trial_intervals(raw_biodata_in, raw_behaviour_data_in)
+        try:
+            trial_intervals, interval_processing_status = create_lsl_trial_intervals(
+                raw_biodata_in["VR_markers"], raw_behaviour_data_in.raw_behav_df
+            )
+        except ValueError as e:
+            logger.warning(f"Error processing intervals. - {e}")
 
-        return (TrialIntervals(), Figure(), PipelineStatus())
+        return (trial_intervals, Figure(), interval_processing_status)
 
 
 def create_lsl_trial_intervals(
-    vr_markers_df: RawBioData, VR_trial_events_df: RawFohBehaviourData
-) -> dict[str, tuple[float, float]]:
+    vr_markers_df: pd.DataFrame, VR_trial_events_df: pd.DataFrame
+) -> tuple[TrialIntervals, PipelineStatus]:
     # TODO: This shouldnt be hardset to the platform
     """
     Takes marker info from VR LSL streams vr_markers and VR_trial_events and creates intervals.
@@ -36,14 +43,17 @@ def create_lsl_trial_intervals(
     event_sources = {"VR_markers": vr_markers_df, "VR_trial_events": VR_trial_events_df}
 
     trial_intervals = {}
+    pipeline_status = PipelineStatus()
     # TODO: wire to a .py config file.
-    for interval_name, interval_events in cfg.get_trial_intervals().items():
-        start_event = interval_events["start"]
-        start_fallback = interval_events.get("start_fallback")
+    # TODO: Review exception handling here again.
+    for interval_name, interval_events in FOH_TRIAL_INTERVALS.items():
+        start_event = interval_events.start
+        start_fallback = interval_events.start_fallback
 
-        end_event = interval_events["end"]
-        end_fallback = interval_events.get("end_fallback")
-
+        end_event = interval_events.end
+        end_fallback = interval_events.end_fallback
+        # TODO: Too deeply nested. Hard to understand. Consider using the fallback
+        # strategy rather IF this fails.
         try:
             start_time = get_lsl_event_time_with_fallback(
                 event_sources,
@@ -56,16 +66,18 @@ def create_lsl_trial_intervals(
                 end_event,
                 end_fallback,
             )
+            pipeline_status.set(TrialIntervals, ProcessingStatus.OK)
 
         except ValueError:
             logger.warning(
                 "Could not create interval %s from start event %s to end event %s",
                 interval_name,
-                start_event["event"],
-                end_event["event"],
+                start_event.event,
+                end_event.event,
             )
+            pipeline_status.set(TrialIntervals, ProcessingStatus.ERROR)
             continue
 
         trial_intervals[interval_name] = (start_time, end_time)
-
-    return trial_intervals
+    trial_intervals_out = TrialIntervals(intervals=trial_intervals)
+    return (trial_intervals_out, pipeline_status)

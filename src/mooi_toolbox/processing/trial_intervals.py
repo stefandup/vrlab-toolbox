@@ -11,6 +11,7 @@ from typing_extensions import deprecated
 from mooi_toolbox import config as cfg
 from mooi_toolbox.processing import lsl
 from mooi_toolbox.processing.input_data import PhysiologyFileFormat
+from mooi_toolbox.processing.lsl import LslEventSpecification
 from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
 
 logger = logging.getLogger(__name__)
@@ -142,33 +143,35 @@ class TrialIntervals:
 # LSL interval concerns
 
 
-def get_lsl_event_time(
-    xdf_df_in: pd.DataFrame, col_id: str = "VR_trial", event_id: str = "RaiseSafetyPlatform"
-) -> float:
+def get_lsl_event_time(xdf_df_in: pd.DataFrame, col_id: str, event_id: str | int) -> float:
     """Takes xdf marker streams in and extracts timestaps based on predefined markers.
     See pyproject.toml for event definitions"""
     try:
         matches = xdf_df_in["time_stamps"][xdf_df_in[col_id] == event_id]
     except KeyError as e:
-        raise KeyError(f"Error in finding {event_id}") from e
+        raise ValueError(f"Error in finding {event_id}") from e
     if matches.empty:
         raise ValueError(f"Can not find {col_id} with id {event_id}")
 
     return float(matches.iloc[0])
 
 
-def get_lsl_event_time_from_spec(event_sources: dict, event_spec: dict) -> float:
+def get_lsl_event_time_from_spec(
+    event_sources: dict[str, pd.DataFrame], event_spec: LslEventSpecification
+) -> float:
     event_time = get_lsl_event_time(
-        event_sources[event_spec["stream"]],
-        event_spec["column"],
-        event_spec["event"],
+        event_sources[event_spec.stream],
+        event_spec.column,
+        event_spec.event,
     )
 
-    return event_time + event_spec.get("offset_seconds", 0)
+    return event_time + event_spec.offset_seconds
 
 
 def get_lsl_event_time_with_fallback(
-    event_sources: dict, primary_event: dict, fallback_event: dict | None = None
+    event_sources: dict,
+    primary_event: LslEventSpecification,
+    fallback_event: LslEventSpecification | None = None,
 ) -> float:
     """Sometimes the first markers are missing. Here we use a fallback."""
     try:
@@ -179,8 +182,8 @@ def get_lsl_event_time_with_fallback(
 
         logger.warning(
             "Using fallback event %s because primary event %s was missing",
-            fallback_event["event"],
-            primary_event["event"],
+            fallback_event.event,
+            primary_event.event,
         )
     try:
         return get_lsl_event_time_from_spec(event_sources, fallback_event)
@@ -202,7 +205,7 @@ def create_lsl_trial_intervals(
 
     trial_intervals = {}
     # TODO: wire to a .py config file.
-    for interval_name, interval_events in cfg.get_trial_intervals().items():
+    for interval_name, interval_events in cfg.get_trial_intervals().items():  # type: ignore
         start_event = interval_events["start"]
         start_fallback = interval_events.get("start_fallback")
 

@@ -68,6 +68,7 @@ class ImportFohBehaviourDataStrategyStep:
 
         if missing_streams_out:
             logger.warning(f"Missing streams {missing_streams_out} for {config_in.subject_id}")
+            raise ValueError
 
         return RawFohBehaviourData(
             subject_config=config_in,

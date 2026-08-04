@@ -5,7 +5,7 @@ import pandas as pd
 from pandas.errors import SettingWithCopyWarning
 
 
-class ECGProcessingError(Exception):
+class ECGProcessingError(ValueError):
     """Raised when ECG processing fails."""
 
 
