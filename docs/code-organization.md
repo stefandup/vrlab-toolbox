@@ -146,6 +146,20 @@ start from this table rather than `crane_pipeline.py` — that file mostly
 just imports and assembles the pieces above.
 (See [Pipeline Concepts](pipeline-concepts.md) for *why* it's built this way.)
 
+`foh_pipeline.py` is wired the same way, for FOH's own steps:
+
+| Step | Implemented in |
+| --- | --- |
+| Find a participant's files | `foh_pipeline.py` (`FindFohParticipantFilesStrategyStep`) |
+| Import/process FOH trial + target behaviour data | `foh_behaviour.py`, `foh_target_behaviour.py` |
+| Import physiology data | `lsl.py` (`FohLslPhysiologyDataImportStrategy`) |
+| Build trial intervals | `foh_trial_intervals.py`, using event definitions from `foh_config.py` |
+| Process EDA physiology | `eda.py` — the *same* `ProcessEdaPhysiologyDataStrategyStep` Crane uses, unmodified |
+
+See [Lab Streaming (LSL/XDF)](lab-streaming.md) for what's different about
+FOH's data (one `.xdf` file instead of separate `.mat`/CSV files) and why
+that only changes the import/interval steps, not the processing steps.
+
 ## The command-line tools
 
 CLI scripts live in `src/mooi_toolbox/cli/` (e.g. `vrlab_crane_process.py`).

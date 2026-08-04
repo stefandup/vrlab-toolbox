@@ -130,8 +130,19 @@ That's the whole class. `merge()`, `append_dataframe()`, `figure_data_out`,
 the one-row rule — all inherited unchanged from `PipelineOutputData`, same
 as `Salad` inheriting `Dish.__init__` above. You'll see the same pattern
 for `CraneBehaviourOutputData`, `CraneDebriefPipelineOutput`,
-`EdaPhysiologyOutputData`, and `LongWalkPipelineOutputData` — one override
-each, nothing more, all still exactly one row per subject.
+`EdaPhysiologyOutputData`, `LongWalkPipelineOutputData`, and
+`FohPipelineOutputData` (`foh_pipeline.py`) — one override each, nothing
+more, all still exactly one row per subject.
+
+!!! note "Going further"
+    `FohPipelineOutputData.validate_participant_output()` currently
+    validates against a bare `pa.DataFrameSchema()` — the override exists,
+    but `build_foh_participant_output_schema()` hasn't been filled in with
+    real columns yet, so validation is a no-op today. Once it is, it'll
+    follow the same "build from constants" shape
+    `build_crane_participant_output_schema()` already uses. See
+    [Lab Streaming](lab-streaming.md) for the rest of FOH's anticipated
+    pipeline shape.
 
 ## Declaring fields: `= default` vs. `field(default_factory=...)`
 

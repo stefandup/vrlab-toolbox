@@ -98,6 +98,31 @@ class FindCraneParticipantFilesStrategyStep:
 `PipelineTemplate` calls `.run()` on whatever it's given here — it never
 needs to know this specific class exists.
 
+### Same contract, different experiment
+
+FOH's equivalent, `FindFohParticipantFilesStrategyStep`
+(`foh_pipeline.py`), satisfies the exact same shape while doing something
+different internally — matching one `.xdf` file instead of a `.mat` file
+plus behaviour CSVs (see [Lab Streaming](lab-streaming.md#finding-a-participants-files-participantconfigfrom_lsl_data)
+for the LSL-specific matching rules):
+
+```python
+class FindFohParticipantFilesStrategyStep:
+    physiology_data_type = FohLslPhysiologyDataImportStrategy.input_data_file_format
+
+    def run(self, participant_id_in, data_folder_in, output_folder_in=None):
+        return ParticipantConfig.from_lsl_data(
+            id_in=participant_id_in,
+            physiology_data_type_in=self.physiology_data_type,
+            data_folder_in=data_folder_in,
+            output_folder_in=output_folder_in,
+        )
+```
+
+`PipelineTemplate` doesn't need an `if experiment == "crane"` anywhere —
+both classes just have a matching `run()`, which is the whole point of
+Strategy: swap which object gets passed in, not the code that calls it.
+
 ### Try it yourself: run a single strategy directly
 
 Because every strategy step is just an object with a `run()` method, you
@@ -477,6 +502,35 @@ def run_pipeline(participant_id_in, data_folder_in, output_folder_in=None):
 Every `My...Step()` above just needs to satisfy the matching
 [Strategy](#strategy) `Protocol` — right `run()` signature, right contract
 type in and out. `PipelineTemplate` itself never changes.
+
+This isn't just hypothetical — `foh_pipeline.py`'s `run_pipeline()` is a
+second, real instance of exactly this same `PipelineTemplate` shape, built
+for a different experiment with a different physiology source:
+
+```python
+foh_pipeline = pipeline.PipelineTemplate(
+    find_participant_strategy_step=FindFohParticipantFilesStrategyStep(),
+    get_intervals_strategy=FohGetTrialIntervalStrategyStep(),
+    sequential_behaviour_data_import_steps=import_behav_steps,
+    sequential_behaviour_processing_steps=process_behav_steps,
+    sequential_physiology_import_steps=pipeline.SequentialPhysiolgyImportSteps(
+        steps=[FohLslPhysiologyDataImportStrategy()]
+    ),
+    sequential_physiology_processing_steps=pipeline.SequentialPhysiologyProcessingSteps(
+        steps=[ProcessEdaPhysiologyDataStrategyStep()]
+    ),
+)
+```
+
+Two things worth noticing, side by side with Crane's version above: the
+physiology import step is swapped (`FohLslPhysiologyDataImportStrategy`
+instead of `BiopacDataImportStartegy`) because the two experiments record
+physiology completely differently — one `.mat` file, one `.xdf` file — but
+`ProcessEdaPhysiologyDataStrategyStep` is the *same* object in both
+pipelines, unmodified, because both import steps agree on handing back the
+same `RawBioData` contract. See [Lab Streaming](lab-streaming.md) for the
+FOH/LSL side of this in full, including a chained, `PipelineTemplate`-free
+walkthrough of these same strategy steps.
 
 ---
 

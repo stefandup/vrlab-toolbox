@@ -65,6 +65,28 @@ in place.
     tracked as still-open work — see item 12 in
     [Next Steps](pipeline_next_steps.md#12-participantconfig-file-discovery-make-failures-report-status-instead-of-raising).
 
+## FOH's file matching is simpler, and follows slightly different rules
+
+Everything above describes `ParticipantConfig.from_physiology_data`, used by
+Crane. FOH doesn't match separate physiology and behaviour files at all —
+one `.xdf` file holds everything — so it goes through a different
+classmethod, `ParticipantConfig.from_lsl_data` (`input_data.py`), with its
+own matching rules instead of the ones above:
+
+- it globs for `*{participant_id}*.xdf` under `data_folder_in`, and keeps
+  only files ending in `eeg.xdf` (anything else is treated as an old run
+  and skipped, logged as a warning);
+- if more than one file still matches, it picks the **last** match rather
+  than Crane's "first match wins" rule (see
+  [Lab Streaming](lab-streaming.md#finding-a-participants-files-participantconfigfrom_lsl_data));
+- there's no separate behaviour-file matching step or date-mismatch check,
+  since there's nothing to match against — behaviour, target, and
+  physiology data are all read out of the same `.xdf` file later, by the
+  relevant import strategy step.
+
+The "raw files are never changed" and "missing files don't stop the
+pipeline" rules above still apply equally to FOH.
+
 ---
 
 **Next: [Interval QC Plot](interval-qc.md)** — a second kind of matching,

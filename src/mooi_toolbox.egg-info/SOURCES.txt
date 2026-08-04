@@ -68,10 +68,11 @@ src/mooi_toolbox/processing/crane_debrief_behaviour.py
 src/mooi_toolbox/processing/crane_dummy_data.py
 src/mooi_toolbox/processing/crane_pipeline.py
 src/mooi_toolbox/processing/crane_trial_intervals.py
-src/mooi_toolbox/processing/csv_files.py
 src/mooi_toolbox/processing/ecg.py
 src/mooi_toolbox/processing/eda.py
 src/mooi_toolbox/processing/eeg.py
+src/mooi_toolbox/processing/foh_behaviour.py
+src/mooi_toolbox/processing/foh_config.py
 src/mooi_toolbox/processing/foh_pipeline.py
 src/mooi_toolbox/processing/foh_target_behaviour.py
 src/mooi_toolbox/processing/foh_trial_intervals.py

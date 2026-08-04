@@ -188,6 +188,21 @@ plot.)*
     [Interactive QC Plan](crane_interactive_qc_plan.md) and item 9 in
     [Next Steps](pipeline_next_steps.md#9-manual-qc-tool-for-clock-drift-verification).
 
+## Why FOH doesn't need any of this
+
+All of the above — trigger detection, false-trigger filtering, clock-drift
+correction, behaviour matching — exists because Crane's physiology and
+behaviour data come from **two independent clocks** that have to be
+reconciled after the fact. FOH's LSL/`.xdf` recordings don't have that
+problem: every stream in an `.xdf` file is already time-aligned to one
+shared clock at recording time (see
+[Lab Streaming](lab-streaming.md#what-is-lsl-and-whats-a-xdf-file)), so
+`FohGetTrialIntervalStrategyStep` builds its `TrialIntervals` directly from
+named LSL events — no trigger channel, no drift correction, and (so far)
+no equivalent of this QC plot. See
+[Lab Streaming: building trial intervals from LSL events](lab-streaming.md#building-trial-intervals-from-lsl-events-foh_configpy)
+for how that step works instead.
+
 ---
 
 **Next: [EDA & SCRs](eda.md)** — now that trial intervals are matched, see

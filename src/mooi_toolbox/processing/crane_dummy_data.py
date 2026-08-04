@@ -24,6 +24,15 @@ ERROR_TYPES = (
     "short_trigger",
 )
 
+# Trigger-anomaly scenarios driven by a reference recording's pulse timing rather than a random
+# choice — see generate_dummy_participant_matching_reference().
+REFERENCE_ERROR_TYPES = (
+    "missing_initial_trigger",
+    "missing_last_trigger",
+    "double_initial_trigger",
+)
+MIN_DOUBLE_TRIGGER_GAP_SECONDS = 0.5
+
 RATING_COLUMNS = ("Nausea", "Dizzy", "Stressed")
 OUTCOME_COUNT_COLUMNS = (
     "CurrentScore",
@@ -89,46 +98,124 @@ def _rising_edge_indices(trigger: np.ndarray) -> np.ndarray:
     return np.where(np.diff(trigger) > 0.47)[0] + 1
 
 
-def _remove_one_trigger_pulse(trigger: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-    """Flattens one whole trigger pulse to baseline, dropping one rising edge."""
+def _flatten_pulse_at_edge(trigger: np.ndarray, edge_index: int) -> np.ndarray:
+    """Flattens the single trigger pulse starting at edge_index down to its pre-pulse baseline."""
     mutated = trigger.copy()
-    edges = _rising_edge_indices(mutated)
-    interior_edges = edges[(edges > len(mutated) * 0.1) & (edges < len(mutated) * 0.9)]
-    chosen = int(rng.choice(interior_edges))
-    baseline = mutated[chosen - 1]
-    high_value = mutated[chosen]
+    baseline = mutated[edge_index - 1]
+    high_value = mutated[edge_index]
 
-    end = chosen
+    end = edge_index
     while end < len(mutated) - 1 and abs(mutated[end] - high_value) < 0.47:
         end += 1
 
-    mutated[chosen:end] = baseline
+    mutated[edge_index:end] = baseline
     return mutated
 
 
-def _insert_short_trigger_pulse(
-    trigger: np.ndarray, rng: np.random.Generator, sampling_freq_hz: float
+def _insert_pulse_after(
+    trigger: np.ndarray,
+    edge_index: int,
+    gap_seconds: float,
+    sampling_freq_hz: float,
+    burst_seconds: float = 0.1,
 ) -> np.ndarray:
-    """
-    Adds a brief extra pulse shortly after a real one, producing an anomalously short interval.
-    """
+    """Inserts a brief extra high-voltage burst gap_seconds after the pulse starting at edge_index."""
     mutated = trigger.copy()
-    edges = _rising_edge_indices(mutated)
-    interior_edges = edges[(edges > len(mutated) * 0.1) & (edges < len(mutated) * 0.8)]
-    chosen = int(rng.choice(interior_edges))
-    high_value = mutated[chosen]
+    high_value = mutated[edge_index]
 
-    gap_samples = int(TRIGGER_PULSE_GAP_SECONDS * sampling_freq_hz)
-    burst_samples = max(int(0.1 * sampling_freq_hz), 1)
-    insert_start = chosen + gap_samples
+    gap_samples = int(gap_seconds * sampling_freq_hz)
+    burst_samples = max(int(burst_seconds * sampling_freq_hz), 1)
+    insert_start = edge_index + gap_samples
     insert_end = min(insert_start + burst_samples, len(mutated))
 
     mutated[insert_start:insert_end] = high_value
     return mutated
 
 
+def _remove_one_trigger_pulse(trigger: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+    """Flattens one random interior trigger pulse to baseline, dropping one rising edge."""
+    edges = _rising_edge_indices(trigger)
+    interior_edges = edges[(edges > len(trigger) * 0.1) & (edges < len(trigger) * 0.9)]
+    chosen = int(rng.choice(interior_edges))
+    return _flatten_pulse_at_edge(trigger, chosen)
+
+
+def _remove_first_trigger_pulse(trigger: np.ndarray) -> np.ndarray:
+    """Flattens the first trigger pulse, reproducing a missing-initial-trigger recording."""
+    edges = _rising_edge_indices(trigger)
+    if len(edges) < 2:
+        raise ValueError("Trigger channel has too few pulses to drop the initial one.")
+    return _flatten_pulse_at_edge(trigger, int(edges[0]))
+
+
+def _remove_last_trigger_pulse(trigger: np.ndarray) -> np.ndarray:
+    """Flattens the last trigger pulse, reproducing a missing-final-trigger recording."""
+    edges = _rising_edge_indices(trigger)
+    if len(edges) < 2:
+        raise ValueError("Trigger channel has too few pulses to drop the last one.")
+    return _flatten_pulse_at_edge(trigger, int(edges[-1]))
+
+
+def _insert_short_trigger_pulse(
+    trigger: np.ndarray, rng: np.random.Generator, sampling_freq_hz: float
+) -> np.ndarray:
+    """Adds a brief extra pulse shortly after a random real one, producing an anomalously short interval."""
+    edges = _rising_edge_indices(trigger)
+    interior_edges = edges[(edges > len(trigger) * 0.1) & (edges < len(trigger) * 0.8)]
+    chosen = int(rng.choice(interior_edges))
+    return _insert_pulse_after(trigger, chosen, TRIGGER_PULSE_GAP_SECONDS, sampling_freq_hz)
+
+
+def _insert_double_initial_trigger_pulse(
+    trigger: np.ndarray, sampling_freq_hz: float, gap_seconds: float
+) -> np.ndarray:
+    """Duplicates the first pulse shortly after itself, reproducing a double-initial-trigger recording."""
+    edges = _rising_edge_indices(trigger)
+    if len(edges) == 0:
+        raise ValueError("Trigger channel has no pulses to duplicate.")
+    return _insert_pulse_after(trigger, int(edges[0]), gap_seconds, sampling_freq_hz)
+
+
+@dataclass
+class ReferenceTriggerProfile:
+    """
+    Trigger-channel timing fingerprint measured from a reference recording — pulse count and
+    gap lengths only. Never holds any physiological signal values, so it's safe to build from a
+    real participant's file without that file's actual data reaching the synthetic output.
+    """
+
+    n_pulses: int
+    sampling_freq_hz: float
+    min_gap_seconds: float
+    median_gap_seconds: float
+
+
+def characterize_reference_trigger_pattern(reference_mat_path: Path) -> ReferenceTriggerProfile:
+    """Measures pulse count/timing from a reference .mat file's trigger channel only."""
+    mat_dict = sio.loadmat(reference_mat_path)
+    trigger = mat_dict["data"][:, _trigger_channel_index(mat_dict)]
+    sampling_freq_hz = _sampling_freq_hz(mat_dict)
+    edges = _rising_edge_indices(trigger)
+
+    if len(edges) < 2:
+        raise ValueError(
+            f"{reference_mat_path} has fewer than 2 trigger pulses — not enough to characterize."
+        )
+
+    gap_seconds = np.diff(edges) / sampling_freq_hz
+    return ReferenceTriggerProfile(
+        n_pulses=len(edges),
+        sampling_freq_hz=sampling_freq_hz,
+        min_gap_seconds=float(gap_seconds.min()),
+        median_gap_seconds=float(np.median(gap_seconds)),
+    )
+
+
 def _mutate_physiology_dict(
-    mat_dict: dict, rng: np.random.Generator, error_type: str | None
+    mat_dict: dict,
+    rng: np.random.Generator,
+    error_type: str | None,
+    reference_gap_seconds: float | None = None,
 ) -> dict:
     mutated = {key: value for key, value in mat_dict.items() if not key.startswith("__")}
     data = mutated["data"].copy()
@@ -140,11 +227,21 @@ def _mutate_physiology_dict(
         channel = data[:, channel_idx]
         data[:, channel_idx] = channel + rng.normal(0, channel.std() * 0.02, size=channel.shape)
 
+    sampling_freq_hz = _sampling_freq_hz(mutated)
+
     if error_type == "bad_trigger_count":
         data[:, trigger_idx] = _remove_one_trigger_pulse(data[:, trigger_idx], rng)
     elif error_type == "short_trigger":
-        data[:, trigger_idx] = _insert_short_trigger_pulse(
-            data[:, trigger_idx], rng, _sampling_freq_hz(mutated)
+        data[:, trigger_idx] = _insert_short_trigger_pulse(data[:, trigger_idx], rng, sampling_freq_hz)
+    elif error_type == "missing_initial_trigger":
+        data[:, trigger_idx] = _remove_first_trigger_pulse(data[:, trigger_idx])
+    elif error_type == "missing_last_trigger":
+        data[:, trigger_idx] = _remove_last_trigger_pulse(data[:, trigger_idx])
+    elif error_type == "double_initial_trigger":
+        if reference_gap_seconds is None:
+            raise ValueError("double_initial_trigger requires reference_gap_seconds")
+        data[:, trigger_idx] = _insert_double_initial_trigger_pulse(
+            data[:, trigger_idx], sampling_freq_hz, reference_gap_seconds
         )
 
     mutated["data"] = data
@@ -175,6 +272,7 @@ def generate_dummy_participant(
     output_folder: Path,
     rng: np.random.Generator,
     error_type: str | None = None,
+    reference_gap_seconds: float | None = None,
 ) -> tuple[DummyParticipantResult, pd.DataFrame]:
     csv_path = None
     mat_path = None
@@ -186,7 +284,9 @@ def generate_dummy_participant(
         behav_df.to_csv(csv_path, index=False)
 
     if error_type != "missing_physiology":
-        mat_dict = _mutate_physiology_dict(sio.loadmat(mat_template), rng, error_type)
+        mat_dict = _mutate_physiology_dict(
+            sio.loadmat(mat_template), rng, error_type, reference_gap_seconds
+        )
         mat_path = output_folder / f"{mat_date_string}_{subject_id}_CraneOut.mat"
         sio.savemat(mat_path, mat_dict)
 
@@ -246,3 +346,84 @@ def generate_dummy_dataset(
 
     generate_dummy_debrief_workbook(debrief_rows, output_folder)
     return results
+
+
+def _append_debrief_rows_to_workbook(debrief_rows: pd.DataFrame, output_folder: Path) -> Path:
+    """Merges debrief_rows into output_folder's debrief workbook, keeping rows already there."""
+    workbook_path = output_folder / REDCAP_FN
+    if workbook_path.exists():
+        existing_rows = pd.read_excel(workbook_path, engine="openpyxl")
+        combined_rows = pd.concat([existing_rows, debrief_rows], ignore_index=True)
+    else:
+        combined_rows = debrief_rows
+    combined_rows.to_excel(workbook_path, index=False, engine="openpyxl")
+    return workbook_path
+
+
+def find_reference_mat_file(reference_folder: Path, reference_subject_id: str) -> Path:
+    """Locates a participant's .mat file by ID under reference_folder, without reading it."""
+    matches = sorted(reference_folder.rglob(f"*_{reference_subject_id}_*.mat"))
+    if not matches:
+        raise FileNotFoundError(
+            f"No .mat file found for participant {reference_subject_id!r} under {reference_folder}"
+        )
+    return matches[0]
+
+
+def generate_dummy_participant_matching_reference(
+    template_folder: Path,
+    output_folder: Path,
+    reference_folder: Path,
+    reference_subject_id: str,
+    reference_error_type: str,
+    subject_id: str | None = None,
+    seed: int | None = None,
+) -> DummyParticipantResult:
+    """
+    Generates one synthetic participant whose trigger-channel anomaly is shaped after a real
+    reference recording (e.g. one of the trigger-anomaly cases in
+    tests/test_crane_pipeline.py's TestCraneGetIntervalStrategy), without copying any of that
+    recording's actual signal values.
+
+    reference_folder may point at a real, gitignored crane_data/ folder — only
+    characterize_reference_trigger_pattern() reads from it, and only for trigger-pulse timing.
+    Meant to be run locally against real data yourself; the output written to output_folder is
+    built entirely from template_folder's synthetic templates.
+    """
+    if reference_error_type not in REFERENCE_ERROR_TYPES:
+        raise ValueError(
+            f"reference_error_type must be one of {REFERENCE_ERROR_TYPES}, "
+            f"got {reference_error_type!r}"
+        )
+
+    rng = np.random.default_rng(seed)
+    csv_template, mat_template = discover_template_pairs(template_folder)[0]
+    reference_mat_path = find_reference_mat_file(reference_folder, reference_subject_id)
+    reference_profile = characterize_reference_trigger_pattern(reference_mat_path)
+    output_folder.mkdir(parents=True, exist_ok=True)
+
+    subject_id = subject_id or f"REF{reference_subject_id}"
+    date_string = "2026999"
+    reference_gap_seconds = max(reference_profile.min_gap_seconds, MIN_DOUBLE_TRIGGER_GAP_SECONDS)
+
+    logger.info(
+        "Generating %s as %s, matching reference participant %s",
+        subject_id,
+        reference_error_type,
+        reference_subject_id,
+    )
+
+    result, debrief_rows = generate_dummy_participant(
+        csv_template,
+        mat_template,
+        subject_id,
+        date_string,
+        date_string,
+        output_folder,
+        rng,
+        error_type=reference_error_type,
+        reference_gap_seconds=reference_gap_seconds,
+    )
+    if not debrief_rows.empty:
+        _append_debrief_rows_to_workbook(debrief_rows, output_folder)
+    return result

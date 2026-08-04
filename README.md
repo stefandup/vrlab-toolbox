@@ -82,16 +82,36 @@ Instead, generate a small synthetic dataset locally, once your virtual
 environment is active:
 
 ```bash
-crane_generate_sample_data sample_data/crane_templates examples --with-errors --seed 42
+crane_generate_sample_data examples/crane_templates examples --with-errors --seed 42
 ```
 
-This clones the templates in `sample_data/crane_templates/` and perturbs
+This clones the templates in `examples/crane_templates/` and perturbs
 the numbers, writing the result into `examples/`. `--seed` makes it
 reproducible (same seed, same output); `--with-errors` also generates one
 participant per known pipeline error scenario (missing files, date
 mismatches, bad triggers, ...). Run `crane_generate_sample_data --help`
 for all options. See the docs site's Testing page for what `examples/` is
 used for.
+
+#### Reproducing a real participant's trigger anomaly, without exposing their data
+
+Chasing a specific trigger-pattern bug from a real `crane_data/`
+participant (missing initial trigger, missing last trigger, double initial
+trigger)? You don't need to check that participant's file into the repo or
+share it to debug it. `--reference-folder`/`--reference-subject-id`/
+`--reference-error-type` read *only* that one file's trigger-pulse timing
+and reproduce the same anomaly shape on a synthetic template — the
+reference file's actual signal never leaves your machine:
+
+```bash
+crane_generate_sample_data examples/crane_templates examples \
+  --reference-folder crane_data \
+  --reference-subject-id PID16186 \
+  --reference-error-type missing_initial_trigger
+```
+
+See the docs site's Testing page for the full list of supported
+`--reference-error-type` values and how this differs from `--with-errors`.
 
 ---
 

@@ -231,6 +231,16 @@ folder, and a handful of options — just for a different experiment. See the
 project's `README.md` (in the workspace root) for the full, current list of
 commands and examples.
 
+!!! note "Going further"
+    Under the hood, `mobi_foh_process` is migrating onto the same
+    `run_pipeline()`/`PipelineTemplate` shape this page just walked through
+    for Crane — same `find → import → process → combine → save` sequence,
+    just reading one `.xdf` (LSL) file per participant instead of a Biopac
+    `.mat` file plus behaviour CSVs. See
+    [Lab Streaming (LSL/XDF)](lab-streaming.md) for that pipeline's
+    anticipated end state, and what's already true of the code today versus
+    what's still being finished.
+
 ---
 
 **Next: [Code Organization](code-organization.md)** — now that you've run
