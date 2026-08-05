@@ -43,13 +43,11 @@ class FohLslPhysiologyDataImportStrategy:
         selected_lsl_physiology_streams_dfs = gather_xdf_data_streams(streams, streams_to_get)
         missing_streams = set(streams_to_get) - set(selected_lsl_physiology_streams_dfs.keys())
 
-        if has_missing_requirements(missing_streams, streams_to_get):
+        if has_missing_requirements(missing_streams, ["OpenSignals"]):
             logger.warning(f"Missing physiology data - {missing_streams}")
+            return RawBioData()
 
-        open_signal_data = selected_lsl_physiology_streams_dfs["OpenSignals"]
-        marker_data = selected_lsl_physiology_streams_dfs["VR_markers"]
-
-        return RawBioData(raw_data={"OpenSignals": open_signal_data, "VR_markers": marker_data})
+        return RawBioData(raw_data=selected_lsl_physiology_streams_dfs)
 
 
 class xdfIOException(Exception):

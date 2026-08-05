@@ -28,11 +28,23 @@ class TestFOHPipeline(unittest.TestCase):
 
         self.assertTrue(raw_bio_data_out)
 
-    def test_foh_target_behav_strategy(self):
+    def test_foh_target_behav_import_strategy(self):
+
+        data_folder = Path(r"local_lsl_data\\Participant Data")
+        participant_config = ParticipantConfig.from_lsl_data(
+            "PID13574",
+            data_folder,
+            PhysiologyFileFormat.LSL,
+        )
+
+        raw_target_behav_data = ImportFohTargetBehaviourDataStrategyStep().run(participant_config)
+        self.assertIsInstance(raw_target_behav_data, FohRawTargetBehaviourData)
+
+    def test_foh_target_behav_processing_strategy(self):
         data_folder = Path(r"local_lsl_data\\Participant Data")
 
         participant_config = ParticipantConfig.from_lsl_data(
-            "PID2677",
+            "PID13574",
             data_folder,
             PhysiologyFileFormat.LSL,
         )

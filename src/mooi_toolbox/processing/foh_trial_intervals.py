@@ -23,17 +23,20 @@ class FohGetTrialIntervalStrategyStep:
     def run(
         self, raw_biodata_in: RawBioData, raw_behaviour_data_in: RawFohBehaviourData
     ) -> tuple[TrialIntervals, Figure, PipelineStatus]:
+        trial_intervals = TrialIntervals()
+        interval_pipeline_status = PipelineStatus()
+
         try:
-            trial_intervals, interval_processing_status = create_lsl_trial_intervals(
+            trial_intervals, interval_pipeline_status = create_foh_lsl_trial_intervals(
                 raw_biodata_in["VR_markers"], raw_behaviour_data_in.raw_behav_df
             )
         except ValueError as e:
             logger.warning(f"Error processing intervals. - {e}")
 
-        return (trial_intervals, Figure(), interval_processing_status)
+        return (trial_intervals, Figure(), interval_pipeline_status)
 
 
-def create_lsl_trial_intervals(
+def create_foh_lsl_trial_intervals(
     vr_markers_df: pd.DataFrame, VR_trial_events_df: pd.DataFrame
 ) -> tuple[TrialIntervals, PipelineStatus]:
     # TODO: This shouldnt be hardset to the platform
@@ -44,16 +47,14 @@ def create_lsl_trial_intervals(
 
     trial_intervals = {}
     pipeline_status = PipelineStatus()
-    # TODO: wire to a .py config file.
-    # TODO: Review exception handling here again.
+
     for interval_name, interval_events in FOH_TRIAL_INTERVALS.items():
         start_event = interval_events.start
         start_fallback = interval_events.start_fallback
 
         end_event = interval_events.end
         end_fallback = interval_events.end_fallback
-        # TODO: Too deeply nested. Hard to understand. Consider using the fallback
-        # strategy rather IF this fails.
+
         try:
             start_time = get_lsl_event_time_with_fallback(
                 event_sources,

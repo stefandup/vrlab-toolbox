@@ -809,24 +809,25 @@ folding into item 6 (Pandera dataframe contracts) or handling at the
   `except ValueError` layer above it, including `pipeline.py`'s outer catch
   around the interval strategy. Fixed: now re-raises as `ValueError`.
 
-**Still open — `FohGetTrialIntervalStrategyStep.run()`
-(`foh_trial_intervals.py:26-33`):** its local
-`try: ... except ValueError as e: logger.warning(...)` never assigns
-`trial_intervals`/`interval_processing_status` on the except path, so the
-following `return` raises `UnboundLocalError` if `create_lsl_trial_intervals`
-(or the dict-access it depends on) ever raises. Flagged repeatedly, not yet
-fixed. Considered removing this local try/except entirely and relying on
-`pipeline.py`'s own outer `except (TypeError, ValueError)` handler around the
-interval strategy call instead — matching how `CraneGetTrialIntervalStrategyStep.run()`
-has no try/except of its own — but not done.
+**Update: fixed — `FohGetTrialIntervalStrategyStep.run()`
+(`foh_trial_intervals.py:26-33`):** `trial_intervals` and
+`interval_pipeline_status` (renamed from `interval_processing_status`, see
+the naming TODO below) are now assigned default values (`TrialIntervals()`,
+`PipelineStatus()`) *before* the `try` block, so the final `return` always has
+something bound regardless of which branch ran — the `UnboundLocalError` trap
+is gone. The local `try/except` itself was kept rather than removed in favour
+of `pipeline.py`'s outer handler, since it still needs to populate those
+defaults.
 
-**Still open — `lsl.py`'s `FohLslPhysiologyDataImportStrategy.run()`:** still
-unconditionally does `selected_lsl_physiology_streams_dfs["VR_markers"]`
-after only logging a warning on missing streams — bare `KeyError`, uncaught,
-if `VR_markers` is genuinely absent. Needs to build `RawBioData` with only
-the streams actually present, now that the downstream fallback logic is
-designed to handle a missing `VR_markers` gracefully (see next point). Coupled
-with the item above: fixing one without the other just relocates the crash.
+**Update: fixed — `lsl.py`'s `FohLslPhysiologyDataImportStrategy.run()`:**
+now only treats `OpenSignals` as required (`has_missing_requirements(missing_streams,
+["OpenSignals"])`, bailing out with `RawBioData()` if it's missing), and
+returns `RawBioData(raw_data=selected_lsl_physiology_streams_dfs)` — the dict
+`gather_xdf_data_streams` already builds from whatever streams were actually
+found — instead of indexing `"VR_markers"` by a fixed key. A missing
+`VR_markers` no longer crashes and no longer wipes out an otherwise-good
+`OpenSignals` result; it just isn't in the returned dict, which the
+downstream fallback logic is already built to handle.
 
 **Finding: `VR_markers` is not actually required by the interval-building
 logic.** Per the trial-interval config (now `foh_config.py`, see below),
@@ -887,6 +888,15 @@ would have been caught by the type system as it existed before this pass.
 - `foh_pipeline.py`'s `build_foh_participant_output_schema()` returns a bare
   `pa.DataFrameSchema()` — validation is currently a no-op, unlike Crane's
   fully-built schema (`crane_pipeline.py:65-92`).
+- TODO: `PipelineStatus` vs. `ProcessingStatus` (`processing_status.py`) read
+  as confusingly similar names for two different things — `PipelineStatus` is
+  the per-pipeline-run container (`dict[type, ProcessingStatus]`),
+  `ProcessingStatus` is the per-entry enum (`OK`/`ERROR`/...) it holds. Same
+  confusion shows up in local variable names built off them, e.g.
+  `interval_pipeline_status` (renamed from `interval_processing_status` while
+  fixing the `UnboundLocalError` trap above). Worth a naming pass later —
+  e.g. renaming the enum to something like `ProcessingOutcome` — across the
+  class names and every variable named after them. Not urgent, just flagged.
 
 **Test added:** `tests/test_foh_pipeline.py::test_foh_target_behav_strategy`
 now exercises the real import → interval → process chain (mirroring
@@ -898,14 +908,15 @@ catch a regression in the actual target-processing output, only that the
 step doesn't crash.
 
 Needed, roughly in dependency order:
-- fix the `UnboundLocalError` trap in `FohGetTrialIntervalStrategyStep.run()`;
-- finish the "let it through" fix in `lsl.py` so a genuinely-missing
-  `VR_markers` doesn't crash upstream of the fallback logic that now exists
-  to handle it;
-- decide whether to relax `mobi_FOH_process_batch.py`'s `has_foh_markers`
-  gate (and the deprecated path's equivalent) now that the fallback can
-  actually handle a missing `VR_markers` — moot once the deprecated path and
-  its CLIs are deleted, live until then;
+- ~~fix the `UnboundLocalError` trap in `FohGetTrialIntervalStrategyStep.run()`~~ — done, see update above;
+- ~~finish the "let it through" fix in `lsl.py`~~ — done, see update above;
+- **Pinned, not decided yet:** whether to relax `mobi_FOH_process_batch.py`'s
+  `has_foh_markers` gate (`mobi_FOH_process_batch.py:50-62`) — it still
+  requires `FOH_target`, `VR_trial_events`, *and* `VR_markers` all present
+  before attempting a file, so files missing only `VR_markers` are still
+  silently skipped at the batch level, before the `lsl.py` fix or the interval
+  fallback ever get a chance to run on them. Deliberately left open for now —
+  moot once the deprecated path and its CLIs are deleted, live until then;
 - wire `ImportFohTargetBehaviourDataStrategyStep` into `foh_pipeline.py`;
 - fill in `ProcessFohTargetDataWithIntervalsStrategyStep`'s TODO;
 - build out `build_foh_participant_output_schema()`, mirroring how Crane's

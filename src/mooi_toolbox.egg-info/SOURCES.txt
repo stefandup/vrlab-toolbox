@@ -52,6 +52,7 @@ src/mooi_toolbox.egg-info/scm_version.json
 src/mooi_toolbox.egg-info/top_level.txt
 src/mooi_toolbox/cli/check_mobi_xdf.py
 src/mooi_toolbox/cli/crane_generate_sample_data.py
+src/mooi_toolbox/cli/mobi_FOH_assess_data.py
 src/mooi_toolbox/cli/mobi_FOH_process.py
 src/mooi_toolbox/cli/mobi_FOH_process_batch.py
 src/mooi_toolbox/cli/mobi_spiral_process_batch.py
