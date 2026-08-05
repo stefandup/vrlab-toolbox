@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 
 import click
@@ -59,7 +60,9 @@ def assess_xdf_file(xdf_fn: Path) -> XdfAssessment:
         )
 
     try:
-        recorded_at = xdf_io.get_start_time(header).strftime("%Y-%m-%d %H:%M:%S")
+        recorded_at = datetime.fromisoformat(header["info"]["datetime"][0]).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
     except (KeyError, IndexError, ValueError) as error:
         logger.warning("No recording date in %s: %s", xdf_fn.name, error)
         recorded_at = None
