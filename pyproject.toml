@@ -13,6 +13,7 @@ dependencies = {file = ["requirements.txt"]}
 
 [project.scripts]
 mobi_check_xdf = "mooi_toolbox.cli.check_mobi_xdf:main"
+mobi_foh_assess_data = "mooi_toolbox.cli.mobi_FOH_assess_data:main"
 mobi_foh_process = "mooi_toolbox.cli.mobi_FOH_process:main"
 mobi_foh_batch_process = "mooi_toolbox.cli.mobi_FOH_process_batch:main"
 plot_target_data = "mooi_toolbox.cli.plot_subject_target_scr_bars:main"
