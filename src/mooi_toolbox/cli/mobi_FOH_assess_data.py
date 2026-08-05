@@ -90,6 +90,10 @@ def assess_data_folder(data_folder: Path) -> list[XdfAssessment]:
             results.append(assess_xdf_file(xdf_fn))
             progress.advance(task)
 
+    # recorded_at is "%Y-%m-%d %H:%M:%S", so lexicographic order is chronological order.
+    # Files with an unknown date (load error or missing header) sort last, not first.
+    results.sort(key=lambda result: (result.recorded_at is None, result.recorded_at))
+
     return results
 
 
