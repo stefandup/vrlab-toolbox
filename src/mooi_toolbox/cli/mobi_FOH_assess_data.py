@@ -30,6 +30,10 @@ Examples:
   Also save the assessment as a CSV, and log which extra streams each file
   has beyond the ones the pipeline requires:
   mobi_foh_assess_data local_lsl_data --output-csv assessment.csv --verbose
+
+\b
+  '*_old*.xdf' files are skipped by default; include them too:
+  mobi_foh_assess_data local_lsl_data --all
 """
 
 
@@ -67,21 +71,32 @@ def assess_xdf_file(xdf_fn: Path) -> XdfAssessment:
         logger.warning("No recording date in %s: %s", xdf_fn.name, error)
         recorded_at = None
 
-    stream_names = [stream["info"]["name"][0] for stream in streams]
+    # A stream can be present by name but still empty (0 samples) -- that's as unusable as
+    # if it were missing entirely, so only count streams with actual data as present.
+    sample_counts = {stream["info"]["name"][0]: len(stream["time_series"]) for stream in streams}
+    present_stream_names = {name for name, count in sample_counts.items() if count > 0}
 
     return XdfAssessment(
         subject_id=subject_id,
         file_path=xdf_fn,
-        present_streams=[name for name in REQUIRED_STREAMS if name in stream_names],
-        missing_streams=[name for name in REQUIRED_STREAMS if name not in stream_names],
-        other_streams=sorted(set(stream_names) - set(REQUIRED_STREAMS)),
+        present_streams=[name for name in REQUIRED_STREAMS if name in present_stream_names],
+        missing_streams=[name for name in REQUIRED_STREAMS if name not in present_stream_names],
+        other_streams=sorted(present_stream_names - set(REQUIRED_STREAMS)),
         recorded_at=recorded_at,
     )
 
 
-def assess_data_folder(data_folder: Path) -> list[XdfAssessment]:
+def assess_data_folder(data_folder: Path, include_old: bool = False) -> list[XdfAssessment]:
     """Recursively find every .xdf file under data_folder and assess it."""
     xdf_paths = sorted(data_folder.rglob("*.xdf"))
+
+    if not include_old:
+        old_paths = [xdf_path for xdf_path in xdf_paths if "_old" in xdf_path.stem.lower()]
+        for old_path in old_paths:
+            logger.info(
+                "Skipping %s (matches '*_old*.xdf'; pass --all to include it)", old_path.name
+            )
+        xdf_paths = [xdf_path for xdf_path in xdf_paths if xdf_path not in old_paths]
 
     results = []
     with Progress() as progress:
@@ -156,12 +171,18 @@ def save_assessment_csv(results: list[XdfAssessment], output_csv: Path) -> None:
 @click.option(
     "--verbose", is_flag=True, help="Also log any streams found beyond what the pipeline requires."
 )
-def main(data_folder: Path, output_csv: Path | None, verbose: bool) -> None:
+@click.option(
+    "--all",
+    "include_old",
+    is_flag=True,
+    help="Also include '*_old*.xdf' files, which are skipped by default.",
+)
+def main(data_folder: Path, output_csv: Path | None, verbose: bool, include_old: bool) -> None:
     """Recursively scan DATA_FOLDER for .xdf files and report, per subject and file, which
     streams the FOH pipeline (processing/foh_pipeline.py) needs are present or absent."""
 
     logger.info("Scanning %s for .xdf files...", data_folder)
-    results = assess_data_folder(data_folder)
+    results = assess_data_folder(data_folder, include_old=include_old)
 
     if not results:
         logger.warning("No .xdf files found under %s", data_folder)
