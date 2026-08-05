@@ -154,6 +154,8 @@ def save_assessment_csv(results: list[XdfAssessment], output_csv: Path) -> None:
         }
         for result in results
     ]
+
+    output_csv.unlink(missing_ok=True)
     pd.DataFrame(rows).to_csv(output_csv, index=False)
 
 
