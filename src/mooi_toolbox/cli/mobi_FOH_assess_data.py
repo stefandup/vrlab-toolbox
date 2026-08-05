@@ -10,7 +10,7 @@ from rich.progress import Progress
 from rich.table import Table
 
 from mooi_toolbox import mobi_logging
-from mooi_toolbox.processing import lsl
+from mooi_toolbox.read_mobi_xdf import xdf_io
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ class XdfAssessment:
 
 def assess_xdf_file(xdf_fn: Path) -> XdfAssessment:
     """Load one xdf file and report which of REQUIRED_STREAMS it has and lacks."""
-    subject_id = lsl.get_subject_id(xdf_fn)
+    subject_id = xdf_io.get_subject_id(xdf_fn)
 
     try:
         streams, header = pyxdf.load_xdf(xdf_fn)
@@ -59,7 +59,7 @@ def assess_xdf_file(xdf_fn: Path) -> XdfAssessment:
         )
 
     try:
-        recorded_at = lsl.get_start_time(header).strftime("%Y-%m-%d %H:%M:%S")
+        recorded_at = xdf_io.get_start_time(header).strftime("%Y-%m-%d %H:%M:%S")
     except (KeyError, IndexError, ValueError) as error:
         logger.warning("No recording date in %s: %s", xdf_fn.name, error)
         recorded_at = None
