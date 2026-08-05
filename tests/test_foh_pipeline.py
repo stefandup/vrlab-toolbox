@@ -32,7 +32,7 @@ class TestFOHPipeline(unittest.TestCase):
 
         data_folder = Path(r"local_lsl_data\\Participant Data")
         participant_config = ParticipantConfig.from_lsl_data(
-            "PID13574",
+            "FOH",
             data_folder,
             PhysiologyFileFormat.LSL,
         )
@@ -44,7 +44,7 @@ class TestFOHPipeline(unittest.TestCase):
         data_folder = Path(r"local_lsl_data\\Participant Data")
 
         participant_config = ParticipantConfig.from_lsl_data(
-            "PID13574",
+            "FOH",
             data_folder,
             PhysiologyFileFormat.LSL,
         )
