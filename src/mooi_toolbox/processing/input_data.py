@@ -174,7 +174,8 @@ class ParticipantConfig:
         else:
             if len(selected_stream_fns) > 1:
                 logger.warning(
-                    f"Multiple sets for subject {id_in}. Chosing last one: {selected_stream_fns[-1]}"
+                    f"Multiple sets for subject {id_in}. "
+                    f"Chosing last one: {selected_stream_fns[-1]}"
                 )
             selected_stream_fn = selected_stream_fns[-1]
 
