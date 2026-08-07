@@ -12,6 +12,7 @@ from mooi_toolbox.processing.foh_trial_intervals import FohGetTrialIntervalStrat
 from mooi_toolbox.processing.input_data import ParticipantConfig, PhysiologyFileFormat
 from mooi_toolbox.processing.lsl import FohLslPhysiologyDataImportStrategy
 from mooi_toolbox.processing.output_data import PipelineOutputData
+from mooi_toolbox.processing.processing_status import ProcessingStatus
 
 CORRECT_PARTICIPANT = "P00020"
 
@@ -73,9 +74,12 @@ class TestFOHPipeline(unittest.TestCase):
         )
 
         raw_bio_data = FohLslPhysiologyDataImportStrategy().run(participant_config)
-        # FohGetTrialIntervalStrategyStep().run(
-        #    raw_bio_data,
-        # )
+        raw_behav_data = ImportFohBehaviourDataStrategyStep().run(participant_config)
+        trail_intervals, _, pipeline_status = FohGetTrialIntervalStrategyStep().run(
+            raw_bio_data, raw_behav_data
+        )
+        self.assertEqual(pipeline_status.status[type(trail_intervals)], ProcessingStatus.OK)
+        self.assertTrue(trail_intervals)
 
     def test_physiology_data_import_strategy(self):
         pass
