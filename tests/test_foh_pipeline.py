@@ -2,7 +2,10 @@ import unittest
 from pathlib import Path
 
 from mooi_toolbox.processing.biodata import RawBioData
-from mooi_toolbox.processing.foh_behaviour import ImportFohBehaviourDataStrategyStep
+from mooi_toolbox.processing.foh_behaviour import (
+    ImportFohBehaviourDataStrategyStep,
+    RawFohBehaviourData,
+)
 from mooi_toolbox.processing.foh_pipeline import run_pipeline
 from mooi_toolbox.processing.foh_target_behaviour import (
     FohRawTargetBehaviourData,
@@ -14,6 +17,7 @@ from mooi_toolbox.processing.input_data import ParticipantConfig, PhysiologyFile
 from mooi_toolbox.processing.lsl import FohLslPhysiologyDataImportStrategy
 from mooi_toolbox.processing.output_data import PipelineOutputData
 from mooi_toolbox.processing.processing_status import ProcessingStatus
+from mooi_toolbox.processing.trial_intervals import TrialIntervals
 
 CORRECT_PARTICIPANT = "P00020"
 
@@ -94,7 +98,7 @@ class TestFOHPipeline(unittest.TestCase):
         self.assertEqual(pipeline_status.status[type(trail_intervals)], ProcessingStatus.OK)
         self.assertTrue(trail_intervals)
 
-    def test_basic_pipeline(self):
+    def test_basic_foh_pipeline(self):
         data_folder = Path(r"local_lsl_data\\Participant Data")
 
         participant_config = ParticipantConfig.from_lsl_data(
@@ -105,3 +109,11 @@ class TestFOHPipeline(unittest.TestCase):
 
         pipeline_data_out = run_pipeline(participant_config.subject_id, data_folder)
         self.assertTrue(pipeline_data_out)
+        self.assertTrue(pipeline_data_out.figure_data_out["eda_qc"])
+        self.assertTrue(pipeline_data_out.figure_data_out["Interval_qc"])
+        self.assertEqual(pipeline_data_out.status.status[RawBioData], ProcessingStatus.OK)
+        self.assertEqual(pipeline_data_out.status.status[RawFohBehaviourData], ProcessingStatus.OK)
+        self.assertEqual(
+            pipeline_data_out.status.status[FohRawTargetBehaviourData], ProcessingStatus.OK
+        )
+        self.assertEqual(pipeline_data_out.status.status[TrialIntervals], ProcessingStatus.OK)
