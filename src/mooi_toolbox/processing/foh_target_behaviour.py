@@ -35,14 +35,14 @@ def build_foh_raw_target_behaviour_file_schema() -> pa.DataFrameSchema:
     )
 
 
-def _optional_float_column() -> pa.Column:
+def _opt_float_column() -> pa.Column:
     return pa.Column(float, nullable=True, coerce=True, required=False)
 
 
 def build_foh_target_behaviour_pipeline_output_schema() -> pa.DataFrameSchema:
     return pa.DataFrameSchema(
         {
-            f"{trial_type}_{TRIAL_NUMBERS[trial_type]}_{target_type}_Target": _optional_float_column()
+            f"{trial_type}_{TRIAL_NUMBERS[trial_type]}_{target_type}_Target": _opt_float_column()
             for trial_type in TRIAL_TYPES
             for target_type in TARGET_TYPES
         },
