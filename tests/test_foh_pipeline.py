@@ -20,7 +20,7 @@ class TestFOHPipeline(unittest.TestCase):
         data_folder = Path(r"local_lsl_data\\Participant Data")
 
         participant_config = ParticipantConfig.from_lsl_data(
-            "P00011",
+            "FOH",
             data_folder,
             PhysiologyFileFormat.LSL,
         )

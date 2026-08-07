@@ -30,7 +30,7 @@ class FohGetTrialIntervalStrategyStep:
             trial_intervals, interval_pipeline_status = create_foh_lsl_trial_intervals(
                 raw_biodata_in["VR_markers"], raw_behaviour_data_in.raw_behav_df
             )
-        except ValueError as e:
+        except (KeyError, ValueError) as e:
             logger.warning(f"Error processing intervals. - {e}")
 
         return (trial_intervals, Figure(), interval_pipeline_status)

@@ -1,8 +1,10 @@
 import io
 import logging
+from dataclasses import field
 
 import numpy as np
 import pandas as pd
+import pandera.pandas as pa
 import pyxdf
 
 from mooi_toolbox.processing.behaviour import RawBehaviourData
@@ -18,9 +20,28 @@ class TPProcessingError(ValueError):
     """Raised when Target processing fails."""
 
 
+TARGET_TYPES = ["Short", "Medium", "Long"]
+
+
+def build_foh_raw_target_behaviour_file_schema() -> pa.DataFrameSchema:
+    return pa.DataFrameSchema(
+        {
+            "TimeSpawned": pa.Column(float, pa.Check.ge(1), nullable=False),
+            "TimeHit": pa.Column(float, pa.Check.ge(1), nullable=False),
+            "HitLatency": pa.Column(float, pa.Check.ge(0), nullable=False),
+            "TargetType": pa.Column(str, pa.Check.isin(TARGET_TYPES), nullable=False),
+            "time_stamps": pa.Column(float, pa.Check.ge(1), nullable=False),
+        },
+        strict=True,
+        coerce=True,
+    )
+
+
 class FohRawTargetBehaviourData(RawBehaviourData):
     filename_glob = "xdf"
-    pass
+    validation_schema: pa.DataFrameSchema = field(
+        default_factory=build_foh_raw_target_behaviour_file_schema
+    )
 
 
 class ImportFohTargetBehaviourDataStrategyStep:
