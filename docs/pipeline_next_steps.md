@@ -907,9 +907,65 @@ the previous `@unittest.skip` stub. Its final assertion is weak (only
 catch a regression in the actual target-processing output, only that the
 step doesn't crash.
 
+**Update (target behaviour wired in, batch CLI migrated):** several of the
+items below are now done.
+
+- `foh_pipeline.py`'s `import_behav_steps` now includes both
+  `ImportFohBehaviourDataStrategyStep` and
+  `ImportFohTargetBehaviourDataStrategyStep` — target behaviour data is
+  imported into the pipeline, not just interval-matched.
+- `ProcessFohTargetDataWithIntervalsStrategyStep.run()`'s
+  `# TODO: Create PipelineOutput!` is filled in: it now returns a real
+  `FohTargetBehaviourOutputData` (a `PipelineOutputData` subclass, new in
+  `foh_target_behaviour.py`) built via `append_dataframe(...)` against a real
+  schema — `build_foh_target_behaviour_pipeline_output_schema()`, columns
+  named `{trial_type}_{trial_number}_{target_type}_Target` from three new
+  constants in `foh_config.py` (`TARGET_TYPES`, `TRIAL_TYPES`,
+  `TRIAL_NUMBERS`). A companion schema,
+  `build_foh_raw_target_behaviour_file_schema()`, now also validates the raw
+  target CSV/XDF shape on `FohRawTargetBehaviourData` construction, the same
+  "validate at the boundary" pattern Crane uses (item 6).
+- `lsl.py`'s `FohLslPhysiologyDataImportStrategy.run()` now only *requires*
+  the `OpenSignals` stream (`has_missing_requirements(missing_streams,
+  ["OpenSignals"])`) and returns `RawBioData(raw_data={"EDA": ..., "ECG":
+  ...})` — `OpenSignals` is split into separate `EDA`/`ECG` dataframes (each
+  with the other's column dropped) instead of being handed back as one
+  combined `OpenSignals` entry. `VR_markers` is included only when present,
+  no longer required.
+- `foh_trial_intervals.py`: the interval-building function was renamed
+  `create_lsl_trial_intervals` → `create_foh_lsl_trial_intervals` (the old
+  name is still `@deprecated` on `trial_intervals.py`'s copy, used only by
+  `run_lsl_pipeline`); `FohGetTrialIntervalStrategyStep.run()`'s `except`
+  clause widened from `ValueError` to `(KeyError, ValueError)`, since a
+  missing `"VR_markers"` key on `raw_biodata_in` (now genuinely optional, per
+  the `lsl.py` change above) raises `KeyError` rather than `ValueError`.
+- `mobi_FOH_process_batch.py` (the batch CLI) migrated from the deprecated
+  `run_lsl_pipeline` to `run_pipeline`/`PipelineTemplate`: `input_folder`/
+  `output_folder` are now typed `Path` at the click layer
+  (`click.Path(..., path_type=Path)`) instead of converted by hand inside
+  `main()`; and where the old path returned a single optional `Figure`, the
+  new `PipelineOutputData.figure_data_out` is a `dict[str, Figure]` (e.g.
+  `"eda_qc"`, `"Interval_qc"`), so the batch CLI now loops over and saves
+  every figure the pipeline produced, closing each with `plt.close(fig)`
+  after saving to avoid the figure-leak issue tracked in item 18.
+  **`mobi_FOH_process.py` (the single-file CLI) has not been migrated** —
+  it still imports `run_lsl_pipeline as run_foh_pipeline` and calls the
+  deprecated path directly, so the two FOH CLIs currently run through two
+  different pipelines. Worth migrating together with the batch CLI rather
+  than leaving this split in place.
+- `tests/test_foh_pipeline.py::test_basic_pipeline` renamed to
+  `test_basic_foh_pipeline` and strengthened: beyond the previous
+  `assertTrue(pipeline_data_out)`, it now asserts both QC figures are
+  present (`figure_data_out["eda_qc"]`, `figure_data_out["Interval_qc"]`) and
+  that `RawBioData`, `RawFohBehaviourData`, `FohRawTargetBehaviourData`, and
+  `TrialIntervals` all come back `ProcessingStatus.OK` for the known-good
+  fixture participant.
+
 Needed, roughly in dependency order:
 - ~~fix the `UnboundLocalError` trap in `FohGetTrialIntervalStrategyStep.run()`~~ — done, see update above;
 - ~~finish the "let it through" fix in `lsl.py`~~ — done, see update above;
+- ~~wire `ImportFohTargetBehaviourDataStrategyStep` into `foh_pipeline.py`~~ — done, see update above;
+- ~~fill in `ProcessFohTargetDataWithIntervalsStrategyStep`'s TODO~~ — done, see update above;
 - **Pinned, not decided yet:** whether to relax `mobi_FOH_process_batch.py`'s
   `has_foh_markers` gate (`mobi_FOH_process_batch.py:50-62`) — it still
   requires `FOH_target`, `VR_trial_events`, *and* `VR_markers` all present
@@ -917,23 +973,64 @@ Needed, roughly in dependency order:
   silently skipped at the batch level, before the `lsl.py` fix or the interval
   fallback ever get a chance to run on them. Deliberately left open for now —
   moot once the deprecated path and its CLIs are deleted, live until then;
-- wire `ImportFohTargetBehaviourDataStrategyStep` into `foh_pipeline.py`;
-- fill in `ProcessFohTargetDataWithIntervalsStrategyStep`'s TODO;
 - build out `build_foh_participant_output_schema()`, mirroring how Crane's
-  schema is built from constants (item 3 territory);
+  schema is built from constants (item 3 territory) — still a bare
+  `pa.DataFrameSchema()` no-op, the one piece of the original punch list not
+  yet done;
 - once `run_pipeline` is validated end-to-end for FOH: delete
-  `run_lsl_pipeline`, update/retire `mobi_FOH_process.py` and
-  `mobi_FOH_process_batch.py`, and remove the now-stale `pyproject.toml`
+  `run_lsl_pipeline`, migrate `mobi_FOH_process.py` onto `run_pipeline` the
+  same way the batch CLI now is, and remove the now-stale `pyproject.toml`
   trial-interval TOML section and `cfg.get_trial_intervals()` in the same
   pass;
 - decide the fate of the `pandera.errors.SchemaError`/`SchemaErrors` gap —
   affects Crane as much as FOH, likely belongs with item 6.
+
+### 22. Direction: import assumptions should move toward BIDS — one dataset per timepoint, per input folder
+
+Not yet started — a direction for where the import layer (item 4/12/13's
+`ParticipantConfig.from_physiology_data` and `from_lsl_data`) should head
+next, rather than open work with a concrete task list yet.
+
+Today, file discovery for a given participant searches for files by
+name/glob pattern under a single shared `data_folder_in`, across however
+many timepoints that folder happens to contain — the "which timepoint is
+this?" question is answered indirectly, by whatever the filename or date
+string happens to encode (see items 4, 12, 13). The intended direction is
+closer to the [BIDS](https://bids.neuroimaging.io/) convention: **one
+dataset per timepoint, in its own timepoint input folder** — so "which
+timepoint" is answered by *which folder a file was found in*, not by
+parsing it back out of a filename. Concretely, this points toward:
+
+- an import entry point that takes a single timepoint's folder, rather than
+  a folder spanning multiple timepoints/sessions;
+- participant/session identification driven primarily by folder structure,
+  with filename matching (today's `filename_glob` pattern) as a
+  within-folder detail rather than the only signal;
+- less reliance on filename-embedded dates for cross-checking, since the
+  folder itself would already scope the timepoint — directly relevant to
+  item 13's date-string bug and item 4's "don't assume filename conventions
+  hold" finding, both of which exist only because timepoint currently has to
+  be inferred from filenames.
+
+This doesn't replace items 4/12/13 — those are about making today's
+filename-based matching correct and honest about failures. This item is
+about the layer above that: given the recurring pain from filename-based
+timepoint inference, moving the *unit of import* to "one timepoint folder"
+is the direction to head in, so filename matching only ever has to
+disambiguate *within* a timepoint, not across them.
 
 ## Working Rule
 
 Do not rewrite everything at once. Preserve working behaviour and improve
 one structural issue at a time: function-based strategy contracts first,
 dataframe contracts alongside them, shared template architecture second.
+
+Folders and files are always `pathlib.Path`, never bare strings — see
+[Golden Rules](golden-rules.md#always-use-path-never-strings-for-files-and-folders)
+for the rule and why it matters. This applies to new code the same way it
+applies to item 22's BIDS direction above: a timepoint input folder should
+be handled as a `Path` end to end, not a string that gets converted back and
+forth.
 
 ## Deferred: FOH & LongWalk
 

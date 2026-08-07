@@ -115,6 +115,46 @@ Reasons this earns its place as a rule, not just a stylistic preference:
   decades and will likely outlast whichever clever technique looked good
   this year.
 
+## Always use `Path`, never strings, for files and folders
+
+Every folder or file passed through this codebase — a CLI argument, a
+`data_folder_in`/`output_folder_in` on a strategy step, a filename handed
+between functions — should be a `pathlib.Path`, never a bare `str`. This is
+narrower than the general "prefer `pathlib.Path`" point above: it's a hard
+rule for this specific case, not just a style preference.
+
+```python
+# Not this — string in, string out, joined by hand
+def find_participant_file(data_folder: str, participant_id: str) -> str:
+    return os.path.join(data_folder, f"{participant_id}.csv")
+
+# This — Path in, Path out
+def find_participant_file(data_folder: Path, participant_id: str) -> Path:
+    return data_folder / f"{participant_id}.csv"
+```
+
+Why this earns its own rule, not just "prefer Path where convenient":
+
+- **String path-building is exactly where the platform-separator bug in
+  item 13 of [Next Steps](pipeline_next_steps.md#13-date-string-extraction-in-from_physiology_data-breaks-on-the-data-folders-path-separator)
+  came from** — `str(a_path).split("_")` silently breaks on Windows because
+  `str()` renders backslashes that a string-oriented split doesn't expect.
+  `Path` objects sidestep this entirely: use `.name`, `.stem`, `.parts`, or
+  `/` instead of manual string splitting/joining, and the platform's
+  separator is never something your code has to reason about.
+- **CLI entry points should hand back `Path` from the start**, via
+  `click.Path(..., path_type=Path)`, rather than a plain string that gets
+  wrapped in `Path(...)` partway through the function — see
+  [Getting Started](getting-started.md#3-run-the-crane-pipeline) and
+  [Lab Streaming](lab-streaming.md) for real examples of this at the click
+  layer.
+- **It matters more, not less, as folder-based conventions (like the BIDS
+  direction in [Next Steps item 22](pipeline_next_steps.md#22-direction-import-assumptions-should-move-toward-bids-one-dataset-per-timepoint-per-input-folder))
+  take over from filename-string parsing** — once "which timepoint" is
+  answered by which folder a file lives in rather than by a substring of its
+  name, folders need to be handled as structured `Path` objects throughout,
+  not as strings that happen to look right.
+
 ## Ask forgiveness, not permission (EAFP)
 
 Python has a strong, named idiom for how to handle things that might go

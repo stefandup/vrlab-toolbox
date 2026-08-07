@@ -10,14 +10,16 @@ of a Biopac `.mat` file.
 !!! note "Where FOH currently stands"
     `foh_pipeline.py`'s `run_pipeline()` already builds the same
     `PipelineTemplate` shape as Crane's — this page documents that target
-    shape, not a hypothetical future one. A handful of pieces are still
-    being finished on the `refactor/foh-pipeline` branch (target behaviour
-    isn't wired into the import steps yet; the participant-level output
-    schema is still a no-op). See item 21 in
+    shape, not a hypothetical future one. Target behaviour data is now
+    wired into the import and processing steps (see below); the
+    participant-level output schema (`build_foh_participant_output_schema()`)
+    is still the one piece left as a no-op. See item 21 in
     [Next Steps](pipeline_next_steps.md#21-foh-pipeline-exception-handling-parity-with-crane-trial-interval-config-migration)
     for the current punch list. The `@deprecated` `run_lsl_pipeline`
-    function is the old, pre-refactor path — kept only until the new one is
-    validated end-to-end, then deleted (see that same item).
+    function is the old, pre-refactor path — `mobi_foh_batch_process` has
+    already moved off it onto `run_pipeline()`; `mobi_foh_process` (the
+    single-file CLI) hasn't yet. It's kept only until both CLIs are off it,
+    then deleted (see that same item).
 
 ## What is LSL, and what's a `.xdf` file?
 
@@ -124,8 +126,8 @@ you're troubleshooting a missing participant:
 
 The LSL counterpart to `BiopacDataImportStartegy` (`biopac.py`). Same
 `ImportBioDataStrategyStep` contract, same `RawBioData` output type — just
-reading `OpenSignals`/`VR_markers` streams out of an `.xdf` file instead of
-channels out of a `.mat` file:
+reading streams out of an `.xdf` file instead of channels out of a `.mat`
+file:
 
 ```python
 class FohLslPhysiologyDataImportStrategy:
@@ -136,9 +138,29 @@ class FohLslPhysiologyDataImportStrategy:
         streams_to_get = ["OpenSignals", "VR_markers"]
         streams, _ = pyxdf.load_xdf(config_in.physiology_fn)
         selected_lsl_physiology_streams_dfs = gather_xdf_data_streams(streams, streams_to_get)
+
+        if has_missing_requirements(missing_streams, ["OpenSignals"]):
+            logger.warning(f"Missing physiology data - {missing_streams}")
+            return RawBioData()
+
+        df_dict_out = {
+            "EDA": selected_lsl_physiology_streams_dfs["OpenSignals"].copy(),
+            "ECG": selected_lsl_physiology_streams_dfs["OpenSignals"].copy(),
+        }
+        if not has_missing_requirements(missing_streams, ["VR_markers"]):
+            df_dict_out["VR_markers"] = selected_lsl_physiology_streams_dfs["VR_markers"].copy()
+
         ...
-        return RawBioData(raw_data={"OpenSignals": open_signal_data, "VR_markers": marker_data})
+        return RawBioData(raw_data=df_dict_out)
 ```
+
+Only `OpenSignals` is actually required — a missing `VR_markers` stream no
+longer fails the whole import, it's just left out of `raw_data`. The single
+`OpenSignals` stream is split into separate `"EDA"`/`"ECG"` entries (each
+with the other's columns dropped), rather than handed back as one combined
+`"OpenSignals"` entry — that split is what lets `ecg.py`'s processing read a
+plain `EDA`/`ECG`-keyed `RawBioData`, the same shape Crane's Biopac import
+produces.
 
 Because `RawBioData` is the same contract Crane's Biopac import returns
 (see [Design Patterns](design-patterns.md#input-and-output-contracts)),
@@ -264,11 +286,14 @@ count, sampling rate, and sample count.
 - `processing/trial_intervals.py:87` is hardset to one platform rather than
   detecting it — see the deferred items in
   [Next Steps](pipeline_next_steps.md#deferred-foh--longwalk).
-- The wiring above is the *target* shape, not yet fully switched on end to
-  end — `ImportFohTargetBehaviourDataStrategyStep` isn't in
-  `foh_pipeline.py`'s import steps yet, and
-  `ProcessFohTargetDataWithIntervalsStrategyStep` still discards the target
-  data it computes instead of returning it. Full punch list: item 21 in
+- `ImportFohTargetBehaviourDataStrategyStep` is now wired into
+  `foh_pipeline.py`'s import steps, and
+  `ProcessFohTargetDataWithIntervalsStrategyStep` returns real target output
+  (`FohTargetBehaviourOutputData`) instead of discarding it. What's still
+  the *target* shape rather than finished: `build_foh_participant_output_schema()`
+  is still a no-op, and `mobi_foh_process` (unlike `mobi_foh_batch_process`)
+  hasn't moved off the deprecated `run_lsl_pipeline` path yet. Full punch
+  list: item 21 in
   [Next Steps](pipeline_next_steps.md#21-foh-pipeline-exception-handling-parity-with-crane-trial-interval-config-migration).
 
 ---

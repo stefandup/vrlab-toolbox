@@ -15,8 +15,6 @@ _STATUS_RANK = list(ProcessingStatus)
 
 @dataclass
 class PipelineStatus:
-    # TODO: MIGHT need a builder in Pipeline template, to be sure what we want to run.
-
     status: dict[type, ProcessingStatus] = field(default_factory=dict)
 
     def get_as_text(self) -> str:

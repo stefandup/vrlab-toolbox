@@ -204,7 +204,7 @@ def create_lsl_trial_intervals(
     event_sources = {"VR_markers": vr_markers_df, "VR_trial_events": VR_trial_events_df}
 
     trial_intervals = {}
-    # TODO: wire to a .py config file.
+
     for interval_name, interval_events in cfg.get_trial_intervals().items():  # type: ignore
         start_event = interval_events["start"]
         start_fallback = interval_events.get("start_fallback")

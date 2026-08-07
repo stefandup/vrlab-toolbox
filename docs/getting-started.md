@@ -232,14 +232,19 @@ project's `README.md` (in the workspace root) for the full, current list of
 commands and examples.
 
 !!! note "Going further"
-    Under the hood, `mobi_foh_process` is migrating onto the same
-    `run_pipeline()`/`PipelineTemplate` shape this page just walked through
-    for Crane — same `find → import → process → combine → save` sequence,
-    just reading one `.xdf` (LSL) file per participant instead of a Biopac
-    `.mat` file plus behaviour CSVs. See
+    Under the hood, FOH is migrating onto the same `run_pipeline()`/
+    `PipelineTemplate` shape this page just walked through for Crane — same
+    `find → import → process → combine → save` sequence, just reading one
+    `.xdf` (LSL) file per participant instead of a Biopac `.mat` file plus
+    behaviour CSVs. The two FOH CLIs are at different points in that
+    migration: `mobi_foh_batch_process` now calls the new `run_pipeline()`;
+    `mobi_foh_process` (the single-file CLI) still calls the older,
+    `@deprecated` `run_lsl_pipeline`. See
     [Lab Streaming (LSL/XDF)](lab-streaming.md) for that pipeline's
-    anticipated end state, and what's already true of the code today versus
-    what's still being finished.
+    anticipated end state, and
+    [Next Steps item 21](pipeline_next_steps.md#21-foh-pipeline-exception-handling-parity-with-crane-trial-interval-config-migration)
+    for what's already true of the code today versus what's still being
+    finished.
 
 ---
 

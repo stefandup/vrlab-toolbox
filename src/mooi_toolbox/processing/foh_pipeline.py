@@ -55,6 +55,7 @@ class FindFohParticipantFilesStrategyStep:
         )
 
 
+# TODO: Fill out pipeline output schema for FOH
 def build_foh_participant_output_schema() -> pa.DataFrameSchema:
     return pa.DataFrameSchema()
 
