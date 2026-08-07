@@ -178,7 +178,7 @@ def run_lsl_pipeline(
             logger.warning("%s", e)
 
         try:
-            ecg_df_out = ecg.run_ecg_pipeline(FOH_stream_dfs["OpenSignals"]["ECG1"], vr_intervals)
+            ecg_df_out = ecg.run_ecg_pipeline(FOH_stream_dfs["OpenSignals"]["ECG1"], vr_intervals)  # type: ignore
             participant_data_out.append(ecg_df_out)
         except ecg.ECGProcessingError as e:
             logger.exception("ECG failed to process")

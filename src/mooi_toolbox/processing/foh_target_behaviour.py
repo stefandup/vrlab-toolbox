@@ -152,14 +152,8 @@ def run_processing(
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Process text data received from lsl for FOH behavioural targets"""
     # TODO: Consider logging what is dropped in the na below
-    # TODO: examine a better way of checking the hdr.
 
     for interval_id, interval in vr_intervals.items():
-        # TODO: This should be removed.
-        if interval_id == "Complete":
-            print(f"Skipping {interval_id}")
-            continue
-
         idx = (target_csvdata_df["time_stamps"] >= interval[0]) & (
             target_csvdata_df["time_stamps"] <= interval[1]
         )

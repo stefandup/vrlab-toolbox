@@ -197,7 +197,6 @@ def get_lsl_event_time_with_fallback(
 def create_lsl_trial_intervals(
     vr_markers_df: pd.DataFrame, VR_trial_events_df: pd.DataFrame
 ) -> dict[str, tuple[float, float]]:
-    # TODO: This shouldnt be hardset to the platform
     """
     Takes marker info from VR LSL streams vr_markers and VR_trial_events and creates intervals.
     """
@@ -460,7 +459,6 @@ def remove_biopac_known_false_triggers(
     trigger_intervals_to_check: TrialIntervals,
 ) -> tuple[TrialIntervals, ProcessingStatus]:
     # TODO: Improve! This needs to update with partial
-    # [start_end[1] - start_end[0] for
     if not trigger_intervals_to_check.intervals:
         return (trigger_intervals_to_check, ProcessingStatus.ERROR)
 
