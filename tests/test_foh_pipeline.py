@@ -1,6 +1,7 @@
 import unittest
 from pathlib import Path
 
+from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.foh_behaviour import ImportFohBehaviourDataStrategyStep
 from mooi_toolbox.processing.foh_pipeline import run_pipeline
 from mooi_toolbox.processing.foh_target_behaviour import (
@@ -64,6 +65,18 @@ class TestFOHPipeline(unittest.TestCase):
         )
         self.assertIsInstance(target_output, PipelineOutputData)
 
+    def test_physiology_data_import_strategy(self):
+        data_folder = Path(r"local_lsl_data\\Participant Data")
+
+        participant_config = ParticipantConfig.from_lsl_data(
+            CORRECT_PARTICIPANT,
+            data_folder,
+            PhysiologyFileFormat.LSL,
+        )
+        raw_bio_data = FohLslPhysiologyDataImportStrategy().run(participant_config)
+
+        self.assertIsInstance(raw_bio_data, RawBioData)
+
     def test_interval_get_strategy(self):
         data_folder = Path(r"local_lsl_data\\Participant Data")
 
@@ -80,9 +93,6 @@ class TestFOHPipeline(unittest.TestCase):
         )
         self.assertEqual(pipeline_status.status[type(trail_intervals)], ProcessingStatus.OK)
         self.assertTrue(trail_intervals)
-
-    def test_physiology_data_import_strategy(self):
-        pass
 
     def test_basic_pipeline(self):
         data_folder = Path(r"local_lsl_data\\Participant Data")

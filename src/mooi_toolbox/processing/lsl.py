@@ -47,7 +47,28 @@ class FohLslPhysiologyDataImportStrategy:
             logger.warning(f"Missing physiology data - {missing_streams}")
             return RawBioData()
 
-        return RawBioData(raw_data=selected_lsl_physiology_streams_dfs)
+        df_dict_out = {
+            "EDA": selected_lsl_physiology_streams_dfs["OpenSignals"].copy(),
+            "ECG": selected_lsl_physiology_streams_dfs["OpenSignals"].copy(),
+        }
+
+        if not has_missing_requirements(missing_streams, ["VR_markers"]):
+            marker_df_dict = {
+                "VR_markers": selected_lsl_physiology_streams_dfs["VR_markers"].copy()
+            }
+            df_dict_out.update(marker_df_dict)
+
+        # Note when imported like this, the labels are regularized.
+
+        physiology_data_out = RawBioData(raw_data=df_dict_out)
+        physiology_data_out.raw_data["EDA"] = physiology_data_out.raw_data["EDA"].drop(
+            columns="ECG"
+        )
+        physiology_data_out.raw_data["ECG"] = physiology_data_out.raw_data["ECG"].drop(
+            columns="EDA"
+        )
+
+        return physiology_data_out
 
 
 class xdfIOException(Exception):
