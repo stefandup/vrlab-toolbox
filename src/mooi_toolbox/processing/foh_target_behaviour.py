@@ -1,6 +1,6 @@
 import io
 import logging
-from dataclasses import field
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
@@ -8,6 +8,7 @@ import pandera.pandas as pa
 import pyxdf
 
 from mooi_toolbox.processing.behaviour import RawBehaviourData
+from mooi_toolbox.processing.foh_config import TARGET_TYPES, TRIAL_NUMBERS, TRIAL_TYPES
 from mooi_toolbox.processing.input_data import ParticipantConfig
 from mooi_toolbox.processing.lsl import gather_xdf_data_streams
 from mooi_toolbox.processing.output_data import PipelineOutputData
@@ -18,9 +19,6 @@ logger = logging.getLogger(__name__)
 
 class TPProcessingError(ValueError):
     """Raised when Target processing fails."""
-
-
-TARGET_TYPES = ["Short", "Medium", "Long"]
 
 
 def build_foh_raw_target_behaviour_file_schema() -> pa.DataFrameSchema:
@@ -34,6 +32,29 @@ def build_foh_raw_target_behaviour_file_schema() -> pa.DataFrameSchema:
         },
         strict=True,
         coerce=True,
+    )
+
+
+def _optional_float_column() -> pa.Column:
+    return pa.Column(float, nullable=True, coerce=True, required=False)
+
+
+def build_foh_target_behaviour_pipeline_output_schema() -> pa.DataFrameSchema:
+    return pa.DataFrameSchema(
+        {
+            f"{trial_type}_{TRIAL_NUMBERS[trial_type]}_{target_type}_Target": _optional_float_column()
+            for trial_type in TRIAL_TYPES
+            for target_type in TARGET_TYPES
+        },
+        coerce=True,
+        strict=False,
+    )
+
+
+@dataclass
+class FohTargetBehaviourOutputData(PipelineOutputData):
+    validation_schema: pa.DataFrameSchema = field(
+        default_factory=build_foh_target_behaviour_pipeline_output_schema
     )
 
 
@@ -109,14 +130,21 @@ class ProcessFohTargetDataWithIntervalsStrategyStep:
         config_in: ParticipantConfig,
         raw_behaviour_data_in: FohRawTargetBehaviourData,
         trial_intervals_in: TrialIntervals,
-    ) -> PipelineOutputData:
+    ) -> FohTargetBehaviourOutputData:
 
-        target_df_out, df2 = run_processing(
+        target_df_out, _ = run_processing(
             raw_behaviour_data_in.raw_behav_df, trial_intervals_in.intervals
         )
-        # TODO: Create PipelineOutput!
+        # Clean column names for output
 
-        return PipelineOutputData(config_in.subject_id)
+        target_df_out.columns = [c.lower() for c in target_df_out.columns]
+
+        target_behaviour_outputdata = FohTargetBehaviourOutputData(config_in.subject_id)
+        target_behaviour_outputdata.append_dataframe(
+            target_df_out, build_foh_target_behaviour_pipeline_output_schema().columns
+        )
+
+        return target_behaviour_outputdata
 
 
 def run_processing(

@@ -33,3 +33,9 @@ FOH_TRIAL_INTERVALS: dict[str, LslIntervalSpecifications] = {
     "stress": STRESS_INTERVAL,
     "recovery": RECOVERY_INTERVAL,
 }
+
+# Target DATA
+
+TARGET_TYPES = ["Short", "Medium", "Long"]
+TRIAL_TYPES = ["baseline", "stress", "recovery"]
+TRIAL_NUMBERS = {"baseline": 3, "stress": 3, "recovery": 3}

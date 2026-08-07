@@ -13,6 +13,8 @@ from mooi_toolbox.processing.input_data import ParticipantConfig, PhysiologyFile
 from mooi_toolbox.processing.lsl import FohLslPhysiologyDataImportStrategy
 from mooi_toolbox.processing.output_data import PipelineOutputData
 
+CORRECT_PARTICIPANT = "P00020"
+
 
 # @unittest.skip("Busy")
 class TestFOHPipeline(unittest.TestCase):
@@ -20,7 +22,7 @@ class TestFOHPipeline(unittest.TestCase):
         data_folder = Path(r"local_lsl_data\\Participant Data")
 
         participant_config = ParticipantConfig.from_lsl_data(
-            "FOH",
+            CORRECT_PARTICIPANT,
             data_folder,
             PhysiologyFileFormat.LSL,
         )
@@ -32,7 +34,7 @@ class TestFOHPipeline(unittest.TestCase):
 
         data_folder = Path(r"local_lsl_data\\Participant Data")
         participant_config = ParticipantConfig.from_lsl_data(
-            "FOH",
+            CORRECT_PARTICIPANT,
             data_folder,
             PhysiologyFileFormat.LSL,
         )
@@ -44,7 +46,7 @@ class TestFOHPipeline(unittest.TestCase):
         data_folder = Path(r"local_lsl_data\\Participant Data")
 
         participant_config = ParticipantConfig.from_lsl_data(
-            "FOH",
+            CORRECT_PARTICIPANT,
             data_folder,
             PhysiologyFileFormat.LSL,
         )
@@ -61,14 +63,11 @@ class TestFOHPipeline(unittest.TestCase):
         )
         self.assertIsInstance(target_output, PipelineOutputData)
 
-    def test_physiology_data_import_strategy(self):
-        pass
-
     def test_interval_get_strategy(self):
         data_folder = Path(r"local_lsl_data\\Participant Data")
 
         participant_config = ParticipantConfig.from_lsl_data(
-            "P00015",
+            CORRECT_PARTICIPANT,
             data_folder,
             PhysiologyFileFormat.LSL,
         )
@@ -78,11 +77,14 @@ class TestFOHPipeline(unittest.TestCase):
         #    raw_bio_data,
         # )
 
+    def test_physiology_data_import_strategy(self):
+        pass
+
     def test_basic_pipeline(self):
         data_folder = Path(r"local_lsl_data\\Participant Data")
 
         participant_config = ParticipantConfig.from_lsl_data(
-            "00024",
+            CORRECT_PARTICIPANT,
             data_folder,
             PhysiologyFileFormat.LSL,
         )
