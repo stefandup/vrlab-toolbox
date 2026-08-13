@@ -24,6 +24,35 @@ separate, earlier step this plan doesn't cover — see `bids_converter_plan.md`
 for that gap (not yet started for crane; FOH's converter is external to this
 repo).
 
+## Current status (as of 2026-08-13)
+
+Both tools exist and are usable — `vrlab_crane_bids_crosscheck` and
+`mobi_foh_bids_crosscheck` (console-script commands via `pip install -e .`;
+no packaged `.exe` yet, packaging was deliberately deferred). Implementation
+went beyond this document's original mockup in a few ways worth knowing
+about before reading the layout section below as gospel:
+
+- The subject list became a two-column table (icons in one column, the
+  advisory info — FOH's date/duration/streams, or a "Please select correct
+  file" prompt — in a separate column next to it), not one combined line
+  per subject as originally sketched.
+- A `crosschecked` marker (manual "I've reviewed this" flag, independent of
+  file status) was added — not in the original decision list above.
+- Picking a duplicate's canonical file is now two-step: pick (preview,
+  marked ⏳) then a separate commit (either per-subject or a "commit all"
+  button across every subject with a pending pick) — and picks persist
+  across app restarts (`crosscheck_pending.json`) even before committing.
+- A loading-progress indicator was added (terminal `rich.Progress` bar
+  before the window is shown, a Qt progress bar after).
+
+For what's actually built, read [BIDS Crosscheck:
+Architecture](bids-crosscheck-architecture.md) and the code itself
+(`processing/bids_crosscheck.py`, `gui/bids_crosscheck_common.py`) over this
+plan's layout mockup. For how to *use* either tool, see [FOH
+Crosscheck](foh-crosscheck.md). The decisions below (scan types, JSON
+recording, no-auto-merge, code layering) are all still accurate — it's
+mainly the UI layout that moved on from the original sketch.
+
 ## Decision: BIDS folder only, never the raw folder
 
 The crosscheck tool only ever reads/writes inside the BIDS output folder (including
@@ -182,3 +211,17 @@ dependency), `shelve` (persistent but opaque/pickle-based), or a
 the "shared with whoever else opens this folder" benefit). Leaning toward the
 JSON sidecar as the simplest fit with the existing pattern. Not implemented
 yet.
+
+**Crane parity with FOH's GUI improvements.** Everything under [Current
+status](#current-status-as-of-2026-08-13) above (two-column subject list,
+`crosschecked` marking, pending-selection autosave, commit-all, progress
+indicators) lives in the shared `gui/bids_crosscheck_common.py`, so crane
+already gets all of it for free. The one thing that's FOH-only is the
+*content* of the advisory info column — `FohCandidateExtras.describe()`
+(date/duration/stream-presence) has no crane equivalent yet, since crane's
+`CandidateExtras` is still the no-op default (see [Architecture: known
+gaps](bids-crosscheck-architecture.md#known-gaps-todos)). Worth adding a
+crane-specific `CandidateExtras` subclass once there's a good candidate for
+what to show (something from the `.acq`/behaviour/redcap files worth
+surfacing at a glance) — deliberately deferred, one dataset at a time, FOH
+first since it's the one currently in active use.

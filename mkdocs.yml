@@ -17,6 +17,7 @@ nav:
       - Interval QC Plot: interval-qc.md
       - EDA & SCRs: eda.md
       - Lab Streaming (LSL/XDF): lab-streaming.md
+      - FOH Crosscheck: foh-crosscheck.md
       - Testing: testing.md
       - API Reference: api-reference.md
   - For Contributors:
@@ -27,6 +28,7 @@ nav:
       - Design Patterns: design-patterns.md
       - Data Stores: data-stores.md
       - Core Data Classes: core-classes.md
+      - BIDS Crosscheck Architecture: bids-crosscheck-architecture.md
       - GitHub Guidelines: contributing.md
       - Building & Releasing: packaging.md
   - Project Notes:
