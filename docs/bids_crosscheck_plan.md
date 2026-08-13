@@ -225,3 +225,18 @@ crane-specific `CandidateExtras` subclass once there's a good candidate for
 what to show (something from the `.acq`/behaviour/redcap files worth
 surfacing at a glance) — deliberately deferred, one dataset at a time, FOH
 first since it's the one currently in active use.
+
+**"Reset everything" button.** There's currently no single action that undoes
+an entire crosscheck session for a BIDS folder — doing it by hand means
+editing/deleting `crosscheck.json` and `crosscheck_pending.json` directly, and
+even then, files already moved to `crosscheck_junk` or renamed via
+`record_task_correction`/`record_date_correction`/`record_id_correction` stay
+moved/renamed, since those are real filesystem operations, not just JSON
+state. A proper reset would need to reverse those too (move junked files back,
+undo renames) to actually leave the folder as it started, not just clear the
+recorded decisions — that's the open design question, not just the UI. Given
+how destructive a real "start from scratch" would be across every subject at
+once, it needs the same confirm-before-acting treatment as the other bulk
+actions ("Commit all pending selections", "Rename all selected to {label}") —
+if anything, a stronger one, since unlike those it can't be scoped down to
+"just the files that still need it." Not implemented yet.

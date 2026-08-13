@@ -347,3 +347,33 @@ def record_task_correction(
     destination = file.with_name(corrected_name)
     file.rename(destination)
     return destination
+
+
+def remove_task_correction(
+    bids_folder: Path,
+    subject_id: str,
+    scan_type: str,
+    file: Path,
+    label: str = "FOH",
+) -> Path:
+    """Reverse `record_task_correction`: strip a trailing `_{label}` tag from `file`'s name."""
+    suffix_tag = f"_{label}"
+    if not file.stem.endswith(suffix_tag):
+        raise BidsCrosscheckError(f"{file.name} does not carry a trailing {label!r} tag")
+
+    corrected_name = f"{file.stem[: -len(suffix_tag)]}{file.suffix}"
+
+    decisions = load_decisions(bids_folder)
+    decisions[_decision_key(subject_id, scan_type)] = {
+        "type": "task_correction_removed",
+        "subject_id": subject_id,
+        "scan_type": scan_type,
+        "original_filename": file.name,
+        "corrected_filename": corrected_name,
+        "label": label,
+    }
+    _write_decisions_atomic(bids_folder, decisions)
+
+    destination = file.with_name(corrected_name)
+    file.rename(destination)
+    return destination

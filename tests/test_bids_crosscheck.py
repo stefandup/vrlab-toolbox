@@ -17,6 +17,7 @@ from mooi_toolbox.processing.bids_crosscheck import (
     record_id_correction,
     record_selected_run,
     record_task_correction,
+    remove_task_correction,
     save_pending_selections,
     scan_bids_folder,
     set_crosschecked,
@@ -201,6 +202,37 @@ class TestRecordTaskCorrection(unittest.TestCase):
 
         with self.assertRaises(BidsCrosscheckError):
             record_task_correction(self.bids_folder, "001", "physiology", labelled)
+
+
+class TestRemoveTaskCorrection(unittest.TestCase):
+    def setUp(self):
+        self.bids_folder = Path(tempfile.mkdtemp())
+        self.file = _touch(self.bids_folder / "sub-001" / "sub-001_run-2_eeg.xdf")
+
+    def tearDown(self):
+        shutil.rmtree(self.bids_folder, ignore_errors=True)
+
+    def test_reverses_a_label_insertion(self):
+        labelled = record_task_correction(self.bids_folder, "001", "physiology", self.file)
+
+        restored = remove_task_correction(self.bids_folder, "001", "physiology", labelled)
+
+        self.assertEqual(restored.name, "sub-001_run-2_eeg.xdf")
+        self.assertTrue(restored.exists())
+
+    def test_rejects_file_without_the_label(self):
+        with self.assertRaises(BidsCrosscheckError):
+            remove_task_correction(self.bids_folder, "001", "physiology", self.file)
+
+    def test_decision_records_the_removal(self):
+        labelled = record_task_correction(self.bids_folder, "001", "physiology", self.file)
+
+        remove_task_correction(self.bids_folder, "001", "physiology", labelled)
+
+        decisions = load_decisions(self.bids_folder)
+        entry = decisions["001_physiology"]
+        self.assertEqual(entry["type"], "task_correction_removed")
+        self.assertEqual(entry["corrected_filename"], "sub-001_run-2_eeg.xdf")
 
 
 class TestCrosschecked(unittest.TestCase):
