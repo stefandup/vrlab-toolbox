@@ -20,7 +20,12 @@ CRANE_DATASET_CONFIG = DatasetConfig(
 
 
 def main() -> None:
-    run_bids_crosscheck_app(CRANE_DATASET_CONFIG, "Crane BIDS Crosscheck", CandidateExtras())
+    run_bids_crosscheck_app(
+        CRANE_DATASET_CONFIG,
+        "Crane BIDS Crosscheck",
+        CandidateExtras(),
+        settings_app_name="CraneBidsCrosscheck",
+    )
 
 
 if __name__ == "__main__":

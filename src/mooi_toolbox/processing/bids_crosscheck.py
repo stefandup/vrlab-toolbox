@@ -9,6 +9,7 @@ from typing import Literal
 logger = logging.getLogger(__name__)
 
 DECISIONS_FILENAME = "crosscheck.json"
+PENDING_SELECTIONS_FILENAME = "crosscheck_pending.json"
 JUNK_FOLDER_NAME = "crosscheck_junk"
 SUBJECT_FOLDER_PREFIX = "sub-"
 
@@ -82,6 +83,10 @@ def decisions_path(bids_folder: Path) -> Path:
     return bids_folder / DECISIONS_FILENAME
 
 
+def pending_selections_path(bids_folder: Path) -> Path:
+    return bids_folder / PENDING_SELECTIONS_FILENAME
+
+
 def _iter_subject_folders(bids_folder: Path):
     for entry in sorted(bids_folder.iterdir()):
         if (
@@ -140,16 +145,45 @@ def load_decisions(bids_folder: Path) -> dict:
         return json.load(decisions_file)
 
 
-def _write_decisions_atomic(bids_folder: Path, decisions: dict) -> None:
-    path = decisions_path(bids_folder)
+def _write_json_atomic(path: Path, data: dict) -> None:
     tmp_path = path.with_suffix(".json.tmp")
     with tmp_path.open("w", encoding="utf-8") as tmp_file:
-        json.dump(decisions, tmp_file, indent=2, sort_keys=True)
+        json.dump(data, tmp_file, indent=2, sort_keys=True)
     os.replace(tmp_path, path)
+
+
+def _write_decisions_atomic(bids_folder: Path, decisions: dict) -> None:
+    _write_json_atomic(decisions_path(bids_folder), decisions)
+
+
+def load_pending_selections(bids_folder: Path) -> dict[str, dict[str, str]]:
+    """subject_id -> scan_type -> filename, for picks made but not yet committed.
+
+    Kept in a file separate from `crosscheck.json`: these aren't decisions yet (see
+    `record_selected_run`) -- just in-progress GUI state, persisted so closing the app
+    before clicking "commit" doesn't lose the picks. Filenames only (not full paths),
+    since the caller re-resolves them against a fresh scan's actual candidate files.
+    """
+    path = pending_selections_path(bids_folder)
+    if not path.exists():
+        return {}
+    with path.open("r", encoding="utf-8") as pending_file:
+        return json.load(pending_file)
+
+
+def save_pending_selections(bids_folder: Path, pending: dict[str, dict[str, str]]) -> None:
+    _write_json_atomic(pending_selections_path(bids_folder), pending)
 
 
 def _decision_key(subject_id: str, scan_type: str | None = None) -> str:
     return f"{subject_id}_{scan_type}" if scan_type else subject_id
+
+
+def _crosschecked_key(subject_id: str, scan_type: str) -> str:
+    # Deliberately distinct from _decision_key: crosschecked is an independent, human-toggled
+    # marker that must not overwrite a selected_run/date_correction/task_correction entry
+    # already recorded under the same subject_id/scan_type.
+    return f"{_decision_key(subject_id, scan_type)}_crosschecked"
 
 
 def _move_to_junk(bids_folder: Path, file: Path) -> Path:
@@ -249,6 +283,41 @@ def record_id_correction(bids_folder: Path, original_id: str, corrected_id: str)
     corrected_folder = bids_folder / corrected_token
     original_folder.rename(corrected_folder)
     return corrected_folder
+
+
+def crosschecked_scan_types(bids_folder: Path) -> set[tuple[str, str]]:
+    """(subject_id, scan_type) pairs a human has manually marked as crosschecked.
+
+    One `load_decisions` call for the whole folder, so callers (e.g. the GUI's
+    subject list) can check membership per subject/scan-type without re-reading
+    the JSON file each time.
+    """
+    decisions = load_decisions(bids_folder)
+    return {
+        (entry["subject_id"], entry["scan_type"])
+        for entry in decisions.values()
+        if entry.get("type") == "crosschecked" and entry.get("crosschecked")
+    }
+
+
+def set_crosschecked(
+    bids_folder: Path, subject_id: str, scan_type: str, crosschecked: bool
+) -> None:
+    """Manually mark (or unmark) a subject/scan-type as reviewed, independent of file status.
+
+    This is an override a human can set regardless of the automatic ok/missing/duplicate
+    status -- e.g. to acknowledge a duplicate that's fine to leave as-is, or simply to record
+    that they've looked at it. Toggling it off (calling again with `crosschecked=False`)
+    removes the mark.
+    """
+    decisions = load_decisions(bids_folder)
+    decisions[_crosschecked_key(subject_id, scan_type)] = {
+        "type": "crosschecked",
+        "subject_id": subject_id,
+        "scan_type": scan_type,
+        "crosschecked": crosschecked,
+    }
+    _write_decisions_atomic(bids_folder, decisions)
 
 
 def record_task_correction(

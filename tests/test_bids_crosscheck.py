@@ -9,13 +9,17 @@ from mooi_toolbox.processing.bids_crosscheck import (
     DatasetConfig,
     ScanTypeConfig,
     completeness_summary,
+    crosschecked_scan_types,
     junk_folder,
     load_decisions,
+    load_pending_selections,
     record_date_correction,
     record_id_correction,
     record_selected_run,
     record_task_correction,
+    save_pending_selections,
     scan_bids_folder,
+    set_crosschecked,
 )
 
 TEST_CONFIG = DatasetConfig(
@@ -197,6 +201,73 @@ class TestRecordTaskCorrection(unittest.TestCase):
 
         with self.assertRaises(BidsCrosscheckError):
             record_task_correction(self.bids_folder, "001", "physiology", labelled)
+
+
+class TestCrosschecked(unittest.TestCase):
+    def setUp(self):
+        self.bids_folder = Path(tempfile.mkdtemp())
+        self.file = _touch(self.bids_folder / "sub-001" / "20240101_sub-001_physiology.acq")
+
+    def tearDown(self):
+        shutil.rmtree(self.bids_folder, ignore_errors=True)
+
+    def test_starts_unmarked(self):
+        self.assertEqual(crosschecked_scan_types(self.bids_folder), set())
+
+    def test_marking_adds_to_the_set(self):
+        set_crosschecked(self.bids_folder, "001", "physiology", True)
+
+        self.assertEqual(crosschecked_scan_types(self.bids_folder), {("001", "physiology")})
+
+    def test_unmarking_removes_it_again(self):
+        set_crosschecked(self.bids_folder, "001", "physiology", True)
+        set_crosschecked(self.bids_folder, "001", "physiology", False)
+
+        self.assertEqual(crosschecked_scan_types(self.bids_folder), set())
+
+    def test_does_not_clobber_an_existing_selected_run_decision(self):
+        record_selected_run(self.bids_folder, "001", "physiology", self.file, (self.file,))
+        set_crosschecked(self.bids_folder, "001", "physiology", True)
+
+        decision = load_decisions(self.bids_folder)["001_physiology"]
+        self.assertEqual(decision["type"], "selected_run")
+        self.assertEqual(crosschecked_scan_types(self.bids_folder), {("001", "physiology")})
+
+
+class TestPendingSelections(unittest.TestCase):
+    def setUp(self):
+        self.bids_folder = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        shutil.rmtree(self.bids_folder, ignore_errors=True)
+
+    def test_starts_empty(self):
+        self.assertEqual(load_pending_selections(self.bids_folder), {})
+
+    def test_round_trips(self):
+        save_pending_selections(
+            self.bids_folder, {"001": {"physiology": "20240101_sub-001_physiology.acq"}}
+        )
+
+        self.assertEqual(
+            load_pending_selections(self.bids_folder),
+            {"001": {"physiology": "20240101_sub-001_physiology.acq"}},
+        )
+
+    def test_overwrites_previous_contents_rather_than_merging(self):
+        save_pending_selections(self.bids_folder, {"001": {"physiology": "a.acq"}})
+        save_pending_selections(self.bids_folder, {"002": {"physiology": "b.acq"}})
+
+        self.assertEqual(
+            load_pending_selections(self.bids_folder), {"002": {"physiology": "b.acq"}}
+        )
+
+    def test_is_a_separate_file_from_decisions(self):
+        save_pending_selections(self.bids_folder, {"001": {"physiology": "a.acq"}})
+
+        self.assertEqual(load_decisions(self.bids_folder), {})
+        self.assertTrue((self.bids_folder / "crosscheck_pending.json").exists())
+        self.assertFalse((self.bids_folder / "crosscheck.json").exists())
 
 
 class TestDecisionsJsonIsValidJson(unittest.TestCase):

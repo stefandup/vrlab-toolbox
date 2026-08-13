@@ -168,3 +168,17 @@ used to produce a curated BIDS folder with recorded `selected_run` decisions,
 silently picking `[0]`/`[-1]` on duplicates and read those decisions instead.
 Not scoped now — deliberately deferred until the crosscheck tool exists and has
 been used in practice, per the guardrail above.
+
+**FOH info caching.** `FohCandidateExtras._info_cache` (in
+`gui/foh_bids_crosscheck_gui.py`) is in-memory only, so every fresh launch (or
+re-`Browse` into an already-visited folder) re-parses every "ok" recording's
+`.xdf` from scratch for its date/duration/stream indicators — the main source
+of the GUI's noticeable load time. Considered options: `functools.cache`
+(session-only, doesn't help restarts), a JSON sidecar cache file inside the
+BIDS folder keyed by filename + mtime/size (persists across restarts, travels
+with the data folder the same way `crosscheck.json` already does, no new
+dependency), `shelve` (persistent but opaque/pickle-based), or a
+`platformdirs`-based app-local cache (keeps the BIDS folder clean but loses
+the "shared with whoever else opens this folder" benefit). Leaning toward the
+JSON sidecar as the simplest fit with the existing pattern. Not implemented
+yet.
