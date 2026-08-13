@@ -159,6 +159,9 @@ dependencies:
       - ply==3.11
       - pycparser==2.23
       - pyparsing==3.2.3
+      - PySide6==6.11.1
+      - PySide6_Addons==6.11.1
+      - PySide6_Essentials==6.11.1
       - pyxdf==1.17.0
       - requests==2.32.4
       - retrying==1.4.0
@@ -166,6 +169,7 @@ dependencies:
       - IPython
       - neurokit2
       - scipy==1.16.2
+      - shiboken6==6.11.1
       - soundfile==0.13.1
       - tex==1.8
       - typing==3.7.4.3
