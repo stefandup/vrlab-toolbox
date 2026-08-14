@@ -5,42 +5,37 @@ This project is written to teach and learn (see
 AI coding assistants are common enough now that how you use one here is
 part of that. This page states the house rule plainly.
 
-!!! note "An upfront exception: this page, and the rest of the prose docs"
-    If this reads as more polished than a first draft, that's because it
-    is one: an AI assistant helped write it, this page included. That's a
-    deliberate exception to the rule below, scoped to **prose docs, not
-    code** — and it's worth explaining rather than hiding, since the
-    process matters as much as the rule.
+!!! note "The exception: prose docs, and the GUI layer"
+    This page, like the rest of the prose docs, was AI-drafted from the
+    author's own rough notes, then checked line by line against what was
+    actually meant — draft, verify, correct, not draft-and-paste. The
+    crosscheck GUIs get the same exception, for the same underlying
+    reason: they're a layer added on top of a human-written pipeline
+    foundation (see [Design Patterns](design-patterns.md)), not the
+    foundation itself.
 
-    The actual workflow, and the one to copy: the author does most of the
-    typing. Ideas, arguments, and phrasing choices start as the author's
-    own words — often rough, sometimes rambling notes — typed out by them
-    first. The assistant's job is narrow: tighten grammar, suggest
-    structure, reflect the argument back in clearer form. Every draft is
-    then read in full and checked against what the author actually meant
-    — line by line, not skimmed — before anything is accepted. If a draft
-    doesn't say exactly what was meant, it goes back for another pass, not
-    a quiet edit.
-
-    Code doesn't get this exception. Prose can be redrafted and checked by
-    re-reading it; code has to be *understood* well enough to debug, and
-    that understanding only comes from writing it — see below.
+    Either way, the test isn't *who typed it* — it's **do you understand
+    it, could you explain it, could you extend it?** Pass that, and
+    AI-authored code is fine. Fail it, and that gap is cognitive debt —
+    see below.
 
 ## The core rule: AI is a tutor, not a coder
 
-**No vibe coding, unless it's genuinely unavoidable.** "Vibe coding" here
+**For the pipeline, processing, and schema code this project exists to
+teach: no vibe coding, unless genuinely unavoidable.** "Vibe coding" here
 means asking an AI assistant to produce a change and pasting it in without
 having worked out and understood the change yourself first.
 
-For this codebase, use an AI assistant the way you'd use a good tutor:
+For that code, use an AI assistant the way you'd use a good tutor:
 
 - Ask it to **explain** a pattern, a bug, or an error message.
 - Ask it to **guide** you toward an approach — the shape of a solution, not
   the solution itself.
 - Then **write the code yourself**. Type it, don't paste it.
 
-Rarely, if ever, should code land in this repo copy-pasted directly from an
-AI assistant's output.
+Outside that foundation — the GUI layer built on top of it, or prose docs —
+the bar is the test from the note above: understand it, could explain it,
+could extend it. That test is what decides it, not who typed it first.
 
 ## Why: cognitive debt
 
@@ -89,15 +84,12 @@ why the guardrail matters more here, not less:
 
 ## When AI-authored code is acceptable
 
-"Unless absolutely needed" leaves room for real exceptions — but the bar
-stays the same either way: you understand every line before it lands, and
-you could have written it yourself given more time. Even then, keep it on
-this project's existing rails — see the [AI Style Guide](ai-style-guide.md)
-for the established stack, patterns, and what *not* to introduce. This is
-for things
-like repetitive boilerplate with no learning value, not for the actual
-logic of a pipeline, a schema, or a design pattern — that's the part this
-project exists to teach, and where writing it yourself matters most.
+The GUI layer, repetitive boilerplate with no learning value, and prose
+docs all clear the bar above. The actual logic of a pipeline, a schema, or
+a design pattern doesn't — that's the part this project exists to teach,
+and where writing it yourself matters most. Either way, keep it on this
+project's existing rails — see the [AI Style Guide](ai-style-guide.md) for
+the established stack, patterns, and what *not* to introduce.
 
 ## Setting this up in your own AI tool
 
@@ -107,7 +99,10 @@ step at a time, ask before editing, wait for confirmation. If your
 assistant reads a different config file (e.g. `CLAUDE.md`, `.cursorrules`,
 `.github/copilot-instructions.md`), it's worth setting up something
 similar for yourself, with the same shape: explain first, guide instead of
-solve, one step, consent before any edit.
+solve, one step, consent before any edit. It earns its keep most while
+you're still building the understand-it/explain-it/extend-it muscle from
+the test above — once you're reliably passing that test unassisted on the
+code you're touching, loosen the rails to match.
 
 That covers *behaviour* — how an assistant should interact with you. Pair
 it with the [AI Style Guide](ai-style-guide.md), which covers *output* —

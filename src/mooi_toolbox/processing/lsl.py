@@ -112,10 +112,10 @@ def divide_df_into_blocks(time_in_seconds, timestamped_df_in):
     return df_list_out
 
 
-def print_column_names(stream):
+def log_column_names(stream):
     channels = stream["info"]["desc"][0]["channels"][0]["channel"]
     column_names = [channel["label"][0] for channel in channels]
-    print(f"Column Names for: {column_names}")
+    logger.info(f"Column Names for: {column_names}")
 
 
 def extract_single_stream(streams: list, stream_name: str) -> tuple[pd.DataFrame, dict]:
@@ -124,9 +124,8 @@ def extract_single_stream(streams: list, stream_name: str) -> tuple[pd.DataFrame
         if s["info"]["name"][0] == stream_name:
             single_stream = s
             single_stream_time_series = np.array(single_stream["time_series"])
-            # print("sample time series:", single_stream_time_series[:5])
+
             single_stream_time_stamps = np.array(single_stream["time_stamps"])
-            # print("sample time stamps:", single_stream_time_stamps[:5])
 
             # Make dataframe
             single_stream_df = pd.DataFrame(single_stream_time_series)
@@ -148,7 +147,7 @@ def add_column_names(single_stream_df: pd.DataFrame, single_stream: dict):
         ):
             channels = single_stream["info"]["desc"][0]["channels"][0]["channel"]
             column_names = [channel["label"][0] for channel in channels]
-            print("Column names from metadata:", column_names)
+            logger.info(f"Column names from metadata: {column_names}")
 
         else:
             raise KeyError("No valid channel description")
@@ -158,7 +157,9 @@ def add_column_names(single_stream_df: pd.DataFrame, single_stream: dict):
         channel_count = int(single_stream["info"]["channel_count"][0])
         stream_name = single_stream["info"]["name"][0]
         column_names = [f"{stream_name}_ch{i + 1}" for i in range(channel_count)]
-        print(f"Channel labels not available for {stream_name}. Using generic names:", column_names)
+        logger.warning(
+            f"Channel labels not available for {stream_name}. Using generic names: {column_names}"
+        )
 
     # Apply the column names
     num_cols = len(column_names)

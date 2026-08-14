@@ -7,10 +7,11 @@ tool, produced them, so the codebase doesn't slowly accumulate several
 different styles and several different toolboxes for the same job.
 
 This complements [AI Use Guidelines](ai-use.md): that page is the
-*whether* (rarely, if ever, should an AI write the code — see
-[AI Use Guidelines](ai-use.md#the-core-rule-ai-is-a-tutor-not-a-coder)).
-This page is the *what*, for the rare cases code does get proposed, and
-for guidance/examples an assistant gives along the way.
+*whether* — pipeline/processing/schema code stays human-typed, GUI and
+docs can clear the bar for AI authorship (see [AI Use
+Guidelines](ai-use.md#the-core-rule-ai-is-a-tutor-not-a-coder)). This page
+is the *what*, for whenever code does get proposed, and for
+guidance/examples an assistant gives along the way.
 
 ## The rule this page exists to enforce
 

@@ -5,14 +5,17 @@ pattern the plan pins down explicitly (crosscheck does its own broad `.xdf` scan
 rather than reusing `from_lsl_data`'s `_eeg.xdf`-only filter).
 """
 
+import json
 import logging
-from dataclasses import dataclass
+import os
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import pyxdf
 
 from mooi_toolbox.gui.bids_crosscheck_common import CandidateExtras, run_bids_crosscheck_app
 from mooi_toolbox.processing.bids_crosscheck import DatasetConfig, ScanTypeConfig
+from mooi_toolbox.processing.biodata import ACCEPTED_LABEL_PATTERN, CANONICAL_LABEL_SPELLING
 from mooi_toolbox.processing.lsl import (
     extract_single_stream,
     gather_xdf_data_streams,
@@ -24,6 +27,11 @@ logger = logging.getLogger(__name__)
 
 FOH_STREAMS = ("OpenSignals", "VR_markers", "VR_trial_events", "FOH_target")
 OPENSIGNALS_STREAM = "OpenSignals"
+# The physiology channels the FOH pipeline reads out of the OpenSignals stream (see
+# processing/foh_pipeline.py and processing/biodata.py). Presence is checked via
+# ACCEPTED_LABEL_PATTERN/CANONICAL_LABEL_SPELLING below, not an exact-name match, since
+# BITalino sometimes appends a trailing channel number (e.g. "EDA0", "ECG1").
+EXPECTED_PHYSIO_CHANNELS = ("EDA", "ECG")
 CHECK = "✓"
 CROSS = "✗"
 CHECK_COLOR = "#2ecc71"
@@ -31,6 +39,7 @@ CROSS_COLOR = "#e74c3c"
 # Same relative-difference threshold pyxdf itself uses to warn about a stream's
 # effective vs. nominal sampling rate (see pyxdf.pyxdf._clock_reset).
 SRATE_MISMATCH_THRESHOLD = 0.1
+INFO_CACHE_FILENAME = "crosscheck_info_cache.json"
 
 FOH_DATASET_CONFIG = DatasetConfig(
     dataset_name="foh",
@@ -46,6 +55,7 @@ class FohCandidateInfo:
     recorded_at: str | None
     duration_minutes: float | None
     opensignals_columns: list[str] | None
+    opensignals_channels: dict[str, bool]
     opensignals_nominal_srate: float | None
     opensignals_effective_srate: float | None
 
@@ -71,103 +81,248 @@ def _recording_duration_minutes(streams: list) -> float | None:
     return (max(ends) - min(starts)) / 60
 
 
+def _present_physio_channels(columns: list[str]) -> dict[str, bool]:
+    """Which of EXPECTED_PHYSIO_CHANNELS appear in `columns`, matched the same way
+    `biodata.normalize_data_labels` matches them for the actual pipeline (case-insensitive,
+    optional trailing digit) -- so this reports exactly what the pipeline would accept.
+    """
+    canonical_found = set()
+    for column in columns:
+        match = ACCEPTED_LABEL_PATTERN.match(column)
+        if match is not None:
+            canonical_found.add(CANONICAL_LABEL_SPELLING[match.group("base").lower()])
+    return {channel: channel in canonical_found for channel in EXPECTED_PHYSIO_CHANNELS}
+
+
+def _srate_mismatch(info: FohCandidateInfo) -> bool:
+    nominal = info.opensignals_nominal_srate
+    effective = info.opensignals_effective_srate
+    if nominal is None or effective is None or nominal == 0:
+        return False
+    return abs(nominal - effective) / nominal > SRATE_MISMATCH_THRESHOLD
+
+
+def _parse_candidate_info(file: Path) -> FohCandidateInfo:
+    try:
+        streams, header = pyxdf.load_xdf(str(file))
+        found = gather_xdf_data_streams(streams, list(FOH_STREAMS))
+        stream_presence = {name: name in found for name in FOH_STREAMS}
+        duration_minutes = _recording_duration_minutes(streams)
+        try:
+            recorded_at = get_start_time(header).strftime("%Y-%m-%d")
+        except (KeyError, IndexError, ValueError):
+            recorded_at = None
+        opensignals_columns = None
+        opensignals_channels = dict.fromkeys(EXPECTED_PHYSIO_CHANNELS, False)
+        opensignals_nominal_srate = None
+        opensignals_effective_srate = None
+        try:
+            _, opensignals_stream = extract_single_stream(streams, OPENSIGNALS_STREAM)
+        except xdfIOException:
+            pass
+        else:
+            if OPENSIGNALS_STREAM in found:
+                opensignals_columns = [
+                    column
+                    for column in found[OPENSIGNALS_STREAM].columns
+                    if column != "time_stamps"
+                ]
+                opensignals_channels = _present_physio_channels(opensignals_columns)
+            opensignals_nominal_srate = float(opensignals_stream["info"]["nominal_srate"][0])
+            opensignals_effective_srate = float(opensignals_stream["info"]["effective_srate"])
+    except Exception:
+        logger.warning("Could not read XDF data from %s", file, exc_info=True)
+        stream_presence = dict.fromkeys(FOH_STREAMS, False)
+        recorded_at = None
+        duration_minutes = None
+        opensignals_columns = None
+        opensignals_channels = dict.fromkeys(EXPECTED_PHYSIO_CHANNELS, False)
+        opensignals_nominal_srate = None
+        opensignals_effective_srate = None
+
+    return FohCandidateInfo(
+        streams=stream_presence,
+        recorded_at=recorded_at,
+        duration_minutes=duration_minutes,
+        opensignals_columns=opensignals_columns,
+        opensignals_channels=opensignals_channels,
+        opensignals_nominal_srate=opensignals_nominal_srate,
+        opensignals_effective_srate=opensignals_effective_srate,
+    )
+
+
+def _info_cache_path(bids_folder: Path) -> Path:
+    return bids_folder / INFO_CACHE_FILENAME
+
+
+def _load_info_cache(bids_folder: Path) -> dict[str, dict]:
+    path = _info_cache_path(bids_folder)
+    if not path.exists():
+        return {}
+    try:
+        with path.open("r", encoding="utf-8") as cache_file:
+            return json.load(cache_file)
+    except (json.JSONDecodeError, OSError):
+        logger.warning("Could not read info cache at %s -- starting fresh", path)
+        return {}
+
+
+def _save_info_cache(bids_folder: Path, cache: dict[str, dict]) -> None:
+    path = _info_cache_path(bids_folder)
+    tmp_path = path.with_suffix(".json.tmp")
+    with tmp_path.open("w", encoding="utf-8") as tmp_file:
+        json.dump(cache, tmp_file, indent=2, sort_keys=True)
+    os.replace(tmp_path, path)
+
+
 class FohCandidateExtras(CandidateExtras):
-    """Advisory FOH recording timestamp + stream-presence indicator; never gates renaming."""
+    """Advisory FOH recording timestamp + stream-presence indicator; never gates renaming.
+
+    Every parse result is cached on disk (see INFO_CACHE_FILENAME), keyed by the file's
+    path relative to the BIDS folder plus its mtime/size, so a fresh launch or re-Browse
+    doesn't have to re-parse every "ok" recording's .xdf again -- only files that are new
+    or have actually changed. See docs/bids_crosscheck_plan.md#todo-deferred-not-scoped-now.
+    """
 
     def __init__(self) -> None:
-        self._info_cache: dict[Path, FohCandidateInfo] = {}
+        self._bids_folder: Path | None = None
+        self._disk_cache: dict[str, dict] = {}
+        self._dirty = False
+
+    def on_bids_folder_changed(self, bids_folder: Path) -> None:
+        self._bids_folder = bids_folder
+        self._disk_cache = _load_info_cache(bids_folder)
+        self._dirty = False
+
+    def bidsignore_patterns(self) -> tuple[str, ...]:
+        return (INFO_CACHE_FILENAME,)
+
+    def flush(self) -> None:
+        if self._dirty and self._bids_folder is not None:
+            _save_info_cache(self._bids_folder, self._disk_cache)
+        self._dirty = False
 
     def describe(self, scan_type: str, file: Path) -> str | None:
         if scan_type != FOH_DATASET_CONFIG.task_correction_scan_type:
             return None
         info = self._candidate_info(file)
-        stream_html = " ".join(
-            f'{name}<span style="color:{CHECK_COLOR if present else CROSS_COLOR}">'
-            f"{CHECK if present else CROSS}</span>"
-            for name, present in info.streams.items()
+        found_streams = sum(info.streams.values())
+        total_streams = len(info.streams)
+        complete = found_streams == total_streams
+        streams_text = (
+            f'<span style="color:{CHECK_COLOR if complete else CROSS_COLOR}">'
+            f"Streams: {found_streams}/{total_streams} {CHECK if complete else CROSS}</span>"
         )
-        prefix_parts = []
+
+        parts = []
         if info.recorded_at is not None:
-            prefix_parts.append(info.recorded_at)
+            parts.append(info.recorded_at)
         if info.duration_minutes is not None:
-            prefix_parts.append(f"Total Time: {info.duration_minutes:.1f} min")
-        if not prefix_parts:
-            return stream_html
-        return f"{' &nbsp;'.join(prefix_parts)} &nbsp;&nbsp; {stream_html}"
+            parts.append(f"{round(info.duration_minutes)} min")
+        parts.append(streams_text)
+        return " &nbsp;&nbsp; ".join(parts)
+
+    def describe_tooltip(self, scan_type: str, file: Path) -> str | None:
+        if scan_type != FOH_DATASET_CONFIG.task_correction_scan_type:
+            return None
+        info = self._candidate_info(file)
+        lines = ["Streams found in this recording:"]
+        lines.extend(
+            f"{CHECK if present else CROSS} {name}" for name, present in info.streams.items()
+        )
+        if info.streams.get(OPENSIGNALS_STREAM):
+            lines.append("")
+            lines.append("OpenSignals channels the pipeline needs:")
+            lines.extend(
+                f"{CHECK if present else CROSS} {label}"
+                for label, present in info.opensignals_channels.items()
+            )
+        return "\n".join(lines)
 
     def detail(self, scan_type: str, file: Path) -> str | None:
         if scan_type != FOH_DATASET_CONFIG.task_correction_scan_type:
             return None
         info = self._candidate_info(file)
+        streams_text = " ".join(
+            f'{name}<span style="color:{CHECK_COLOR if present else CROSS_COLOR}">'
+            f"{CHECK if present else CROSS}</span>"
+            for name, present in info.streams.items()
+        )
+        streams_line = f"<b>Streams</b> &nbsp; {streams_text}"
         if info.opensignals_columns is None:
-            return f"<b>{OPENSIGNALS_STREAM}</b> &nbsp; not found in this recording"
+            return f"{streams_line}<br>{OPENSIGNALS_STREAM} not found in this recording"
 
         columns_text = ", ".join(info.opensignals_columns)
+        channels_text = " ".join(
+            f'{label}<span style="color:{CHECK_COLOR if present else CROSS_COLOR}">'
+            f"{CHECK if present else CROSS}</span>"
+            for label, present in info.opensignals_channels.items()
+        )
         nominal = info.opensignals_nominal_srate
         effective = info.opensignals_effective_srate
         if nominal is not None and effective is not None:
             rate_text = f"{effective:.4f} Hz effective vs {nominal:.4f} Hz specified"
-            if nominal > 0 and abs(nominal - effective) / nominal > SRATE_MISMATCH_THRESHOLD:
+            if _srate_mismatch(info):
                 rate_text = f'<span style="color:{CROSS_COLOR}">{rate_text}</span>'
         else:
             rate_text = "sampling rate unavailable"
 
         return (
+            f"{streams_line}<br>"
             f"<b>{OPENSIGNALS_STREAM}</b> &nbsp; columns: {columns_text} "
-            f"&nbsp;&nbsp; {rate_text}"
+            f"&nbsp;&nbsp; {channels_text} &nbsp;&nbsp; {rate_text}"
         )
 
     def task_correction_available(self, scan_type: str) -> bool:
         return scan_type == FOH_DATASET_CONFIG.task_correction_scan_type
 
-    def _candidate_info(self, file: Path) -> FohCandidateInfo:
-        if file not in self._info_cache:
-            try:
-                streams, header = pyxdf.load_xdf(str(file))
-                found = gather_xdf_data_streams(streams, list(FOH_STREAMS))
-                stream_presence = {name: name in found for name in FOH_STREAMS}
-                duration_minutes = _recording_duration_minutes(streams)
+    def refreshable(self, scan_type: str) -> bool:
+        return scan_type == FOH_DATASET_CONFIG.task_correction_scan_type
+
+    def refresh(self, scan_type: str, file: Path) -> None:
+        """Force a reparse for one candidate. Caller batches the disk write via `flush()`
+        (e.g. once after refreshing every subject in a bulk selection, not once per file)."""
+        if scan_type != FOH_DATASET_CONFIG.task_correction_scan_type:
+            return
+        self._candidate_info(file, force=True)
+
+    def has_warning(self, scan_type: str, file: Path) -> bool:
+        if scan_type != FOH_DATASET_CONFIG.task_correction_scan_type:
+            return False
+        info = self._candidate_info(file)
+        if _srate_mismatch(info):
+            return True
+        if info.streams.get(OPENSIGNALS_STREAM) and not all(info.opensignals_channels.values()):
+            return True
+        return False
+
+    def _cache_key(self, file: Path) -> str:
+        if self._bids_folder is None:
+            return file.name
+        try:
+            return file.relative_to(self._bids_folder).as_posix()
+        except ValueError:
+            return file.name
+
+    def _candidate_info(self, file: Path, force: bool = False) -> FohCandidateInfo:
+        key = self._cache_key(file)
+        stat = file.stat()
+        cached = self._disk_cache.get(key)
+        if not force and cached is not None:
+            if cached.get("mtime") == stat.st_mtime and cached.get("size") == stat.st_size:
                 try:
-                    recorded_at = get_start_time(header).strftime("%Y-%m-%d %H:%M:%S")
-                except (KeyError, IndexError, ValueError):
-                    recorded_at = None
-                opensignals_columns = None
-                opensignals_nominal_srate = None
-                opensignals_effective_srate = None
-                try:
-                    _, opensignals_stream = extract_single_stream(streams, OPENSIGNALS_STREAM)
-                except xdfIOException:
-                    pass
-                else:
-                    if OPENSIGNALS_STREAM in found:
-                        opensignals_columns = [
-                            column
-                            for column in found[OPENSIGNALS_STREAM].columns
-                            if column != "time_stamps"
-                        ]
-                    opensignals_nominal_srate = float(
-                        opensignals_stream["info"]["nominal_srate"][0]
-                    )
-                    opensignals_effective_srate = float(
-                        opensignals_stream["info"]["effective_srate"]
-                    )
-            except Exception:
-                logger.warning("Could not read XDF data from %s", file, exc_info=True)
-                stream_presence = dict.fromkeys(FOH_STREAMS, False)
-                recorded_at = None
-                duration_minutes = None
-                opensignals_columns = None
-                opensignals_nominal_srate = None
-                opensignals_effective_srate = None
-            self._info_cache[file] = FohCandidateInfo(
-                streams=stream_presence,
-                recorded_at=recorded_at,
-                duration_minutes=duration_minutes,
-                opensignals_columns=opensignals_columns,
-                opensignals_nominal_srate=opensignals_nominal_srate,
-                opensignals_effective_srate=opensignals_effective_srate,
-            )
-        return self._info_cache[file]
+                    return FohCandidateInfo(**cached["info"])
+                except (TypeError, KeyError):
+                    logger.warning("Stale info-cache entry for %s -- reparsing", file)
+
+        info = _parse_candidate_info(file)
+        self._disk_cache[key] = {
+            "mtime": stat.st_mtime,
+            "size": stat.st_size,
+            "info": asdict(info),
+        }
+        self._dirty = True
+        return info
 
 
 def main() -> None:

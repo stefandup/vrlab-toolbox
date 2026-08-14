@@ -197,6 +197,103 @@ skip" branch copy-pasted into every course that needs timing.
     `ProcessBehaviourDataWithIntervalsStrategyStep` is defined but not yet
     wired into the pipeline run loop.
 
+### A second Strategy, on the GUI side: `CandidateExtras`
+
+Everything above is the pipeline. The same pattern shows up again in a
+completely different part of the codebase: the crosscheck GUI shared by
+every dataset (see [BIDS Crosscheck:
+Architecture](bids-crosscheck-architecture.md)).
+
+`BidsCrosscheckWindow` (`gui/bids_crosscheck_common.py`) draws the same
+subject list and detail panel for FOH and crane alike, but only FOH knows
+how to read an `.xdf` file's recording date, stream presence, or a
+sampling-rate mismatch — crane's physiology files look nothing like it.
+Rather than an `if dataset == "foh":` branch inside the window, that
+knowledge lives entirely behind one small class of hook methods, each with
+a harmless default:
+
+```python
+class CandidateExtras:
+    """Hook for dataset-specific per-candidate UI. Crane uses the no-op default."""
+
+    def describe(self, scan_type: str, file: Path) -> str | None:
+        return None
+
+    def has_warning(self, scan_type: str, file: Path) -> bool:
+        return False
+
+    def refresh(self, scan_type: str, file: Path) -> None:
+        return None
+
+    # ... six more hooks, same shape: a default that does nothing
+```
+
+`FohCandidateExtras` (`gui/foh_bids_crosscheck_gui.py`) subclasses it and
+overrides the hooks it actually has something to say about:
+
+```python
+class FohCandidateExtras(CandidateExtras):
+    def describe(self, scan_type: str, file: Path) -> str | None:
+        if scan_type != FOH_DATASET_CONFIG.task_correction_scan_type:
+            return None
+        info = self._candidate_info(file)
+        # ... build "2026-02-21   13 min   Streams: 4/4 ✓" from `info`
+        return " &nbsp;&nbsp; ".join(parts)
+
+    def has_warning(self, scan_type: str, file: Path) -> bool:
+        info = self._candidate_info(file)
+        if _srate_mismatch(info):
+            return True
+        if info.streams.get(OPENSIGNALS_STREAM) and not all(info.opensignals_channels.values()):
+            return True
+        return False
+```
+
+`BidsCrosscheckWindow` calls those hooks the same way `PipelineTemplate`
+calls a strategy step's `run()` above: through `self.extras`, never
+knowing or caring which concrete class it's holding:
+
+```python
+extra_html = self.extras.describe(scan_type, subject_scan.files[0])
+...
+if self._has_candidate_warning(subject_id, scan_type):
+    icon += WARNING_ICON  # self.extras.has_warning(...) underneath
+```
+
+Crane's actual entry point, `crane_bids_crosscheck_gui.py`, hands the
+window an unmodified `CandidateExtras()`:
+
+```python
+run_bids_crosscheck_app(
+    CRANE_DATASET_CONFIG, "Crane BIDS Crosscheck", CandidateExtras(),
+    settings_app_name="CraneBidsCrosscheck",
+)
+```
+
+Swap that for `FohCandidateExtras()` and the window's own code doesn't
+change at all — the same swap-the-object-not-the-caller trick as
+`FindCraneParticipantFilesStrategyStep` vs. `FindFohParticipantFilesStrategyStep`
+above.
+
+!!! note "Two variations worth noticing, next to the pipeline's version"
+    - **Inheritance instead of `Protocol`.** The pipeline's strategies use
+      `Protocol` because every real strategy step must supply genuine
+      behaviour — there's no sensible "do nothing" `run()`. `CandidateExtras`
+      uses ordinary subclassing instead, because here "do nothing" *is*
+      sensible: most hooks are fine returning `None`/`False` until a
+      dataset actually needs them. Same pattern, different Python
+      mechanism — pick whichever fits the contract you're writing.
+    - **The base class doubling as its own default strategy.** Crane
+      doesn't subclass `CandidateExtras` at all — it passes the base class
+      itself, instantiated, unmodified, and every hook call quietly does
+      nothing. A concrete "do-nothing" implementation of a shared
+      interface, used specifically so calling code never needs an
+      `if extras is not None` check, has its own name: **Null Object**. It
+      isn't one of the original 23 patterns in the 1994 GoF book — it was
+      catalogued a few years later, by Bobby Woolf, in *Pattern Languages
+      of Program Design 3* (1997) — but it's a close, commonly-paired
+      cousin of Strategy, and it's exactly what's happening here.
+
 ## Composite: the `Sequential*Steps` classes
 
 **Idea:** let a *group* of objects be used the same way as a single object.
@@ -457,6 +554,10 @@ concrete importer produced either one.
   every `Sequential*Steps` class (a composite), and `PipelineTemplate`
   itself (the template) live in that one file. Once you can point at the
   lines implementing each pattern above, you've got the architecture.
+- **Read `gui/bids_crosscheck_common.py` and `gui/foh_bids_crosscheck_gui.py`
+  yourself, too.** Same Strategy pattern as `pipeline.py`, applied to a
+  completely different part of the codebase — a good check that you've
+  actually internalized the *shape*, not just this one file's names.
 - On the Python side specifically: `Protocol` and the dunder-method-based
   contracts Python uses throughout (`__len__`, `__eq__`, `__iter__`, …) are
   covered in depth in *Fluent Python* by Luciano Ramalho (O'Reilly). There's

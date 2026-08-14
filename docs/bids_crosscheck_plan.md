@@ -212,6 +212,34 @@ the "shared with whoever else opens this folder" benefit). Leaning toward the
 JSON sidecar as the simplest fit with the existing pattern. Not implemented
 yet.
 
+**FOH rename deselects the subject.** Reported: tagging a recording as FOH
+(single or bulk "Rename to FOH") appears to clear the subject's selection in
+the list afterward. Distinct from the earlier "Issues-only filter evicting
+active selection" bug (already fixed) — that one was the Issues-only
+checkbox hiding a subject once its last issue was resolved; this is the
+rename action itself losing the row selection, independent of that filter.
+Not yet reproduced/root-caused — needs a headless repro before fixing.
+
+**No warning when a bulk FOH-rename can't act on an unpicked subject.**
+`_on_rename_all_selected` / `_on_rename_selected_to_task_label` already skip
+any subject that has more than one candidate and no picked/committed
+selection yet (documented in [FOH Crosscheck](foh-crosscheck.md), step 11:
+"a subject still waiting on that pick is simply skipped"). That skip is
+silent — no feedback that anything was left undone. Should surface which
+subjects were skipped and why (e.g. a summary dialog listing them) instead
+of failing silently.
+
+**FOH-tagged file's parent folder keeps its old modality name.** After
+"Rename to FOH", the file itself gets `_FOH` in its name, but the folder it
+lives in (e.g. `sub-XXX/eeg/`) keeps whatever modality name the raw-to-BIDS
+conversion gave it — the folder itself isn't renamed to match. Ideally it
+should be, alongside the file. Complication: that folder can hold other,
+unselected candidate files that must stay put, so a straight folder rename
+only works once nothing else remains in it — otherwise this needs a
+different strategy than renaming the folder outright. Needs a closer look
+at what's actually left in that folder at tag-time before designing the
+fix.
+
 **Crane parity with FOH's GUI improvements.** Everything under [Current
 status](#current-status-as-of-2026-08-13) above (two-column subject list,
 `crosschecked` marking, pending-selection autosave, commit-all, progress

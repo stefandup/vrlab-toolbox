@@ -142,6 +142,15 @@ below) unique per dataset, and register a console-script entry in
 
 - **FOH info caching isn't persistent yet** — logged in [BIDS Crosscheck
   Plan](bids_crosscheck_plan.md#todo-deferred-not-scoped-now).
+- **FOH rename deselects the subject** — tagging a recording as FOH appears
+  to clear the subject's list selection afterward; not yet root-caused. See
+  [BIDS Crosscheck Plan](bids_crosscheck_plan.md#todo-deferred-not-scoped-now).
+- **Bulk FOH-rename silently skips unpicked subjects** — no warning is shown
+  when a subject is skipped because no recording had been picked yet. See
+  [BIDS Crosscheck Plan](bids_crosscheck_plan.md#todo-deferred-not-scoped-now).
+- **FOH-tagged file's parent folder keeps its old modality name** — only the
+  file is renamed, not the folder it lives in. See [BIDS Crosscheck
+  Plan](bids_crosscheck_plan.md#todo-deferred-not-scoped-now).
 - **Crane parity with FOH's `CandidateExtras`** — FOH is ahead (rich
   `describe()` info, `task_correction`); crane still uses the no-op base.
   Deliberately one dataset at a time — bring crane's GUI up to match FOH's
