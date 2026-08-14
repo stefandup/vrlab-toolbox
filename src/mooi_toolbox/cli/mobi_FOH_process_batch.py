@@ -5,9 +5,9 @@ from pathlib import Path
 import click
 import matplotlib.pyplot as plt
 import pandas as pd
+from rich.progress import Progress
 
 from mooi_toolbox import mobi_logging
-from mooi_toolbox.cli.check_mobi_xdf import check_mobi_xdf as get_and_check_xdf
 from mooi_toolbox.processing import lsl
 from mooi_toolbox.processing.foh_pipeline import run_pipeline
 from mooi_toolbox.processing.plot_utils import save_plot
@@ -32,71 +32,51 @@ def main(input_folder: Path, output_folder: Path, verbose: bool):
 
     root = input_folder
     out_file_parts = []
+    xdf_fns = list(root.rglob("*.xdf"))
+    with Progress() as progress:
+        task = progress.add_task("Processing subjects", total=len(xdf_fns))
 
-    for xdf_fn in root.rglob("*.xdf"):
-        subject_id = lsl.get_subject_id(xdf_fn)
-        # hier updated
-        try:
-            streams = get_and_check_xdf(xdf_fn, verbose=False)
-        except Exception as error:
-            logger.warning("Skipping %s because XDF could not be loaded: %s", xdf_fn.name, error)
-            continue
+        for xdf_fn in xdf_fns:
+            subject_id = lsl.get_subject_id(xdf_fn)
 
-        streams_to_get = ["FOH_target", "VR_trial_events", "VR_markers"]
-
-        found_counts = {}
-
-        for stream in streams:
-            name = stream["info"]["name"][0]
-
-            if name in streams_to_get:
-                found_counts[name] = len(stream["time_series"])
-
-        has_foh_markers = (
-            found_counts.get("FOH_target", 0) > 0
-            and found_counts.get("VR_trial_events", 0) > 0
-            and found_counts.get("VR_markers", 0) > 0
-        )
-
-        if not has_foh_markers:
-            logger.info(
-                "Skipping %s because it does not contain FOH markers. Counts: %s",
-                xdf_fn.name,
-                found_counts,
+            progress.update(
+                task,
+                description=f"Processing subject {subject_id}",
+                advance=1,
             )
-            continue
 
-        mobi_logging.log_section(logger, f"Subject {subject_id}")
-        try:
-            pipeline_output = run_pipeline(subject_id, input_folder, output_folder)
-            participant_data_out = pipeline_output.subject_df_out
-            figures = pipeline_output.figure_data_out
+            mobi_logging.log_section(logger, f"Subject {subject_id}")
+            try:
+                pipeline_output = run_pipeline(subject_id, input_folder, output_folder)
+                participant_data_out = pipeline_output.subject_df_out
+                figures = pipeline_output.figure_data_out
 
-            if figures:
-                for fig_title, fig in figures.items():
-                    try:
-                        save_plot(
-                            fig,
-                            output_folder,
-                            subject_id,
-                            f"Subject {subject_id} - {fig_title}",
-                        )
-                    finally:
-                        plt.close(fig)
+                if figures:
+                    for fig_title, fig in figures.items():
+                        try:
+                            save_plot(
+                                fig,
+                                output_folder,
+                                subject_id,
+                                f"Subject {subject_id} - {fig_title}",
+                            )
+                        finally:
+                            plt.close(fig)
 
-            if participant_data_out.empty:
-                logger.warning("No participant output for subject %s", subject_id)
+                if participant_data_out.empty:
+                    logger.warning("No participant output for subject %s", subject_id)
+                    continue
+
+                participant_data_out = participant_data_out.reset_index(drop=True)
+
+                out_file_parts.append(participant_data_out)
+                logger.info(f"Done FOH pipeline for subject {subject_id}")
+            # TODO Exceptions can be narrowed here
+            except (FileNotFoundError, ValueError, KeyError, TypeError) as error:
+                logger.warning(
+                    "Skipping subject %s because processing failed: %s", subject_id, error
+                )
                 continue
-
-            participant_data_out = participant_data_out.reset_index(drop=True)
-            participant_data_out.insert(0, "Subject_ID", subject_id)
-
-            out_file_parts.append(participant_data_out)
-            logger.info(f"Done FOH pipeline for subject {subject_id}")
-
-        except (FileNotFoundError, ValueError, KeyError, TypeError) as error:
-            logger.warning("Skipping subject %s because processing failed: %s", subject_id, error)
-            continue
 
     out_df = pd.concat(out_file_parts, axis=0)
     out_df.to_csv(out_fn)

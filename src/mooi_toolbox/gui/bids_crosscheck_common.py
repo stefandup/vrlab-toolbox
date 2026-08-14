@@ -36,21 +36,24 @@ from PySide6.QtWidgets import (
 from rich.progress import Progress
 
 from mooi_toolbox.processing.bids_crosscheck import (
+    SUBJECT_FOLDER_PREFIX,
     BidsCrosscheckError,
     BidsFolderScan,
     DatasetConfig,
     SubjectScan,
     completeness_summary,
     crosschecked_scan_types,
+    delete_all_in_review,
+    ensure_bidsignore,
     load_pending_selections,
     record_date_correction,
     record_id_correction,
-    ensure_bidsignore,
     record_selected_run,
     record_subject_junked,
     record_task_correction,
     remove_task_correction,
     restore_all_from_junk,
+    restore_all_from_review,
     revert_all_decisions,
     save_pending_selections,
     scan_bids_folder,
@@ -80,6 +83,31 @@ STATUS_ICON_TOOLTIP = (
     f"{WARNING_ICON} the currently selected file has a dataset-specific issue -- "
     "see its detail panel"
 )
+TAG_COLUMN_TOOLTIP = (
+    "Whether the currently-effective recording has been tagged yet, and with what. Blank "
+    "for a scan type that doesn't use tagging, or with nothing effective yet."
+)
+DATATYPE_COLUMN_TOOLTIP = (
+    "BIDS's own term for the eeg/beh/func/... subfolder a recording lives in. Hover a "
+    "value in this column for what it means and whether it'll change."
+)
+# BIDS's own vocabulary for its datatype folders -- used to gloss a folder name in plain
+# English wherever one's shown (e.g. "beh" -> "behavioural"). Not exhaustive, just the ones
+# likely to come up; an unrecognized folder name is shown without a gloss rather than guessed.
+BIDS_DATATYPE_NAMES = {
+    "anat": "anatomical",
+    "beh": "behavioural",
+    "dwi": "diffusion-weighted imaging",
+    "eeg": "electroencephalography",
+    "fmap": "field map",
+    "func": "functional MRI",
+    "ieeg": "intracranial EEG",
+    "meg": "magnetoencephalography",
+    "motion": "motion capture",
+    "nirs": "near-infrared spectroscopy",
+    "perf": "perfusion",
+    "pet": "positron emission tomography",
+}
 
 
 class CandidateExtras:
@@ -178,8 +206,11 @@ class BidsCrosscheckWindow(QMainWindow):
         summary_bar.addWidget(self.summary_label, 1)
         self.commit_all_button = QPushButton()
         self.commit_all_button.setToolTip(
-            "For every subject with a duplicate you've picked, move the non-selected "
-            "file(s) to the junk folder. This can't be undone from within the tool."
+            "Keeps every pick you've made. Moves every OTHER candidate for it to "
+            "crosscheck_review/, for every pending pick at once.\n\n"
+            "Picking a candidate alone doesn't move anything yet -- files stay exactly "
+            "where they are until you click this.\n\n"
+            "Not junk -- junk is only for whole subjects (see \"Send to junk\")."
         )
         self.commit_all_button.clicked.connect(self._on_commit_all)
         summary_bar.addWidget(self.commit_all_button)
@@ -194,7 +225,7 @@ class BidsCrosscheckWindow(QMainWindow):
         self.rename_all_button = QPushButton()
         self.rename_all_button.setToolTip(
             f"Add the {self.dataset_config.task_correction_label!r} tag to every subject's "
-            "currently selected recording, skipping any already renamed. "
+            "currently selected recording, skipping any already tagged. "
             "This can't be undone from within the tool."
         )
         self.rename_all_button.clicked.connect(self._on_rename_all_selected)
@@ -203,12 +234,36 @@ class BidsCrosscheckWindow(QMainWindow):
 
         self.restore_junk_button = QPushButton("Restore all from junk...")
         self.restore_junk_button.setToolTip(
-            "Move everything currently in crosscheck_junk/ back to where it came from. "
-            "Bulk only in this version -- there's no way to restore just one subject or "
-            "file; it's everything in the junk folder, or nothing."
+            "Brings back every whole subject currently in crosscheck_junk/ -- pilot runs, "
+            "non-participants, test recordings sent there with \"Send to junk\".\n\n"
+            "Not for individual files -- those go to crosscheck_review/ instead (see "
+            "\"Restore all from review\").\n\n"
+            "Bulk only: it's everything in the junk folder, or nothing."
         )
         self.restore_junk_button.clicked.connect(self._on_restore_all_from_junk)
         summary_bar.addWidget(self.restore_junk_button)
+
+        self.restore_review_button = QPushButton("Restore all from review...")
+        self.restore_review_button.setToolTip(
+            "Brings back every file currently in crosscheck_review/ -- duplicates that "
+            "weren't picked, set aside for a second look.\n\n"
+            "Doesn't touch crosscheck_junk/ -- separate folder, separate button, on "
+            "purpose.\n\n"
+            "Bulk only: it's everything in the review folder, or nothing."
+        )
+        self.restore_review_button.clicked.connect(self._on_restore_all_from_review)
+        summary_bar.addWidget(self.restore_review_button)
+
+        self.delete_review_button = QPushButton("Permanently delete review...")
+        self.delete_review_button.setToolTip(
+            "Permanently deletes everything in crosscheck_review/.\n\n"
+            "Unlike everything else in this tool, this cannot be undone -- not even by "
+            "hand.\n\n"
+            "Only use this once someone's actually checked crosscheck_review/ and confirmed "
+            "there's nothing worth keeping."
+        )
+        self.delete_review_button.clicked.connect(self._on_delete_all_in_review)
+        summary_bar.addWidget(self.delete_review_button)
 
         self.revert_all_button = QPushButton("Revert all changes...")
         self.revert_all_button.setToolTip(
@@ -239,14 +294,18 @@ class BidsCrosscheckWindow(QMainWindow):
         self.issues_only_checkbox = QCheckBox("Issues only")
         self.issues_only_checkbox.stateChanged.connect(self._refresh_subject_list)
         left_layout.addWidget(self.issues_only_checkbox)
-        self.subject_table = QTableWidget(0, 2)
-        self.subject_table.setHorizontalHeaderLabels(["Subject", "Info"])
+        self.subject_table = QTableWidget(0, 4)
+        self.subject_table.setHorizontalHeaderLabels(["Subject", "Tag", "Datatype", "Info"])
+        self.subject_table.horizontalHeaderItem(1).setToolTip(TAG_COLUMN_TOOLTIP)
+        self.subject_table.horizontalHeaderItem(2).setToolTip(DATATYPE_COLUMN_TOOLTIP)
         self.subject_table.verticalHeader().setVisible(False)
         self.subject_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.subject_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.subject_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.subject_table.horizontalHeader().setStretchLastSection(True)
         self.subject_table.setColumnWidth(0, 140)
+        self.subject_table.setColumnWidth(1, 70)
+        self.subject_table.setColumnWidth(2, 90)
         self.subject_table.itemSelectionChanged.connect(self._on_subject_selected)
         left_layout.addWidget(self.subject_table, 1)
         splitter.addWidget(left_panel)
@@ -338,6 +397,38 @@ class BidsCrosscheckWindow(QMainWindow):
             if picks
         }
         save_pending_selections(self.bids_folder, serializable)
+
+    def _follow_rename_in_pending(
+        self, subject_id: str, scan_type: str, old_file: Path, new_file: Path
+    ) -> None:
+        """Keep a pending (uncommitted) pick pointed at its file after that file gets renamed.
+
+        `_resolve_pending_selections` matches a persisted pick back to a file by filename --
+        rename the picked file itself (date-correct or task-tag it before committing) and the
+        old filename no longer exists, so the match would otherwise silently fail and the pick
+        just vanishes (radio unchecks, "Please select correct file" reappears) even though the
+        right file is still sitting right there under its new name.
+        """
+        if self._pending_selections.get(subject_id, {}).get(scan_type) == old_file:
+            self._pending_selections[subject_id][scan_type] = new_file
+            self._persist_pending_selections()
+
+    def _follow_id_correction_in_pending(
+        self, subject_id: str, corrected_id: str, corrected_folder: Path
+    ) -> None:
+        """Same idea as `_follow_rename_in_pending`, but for `record_id_correction`: every file
+        in the subject's folder can be renamed at once (and the subject_id key itself changes),
+        so a pending pick has to be re-keyed and re-pointed rather than just re-pointed."""
+        picks = self._pending_selections.pop(subject_id, None)
+        if not picks:
+            return
+        original_token = f"{SUBJECT_FOLDER_PREFIX}{subject_id}"
+        corrected_token = f"{SUBJECT_FOLDER_PREFIX}{corrected_id}"
+        self._pending_selections[corrected_id] = {
+            scan_type: corrected_folder / file.name.replace(original_token, corrected_token)
+            for scan_type, file in picks.items()
+        }
+        self._persist_pending_selections()
 
     def _refresh_summary(self) -> None:
         if self.scan is None:
@@ -437,8 +528,14 @@ class BidsCrosscheckWindow(QMainWindow):
         id_item.setToolTip(STATUS_ICON_TOOLTIP)
         self.subject_table.setItem(row, 0, id_item)
 
+        tag_widget = self._build_subject_tag_widget(subject_id)
+        self.subject_table.setCellWidget(row, 1, tag_widget)
+
+        datatype_widget = self._build_subject_datatype_widget(subject_id)
+        self.subject_table.setCellWidget(row, 2, datatype_widget)
+
         info_widget = self._build_subject_info_widget(subject_id)
-        self.subject_table.setCellWidget(row, 1, info_widget)
+        self.subject_table.setCellWidget(row, 3, info_widget)
         self.subject_table.setRowHeight(row, info_widget.sizeHint().height())
 
     def _status_icons(self, subject_id: str) -> str:
@@ -487,7 +584,9 @@ class BidsCrosscheckWindow(QMainWindow):
         if file is None:
             return False
         label = self.dataset_config.task_correction_label
-        return f"_{label}" not in file.stem
+        # Case-insensitive -- see record_task_correction for why (legacy data tagged under a
+        # different casing of this label must still count as tagged).
+        return f"_{label}".lower() not in file.stem.lower()
 
     def _subject_has_issues(self, subject_id: str) -> bool:
         if self.scan.has_issues(subject_id):
@@ -497,6 +596,73 @@ class BidsCrosscheckWindow(QMainWindow):
             or self._has_candidate_warning(subject_id, scan_type)
             for scan_type in self.dataset_config.scan_type_names()
         )
+
+    def _build_subject_tag_widget(self, subject_id: str) -> QWidget:
+        """One label per tag-eligible scan type showing whether its currently-effective file
+        has been tagged yet, and with what -- blank for a scan type that doesn't support
+        tagging, or with nothing effective yet (missing, or an unresolved duplicate)."""
+        row = QWidget()
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(4, 2, 4, 2)
+
+        label_text = self.dataset_config.task_correction_label
+        for scan_type in self.dataset_config.scan_type_names():
+            if not self.extras.task_correction_available(scan_type):
+                continue
+            subject_scan = self.scan.scans[subject_id][scan_type]
+            file = self._effective_candidate_file(subject_id, scan_type, subject_scan)
+            if file is None:
+                continue
+            tagged = f"_{label_text}".lower() in file.stem.lower()
+            tag_label = QLabel()
+            tag_label.setTextFormat(Qt.TextFormat.RichText)
+            if tagged:
+                tag_label.setText(label_text)
+                tag_label.setToolTip(f"Tagged {label_text!r}.")
+            else:
+                tag_label.setText(f'<span style="color:{PLEASE_SELECT_COLOR}">not tagged</span>')
+                tag_label.setToolTip(
+                    f'Not tagged yet -- click "Tag as {label_text}" in the recording pane '
+                    "to add it."
+                )
+            row_layout.addWidget(tag_label)
+
+        row_layout.addStretch(1)
+        return row
+
+    def _build_subject_datatype_widget(self, subject_id: str) -> QWidget:
+        """One label per scan type showing the BIDS datatype folder its currently-effective
+        file lives in right now (e.g. "eeg") -- blank for a scan type with nothing effective
+        yet (missing, or an unresolved duplicate). See `_datatype_tooltip` for what hovering
+        a value explains."""
+        row = QWidget()
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(4, 2, 4, 2)
+
+        for scan_type in self.dataset_config.scan_type_names():
+            subject_scan = self.scan.scans[subject_id][scan_type]
+            file = self._effective_candidate_file(subject_id, scan_type, subject_scan)
+            if file is None:
+                continue
+            folder_name = file.parent.name
+            label = QLabel(folder_name)
+            label.setToolTip(self._datatype_tooltip(scan_type, folder_name))
+            row_layout.addWidget(label)
+
+        row_layout.addStretch(1)
+        return row
+
+    def _datatype_tooltip(self, scan_type: str, folder_name: str) -> str:
+        tooltip = f'This recording currently lives in BIDS\'s "{folder_name}" datatype folder.'
+        target = self.dataset_config.task_correction_folder_name
+        if target and target != folder_name and self.extras.task_correction_available(scan_type):
+            label = self.dataset_config.task_correction_label
+            target_meaning = BIDS_DATATYPE_NAMES.get(target)
+            tooltip += f'\n\nOnce tagged {label!r}, it moves to "{target}"'
+            if target_meaning:
+                tooltip += f" -- BIDS's own term for {target_meaning} data"
+            tooltip += "."
+        return tooltip
 
     def _build_subject_info_widget(self, subject_id: str) -> QWidget:
         row = QWidget()
@@ -516,10 +682,10 @@ class BidsCrosscheckWindow(QMainWindow):
             elif subject_scan.status == "duplicate":
                 pending_file = pending_for_subject.get(scan_type)
                 if pending_file is not None:
-                    # Radio-picked but not yet committed via "Move non-selected to junk" --
-                    # preview the pick's info now. The PENDING_ICON next to the status icon
-                    # (see _status_icons) is what signals "not yet saved"; no need to repeat
-                    # that in text here too.
+                    # Radio-picked but not yet committed (the commit button moves the
+                    # non-selected candidate(s) to crosscheck_review/) -- preview the pick's
+                    # info now. The PENDING_ICON next to the status icon (see _status_icons)
+                    # is what signals "not yet saved"; no need to repeat that in text here too.
                     extra_html = self.extras.describe(scan_type, pending_file)
                     extra_tooltip = self.extras.describe_tooltip(scan_type, pending_file)
                 else:
@@ -547,8 +713,12 @@ class BidsCrosscheckWindow(QMainWindow):
             item = self.subject_table.item(row, 0)
             if item is not None and item.data(SUBJECT_ID_ROLE) == subject_id:
                 item.setText(f"sub-{subject_id}   {self._status_icons(subject_id)}")
+                tag_widget = self._build_subject_tag_widget(subject_id)
+                self.subject_table.setCellWidget(row, 1, tag_widget)
+                datatype_widget = self._build_subject_datatype_widget(subject_id)
+                self.subject_table.setCellWidget(row, 2, datatype_widget)
                 info_widget = self._build_subject_info_widget(subject_id)
-                self.subject_table.setCellWidget(row, 1, info_widget)
+                self.subject_table.setCellWidget(row, 3, info_widget)
                 self.subject_table.setRowHeight(row, info_widget.sizeHint().height())
                 break
 
@@ -658,11 +828,11 @@ class BidsCrosscheckWindow(QMainWindow):
         if total_pending:
             plural = "s" if total_pending != 1 else ""
             self.commit_all_button.setText(
-                f"Commit all pending selections ({total_pending} pick{plural})"
+                f"Move all non-selected to crosscheck_review ({total_pending} pick{plural})"
             )
             self.commit_all_button.setStyleSheet(f"font-weight: bold; color: {PENDING_COLOR};")
         else:
-            self.commit_all_button.setText("Commit all pending selections")
+            self.commit_all_button.setText("Move all non-selected to crosscheck_review")
             self.commit_all_button.setStyleSheet("")
         self.commit_all_button.setEnabled(bool(total_pending))
 
@@ -685,7 +855,7 @@ class BidsCrosscheckWindow(QMainWindow):
         if file is None:
             return None
         label = self.dataset_config.task_correction_label
-        if f"_{label}" in file.stem:
+        if f"_{label}".lower() in file.stem.lower():
             return None
         return file
 
@@ -707,12 +877,10 @@ class BidsCrosscheckWindow(QMainWindow):
         pending = len(self._rename_all_candidates())
         if pending:
             plural = "s" if pending != 1 else ""
-            self.rename_all_button.setText(
-                f"Rename all selected to {label} ({pending} file{plural})"
-            )
+            self.rename_all_button.setText(f"Tag all selected as {label} ({pending} file{plural})")
             self.rename_all_button.setStyleSheet(f"font-weight: bold; color: {PENDING_COLOR};")
         else:
-            self.rename_all_button.setText(f"Rename all selected to {label}")
+            self.rename_all_button.setText(f"Tag all selected as {label}")
             self.rename_all_button.setStyleSheet("")
         self.rename_all_button.setEnabled(bool(pending))
 
@@ -726,9 +894,10 @@ class BidsCrosscheckWindow(QMainWindow):
         subject_count = len({subject_id for subject_id, _scan_type, _file in candidates})
         confirm = QMessageBox.question(
             self,
-            f"Rename all selected to {label}",
-            f"This will rename {len(candidates)} file(s) across {subject_count} subject(s) "
-            f"to add the {label!r} tag. This cannot be undone from within this tool. Continue?",
+            f"Tag all selected as {label}",
+            f"This will add the {label!r} tag to {len(candidates)} file(s) across "
+            f"{subject_count} subject(s). This cannot be undone from within this tool. "
+            "Continue?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -737,7 +906,15 @@ class BidsCrosscheckWindow(QMainWindow):
         errors = []
         for subject_id, scan_type, file in candidates:
             try:
-                record_task_correction(self.bids_folder, subject_id, scan_type, file, label)
+                destination = record_task_correction(
+                    self.bids_folder,
+                    subject_id,
+                    scan_type,
+                    file,
+                    label,
+                    self.dataset_config.task_correction_folder_name,
+                )
+                self._follow_rename_in_pending(subject_id, scan_type, file, destination)
             except (BidsCrosscheckError, OSError) as error:
                 errors.append(f"{file.name}: {error}")
         if errors:
@@ -766,6 +943,49 @@ class BidsCrosscheckWindow(QMainWindow):
             QMessageBox.warning(self, "Some items could not be restored", "\n".join(errors))
         elif not restored:
             QMessageBox.information(self, "Nothing to restore", "The junk folder is empty.")
+        self._rescan(reload_pending=True)
+
+    def _on_restore_all_from_review(self) -> None:
+        if self.bids_folder is None:
+            return
+        confirm = QMessageBox.question(
+            self,
+            "Restore all from review",
+            "This will move everything currently in crosscheck_review/ back to where it "
+            "came from. There's no selective restore in this version -- it's everything "
+            "in the review folder, or nothing. Continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        restored, errors = restore_all_from_review(self.bids_folder)
+        if errors:
+            QMessageBox.warning(self, "Some items could not be restored", "\n".join(errors))
+        elif not restored:
+            QMessageBox.information(self, "Nothing to restore", "The review folder is empty.")
+        self._rescan(reload_pending=True)
+
+    def _on_delete_all_in_review(self) -> None:
+        if self.bids_folder is None:
+            return
+        confirm = QMessageBox.question(
+            self,
+            "Permanently delete review",
+            "This will PERMANENTLY DELETE everything currently in crosscheck_review/. "
+            "Unlike every other action in this tool, this cannot be undone -- not moved, "
+            "not recoverable, gone. Only do this once a second crosschecker has actually "
+            "gone through crosscheck_review/ and confirmed none of it is needed. Continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        deleted, errors = delete_all_in_review(self.bids_folder)
+        if errors:
+            QMessageBox.warning(self, "Some items could not be deleted", "\n".join(errors))
+        elif not deleted:
+            QMessageBox.information(self, "Nothing to delete", "The review folder is empty.")
         self._rescan(reload_pending=True)
 
     def _on_revert_all_decisions(self) -> None:
@@ -830,8 +1050,13 @@ class BidsCrosscheckWindow(QMainWindow):
             )
             radio_group.addButton(radio)
             row_layout.addWidget(radio)
+            # Only the picked candidate counts as "the one" -- renaming/date-correcting one of
+            # its still-unresolved duplicate siblings would silently act on a file nobody's
+            # confirmed is correct, so those buttons aren't shown until this row is the pick.
+            is_effective_candidate = pending == file
         else:
             row_layout.addWidget(QLabel(f"✓ {file.name}"))
+            is_effective_candidate = True
 
         extra_text = self.extras.describe(scan_type, file)
         if extra_text:
@@ -850,28 +1075,38 @@ class BidsCrosscheckWindow(QMainWindow):
         reveal_button.clicked.connect(lambda: self._on_reveal_subject_folder(subject_id))
         row_layout.addWidget(reveal_button)
 
-        date_button = QPushButton("Correct date...")
-        date_button.setToolTip(
-            "Rewrite this file's leading date prefix (the part before the first '_') "
-            "if it doesn't match when the recording actually happened."
-        )
-        date_button.clicked.connect(lambda: self._on_correct_date(subject_id, scan_type, file))
-        row_layout.addWidget(date_button)
+        if is_effective_candidate:
+            date_button = QPushButton("Correct date...")
+            date_button.setToolTip(
+                "Rewrite this file's leading date prefix (the part before the first '_') "
+                "if it doesn't match when the recording actually happened."
+            )
+            date_button.clicked.connect(lambda: self._on_correct_date(subject_id, scan_type, file))
+            row_layout.addWidget(date_button)
 
-        if self.extras.task_correction_available(scan_type):
-            label = self.dataset_config.task_correction_label
-            tagged = f"_{label}" in file.stem
-            task_button = QPushButton(f"Un-mark as {label}" if tagged else f"Rename to {label}")
-            task_button.setToolTip(
-                f"Remove the {label!r} tag from this file's name -- use this if it was "
-                "tagged by mistake."
-                if tagged
-                else f"Add the {label!r} tag to this file's name."
-            )
-            task_button.clicked.connect(
-                lambda: self._on_task_correction(subject_id, scan_type, file, tagged)
-            )
-            row_layout.addWidget(task_button)
+            if self.extras.task_correction_available(scan_type):
+                label = self.dataset_config.task_correction_label
+                tagged = f"_{label}".lower() in file.stem.lower()
+                task_button = QPushButton(f"Un-tag as {label}" if tagged else f"Tag as {label}")
+                if tagged:
+                    tooltip = (
+                        f"Remove the {label!r} tag from this file's name -- use this if it "
+                        "was tagged by mistake."
+                    )
+                else:
+                    tooltip = f"Add the {label!r} tag to this file's name."
+                    target = self.dataset_config.task_correction_folder_name
+                    if target:
+                        target_meaning = BIDS_DATATYPE_NAMES.get(target)
+                        tooltip += f' Also moves it into the "{target}" datatype folder'
+                        if target_meaning:
+                            tooltip += f" ({target_meaning})"
+                        tooltip += "."
+                task_button.setToolTip(tooltip)
+                task_button.clicked.connect(
+                    lambda: self._on_task_correction(subject_id, scan_type, file, tagged)
+                )
+                row_layout.addWidget(task_button)
 
         row_layout.addStretch(1)
         return row
@@ -949,16 +1184,22 @@ class BidsCrosscheckWindow(QMainWindow):
 
         pending_subject_ids = [s for s in subject_ids if self._pending_selections.get(s)]
         pending_count = sum(len(self._pending_selections[s]) for s in pending_subject_ids)
-        commit_label = "Move non-selected to junk" if len(subject_ids) == 1 else "Commit selected"
+        commit_label = (
+            "Move non-selected to crosscheck_review"
+            if len(subject_ids) == 1
+            else "Commit selected to crosscheck_review"
+        )
         if pending_count:
             plural = "s" if pending_count != 1 else ""
             commit_label += f" ({pending_count} pending pick{plural})"
         commit_button = QPushButton(commit_label)
         commit_button.setToolTip(
-            "For each scan type where you've picked a candidate with the radio button in "
-            "the recording panel above, move the non-selected duplicate file(s) to the "
-            "junk folder and record the pick as a permanent decision. This can't be undone "
-            "from within the tool."
+            "Keeps the candidate you picked above. Moves every OTHER candidate to "
+            "crosscheck_review/, so a second crosschecker can look at it later.\n\n"
+            "Picking a candidate alone doesn't move anything yet -- files stay exactly "
+            "where they are until you click this.\n\n"
+            "Not junk -- a non-picked duplicate isn't necessarily wrong, just not this "
+            "pick. \"Junk\" is only for whole subjects (see \"Send to junk...\" below)."
         )
         commit_button.clicked.connect(lambda: self._on_commit_selected(subject_ids))
         commit_button.setEnabled(bool(pending_subject_ids))
@@ -989,7 +1230,7 @@ class BidsCrosscheckWindow(QMainWindow):
         else:
             if self._task_correction_supported:
                 label = self.dataset_config.task_correction_label
-                bulk_rename_button = QPushButton(f"Rename selected to {label}")
+                bulk_rename_button = QPushButton(f"Tag selected as {label}")
                 bulk_rename_button.setToolTip(
                     f"Add the {label!r} tag to every selected subject's currently effective "
                     "recording, skipping any that still need a duplicate resolved first."
@@ -1080,9 +1321,9 @@ class BidsCrosscheckWindow(QMainWindow):
             return
         confirm = QMessageBox.question(
             self,
-            f"Rename selected to {label}",
-            f"This will rename {len(candidates)} file(s) across {len(selected)} selected "
-            f"subject(s) to add the {label!r} tag. This cannot be undone from within this "
+            f"Tag selected as {label}",
+            f"This will add the {label!r} tag to {len(candidates)} file(s) across "
+            f"{len(selected)} selected subject(s). This cannot be undone from within this "
             "tool. Continue?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
@@ -1092,7 +1333,15 @@ class BidsCrosscheckWindow(QMainWindow):
         errors = []
         for subject_id, scan_type, file in candidates:
             try:
-                record_task_correction(self.bids_folder, subject_id, scan_type, file, label)
+                destination = record_task_correction(
+                    self.bids_folder,
+                    subject_id,
+                    scan_type,
+                    file,
+                    label,
+                    self.dataset_config.task_correction_folder_name,
+                )
+                self._follow_rename_in_pending(subject_id, scan_type, file, destination)
             except (BidsCrosscheckError, OSError) as error:
                 errors.append(f"{file.name}: {error}")
         if errors:
@@ -1162,7 +1411,8 @@ class BidsCrosscheckWindow(QMainWindow):
         self._refresh_subject_actions_group(self._selected_subject_ids())
 
     def _on_commit_selected(self, subject_ids: list[str]) -> None:
-        """Commit pending picks for the given subject(s). No confirmation dialog when it's
+        """Commit pending picks for the given subject(s), moving non-selected duplicate(s) to
+        crosscheck_review/ (see `record_selected_run`). No confirmation dialog when it's
         exactly one subject -- matches every other single-subject action in this pane; bulk
         gets one, matching every other bulk action."""
         pending_subject_ids = [s for s in subject_ids if self._pending_selections.get(s)]
@@ -1172,9 +1422,9 @@ class BidsCrosscheckWindow(QMainWindow):
             total_picks = sum(len(self._pending_selections[s]) for s in pending_subject_ids)
             confirm = QMessageBox.question(
                 self,
-                "Commit selected",
-                f"This will move the non-selected duplicate file(s) to the junk folder for "
-                f"{len(pending_subject_ids)} of your selected subject(s) ({total_picks} "
+                "Commit selected to crosscheck_review",
+                f"This will move the non-selected duplicate file(s) to crosscheck_review/ "
+                f"for {len(pending_subject_ids)} of your selected subject(s) ({total_picks} "
                 "pick(s) total). This cannot be undone from within this tool. Continue?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
@@ -1192,8 +1442,8 @@ class BidsCrosscheckWindow(QMainWindow):
         total_picks = sum(len(self._pending_selections[s]) for s in pending_subject_ids)
         confirm = QMessageBox.question(
             self,
-            "Commit all pending selections",
-            f"This will move the non-selected duplicate file(s) to the junk folder for "
+            "Move all non-selected to crosscheck_review",
+            f"This will move the non-selected duplicate file(s) to crosscheck_review/ for "
             f"{len(pending_subject_ids)} subject(s) ({total_picks} pick(s) total). "
             "This cannot be undone from within this tool. Continue?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -1240,7 +1490,10 @@ class BidsCrosscheckWindow(QMainWindow):
         if not confirmed or not corrected_date or corrected_date == original_date:
             return
         try:
-            record_date_correction(self.bids_folder, subject_id, scan_type, file, corrected_date)
+            destination = record_date_correction(
+                self.bids_folder, subject_id, scan_type, file, corrected_date
+            )
+            self._follow_rename_in_pending(subject_id, scan_type, file, destination)
         except (BidsCrosscheckError, OSError) as error:
             QMessageBox.warning(self, "Could not correct date", str(error))
         # reload_pending=True -- see _on_rename_all_selected for why.
@@ -1254,9 +1507,19 @@ class BidsCrosscheckWindow(QMainWindow):
         label = self.dataset_config.task_correction_label
         try:
             if tagged:
-                remove_task_correction(self.bids_folder, subject_id, scan_type, file, label)
+                destination = remove_task_correction(
+                    self.bids_folder, subject_id, scan_type, file, label
+                )
             else:
-                record_task_correction(self.bids_folder, subject_id, scan_type, file, label)
+                destination = record_task_correction(
+                    self.bids_folder,
+                    subject_id,
+                    scan_type,
+                    file,
+                    label,
+                    self.dataset_config.task_correction_folder_name,
+                )
+            self._follow_rename_in_pending(subject_id, scan_type, file, destination)
         except (BidsCrosscheckError, OSError) as error:
             QMessageBox.warning(self, "Could not rename", str(error))
         # reload_pending=True -- see _on_rename_all_selected for why.
@@ -1278,10 +1541,11 @@ class BidsCrosscheckWindow(QMainWindow):
         if not confirmed or not corrected_id or corrected_id == subject_id:
             return
         try:
-            record_id_correction(self.bids_folder, subject_id, corrected_id)
+            corrected_folder = record_id_correction(self.bids_folder, subject_id, corrected_id)
         except (BidsCrosscheckError, OSError) as error:
             QMessageBox.warning(self, "Could not rename subject", str(error))
             return
+        self._follow_id_correction_in_pending(subject_id, corrected_id, corrected_folder)
         # reload_pending=True -- see _on_rename_all_selected for why.
         self._rescan(reload_pending=True)
 

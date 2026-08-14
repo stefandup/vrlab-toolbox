@@ -11,6 +11,13 @@ class PhysiologyFileFormat(Enum):
     BIOPAC = ".acq"
 
 
+# TODO: Figure out where to put the foh tag...
+# TODO: this happens to match FOH_DATASET_CONFIG.task_correction_label in
+# gui/foh_bids_crosscheck_gui.py (the tag the crosscheck tool writes into filenames), but
+# nothing keeps them in sync -- they're two independent hardcoded strings. Find a nice way to
+# share one source of truth once this function starts reading crosscheck decisions instead of
+# guessing (see docs/bids_crosscheck_plan.md's "TODO (deferred, not scoped now)").
+PIPELINE_ID = "foh"
 logger = logging.getLogger(__name__)
 
 
@@ -156,28 +163,31 @@ class ParticipantConfig:
         log_folder_in.mkdir(parents=True, exist_ok=True)
 
         selected_stream_fns = []
-        for xdf_path in data_folder_in.rglob(f"*{id_in}*{physiology_data_type_in.value}"):
+        for xdf_path in data_folder_in.rglob(
+            f"*{id_in}*{PIPELINE_ID}{physiology_data_type_in.value}"
+        ):
             print(f"Found {xdf_path}")
 
             file_to_run_key = str(xdf_path.name).split("_")[-1]
-            if file_to_run_key != "eeg.xdf":
+            if file_to_run_key != f"{PIPELINE_ID}.xdf":
                 logger.warning(
-                    f"{xdf_path} seems to be an old run as it ends on {file_to_run_key}.Skipping..."
+                    f"{xdf_path} path with key {file_to_run_key} does not match {PIPELINE_ID}.xdf"
+                    f"Skipping..."
                 )
                 continue
             selected_stream_fns.append(xdf_path)
 
         if not selected_stream_fns:
-            logger.warning("No matching physiology files found.")
-            selected_stream_fn = ""
-
+            raise ValueError(
+                f"No physiology files matching *_{PIPELINE_ID}.xdf found for participant {id_in}."
+            )
+        # Data needs to be crosschecked to remove multiple competing files.
         else:
             if len(selected_stream_fns) > 1:
-                logger.warning(
-                    f"Multiple sets for subject {id_in}. "
-                    f"Chosing last one: {selected_stream_fns[-1]}"
-                )
-            selected_stream_fn = selected_stream_fns[-1]
+                raise ValueError(f"Multiple sets for subject {id_in}. Please crosscheck.")
+
+            else:
+                selected_stream_fn = selected_stream_fns[0]
 
         return cls(
             subject_id=id_in,

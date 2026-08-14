@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 DECISIONS_FILENAME = "crosscheck.json"
 PENDING_SELECTIONS_FILENAME = "crosscheck_pending.json"
 JUNK_FOLDER_NAME = "crosscheck_junk"
+REVIEW_FOLDER_NAME = "crosscheck_review"
 SUBJECT_FOLDER_PREFIX = "sub-"
 BIDSIGNORE_FILENAME = ".bidsignore"
 RUN_TOKEN_PATTERN = re.compile(r"run-\d+")
@@ -83,6 +84,10 @@ def junk_folder(bids_folder: Path) -> Path:
     return bids_folder / JUNK_FOLDER_NAME
 
 
+def review_folder(bids_folder: Path) -> Path:
+    return bids_folder / REVIEW_FOLDER_NAME
+
+
 def decisions_path(bids_folder: Path) -> Path:
     return bids_folder / DECISIONS_FILENAME
 
@@ -91,13 +96,35 @@ def pending_selections_path(bids_folder: Path) -> Path:
     return bids_folder / PENDING_SELECTIONS_FILENAME
 
 
+def _is_real_collision(destination: Path, source: Path) -> bool:
+    """True if `destination` exists and isn't just `source` itself under a different case.
+
+    Windows (NTFS) and macOS (default APFS) are case-insensitive filesystems -- renaming
+    `foo_FOH.xdf` to `foo_foh.xdf` makes `destination.exists()` true even though nothing is
+    actually in the way, since it resolves to the very file being renamed. `os.path.samefile`
+    checks file identity (device + inode/file-index), not the path string, so a pure case
+    change is correctly treated as safe while a genuine collision still isn't.
+    """
+    if not destination.exists():
+        return False
+    if source.exists() and os.path.samefile(destination, source):
+        return False
+    return True
+
+
 def ensure_bidsignore(bids_folder: Path, extra_patterns: tuple[str, ...] = ()) -> None:
     """Make sure this tool's own files are listed in `.bidsignore`, so a BIDS validator
     doesn't flag them as unexpected. Appends only whatever's missing -- `.bidsignore` is a
     human-maintained file this tool doesn't own, so existing content (and ordering) is left
     alone. Safe to call on every folder load: a no-op once the patterns are already there.
     """
-    required = (DECISIONS_FILENAME, PENDING_SELECTIONS_FILENAME, f"{JUNK_FOLDER_NAME}/", *extra_patterns)
+    required = (
+        DECISIONS_FILENAME,
+        PENDING_SELECTIONS_FILENAME,
+        f"{JUNK_FOLDER_NAME}/",
+        f"{REVIEW_FOLDER_NAME}/",
+        *extra_patterns,
+    )
     path = bids_folder / BIDSIGNORE_FILENAME
     try:
         existing_lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
@@ -219,22 +246,24 @@ def _subject_junked_key(subject_id: str) -> str:
     return f"{subject_id}_junked"
 
 
-def _move_to_junk(bids_folder: Path, file: Path) -> Path:
-    destination = junk_folder(bids_folder) / file.relative_to(bids_folder)
+def _move_to(bids_folder: Path, file: Path, destination_root: Path) -> Path:
+    destination = destination_root / file.relative_to(bids_folder)
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(file), str(destination))
     return destination
 
 
-def _restore_entry(bids_folder: Path, entry: Path, junk: Path, restored: list[Path]) -> None:
-    destination = bids_folder / entry.relative_to(junk)
+def _restore_entry(
+    bids_folder: Path, entry: Path, source_root: Path, restored: list[Path]
+) -> None:
+    destination = bids_folder / entry.relative_to(source_root)
     if entry.is_dir() and destination.exists():
-        # The mirrored folder already exists in bids_folder (e.g. record_selected_run junked
-        # only some of this subject's duplicate files, not the whole subject via
+        # The mirrored folder already exists in bids_folder (e.g. record_selected_run only
+        # moved some of this subject's duplicate files aside, not the whole subject via
         # record_subject_junked) -- merge by restoring its contents individually instead of
         # moving the folder itself, which would collide with the existing one.
         for child in sorted(entry.iterdir()):
-            _restore_entry(bids_folder, child, junk, restored)
+            _restore_entry(bids_folder, child, source_root, restored)
         try:
             entry.rmdir()
         except OSError:
@@ -247,28 +276,64 @@ def _restore_entry(bids_folder: Path, entry: Path, junk: Path, restored: list[Pa
     restored.append(destination)
 
 
-def restore_all_from_junk(bids_folder: Path) -> tuple[list[Path], list[str]]:
-    """Move everything currently in `crosscheck_junk/` back to where it came from.
+def _restore_all_from(bids_folder: Path, source_root: Path) -> tuple[list[Path], list[str]]:
+    """Move everything currently in `source_root` back to where it came from.
 
-    Junked files and folders mirror the path they came from (see `_move_to_junk` and
+    Moved files and folders mirror the path they came from (see `_move_to` and
     `record_subject_junked`), so restoring is a direct reverse of that mirror -- no need to
     interpret which decision put something there. There's no selective, per-subject restore
-    in this version (see docs/foh-crosscheck.md) -- it's everything in the junk folder, or
+    in this version (see docs/foh-crosscheck.md) -- it's everything in that folder, or
     nothing. Resilient at the file level, though: one entry that can't be restored (e.g.
     something already sitting at its destination) doesn't block the rest -- returns
     (restored_paths, error_messages) so the caller can report both.
     """
-    junk = junk_folder(bids_folder)
-    if not junk.is_dir():
+    if not source_root.is_dir():
         return [], []
     restored: list[Path] = []
     errors: list[str] = []
-    for entry in sorted(junk.iterdir()):
+    for entry in sorted(source_root.iterdir()):
         try:
-            _restore_entry(bids_folder, entry, junk, restored)
+            _restore_entry(bids_folder, entry, source_root, restored)
         except (BidsCrosscheckError, OSError) as error:
-            errors.append(f"{entry.relative_to(junk)}: {error}")
+            errors.append(f"{entry.relative_to(source_root)}: {error}")
     return restored, errors
+
+
+def restore_all_from_junk(bids_folder: Path) -> tuple[list[Path], list[str]]:
+    """Move everything currently in `crosscheck_junk/` back to where it came from."""
+    return _restore_all_from(bids_folder, junk_folder(bids_folder))
+
+
+def restore_all_from_review(bids_folder: Path) -> tuple[list[Path], list[str]]:
+    """Move everything currently in `crosscheck_review/` back to where it came from."""
+    return _restore_all_from(bids_folder, review_folder(bids_folder))
+
+
+def delete_all_in_review(bids_folder: Path) -> tuple[int, list[str]]:
+    """Permanently delete everything currently in `crosscheck_review/`.
+
+    The one genuinely irreversible operation in this module -- everywhere else in this tool,
+    "removed" only ever means "moved to a folder it can be recovered from" (see junk_folder,
+    review_folder). This is for once a second crosschecker has actually looked through
+    crosscheck_review/ and confirmed none of it is needed -- at that point it's just taking
+    up space. Resilient at the entry level, like `_restore_all_from`: one failure doesn't
+    block the rest. Returns (deleted_count, error_messages).
+    """
+    review = review_folder(bids_folder)
+    if not review.is_dir():
+        return 0, []
+    deleted = 0
+    errors: list[str] = []
+    for entry in sorted(review.iterdir()):
+        try:
+            if entry.is_dir():
+                shutil.rmtree(entry)
+            else:
+                entry.unlink()
+            deleted += 1
+        except OSError as error:
+            errors.append(f"{entry.relative_to(review)}: {error}")
+    return deleted, errors
 
 
 def record_selected_run(
@@ -278,10 +343,18 @@ def record_selected_run(
     selected_file: Path,
     candidate_files: tuple[Path, ...],
 ) -> None:
-    """Pick `selected_file` as canonical among `candidate_files`; move the rest to junk."""
+    """Pick `selected_file` as canonical among `candidate_files`; move the rest to review.
+
+    Always `REVIEW_FOLDER_NAME`, never junk -- a non-selected duplicate isn't necessarily
+    wrong, just not this pick, so it's kept easy to find for a second crosschecker rather
+    than mixed in with genuinely disposable data. `JUNK_FOLDER_NAME`/`crosscheck_junk/` is
+    reserved entirely for `record_subject_junked` -- a whole subject that really is junk
+    (a pilot run, a non-participant, a test recording), not an individual candidate file.
+    """
     if selected_file not in candidate_files:
         raise BidsCrosscheckError(f"{selected_file} is not among the candidate files")
 
+    destination_root = bids_folder / REVIEW_FOLDER_NAME
     decisions = load_decisions(bids_folder)
     decisions[_decision_key(subject_id, scan_type)] = {
         "type": "selected_run",
@@ -294,7 +367,7 @@ def record_selected_run(
 
     for file in candidate_files:
         if file != selected_file:
-            _move_to_junk(bids_folder, file)
+            _move_to(bids_folder, file, destination_root)
 
 
 def record_date_correction(
@@ -314,7 +387,7 @@ def record_date_correction(
     original_date = original_name.split("_")[0]
     corrected_name = corrected_date + original_name[len(original_date) :]
     destination = file.with_name(corrected_name)
-    if destination.exists():
+    if _is_real_collision(destination, file):
         # Path.rename() only raises on an existing target on Windows -- on macOS/Linux it
         # silently replaces it. Checking explicitly makes the failure the same on every OS
         # instead of relying on that platform difference to catch it.
@@ -345,7 +418,7 @@ def record_id_correction(bids_folder: Path, original_id: str, corrected_id: str)
     original_token = f"{SUBJECT_FOLDER_PREFIX}{original_id}"
     corrected_token = f"{SUBJECT_FOLDER_PREFIX}{corrected_id}"
     corrected_folder = bids_folder / corrected_token
-    if corrected_folder.exists():
+    if _is_real_collision(corrected_folder, original_folder):
         raise BidsCrosscheckError(f"{corrected_folder} already exists -- resolve manually")
 
     renames: list[tuple[Path, str]] = [
@@ -358,7 +431,7 @@ def record_id_correction(bids_folder: Path, original_id: str, corrected_id: str)
     # makes the failure the same on every OS and avoids a half-renamed subject folder.
     for file, new_name in renames:
         destination = file.with_name(new_name)
-        if destination.exists():
+        if _is_real_collision(destination, file):
             raise BidsCrosscheckError(f"{destination} already exists -- resolve manually")
 
     decisions = load_decisions(bids_folder)
@@ -451,13 +524,24 @@ def record_task_correction(
     scan_type: str,
     file: Path,
     label: str = "FOH",
+    datatype_folder_name: str | None = None,
 ) -> Path:
     """Rename `file` to `..._run-<NNN>_{label}{suffix}`, replacing whatever the collection
     software put after the run number (e.g. `_eeg_philani`) -- BIDS suffixes are a fixed
     vocabulary, and free text there isn't valid BIDS. Always available regardless of stream
     detection.
+
+    If `datatype_folder_name` is given and differs from `file`'s current parent folder name,
+    that whole parent folder is renamed to it too, carrying along anything else still in it
+    (e.g. not-yet-resolved duplicate candidates) -- e.g. FOH's raw folders are literally named
+    "eeg" regardless of what the recording actually contains, which is misleading once a file's
+    been confirmed and tagged.
     """
-    if f"_{label}" in file.stem:
+    # Case-insensitive: a file already tagged under a different casing of this label (e.g.
+    # legacy "_FOH" data from before the label's casing changed) still counts as tagged --
+    # Windows/macOS's case-insensitive filesystems would treat re-tagging it as a collision
+    # with itself anyway (see _is_real_collision).
+    if f"_{label}".lower() in file.stem.lower():
         raise BidsCrosscheckError(f"{file.name} already carries the {label!r} label")
 
     run_token = RUN_TOKEN_PATTERN.search(file.stem)
@@ -465,10 +549,17 @@ def record_task_correction(
         raise BidsCrosscheckError(f"{file.name} has no run-<NNN> token to rename from")
     corrected_name = f"{file.stem[: run_token.end()]}_{label}{file.suffix}"
     destination = file.with_name(corrected_name)
-    if destination.exists():
+    if _is_real_collision(destination, file):
         # See record_date_correction for why this is checked explicitly rather than relying
         # on Path.rename()'s own (Windows-only) FileExistsError.
         raise BidsCrosscheckError(f"{destination} already exists -- resolve manually")
+
+    original_parent_name = file.parent.name
+    new_parent = None
+    if datatype_folder_name and original_parent_name != datatype_folder_name:
+        new_parent = file.parent.with_name(datatype_folder_name)
+        if _is_real_collision(new_parent, file.parent):
+            raise BidsCrosscheckError(f"{new_parent} already exists -- resolve manually")
 
     decisions = load_decisions(bids_folder)
     decisions[_decision_key(subject_id, scan_type)] = {
@@ -478,10 +569,16 @@ def record_task_correction(
         "original_filename": file.name,
         "corrected_filename": corrected_name,
         "label": label,
+        "original_parent_folder": original_parent_name,
+        "corrected_parent_folder": new_parent.name if new_parent else original_parent_name,
     }
     _write_decisions_atomic(bids_folder, decisions)
 
     file.rename(destination)
+    if new_parent is not None:
+        old_parent = destination.parent
+        old_parent.rename(new_parent)
+        destination = new_parent / destination.name
     return destination
 
 
@@ -499,27 +596,37 @@ def remove_task_correction(
     `_eeg_philani`) isn't recoverable from `..._FOH` by itself. Falls back to stripping just
     the tag (losing the original suffix) only if no matching recorded decision exists -- e.g.
     the file was tagged outside this tool, or a later, different decision overwrote the record
-    at that key.
+    at that key. The same fallback applies to the parent folder: it's only renamed back if the
+    matching decision recorded what it was renamed from (see `record_task_correction`).
     """
     suffix_tag = f"_{label}"
-    if not file.stem.endswith(suffix_tag):
+    if not file.stem.lower().endswith(suffix_tag.lower()):
         raise BidsCrosscheckError(f"{file.name} does not carry a trailing {label!r} tag")
 
     decisions = load_decisions(bids_folder)
     recorded = decisions.get(_decision_key(subject_id, scan_type))
+    original_parent_folder = None
     if (
         recorded is not None
         and recorded.get("type") == "task_correction"
-        and recorded.get("corrected_filename") == file.name
+        and recorded.get("corrected_filename", "").lower() == file.name.lower()
     ):
         corrected_name = recorded["original_filename"]
+        original_parent_folder = recorded.get("original_parent_folder")
     else:
         corrected_name = f"{file.stem[: -len(suffix_tag)]}{file.suffix}"
     destination = file.with_name(corrected_name)
-    if destination.exists():
+    if _is_real_collision(destination, file):
         # See record_date_correction for why this is checked explicitly rather than relying
         # on Path.rename()'s own (Windows-only) FileExistsError.
         raise BidsCrosscheckError(f"{destination} already exists -- resolve manually")
+
+    original_parent_name = file.parent.name
+    new_parent = None
+    if original_parent_folder and original_parent_name != original_parent_folder:
+        new_parent = file.parent.with_name(original_parent_folder)
+        if _is_real_collision(new_parent, file.parent):
+            raise BidsCrosscheckError(f"{new_parent} already exists -- resolve manually")
 
     decisions[_decision_key(subject_id, scan_type)] = {
         "type": "task_correction_removed",
@@ -528,10 +635,16 @@ def remove_task_correction(
         "original_filename": file.name,
         "corrected_filename": corrected_name,
         "label": label,
+        "original_parent_folder": original_parent_name,
+        "corrected_parent_folder": new_parent.name if new_parent else original_parent_name,
     }
     _write_decisions_atomic(bids_folder, decisions)
 
     file.rename(destination)
+    if new_parent is not None:
+        old_parent = destination.parent
+        old_parent.rename(new_parent)
+        destination = new_parent / destination.name
     return destination
 
 
@@ -570,6 +683,14 @@ def revert_all_decisions(bids_folder: Path) -> tuple[list[Path], list[str]]:
                     errors.append(f"{key}: {destination} already exists -- skipped")
                     continue
                 corrected_file.rename(destination)
+                # date_correction entries never set this field, so this is a no-op for them --
+                # only task_correction/task_correction_removed can carry a parent-folder rename.
+                original_parent_folder = entry.get("original_parent_folder")
+                if original_parent_folder and destination.parent.name != original_parent_folder:
+                    new_parent = destination.parent.with_name(original_parent_folder)
+                    if not new_parent.exists():
+                        destination.parent.rename(new_parent)
+                        destination = new_parent / destination.name
                 reverted.append(destination)
             elif entry_type == "id_correction":
                 corrected_folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{entry['corrected_id']}"

@@ -41,23 +41,50 @@ principle reusable from a future non-GUI entry point.
 
 | Type | Lives in | What it is |
 | --- | --- | --- |
-| `DatasetConfig` | `processing/bids_crosscheck.py` | One dataset's scan types, glob patterns, and whether/how task-correction (FOH's "rename to FOH") applies. |
+| `DatasetConfig` | `processing/bids_crosscheck.py` | One dataset's scan types, glob patterns, and whether/how task-correction (FOH's "Tag as foh") applies -- including an optional `task_correction_folder_name`, which also renames a tagged file's parent folder (e.g. FOH's `eeg/` -> `beh/`), carrying along anything else still in it. |
 | `ScanTypeConfig` | same | One scan type's name + the glob patterns that find its candidate files. |
 | `SubjectScan` | same | One subject/scan-type's candidate files, with a `status` property (`"ok"` / `"missing"` / `"duplicate"`, derived purely from file count). |
 | `BidsFolderScan` | same | The result of scanning a whole folder — every subject × scan-type, plus `has_issues()`. |
 | `CandidateExtras` | `gui/bids_crosscheck_common.py` | The hook dataset-specific GUIs override to add per-candidate info (see FOH below). Crane uses the no-op default. |
-| `BidsCrosscheckWindow` | same | The actual master-detail window: subject table on the left, per-scan-type detail panel on the right. |
+| `BidsCrosscheckWindow` | same | The actual master-detail window: subject table (Subject / Tag / Datatype / Info columns) on the left, per-scan-type detail panel on the right. |
 
 `BidsCrosscheckWindow` never imports anything crane- or FOH-specific — it
 only knows `DatasetConfig` and the `CandidateExtras` protocol. That's what
 lets `crane_bids_crosscheck_gui.py` and `foh_bids_crosscheck_gui.py` stay a
 few dozen lines each.
 
-## Three files a BIDS folder ends up with
+## The subject table's Tag and Datatype columns
+
+`_build_subject_tag_widget` shows, per tag-eligible scan type (i.e.
+`extras.task_correction_available(scan_type)` is true), whether the
+currently-effective candidate carries `task_correction_label` yet -- the
+label itself if tagged, `"not tagged"` in `PLEASE_SELECT_COLOR` if not.
+Blank for a scan type that doesn't support tagging at all (e.g. every one of
+Crane's), or with nothing effective yet. Same underlying check as
+`_needs_task_correction`, just surfaced as its own column instead of only
+the 🏷 icon.
+
+`_build_subject_datatype_widget` shows, per scan type, the BIDS datatype
+folder (`file.parent.name`) the currently-effective candidate lives in right
+now -- blank if there's nothing effective yet (missing, or an unresolved
+duplicate). `_datatype_tooltip` explains the value on hover: what the current
+folder is, and -- if `task_correction_folder_name` is configured and differs
+from the current folder -- what it becomes once tagged. `BIDS_DATATYPE_NAMES`
+(a small, dataset-agnostic dict of BIDS's own datatype abbreviations, e.g.
+`"beh": "behavioural"`) glosses both in plain English wherever it recognizes
+the folder name; an unrecognized one is shown without a gloss rather than
+guessed. Deliberately doesn't assert anything about the *current* folder's
+accuracy (only the *target* one, which the dataset config author chose on
+purpose) -- FOH's `eeg/` is a real example of a current folder whose name is
+simply wrong for what it contains.
+
+Column order is Subject / Tag / Datatype / Info, left to right.
+
+## The artifacts a BIDS folder ends up with
 
 The tool never touches anything outside the BIDS folder it's pointed at
-(see the plan's "BIDS folder only" decision). Inside it, three artifacts
-appear as you use the tool:
+(see the plan's "BIDS folder only" decision). Inside it, these appear as
+you use the tool:
 
 - **`crosscheck.json`** — finalized decisions: `selected_run`,
   `date_correction`, `id_correction`, `task_correction`, `crosschecked`.
@@ -73,9 +100,20 @@ appear as you use the tool:
   paths — re-resolved against a fresh scan's actual candidates on load, so
   a stale entry (file renamed/deleted outside the tool) is silently
   dropped rather than crashing.
-- **`crosscheck_junk/`** — where `record_selected_run` moves non-selected
-  duplicates, mirroring the subject-folder structure it came from. Nothing
-  is ever deleted.
+- **`crosscheck_junk/`** — where `record_subject_junked` moves a whole
+  subject that's genuinely disposable (a pilot run, a non-participant, a
+  test recording), mirroring the subject-folder structure it came from.
+  Nothing is ever deleted. `record_selected_run` never uses this folder --
+  see the plan's "junk means a whole subject" decision for why.
+- **`crosscheck_review/`** — where `record_selected_run` always moves a
+  duplicate's non-selected candidate(s) instead: not necessarily wrong,
+  just not this pick, kept separate and findable for a second crosschecker.
+  Same move-and-mirror mechanism as junk (`_move_to` / `_restore_all_from`).
+  Has its own restore function (`restore_all_from_review`, mirroring
+  `restore_all_from_junk` exactly) and one operation nothing else in this
+  module has: `delete_all_in_review` permanently deletes its contents --
+  the only genuinely irreversible action in the tool, gated behind its own
+  strongly-worded confirmation in the GUI (`_on_delete_all_in_review`).
 
 Both JSON writes go through `_write_json_atomic` — write to a `.tmp` file,
 then `os.replace()` — so a crash mid-write can't corrupt either file.
@@ -110,7 +148,7 @@ def main() -> None:
 subclass (`FohCandidateExtras`) that overrides `describe()` to show a
 recording's date/duration/stream-presence (colored HTML, parsed via
 `pyxdf` + `processing/lsl.gather_xdf_data_streams`/`get_start_time`), and
-`task_correction_available()` to enable the "Rename to FOH" button. Every
+`task_correction_available()` to enable the "Tag as foh" button. Every
 parse result is cached per-file in `self._info_cache` for the life of the
 window — see the caching TODO below for the next step (persisting that
 across restarts too).
@@ -142,15 +180,9 @@ below) unique per dataset, and register a console-script entry in
 
 - **FOH info caching isn't persistent yet** — logged in [BIDS Crosscheck
   Plan](bids_crosscheck_plan.md#todo-deferred-not-scoped-now).
-- **FOH rename deselects the subject** — tagging a recording as FOH appears
-  to clear the subject's list selection afterward; not yet root-caused. See
-  [BIDS Crosscheck Plan](bids_crosscheck_plan.md#todo-deferred-not-scoped-now).
 - **Bulk FOH-rename silently skips unpicked subjects** — no warning is shown
   when a subject is skipped because no recording had been picked yet. See
   [BIDS Crosscheck Plan](bids_crosscheck_plan.md#todo-deferred-not-scoped-now).
-- **FOH-tagged file's parent folder keeps its old modality name** — only the
-  file is renamed, not the folder it lives in. See [BIDS Crosscheck
-  Plan](bids_crosscheck_plan.md#todo-deferred-not-scoped-now).
 - **Crane parity with FOH's `CandidateExtras`** — FOH is ahead (rich
   `describe()` info, `task_correction`); crane still uses the no-op base.
   Deliberately one dataset at a time — bring crane's GUI up to match FOH's

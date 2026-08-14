@@ -1,6 +1,10 @@
+import tempfile
 import unittest
 from pathlib import Path
 
+from click.testing import CliRunner
+
+from mooi_toolbox.cli.mobi_FOH_process_batch import main as run_batch
 from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.foh_behaviour import (
     ImportFohBehaviourDataStrategyStep,
@@ -20,12 +24,13 @@ from mooi_toolbox.processing.processing_status import ProcessingStatus
 from mooi_toolbox.processing.trial_intervals import TrialIntervals
 
 CORRECT_PARTICIPANT = "P00020"
+DATA_FOLDER = Path(r"C:\Users\stefan\Participant Data Copy")
 
 
 # @unittest.skip("Busy")
 class TestFOHPipeline(unittest.TestCase):
     def test_biodata_import_strategy(self):
-        data_folder = Path(r"local_lsl_data\\Participant Data")
+        data_folder = DATA_FOLDER
 
         participant_config = ParticipantConfig.from_lsl_data(
             CORRECT_PARTICIPANT,
@@ -38,7 +43,7 @@ class TestFOHPipeline(unittest.TestCase):
 
     def test_foh_target_behav_import_strategy(self):
 
-        data_folder = Path(r"local_lsl_data\\Participant Data")
+        data_folder = DATA_FOLDER
         participant_config = ParticipantConfig.from_lsl_data(
             CORRECT_PARTICIPANT,
             data_folder,
@@ -49,7 +54,7 @@ class TestFOHPipeline(unittest.TestCase):
         self.assertIsInstance(raw_target_behav_data, FohRawTargetBehaviourData)
 
     def test_foh_target_behav_processing_strategy(self):
-        data_folder = Path(r"local_lsl_data\\Participant Data")
+        data_folder = DATA_FOLDER
 
         participant_config = ParticipantConfig.from_lsl_data(
             CORRECT_PARTICIPANT,
@@ -70,7 +75,7 @@ class TestFOHPipeline(unittest.TestCase):
         self.assertIsInstance(target_output, PipelineOutputData)
 
     def test_physiology_data_import_strategy(self):
-        data_folder = Path(r"local_lsl_data\\Participant Data")
+        data_folder = DATA_FOLDER
 
         participant_config = ParticipantConfig.from_lsl_data(
             CORRECT_PARTICIPANT,
@@ -82,7 +87,7 @@ class TestFOHPipeline(unittest.TestCase):
         self.assertIsInstance(raw_bio_data, RawBioData)
 
     def test_interval_get_strategy(self):
-        data_folder = Path(r"local_lsl_data\\Participant Data")
+        data_folder = DATA_FOLDER
 
         participant_config = ParticipantConfig.from_lsl_data(
             CORRECT_PARTICIPANT,
@@ -99,7 +104,7 @@ class TestFOHPipeline(unittest.TestCase):
         self.assertTrue(trail_intervals)
 
     def test_basic_foh_pipeline(self):
-        data_folder = Path(r"local_lsl_data\\Participant Data")
+        data_folder = DATA_FOLDER
 
         participant_config = ParticipantConfig.from_lsl_data(
             CORRECT_PARTICIPANT,
@@ -117,3 +122,11 @@ class TestFOHPipeline(unittest.TestCase):
             pipeline_data_out.status.status[FohRawTargetBehaviourData], ProcessingStatus.OK
         )
         self.assertEqual(pipeline_data_out.status.status[TrialIntervals], ProcessingStatus.OK)
+
+    def test_batch_processing(self):
+        data_folder = DATA_FOLDER
+
+        with tempfile.TemporaryDirectory() as output_folder:
+            result = CliRunner().invoke(run_batch, [str(data_folder), output_folder])
+
+        self.assertEqual(result.exit_code, 0, msg=result.output)

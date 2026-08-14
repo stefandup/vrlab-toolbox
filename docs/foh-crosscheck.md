@@ -82,10 +82,10 @@ your FOH BIDS folder.
 
 The tool also makes sure a `.bidsignore` file at the top of that folder
 lists its own files — `crosscheck.json`, `crosscheck_pending.json`,
-`crosscheck_junk/`, and its cached recording info — appending to
-`.bidsignore` if one already exists (without touching anything else in
-it) or creating one if not, so a BIDS validator doesn't flag them as
-unexpected.
+`crosscheck_junk/`, `crosscheck_review/`, and its cached recording info —
+appending to `.bidsignore` if one already exists (without touching
+anything else in it) or creating one if not, so a BIDS validator doesn't
+flag them as unexpected.
 
 ### 3. Read the subject list
 
@@ -105,19 +105,35 @@ to each one telling you, at a glance, whether it needs your attention:
 | ⚠ | Needs a decision — more than one recording was found. |
 | ⏳ | You've picked one, but haven't saved that choice yet. |
 | ☑ | You've personally reviewed and approved this one. |
-| 🏷 | Whichever recording currently counts as "the one" hasn't been tagged FOH yet. |
+| 🏷 | Whichever recording currently counts as "the one" hasn't been tagged foh yet. |
 | ❗ | Whichever recording currently counts as "the one" has a flagged issue — a sampling-rate mismatch, or a missing EDA/ECG channel — worth a look before you commit to it. |
 
 That last one matters even for a subject that otherwise looks fine (●) — a
 single recording being *found* doesn't mean it was ever confirmed and tagged
-as the real FOH recording, so it stays flagged until you either tag it or
+as the real foh recording, so it stays flagged until you either tag it or
 consciously decide it doesn't need to be. Tick **Issues only** and it'll show
 up there too, alongside missing/duplicate subjects.
 
+The **Tag** column shows, at a glance, whether the recording currently
+counts as "the one" has been tagged yet — either the tag itself (e.g.
+`foh`) once it has, or **not tagged** in orange if it hasn't (the same
+thing the 🏷 icon flags, spelled out here so you don't have to hover the
+icon legend to remember what it means).
+
+The **Datatype** column shows which BIDS *datatype* folder that
+recording's file currently lives in — `eeg` at first, since that's the
+name the collection software always uses (see [step
+11](#11-tag-files-as-foh) for why that's not accurate for FOH data, and
+what it becomes once tagged). "Datatype" is BIDS's own term for this —
+the `eeg`/`beh`/`func`/... subfolder a recording sits in, not a filename
+thing. Hover a value to see what it means and, if it's about to change,
+what it'll change to.
+
 The **Info** column next to it shows a quick summary for whichever
-recording currently counts as "the one" — the date it was recorded, how
-long it ran (in minutes), and how many of the streams the pipeline needs
-were actually found, e.g. `Streams: 4/4 ✓` (or ✗ if any are missing).
+recording currently counts as "the one" — the date and time it was
+recorded, how long it ran (in minutes), and how many of the streams the
+pipeline needs were actually found, e.g. `Streams: 4/4 ✓` (or ✗ if any are
+missing).
 Hover over that summary for the full breakdown, stream by stream — so you
 don't have to open a file yourself to get a sense of whether it's the
 real one.
@@ -172,19 +188,37 @@ name in the subject list — worth a second look before you commit to it.
 
 ### 7. Save your decision
 
-Once you're confident, click **"Move non-selected to junk"** in the
-**Subject actions** panel (above the recording detail) — this moves the
-other recording(s) aside into a `crosscheck_junk` folder (nothing is ever
-deleted) and records your decision. It only appears enabled once you've
-actually picked something; the button's label counts your pending picks
-so you can see at a glance whether there's anything to save.
+Once you're confident, click **"Move non-selected to crosscheck_review"**
+in the **Subject actions** panel (above the recording detail) — this
+moves the other recording(s) aside into a `crosscheck_review` folder
+(nothing is ever deleted) and records your decision. It only appears
+enabled once you've actually picked something; the button's label counts
+your pending picks so you can see at a glance whether there's anything to
+save.
+
+!!! note "What's crosscheck_review/, and why not junk?"
+    `crosscheck_review/` is a folder this tool creates at the top of your
+    BIDS folder to hold recordings that weren't picked. It's deliberately
+    a separate concept from **junk**: a duplicate that wasn't picked isn't
+    necessarily wrong, just not the recording being used — you might not
+    be fully sure it should be ruled out entirely. Putting it in
+    `crosscheck_review/` keeps it easy for a second crosschecker to find
+    and double-check later, rather than quietly mixed in with data that's
+    genuinely disposable (a pilot run, a non-participant). That's what
+    **junk** is for instead — see [step 12](#12-send-a-subject-to-junk) —
+    and it's a separate, deliberate action, not something committing a
+    pick ever does on its own.
+
+    Nothing moves the moment you *pick* a candidate (step 5) — picking is
+    just a preview. Files stay exactly where they are until you actually
+    click a "...to crosscheck_review" button.
 
 If you've gone through several subjects and picked a recording for each
 without saving as you went, you don't have to repeat that per subject —
-click **"Commit all pending selections"** near the top of the window to
-save everything you've picked in one go, or select just the ones you want
-first and use **"Commit selected"** in the Subject actions panel instead
-(see [Working with several subjects at
+click **"Move all non-selected to crosscheck_review"** near the top of
+the window to save everything you've picked in one go, or select just the
+ones you want first and use **"Commit selected to crosscheck_review"** in
+the Subject actions panel instead (see [Working with several subjects at
 once](#working-with-several-subjects-at-once) below). Because either of
 those affects more than one subject at once, both ask you to confirm
 before doing anything — the single-subject version above doesn't, since
@@ -228,19 +262,44 @@ folder, all at once. (This one's single-subject only: it doesn't appear
 when several subjects are selected, since renaming several different
 subjects to the same new ID wouldn't make sense.)
 
-### 11. Tag files as FOH
+!!! note "Why don't I see \"Correct date...\" next to every candidate?"
+    For a subject with more than one candidate recording, **"Correct
+    date..."** (and **"Tag as foh"**, see below) only appears next to
+    whichever one you've picked with the radio button — there's nothing to
+    correct on a file you haven't confirmed is the right one yet. Pick it
+    first (step 5), and the button appears.
 
-Once you're confident a recording is the right one, click
-**"Rename to FOH"** next to it. This replaces whatever comes after the
-`run-<NNN>` part of the filename with `_FOH` — so
-`..._run-001_eeg_philani.xdf` becomes `..._run-001_FOH.xdf`, not
-`..._run-001_eeg_philani_FOH.xdf`. The collection software often tacks on
-extra free text there (a device suffix, a collector's name), which isn't
-a valid BIDS suffix; tagging cleans that up at the same time as marking
-the file, rather than tagging on top of it.
+### 11. Tag files as foh
+
+Once you're confident a recording is the right one, click **"Tag as
+foh"** next to it. This replaces whatever comes after the `run-<NNN>`
+part of the filename with `_foh` — so `..._run-001_eeg_philani.xdf`
+becomes `..._run-001_foh.xdf`, not `..._run-001_eeg_philani_foh.xdf`. The
+collection software often tacks on extra free text there (a device
+suffix, a collector's name), which isn't a valid BIDS suffix; tagging
+cleans that up at the same time as marking the file, rather than tagging
+on top of it. Lowercase, matching BIDS's own suffix convention (`eeg`,
+`beh`, ...) — "FOH" the study name stays capitalized everywhere else on
+this page; this is just the filename tag.
+
+!!! note "What's the eeg -> beh folder switch about?"
+    The folder the file lives in gets renamed too, from `eeg` to `beh` —
+    you'll see this reflected immediately in the **Datatype** column
+    (step 3). The raw collection software always names this folder `eeg`,
+    no matter what's actually recorded in it. For FOH that's simply
+    wrong: this is physiology data, sometimes with behavioural data,
+    collected over LSL — not brain activity, not EEG. `beh` ("behavioural"
+    in BIDS's own vocabulary) is the accurate datatype for that once a
+    recording's confirmed, so tagging fixes the folder name at the same
+    time it fixes the file name.
+
+    Nothing else in that folder gets left behind: any other file still
+    sitting there — an unresolved duplicate you haven't picked yet, say —
+    moves along with the folder rather than being separated from it.
+    Un-tagging (below) renames the folder back to `eeg`.
 
 Tagged the wrong recording, or tagged one that turns out not to be a real
-FOH recording after all? The same button turns into **"Un-mark as FOH"**
+foh recording after all? The same button turns into **"Un-tag as foh"**
 once a file carries the tag — click it to restore the original filename
 (the tool remembers what that was when it tagged the file, even though
 it's no longer visible in the current name) and strip the tag back off.
@@ -248,17 +307,17 @@ The 🏷 icon comes back on that subject until you tag the right one (or
 decide none of its candidates should be).
 
 If you'd rather do this for every subject in one pass instead of
-file-by-file, click **"Rename all selected to FOH"** near the top of the
-window (next to "Commit all pending selections"). It walks every subject,
-tags whichever recording currently counts as "the one," and skips
-anything already tagged — and, like "Commit all pending selections," it
-asks you to confirm first since it touches every subject at once. It only
-ever adds tags, never removes them, so an accidental tag still needs
-undoing by hand with "Un-mark as FOH."
+file-by-file, click **"Tag all selected as foh"** near the top of the
+window (next to "Move all non-selected to crosscheck_review"). It walks
+every subject, tags whichever recording currently counts as "the one,"
+and skips anything already tagged — and, like "Move all non-selected to
+crosscheck_review," it asks you to confirm first since it touches every
+subject at once. It only ever adds tags, never removes them, so an
+accidental tag still needs undoing by hand with "Un-tag as foh."
 
 Only want to tag the subjects you've currently selected rather than the
-whole folder? Select them in the subject list first, then use **"Rename
-selected to FOH"** in the **Subject actions** panel instead — same
+whole folder? Select them in the subject list first, then use **"Tag
+selected as foh"** in the **Subject actions** panel instead — same
 behaviour, just scoped to your selection.
 
 ### 12. Send a subject to junk
@@ -270,7 +329,7 @@ remove one:
 
 - **"Send to junk..."** moves the subject's entire folder into
   `crosscheck_junk/`, out of this view.
-- **"Mark as non-participant / non-FOH and junk..."** does the same
+- **"Mark as non-participant / non-foh and junk..."** does the same
   thing, but records *why* first, so anyone looking in the junk folder
   later can see it wasn't just an ordinary duplicate cleanup.
 
@@ -278,40 +337,57 @@ Both ask you to confirm first, and — like everything else this tool
 moves — nothing is ever deleted. If you junked the wrong subject, their
 folder is still sitting in `crosscheck_junk/`; move it back by hand.
 
-### 13. Restore from junk, or revert everything
+### 13. Restore from junk, restore from review, or revert everything
 
-Made a mistake and want to start over? Two buttons near the top of the
-window, next to "Commit all pending selections," cover the whole folder
-at once:
+Made a mistake and want to start over? Four buttons near the top of the
+window, next to "Move all non-selected to crosscheck_review," cover the
+whole folder at once:
 
 - **"Restore all from junk..."** moves everything currently sitting in
-  `crosscheck_junk/` back to where it came from.
+  `crosscheck_junk/` back to where it came from — whole subjects sent
+  there with "Send to junk..." (step 12).
+- **"Restore all from review..."** does the same thing for
+  `crosscheck_review/` (step 7) — its own separate button, so restoring
+  one never accidentally pulls back the other.
+- **"Permanently delete review..."** — see the warning below. This one's
+  different from everything else in this list.
 - **"Revert all changes..."** reverses every recorded rename — corrected
-  dates, corrected IDs, FOH tags — and clears every recorded decision,
+  dates, corrected IDs, foh tags — and clears every recorded decision,
   including crosschecked marks.
 
 !!! warning "Bulk only, for this version at least"
-    Neither of these lets you pick and choose. **"Restore all from
-    junk"** brings back everything in the junk folder, not just one
-    subject's files. **"Revert all changes"** reverses everything
-    recorded, not just one decision — and only the *most recent*
-    recorded decision for each subject/scan-type can be reversed, since
-    each new correction overwrites the previous record rather than
-    keeping a history. A recording that was, say, date-corrected and
-    *then* tagged FOH can only be reverted back to its date-corrected
-    state, not all the way back to its very first filename.
+    None of the restore/revert buttons let you pick and choose. **"Restore
+    all from junk"** and **"Restore all from review"** each bring back
+    everything in their own folder, not just one subject's files.
+    **"Revert all changes"** reverses everything recorded, not just one
+    decision — and only the *most recent* recorded decision for each
+    subject/scan-type can be reversed, since each new correction overwrites
+    the previous record rather than keeping a history. A recording that
+    was, say, date-corrected and *then* tagged foh can only be reverted
+    back to its date-corrected state, not all the way back to its very
+    first filename.
 
-    Junked files aren't touched by "Revert all changes" — if you want
-    both, click "Restore all from junk" first.
+    Junked and review-folder files aren't touched by "Revert all
+    changes" — if you want everything back, restore those first.
+
+!!! danger "\"Permanently delete review\" cannot be undone"
+    Every other button on this page moves files somewhere recoverable —
+    that's the whole point of junk and review folders, and it's why this
+    page keeps saying "nothing is ever deleted." This one button is the
+    single exception: it deletes whatever's currently in
+    `crosscheck_review/` for good, not moved anywhere, not recoverable by
+    hand afterwards. Only use it once a second crosschecker has actually
+    gone through the review folder and confirmed there's nothing in it
+    worth keeping.
 
 ## Working with several subjects at once
 
 Click a subject to select it, or Ctrl-click (or Shift-click for a range)
 to select several at once. With more than one selected, the detail panel
 switches to a **"Subject actions — N subjects selected"** panel with bulk
-versions of the actions above: **Commit selected**, **Refresh**,
-**Rename selected to FOH**, **Mark selected crosschecked** / **Un-mark
-selected crosschecked**, and **Send selected to junk...**.
+versions of the actions above: **Commit selected to crosscheck_review**,
+**Refresh**, **Tag selected as foh**, **Mark selected crosschecked** /
+**Un-mark selected crosschecked**, and **Send selected to junk...**.
 
 Two things stay single-subject only, on purpose:
 
@@ -321,7 +397,8 @@ Two things stay single-subject only, on purpose:
   than one candidate — that judgement call always stays in the
   per-subject recording panel, never a bulk action. A subject still
   waiting on that pick is simply skipped by any bulk action that needs an
-  actual file to work with (e.g. **Commit selected** or bulk FOH-tagging).
+  actual file to work with (e.g. **Commit selected to crosscheck_review**
+  or bulk FOH-tagging).
 
 ## A sibling tool for Crane
 

@@ -40,12 +40,25 @@ CROSS_COLOR = "#e74c3c"
 # effective vs. nominal sampling rate (see pyxdf.pyxdf._clock_reset).
 SRATE_MISMATCH_THRESHOLD = 0.1
 INFO_CACHE_FILENAME = "crosscheck_info_cache.json"
+# Bumped whenever _parse_candidate_info's output shape or derivation changes, so a cached
+# entry that still matches the file's mtime/size (nothing to re-read) but was computed by
+# older logic gets reparsed anyway instead of silently serving stale info forever.
+INFO_SCHEMA_VERSION = 2
 
 FOH_DATASET_CONFIG = DatasetConfig(
     dataset_name="foh",
     scan_types=(ScanTypeConfig(name="recording", glob_patterns=("*.xdf",)),),
     task_correction_scan_type="recording",
-    task_correction_label="FOH",
+    # Lowercase, matching BIDS's own suffix/label convention (e.g. "eeg", "beh") -- "FOH" the
+    # study name stays capitalized everywhere else, this is just the filename tag.
+    task_correction_label="foh",
+    # The raw collection folder is literally named "eeg" regardless of what's actually in it --
+    # this is physiology (and sometimes behaviour) data over LSL, not EEG. "beh" (behavioural
+    # data) is the closest fit in BIDS's own datatype vocabulary, unlike "foh" itself, which
+    # isn't a real BIDS term -- renaming *to* "foh" would just move the same problem down a
+    # level. Only takes effect once a recording's confirmed and tagged (see
+    # record_task_correction).
+    task_correction_folder_name="beh",
 )
 
 
@@ -109,7 +122,7 @@ def _parse_candidate_info(file: Path) -> FohCandidateInfo:
         stream_presence = {name: name in found for name in FOH_STREAMS}
         duration_minutes = _recording_duration_minutes(streams)
         try:
-            recorded_at = get_start_time(header).strftime("%Y-%m-%d")
+            recorded_at = get_start_time(header).strftime("%Y-%m-%d %H:%M")
         except (KeyError, IndexError, ValueError):
             recorded_at = None
         opensignals_columns = None
@@ -309,7 +322,11 @@ class FohCandidateExtras(CandidateExtras):
         stat = file.stat()
         cached = self._disk_cache.get(key)
         if not force and cached is not None:
-            if cached.get("mtime") == stat.st_mtime and cached.get("size") == stat.st_size:
+            if (
+                cached.get("mtime") == stat.st_mtime
+                and cached.get("size") == stat.st_size
+                and cached.get("info_version") == INFO_SCHEMA_VERSION
+            ):
                 try:
                     return FohCandidateInfo(**cached["info"])
                 except (TypeError, KeyError):
@@ -319,6 +336,7 @@ class FohCandidateExtras(CandidateExtras):
         self._disk_cache[key] = {
             "mtime": stat.st_mtime,
             "size": stat.st_size,
+            "info_version": INFO_SCHEMA_VERSION,
             "info": asdict(info),
         }
         self._dirty = True

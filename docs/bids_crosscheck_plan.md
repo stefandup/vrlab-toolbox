@@ -84,7 +84,7 @@ with a `"type"`:
 - **`id_correction`** — batch-renames *every* file for a subject, plus the
   `sub-XXX/` folder itself (BIDS folders use per-subject subfolders). JSON records
   original ID, corrected ID, and the full list of renamed files.
-- **`task_correction`** (FOH only) — renames a `recording` file to include `FOH`
+- **`task_correction`** (FOH only) — renames a `recording` file to include `foh`
   in its name. Always available regardless of which LSL streams are present in the
   file (see below) — never gated, since the operator may know things the tool
   can't detect.
@@ -96,6 +96,58 @@ of the same scan type under one subject, that's treated as an ordinary duplicate
 and flows into the same `selected_run` review as any other duplicate. Deliberately
 no separate merge logic — one mechanism handles both cases.
 
+## Decision: junk means a whole subject; review means "not this pick"
+
+`record_selected_run` (committing a duplicate pick) always sends the
+non-selected candidate(s) to `crosscheck_review/`, never `crosscheck_junk/`.
+`crosscheck_junk/` is reserved entirely for `record_subject_junked` -- a whole
+subject that's genuinely disposable (a pilot run, a non-participant, a test
+recording). The two functions never share a destination.
+
+That wasn't the first design. The first version gave `record_selected_run` a
+`non_selected_destination` parameter and let the GUI choose junk or review per
+commit, on the theory that a duplicate is sometimes genuinely wrong (junk-like)
+and sometimes just ambiguous (review-like). In practice this made the GUI worse,
+not better: a "Move non-selected to junk" button sitting right next to "Move
+non-selected to review" forced a judgment call on every single commit, and
+testing it made clear that from the crosschecking seat, an unpicked duplicate
+essentially never *feels* like junk in the pilot-data sense -- it's simply not
+this pick. Collapsing the choice to always-review removed a source of
+friction and confusion without losing anything: "junk" now means exactly one
+thing (a whole subject you're removing on purpose), which is also the only
+place it was ever unambiguous.
+
+`crosscheck_review/` mirrors `crosscheck_junk/`'s mechanics exactly: same
+move-and-mirror mechanism (`_move_to` / `_restore_all_from`), its own
+`.bidsignore` entry, its own restore button (`restore_all_from_review`) --
+deliberately a *separate* button from "Restore all from junk," not a combined
+one, so restoring one can never accidentally sweep up the other.
+
+**Considered and rejected: leaving the non-selected file(s) in place instead of
+moving them anywhere.** `scan_bids_folder` derives "ok"/"duplicate" status
+purely from how many candidate files are still physically present -- it never
+reads `crosscheck.json`. Committing a pick without moving anything aside would
+leave the scan finding the same files it always did, so the subject would
+immediately look unresolved again (⚠, "Please select correct file") on the very
+next scan, as if nothing had been decided -- the recorded decision would exist
+but be invisible in the UI, since `_effective_candidate_file` only trusts a
+still-"duplicate" scan type's `_pending_selections` (radio-pick) state, which
+committing clears. Making "leave it in place" actually work would mean teaching
+that resolution logic to fall back to a committed `selected_run` decision even
+when raw files still look ambiguous -- a real architecture change, and one that
+blurs "decisions are recorded, not applied" (see above), since the file-move and
+the decision-record would no longer be the same atomic step. The second-folder
+approach gets the same practical outcome (nothing is junked, everything's still
+findable) without any of that.
+
+**`delete_all_in_review`** is the one exception to "nothing is ever deleted"
+anywhere in this tool -- for once a second crosschecker has actually gone
+through `crosscheck_review/` and confirmed none of it is needed, so it isn't
+just accumulating forever. Deliberately its own explicit, separately-confirmed
+action, not folded into "Restore all from review" or any other button -- the
+GUI's confirmation dialog for it says outright that this is the one thing here
+that can't be undone.
+
 ## FOH: stream indicators for `task_correction`
 
 Reuses `gather_xdf_data_streams()` (`processing/lsl.py`) exactly as
@@ -104,9 +156,29 @@ Reuses `gather_xdf_data_streams()` (`processing/lsl.py`) exactly as
 given `.xdf` candidate.
 
 This is shown as an **advisory** indicator next to every `recording` candidate —
-it never gates the "Rename to FOH" button. Completeness *does* inform which
+it never gates the "Tag as foh" button. Completeness *does* inform which
 duplicate to keep, once one is chosen, but doesn't decide whether a file is
-FOH-eligible.
+foh-eligible.
+
+## Decision: FOH's tagged-file parent folder becomes `beh/`, not `eeg/`
+
+FOH's raw collection folder is always literally named `eeg`, regardless of what's
+actually in it -- these are OpenSignals/LSL physiology (and sometimes behaviour)
+recordings, not EEG. `record_task_correction` renames that parent folder to
+`beh` (`DatasetConfig.task_correction_folder_name`, `foh_bids_crosscheck_gui.py`)
+once a recording's confirmed and tagged, carrying along anything else still in
+the folder (e.g. an unresolved duplicate not yet picked). `remove_task_correction`
+and `revert_all_decisions` rename it back.
+
+`beh` ("behavioral") was picked as the closest fit in BIDS's own datatype
+vocabulary -- it's the datatype for task data collected without a concurrent
+brain-imaging modality, and the spec explicitly allows continuous physiological
+recordings (`_physio.tsv.gz`-style channels) inside it even alone. Alternatives
+considered and rejected: `physio` (not actually a valid top-level BIDS datatype
+directory -- only a filename suffix within another datatype's folder), `motion`
+(a real BIDS-extension datatype, but scoped to kinematic/motion-capture channels,
+not EDA/ECG), and `foh` itself (not real BIDS vocabulary at all -- same problem
+already avoided in filenames by not tacking `_foh` onto more than the run token).
 
 ## Deliberately out of scope for now
 
@@ -117,8 +189,8 @@ FOH-eligible.
 - **No signal/trigger-level QC** (trial intervals, EDA/ECG processing) — that's the
   separately-planned `gui/crane_interval_qc_gui.py` tool's job (see
   `crane_interactive_qc_plan.md`), not this one's.
-- **SPIRAL-specific task labeling** — only `FOH` labeling is handled for now.
-  Files not recognized as FOH are left untouched and still shown as plain,
+- **SPIRAL-specific task labeling** — only `foh` labeling is handled for now.
+  Files not recognized as foh are left untouched and still shown as plain,
   unlabeled candidates.
 
 ## Layout: master-detail split
@@ -147,13 +219,13 @@ FOH-eligible.
 └───────────────────────────────┴──────────────────────────────────────────┘
 ```
 
-FOH's `recording` section shows the stream indicators and always-available rename:
+FOH's `recording` section shows the stream indicators and always-available tag button:
 
 ```
 recording (3 files) — pick one:
-  ( ) ..._run-1_eeg.xdf   streams: OpenSignals✓ VR_markers✓ VR_trial_events✗ FOH_target✗  [Rename to FOH]
-  (•) ..._run-2_eeg.xdf   streams: OpenSignals✓ VR_markers✓ VR_trial_events✓ FOH_target✓  [Rename to FOH]
-  ( ) spiral_2024....xdf  streams: OpenSignals✓ VR_markers✗ VR_trial_events✗ FOH_target✗  [Rename to FOH]
+  ( ) ..._run-1_eeg.xdf   streams: OpenSignals✓ VR_markers✓ VR_trial_events✗ FOH_target✗
+  (•) ..._run-2_eeg.xdf   streams: OpenSignals✓ VR_markers✓ VR_trial_events✓ FOH_target✓  [Tag as foh]
+  ( ) spiral_2024....xdf  streams: OpenSignals✓ VR_markers✗ VR_trial_events✗ FOH_target✗
 ```
 
 Chosen over a flat table with inline popups (loses room for indicators/buttons
@@ -198,6 +270,13 @@ silently picking `[0]`/`[-1]` on duplicates and read those decisions instead.
 Not scoped now — deliberately deferred until the crosscheck tool exists and has
 been used in practice, per the guardrail above.
 
+Related: `input_data.py:15`'s `PIPELINE_ID = "foh"` happens to match this
+tool's `task_correction_label` (both `"foh"`), but they're independent
+hardcoded strings with nothing keeping them in sync — see the TODO at that
+line. Likely resolves naturally once the above lands (`PIPELINE_ID`'s
+glob-matching role goes away if `from_lsl_data` reads recorded decisions
+instead of guessing), so not worth a separate fix before then.
+
 **FOH info caching.** `FohCandidateExtras._info_cache` (in
 `gui/foh_bids_crosscheck_gui.py`) is in-memory only, so every fresh launch (or
 re-`Browse` into an already-visited folder) re-parses every "ok" recording's
@@ -212,33 +291,19 @@ the "shared with whoever else opens this folder" benefit). Leaning toward the
 JSON sidecar as the simplest fit with the existing pattern. Not implemented
 yet.
 
-**FOH rename deselects the subject.** Reported: tagging a recording as FOH
-(single or bulk "Rename to FOH") appears to clear the subject's selection in
-the list afterward. Distinct from the earlier "Issues-only filter evicting
-active selection" bug (already fixed) — that one was the Issues-only
-checkbox hiding a subject once its last issue was resolved; this is the
-rename action itself losing the row selection, independent of that filter.
-Not yet reproduced/root-caused — needs a headless repro before fixing.
-
 **No warning when a bulk FOH-rename can't act on an unpicked subject.**
-`_on_rename_all_selected` / `_on_rename_selected_to_task_label` already skip
-any subject that has more than one candidate and no picked/committed
-selection yet (documented in [FOH Crosscheck](foh-crosscheck.md), step 11:
-"a subject still waiting on that pick is simply skipped"). That skip is
-silent — no feedback that anything was left undone. Should surface which
-subjects were skipped and why (e.g. a summary dialog listing them) instead
-of failing silently.
-
-**FOH-tagged file's parent folder keeps its old modality name.** After
-"Rename to FOH", the file itself gets `_FOH` in its name, but the folder it
-lives in (e.g. `sub-XXX/eeg/`) keeps whatever modality name the raw-to-BIDS
-conversion gave it — the folder itself isn't renamed to match. Ideally it
-should be, alongside the file. Complication: that folder can hold other,
-unselected candidate files that must stay put, so a straight folder rename
-only works once nothing else remains in it — otherwise this needs a
-different strategy than renaming the folder outright. Needs a closer look
-at what's actually left in that folder at tag-time before designing the
-fix.
+`_on_rename_all_selected` / `_on_rename_selected_to_task_label` still
+silently skip any subject that has more than one candidate and no
+picked/committed selection yet (documented in [FOH
+Crosscheck](foh-crosscheck.md#working-with-several-subjects-at-once): "a
+subject still waiting on that pick is simply skipped") — no feedback that
+anything was left undone. Should surface which subjects were skipped and
+why (e.g. a summary dialog listing them) instead of failing silently.
+Note this is now the *only* remaining "acted on an unselected file" gap:
+the related per-candidate mis-click (clicking "Tag as foh"/"Correct
+date..." on the wrong one of several duplicate candidates in the
+recording pane) is fixed — those buttons only appear on the row that's
+actually picked.
 
 **Crane parity with FOH's GUI improvements.** Everything under [Current
 status](#current-status-as-of-2026-08-13) above (two-column subject list,
@@ -257,7 +322,7 @@ first since it's the one currently in active use.
 **"Reset everything" button.** There's currently no single action that undoes
 an entire crosscheck session for a BIDS folder — doing it by hand means
 editing/deleting `crosscheck.json` and `crosscheck_pending.json` directly, and
-even then, files already moved to `crosscheck_junk` or renamed via
+even then, files already moved to `crosscheck_junk`/`crosscheck_review` or renamed via
 `record_task_correction`/`record_date_correction`/`record_id_correction` stay
 moved/renamed, since those are real filesystem operations, not just JSON
 state. A proper reset would need to reverse those too (move junked files back,
@@ -265,6 +330,7 @@ undo renames) to actually leave the folder as it started, not just clear the
 recorded decisions — that's the open design question, not just the UI. Given
 how destructive a real "start from scratch" would be across every subject at
 once, it needs the same confirm-before-acting treatment as the other bulk
-actions ("Commit all pending selections", "Rename all selected to {label}") —
+actions ("Move all non-selected to crosscheck_review", "Tag all selected as
+  {label}") —
 if anything, a stronger one, since unlike those it can't be scoped down to
 "just the files that still need it." Not implemented yet.
