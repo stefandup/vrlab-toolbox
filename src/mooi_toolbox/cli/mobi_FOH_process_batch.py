@@ -5,6 +5,7 @@ from pathlib import Path
 import click
 import matplotlib.pyplot as plt
 import pandas as pd
+import pyreadstat
 from rich.progress import Progress
 
 from mooi_toolbox import mobi_logging
@@ -28,7 +29,7 @@ def main(input_folder: Path, output_folder: Path, verbose: bool):
 
     logger.info(f"Looking into input folder: {input_folder}. Output folder: {output_folder}")
 
-    out_fn = os.path.join(output_folder, "FOH_process_batch_out.csv")
+    out_fn = os.path.join(output_folder, "FOH_process_batch_out")
 
     root = input_folder
     out_file_parts = []
@@ -49,6 +50,7 @@ def main(input_folder: Path, output_folder: Path, verbose: bool):
             try:
                 pipeline_output = run_pipeline(subject_id, input_folder, output_folder)
                 participant_data_out = pipeline_output.subject_df_out
+                # TODO: import and merge the subjective stress measure for this subject
                 figures = pipeline_output.figure_data_out
 
                 if figures:
@@ -77,9 +79,20 @@ def main(input_folder: Path, output_folder: Path, verbose: bool):
                     "Skipping subject %s because processing failed: %s", subject_id, error
                 )
                 continue
+    # TODO TEST
+    if len(out_file_parts) == 0:
+        logger.warning("No files were successfully processed.")
+        return
 
     out_df = pd.concat(out_file_parts, axis=0)
-    out_df.to_csv(out_fn)
+    out_df.to_csv(out_fn + ".csv", index=False)
+
+    pyreadstat.write_sav(
+        out_df,
+        out_fn + ".sav",
+        variable_format={"Subject_ID": "A20"},
+        variable_measure={"Subject_ID": "nominal"},
+    )
 
     logger.info(f"Saved output to {out_fn}")
 

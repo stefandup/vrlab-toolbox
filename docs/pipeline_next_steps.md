@@ -888,6 +888,13 @@ would have been caught by the type system as it existed before this pass.
 - `foh_pipeline.py`'s `build_foh_participant_output_schema()` returns a bare
   `pa.DataFrameSchema()` — validation is currently a no-op, unlike Crane's
   fully-built schema (`crane_pipeline.py:65-92`).
+- The subjective stress measure (self-report, collected alongside the FOH
+  physiology/target data) still isn't imported or merged into a subject's
+  output row — flagged with a `# TODO` in `mobi_FOH_process_batch.py` where
+  `participant_data_out` is assembled. No import strategy step or schema for
+  it exists yet; needs the same treatment as target behaviour data above
+  (an `ImportFohSubjectiveStressStrategyStep`-shaped step, wired into
+  `import_behav_steps`).
 - TODO: `PipelineStatus` vs. `ProcessingStatus` (`processing_status.py`) read
   as confusingly similar names for two different things — `PipelineStatus` is
   the per-pipeline-run container (`dict[type, ProcessingStatus]`),
