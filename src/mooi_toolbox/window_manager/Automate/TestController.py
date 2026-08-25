@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import threading
 import time
@@ -58,7 +59,29 @@ class FullscreenSessionGUI:
         "LabRecorder.exe",
         "AxioBiofeedback.exe",
         "DSI-Streamer-v.1.08.120.exe",
+        "dsi2lslgui.exe",
+        "DSI2LSL.exe",
         "AudioVideoRecorder.exe",
+        # Terminal windows opened as part of the session.
+        "powershell.exe",
+        "pwsh.exe",
+        "cmd.exe",
+        "WindowsTerminal.exe",
+        "wt.exe",
+    ]
+
+    COMMANDLINE_TOKENS_TO_CLOSE = [
+        "AxioBiofeedback",
+        "OpenSignals",
+        "LabRecorder",
+        "AudioVideoRecorder",
+        "DSI-Streamer",
+        "dsi2lsl",
+        "DSI2LSL",
+        "dsi2lslgui",
+        "COM7",
+        "setup_foh",
+        "FOH",
     ]
 
     def __init__(self, root: tk.Tk) -> None:
@@ -70,7 +93,7 @@ class FullscreenSessionGUI:
         self.launcher = SessionLauncher()
 
         self.participant_id_var = tk.StringVar(value="")
-        self.status_var = tk.StringVar(value="Enter participant ID, then press NEXT.")
+        self.status_var = tk.StringVar(value="Enter participant ID, then press START.")
         self.progress_var = tk.DoubleVar(value=0)
         self.is_running = False
         self.foh_is_running = False
@@ -178,7 +201,7 @@ class FullscreenSessionGUI:
             relief="flat",
         )
         self.participant_entry.pack(fill="x", padx=34, pady=(0, 24), ipady=14)
-        self.participant_entry.bind("<Return>", lambda _event: self.next_pressed())
+        self.participant_entry.bind("<Return>", lambda _event: self.start_pressed())
 
         instruction_box = tk.LabelFrame(
             card,
@@ -216,8 +239,8 @@ class FullscreenSessionGUI:
 
         self.next_button = tk.Button(
             buttons,
-            text="NEXT",
-            command=self.next_pressed,
+            text="START",
+            command=self.start_pressed,
             font=("Segoe UI", 30, "bold"),
             bg=self.GREEN,
             fg=self.WHITE,
@@ -229,22 +252,6 @@ class FullscreenSessionGUI:
             cursor="hand2",
         )
         self.next_button.pack(fill="x", pady=(0, 18))
-
-        self.restart_button = tk.Button(
-            buttons,
-            text="RESTART FOR NEXT PARTICIPANT",
-            command=self.restart_threaded,
-            font=("Segoe UI", 18, "bold"),
-            bg=self.RED,
-            fg=self.WHITE,
-            activebackground=self.RED_DARK,
-            activeforeground=self.WHITE,
-            relief="flat",
-            padx=24,
-            pady=16,
-            cursor="hand2",
-        )
-        self.restart_button.pack(fill="x", pady=(0, 14))
 
         self.exit_button = tk.Button(
             buttons,
@@ -305,7 +312,7 @@ class FullscreenSessionGUI:
 
         tk.Label(
             card,
-            text="Keep this simple: read the yellow box, then press NEXT.",
+            text="Enter the participant ID and press START once. After that, only STOP / CLOSE EVERYTHING remains.",
             font=("Segoe UI", 15, "bold"),
             bg=self.PANEL,
             fg=self.MUTED,
@@ -535,24 +542,24 @@ class FullscreenSessionGUI:
 
     def set_buttons_running(self, running: bool) -> None:
         self.is_running = running
-
-        if running:
-            self.next_button.configure(state="disabled", text="BUSY...", bg=self.DISABLED)
-            self.participant_entry.configure(state="disabled")
-        else:
-            self.next_button.configure(state="normal", text="NEXT", bg=self.GREEN)
-            self.participant_entry.configure(state="normal")
-
-        self.restart_button.configure(state="normal")
+        self.participant_entry.configure(state="disabled" if running else "normal")
         self.exit_button.configure(state="normal")
 
-    def next_pressed(self) -> None:
+    def start_pressed(self) -> None:
         if self.is_running:
             return
-        threading.Thread(target=self.run_full_session, daemon=True).start()
 
-    def restart_threaded(self) -> None:
-        threading.Thread(target=self.restart_all, daemon=True).start()
+        try:
+            self.get_participant_id()
+        except ValueError as exc:
+            messagebox.showerror("Participant ID", str(exc))
+            return
+
+        # START is available once only. After it is pressed, the only remaining
+        # researcher action is STOP / CLOSE EVERYTHING.
+        self.next_button.pack_forget()
+        self.participant_entry.configure(state="disabled")
+        threading.Thread(target=self.run_full_session, daemon=True).start()
 
     def exit_program_threaded(self) -> None:
         threading.Thread(target=self.exit_program, daemon=True).start()
@@ -602,14 +609,117 @@ class FullscreenSessionGUI:
         self.root.focus_force()
         self.root.update_idletasks()
 
-    def kill_session_apps(self) -> None:
-        for proc in self.KILL_LIST:
+    def kill_processes_by_commandline_token(self, token: str) -> None:
+        """Close processes whose Windows command line contains the supplied token."""
+        safe_token = token.replace("'", "''")
+        command = (
+            "Get-CimInstance Win32_Process | "
+            f"Where-Object {{ $_.CommandLine -like '*{safe_token}*' }} | "
+            "ForEach-Object { "
+            "try { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } catch {} "
+            "}"
+        )
+        try:
+            subprocess.call(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-Command",
+                    command,
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                shell=False,
+            )
+        except Exception:
+            pass
+
+
+    def close_dsi2lsl_forcefully(self) -> None:
+        """Force-close DSI2LSL, including GUI, Python-hosted, and COM7-linked processes."""
+        # Exact executable names used by different DSI2LSL builds.
+        for process_name in (
+            "dsi2lslgui.exe",
+            "DSI2LSL.exe",
+            "DSI-Streamer-v.1.08.120.exe",
+        ):
             try:
                 subprocess.call(
-                    f"taskkill /f /im {proc}",
-                    shell=True,
+                    ["taskkill", "/f", "/t", "/im", process_name],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
+                    shell=False,
+                )
+            except Exception:
+                pass
+
+        # Catch shortcut-launched or Python-hosted versions whose executable name differs.
+        command = (
+            "$currentPid = $PID; "
+            "Get-CimInstance Win32_Process | "
+            "Where-Object { "
+            "$_.ProcessId -ne $currentPid -and "
+            "($_.CommandLine -match 'dsi2lsl|DSI2LSL|dsi2lslgui|DSI-Streamer|COM7') "
+            "} | ForEach-Object { "
+            "try { taskkill /PID $_.ProcessId /T /F 2>$null | Out-Null } catch {} "
+            "}"
+        )
+        try:
+            subprocess.call(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-Command",
+                    command,
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                shell=False,
+            )
+        except Exception:
+            pass
+
+        time.sleep(0.8)
+
+    def kill_session_apps(self) -> None:
+        """Force-close session applications and any remaining terminal process trees."""
+        # DSI2LSL can remain open under several different executable names.
+        self.close_dsi2lsl_forcefully()
+
+        # Then close script-hosted/session processes that may not use a predictable exe name.
+        for token in self.COMMANDLINE_TOKENS_TO_CLOSE:
+            self.kill_processes_by_commandline_token(token)
+
+        # Then force-close known applications and their complete child process trees.
+        # Terminals are deliberately last so they cannot interrupt earlier cleanup commands.
+        terminal_names = {"powershell.exe", "pwsh.exe", "cmd.exe", "WindowsTerminal.exe", "wt.exe"}
+        ordered_names = [name for name in self.KILL_LIST if name not in terminal_names]
+        ordered_names.extend(name for name in self.KILL_LIST if name in terminal_names)
+
+        for process_name in ordered_names:
+            try:
+                subprocess.call(
+                    ["taskkill", "/f", "/t", "/im", process_name],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    shell=False,
+                )
+            except Exception:
+                pass
+
+        # Repeat once because closing one parent can expose a delayed child process/window.
+        time.sleep(0.8)
+        for process_name in ordered_names:
+            try:
+                subprocess.call(
+                    ["taskkill", "/f", "/t", "/im", process_name],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    shell=False,
                 )
             except Exception:
                 pass
@@ -640,11 +750,28 @@ class FullscreenSessionGUI:
             self.log(f"Could not stop LabRecorder automatically: {e}")
 
     def close_session_apps_safely(self) -> None:
+        """Restore the saved layout, stop LabRecorder safely, then close everything else."""
         self.foh_is_running = False
+        self.show_wait_overlay("WAIT\nPREPARING TO STOP RECORDING")
+
+        # Re-apply the saved window layout before clicking LabRecorder Stop.
+        # This protects the coordinate/button layout if a user moved or resized a window.
+        try:
+            self.set_progress(94, "Restoring the saved window layout...", active_step=8)
+            self.launcher.apply_window_layout()
+            time.sleep(2)
+        except Exception as exc:
+            # Continue to the safe LabRecorder stop even if arranging the windows fails.
+            self.log(f"Could not restore window layout before closing: {exc}")
+
+        # LabRecorder must be stopped and given time to finalize the recording
+        # before any other application or terminal is closed.
+        self.stop_labrecorder()
+        time.sleep(4)
+
+        # Only after LabRecorder has finalized do we stop monitoring and close apps.
         self.signal_checker.stop()
         self.hide_signal_alert()
-        self.stop_labrecorder()
-        time.sleep(1)
         self.kill_session_apps()
         self.hide_wait_overlay()
 
@@ -698,37 +825,31 @@ class FullscreenSessionGUI:
 
         return False
 
-    def setup_labrecorder_with_retry(self, participant_id: str, max_attempts: int = 3) -> bool:
-        for attempt in range(1, max_attempts + 1):
-            self.show_wait_overlay("WAIT\nSTARTING LABRECORDER")
-            self.set_progress(70, "Starting LabRecorder. Do not touch the mouse.", active_step=6)
+    def setup_labrecorder_with_retry(
+       self,
+       participant_id: str,
+       max_attempts: int = 3,
+      ) -> bool:
+      self.show_wait_overlay("WAIT\nSTARTING LABRECORDER")
+      self.set_progress(
+        70,
+        "Starting LabRecorder. Do not touch the mouse.",
+        active_step=6,
+      )
 
-            try:
-                setup_labrecorder(participant_id)
-                time.sleep(3)
-                self.hide_wait_overlay()
-                self.update_step(6, "done")
-                return True
+      try:
+        setup_labrecorder(participant_id)
 
-            except Exception as e:
-                self.hide_wait_overlay()
-                if attempt < max_attempts:
-                    retry = self.ask_yes_no(
-                        "LabRecorder problem",
-                        "LabRecorder did not connect correctly.\n\n"
-                        "Check OpenSignals is open and recording.\n"
-                        "Then press YES to try again.",
-                    )
-                    if not retry:
-                        self.update_step(6, "error")
-                        return False
-                    time.sleep(4)
-                else:
-                    self.update_step(6, "error")
-                    self.show_error("LabRecorder failed", str(e))
-                    return False
+      except Exception as e:
+        # Terminal only — do not interrupt the participant/user.
+        print(f"[WARN] LabRecorder automation reported: {e}")
 
-        return False
+      time.sleep(3)
+
+      self.hide_wait_overlay()
+      self.update_step(6, "done")
+
+      return True
 
     def bring_foh_to_front(self) -> None:
         try:
@@ -756,20 +877,43 @@ class FullscreenSessionGUI:
             except Exception:
                 break
 
-    def restore_gui(self) -> None:
+    def close_launcher_terminal(self) -> None:
+        """Close the terminal that launched this GUI, but only when it is a terminal process."""
+        parent_pid = os.getppid()
+
+        try:
+            command = (
+                f"$p = Get-CimInstance Win32_Process -Filter \"ProcessId={parent_pid}\"; "
+                "if ($p -and $p.Name -match '^(cmd|powershell|pwsh|WindowsTerminal|wt)\\.exe$') { "
+                f"Stop-Process -Id {parent_pid} -Force -ErrorAction SilentlyContinue "
+                "}"
+            )
+            subprocess.Popen(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-WindowStyle",
+                    "Hidden",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-Command",
+                    command,
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                shell=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        except Exception:
+            pass
+
+    def finish_session_and_close_gui(self) -> None:
+        """Close the launcher terminal and GUI silently after cleanup."""
         self.foh_is_running = False
         self.hide_signal_alert()
         self.hide_wait_overlay()
-        self.bring_gui_front()
-        self.mark_done_until(8)
-        self.set_buttons_running(False)
-        self.set_progress(100, "Finished. Press RESTART for the next participant.")
-        self.show_info(
-            "Finished",
-            "FOH closed.\n\n"
-            "LabRecorder stop was attempted.\n\n"
-            "Press RESTART before the next participant.",
-        )
+        self.close_launcher_terminal()
+        self.root.after(0, self.root.destroy)
 
     def run_full_session(self) -> None:
         try:
@@ -798,8 +942,8 @@ class FullscreenSessionGUI:
             self.set_progress(38, "Quick device check.", active_step=3)
             if not self.confirm_device_ready():
                 self.update_step(3, "error")
-                self.set_progress(0, "Cancelled. Press NEXT to try again.")
-                self.set_buttons_running(False)
+                self.set_progress(0, "Cancelled. Press STOP / CLOSE EVERYTHING.")
+                self.is_running = False
                 return
             self.update_step(3, "done")
 
@@ -819,7 +963,7 @@ class FullscreenSessionGUI:
                     "EDA/ECG signal was not detected properly.\n\n"
                     "Switch the device OFF and ON, check OpenSignals, then try again.",
                 )
-                self.set_buttons_running(False)
+                self.is_running = False
                 return
 
             self.update_step(4, "done")
@@ -829,35 +973,57 @@ class FullscreenSessionGUI:
                 self.signal_checker.stop()
                 self.update_step(5, "error")
                 self.set_progress(0, "Cancelled. ECG/EDA signal was not confirmed.")
-                self.set_buttons_running(False)
+                self.is_running = False
                 return
 
             labrecorder_ok = self.setup_labrecorder_with_retry(pid)
             if not labrecorder_ok:
                 self.signal_checker.stop()
                 self.set_progress(0, "Cancelled. LabRecorder could not start.")
-                self.set_buttons_running(False)
+                self.is_running = False
                 return
 
-            self.show_wait_overlay("WAIT\nOPENING FOH")
-            self.set_progress(82, "Opening FOH training screen.", active_step=7)
-            self.hide_wait_overlay()
-            self.root.withdraw()
+            self.show_wait_overlay(
+                "WAIT\nSETTING UP FOH\n\n"
+                "PARTICIPANT ID IS ENTERED AUTOMATICALLY\n"
+                "DO NOT TYPE OR CLICK ANYTHING"
+            )
+            self.set_progress(
+                82,
+                "Entering participant ID and preparing FOH automatically.",
+                active_step=7,
+            )
+
+            # IMPORTANT: remove the topmost WAIT/GUI before setup_foh() clicks.
+            # Otherwise FOH opens behind this GUI and cannot receive the automated input.
             time.sleep(1)
+            self.hide_wait_overlay()
+
+            def _move_gui_out_of_way() -> None:
+                try:
+                    self.root.attributes("-topmost", False)
+                except Exception:
+                    pass
+                self.root.withdraw()
+
+            self.root.after(0, _move_gui_out_of_way)
+            time.sleep(1.0)
+
+            # setup_foh() now launches/focuses FOH and enters the participant ID
+            # while this GUI is completely out of the way.
             setup_foh(pid)
-            time.sleep(1)
+            time.sleep(2)
+
             self.update_step(7, "done")
-            self.hide_wait_overlay()
+            self.bring_foh_to_front()
 
             self.set_progress(90, "FOH is ready. Complete the FOH/VR task.", active_step=7)
 
             self.foh_is_running = True
-            self.bring_foh_to_front()
-            self.root.lower()
 
             self.wait_until_foh_closes()
             self.close_session_apps_safely()
-            self.restore_gui()
+            self.finish_session_and_close_gui()
 
         except Exception as e:
             self.foh_is_running = False
@@ -869,35 +1035,9 @@ class FullscreenSessionGUI:
                 if self.step_status_labels[i].cget("text") == "●":
                     self.update_step(i, "error")
             self.progress_var.set(0)
-            self.set_buttons_running(False)
+            self.is_running = False
             self.show_error("Session Error", str(e))
-            self.set_instruction("Error. Fix the issue, then press NEXT again.")
-
-    def restart_all(self) -> None:
-        try:
-            confirm = self.ask_yes_no("Restart", "Close session apps and clear participant ID?")
-            if not confirm:
-                return
-
-            self.set_buttons_running(True)
-            self.bring_gui_front()
-            self.show_wait_overlay("WAIT\nSTOPPING AND CLOSING APPS")
-            self.set_progress(10, "Stopping and closing apps...", active_step=8)
-            self.close_session_apps_safely()
-            time.sleep(2)
-
-            self.participant_id_var.set("")
-            self.progress_var.set(0)
-            self.reset_steps()
-            self.set_buttons_running(False)
-            self.set_instruction("Enter participant ID, then press NEXT.")
-            self.participant_entry.focus_set()
-
-        except Exception as e:
-            self.hide_wait_overlay()
-            self.progress_var.set(0)
-            self.set_buttons_running(False)
-            self.show_error("Restart Error", str(e))
+            self.set_instruction("An error occurred. Press STOP / CLOSE EVERYTHING.")
 
     def exit_program(self) -> None:
         confirm = self.ask_yes_no("Stop / Close Everything", "Stop recording and close all FOH session apps?")
@@ -911,6 +1051,7 @@ class FullscreenSessionGUI:
             self.close_session_apps_safely()
             time.sleep(1)
         finally:
+            self.close_launcher_terminal()
             self.root.after(0, self.root.destroy)
 
 
