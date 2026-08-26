@@ -1026,6 +1026,27 @@ timepoint inference, moving the *unit of import* to "one timepoint folder"
 is the direction to head in, so filename matching only ever has to
 disambiguate *within* a timepoint, not across them.
 
+**Update:** the BIDS crosscheck GUI (`gui/crane_bids_crosscheck_gui.py`,
+`gui/bids_crosscheck_common.py`) now exists and, as of this session, has a
+crane-specific `CraneCandidateExtras` (physiology channel presence, behaviour/
+debrief column checks) at parity with FOH's — see `docs/bids_crosscheck_plan.md`.
+That tool only ever reads/writes an *already-BIDS-organized* folder; it does
+not produce one. There is still no raw→BIDS converter for crane at all (see
+`docs/bids_converter_plan.md` — "not yet started"), so this item's actual
+direction remains undone at the import-layer end.
+
+**TODO, once a real crane BIDS folder exists and has been validated against
+the crosscheck tool:** come back to this item's target — `ParticipantConfig.
+from_physiology_data` (`input_data.py`) and `FindCraneParticipantFilesStrategyStep`
+(`crane_pipeline.py`) — and identify every place that currently assumes the
+flat, filename-encoded-date raw layout (the `filename_glob` patterns on
+`RawBehaviourData`/`RawCraneBehaviourData`/`RawDebriefBehaviourData`, the
+date-string extraction items 12/13 flag as buggy, `vrlab_crane_process.py`'s
+own subject-file globbing) and point out exactly which of those need to
+change to read from a `sub-XXX/` BIDS folder instead of a shared flat
+`data_folder_in`. Not started — deliberately deferred until the BIDS folder
+side (converter + crosscheck) is settled, so this isn't designed twice.
+
 ## Working Rule
 
 Do not rewrite everything at once. Preserve working behaviour and improve

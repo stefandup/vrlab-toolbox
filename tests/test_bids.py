@@ -23,7 +23,7 @@ class TestBidsEventsDataBasicImport(unittest.TestCase):
         )
 
     def test_import_from_crane_csv_out(self):
-        raw_crane_behav_data = RawCraneBehaviourData.load_from_config(
+        raw_crane_behav_data = RawCraneBehaviourData.load_group_data_from_config(
             example_crane_participant_correct
         )
         raw_crane_bids_events_data = raw_crane_behav_data.to_bids_events()

@@ -12,6 +12,7 @@ dynamic = ["version"]
 dependencies = {file = ["requirements.txt"]}
 
 [project.scripts]
+crane_convert_to_bids = "mooi_toolbox.cli.crane_convert_to_bids:main"
 crane_generate_sample_data = "mooi_toolbox.cli.crane_generate_sample_data:main"
 mobi_check_xdf = "mooi_toolbox.cli.check_mobi_xdf:main"
 mobi_foh_assess_data = "mooi_toolbox.cli.mobi_FOH_assess_data:main"

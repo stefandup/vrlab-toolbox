@@ -7,10 +7,11 @@ docs/bids_crosscheck_plan.md for the design.
 """
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 from PySide6.QtCore import QItemSelectionModel, QSettings, Qt, QUrl
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -30,6 +31,7 @@ from PySide6.QtWidgets import (
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -70,6 +72,7 @@ WARNING_ICON = "❗"
 PLEASE_SELECT_COLOR = "#f39c12"
 PENDING_COLOR = "#9b59b6"
 UNCROSSCHECKED_COLOR = "#e74c3c"
+FOUND_EVERYWHERE_COLOR = "#2ecc71"
 SUBJECT_ID_ROLE = Qt.ItemDataRole.UserRole
 SETTINGS_ORGANIZATION = "MooiToolbox"
 LAST_BIDS_FOLDER_SETTINGS_KEY = "last_bids_folder"
@@ -161,11 +164,36 @@ class BidsCrosscheckWindow(QMainWindow):
         window_title: str,
         extras: CandidateExtras | None = None,
         settings_app_name: str | None = None,
+        raw_converter: Callable[[Path, Path, Path | None], list[str]] | None = None,
+        override_file_label: str | None = None,
+        override_file_filter: str = "All files (*)",
     ):
+        """`raw_converter`, if given, adds a "Raw folder" selector and "Convert to BIDS..."
+        button above the BIDS folder one -- optional, dataset-specific (only crane has a raw
+        converter today; FOH's stays external, so it passes None and gets none of this UI).
+        Called as `raw_converter(raw_folder, bids_folder, override_file)`, expected to do its
+        own writing into `bids_folder` and return human-readable lines describing what it
+        did, for display in the "Last conversion" status panel; a raised exception is caught
+        and shown as an error there instead. This window never imports the dataset-specific
+        converter itself -- it only ever calls whatever callable it's handed.
+
+        `override_file_label`, if given (only meaningful alongside `raw_converter`), adds a
+        third, optional single-file selector -- e.g. crane's "override which workbook counts
+        as the debrief source" when auto-detection can't tell. `override_file` is None unless
+        the user has picked one; the callable decides what None means (typically: fall back
+        to its own auto-detection). `override_file_filter` is the QFileDialog filter string
+        for that picker (e.g. "Excel files (*.xlsx)") -- this window has no opinion on what
+        kind of file it is, only that the dataset-specific converter does.
+        """
         super().__init__()
         self.dataset_config = dataset_config
         self.extras = extras or CandidateExtras()
+        self.raw_converter = raw_converter
+        self.override_file_label = override_file_label
+        self.override_file_filter = override_file_filter
         self.bids_folder: Path | None = None
+        self.raw_folder: Path | None = None
+        self.override_file: Path | None = None
         self.scan: BidsFolderScan | None = None
         self._crosschecked: set[tuple[str, str]] = set()
         self._pending_selections: dict[str, dict[str, Path]] = {}
@@ -189,6 +217,46 @@ class BidsCrosscheckWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         root_layout = QVBoxLayout(central)
+
+        if self.raw_converter is not None:
+            raw_bar = QHBoxLayout()
+            raw_bar.addWidget(QLabel("Raw folder:"))
+            self.raw_folder_label = QLabel("No raw folder selected")
+            raw_bar.addWidget(self.raw_folder_label, 1)
+            raw_browse_button = QPushButton("Browse...")
+            raw_browse_button.setToolTip(
+                "Pick the raw data folder to convert into the BIDS folder below."
+            )
+            raw_browse_button.clicked.connect(self._on_browse_raw_folder)
+            raw_bar.addWidget(raw_browse_button)
+            self.convert_button = QPushButton("Convert to BIDS...")
+            self.convert_button.setToolTip(
+                "Run the raw-to-BIDS converter. Only ever adds new subjects into the BIDS "
+                "folder below -- never touches the raw folder, never re-copies or overwrites "
+                "a subject that's already there."
+            )
+            self.convert_button.setEnabled(False)
+            self.convert_button.clicked.connect(self._on_convert_to_bids)
+            raw_bar.addWidget(self.convert_button)
+            root_layout.addLayout(raw_bar)
+
+            if self.override_file_label is not None:
+                override_bar = QHBoxLayout()
+                override_bar.addWidget(QLabel(f"{self.override_file_label}:"))
+                self.override_file_label_widget = QLabel("(auto-detect)")
+                override_bar.addWidget(self.override_file_label_widget, 1)
+                override_browse_button = QPushButton("Browse...")
+                override_browse_button.setToolTip(
+                    f"Pick a specific file to use as the {self.override_file_label.lower()}, "
+                    "overriding auto-detection."
+                )
+                override_browse_button.clicked.connect(self._on_browse_override_file)
+                override_bar.addWidget(override_browse_button)
+                override_clear_button = QPushButton("Clear")
+                override_clear_button.setToolTip("Go back to auto-detection.")
+                override_clear_button.clicked.connect(self._on_clear_override_file)
+                override_bar.addWidget(override_clear_button)
+                root_layout.addLayout(override_bar)
 
         top_bar = QHBoxLayout()
         top_bar.addWidget(QLabel("BIDS folder:"))
@@ -330,6 +398,21 @@ class BidsCrosscheckWindow(QMainWindow):
         self.detail_scroll.setWidget(self.detail_container)
         right_layout.addWidget(self.detail_scroll, 1)
 
+        if self.raw_converter is not None:
+            # Persistent, fixed-height status area for the last "Convert to BIDS..." run --
+            # below the scan-type detail panes, not inside detail_scroll, so it stays visible
+            # regardless of which subject is selected (a conversion result isn't about any
+            # one subject).
+            self.conversion_status_group = QGroupBox("Last conversion")
+            conversion_status_layout = QVBoxLayout(self.conversion_status_group)
+            self.conversion_status_text = QTextEdit()
+            self.conversion_status_text.setReadOnly(True)
+            self.conversion_status_text.setFont(QFont("Courier New"))
+            self.conversion_status_text.setMaximumHeight(160)
+            self.conversion_status_text.setPlainText("No conversion run yet.")
+            conversion_status_layout.addWidget(self.conversion_status_text)
+            right_layout.addWidget(self.conversion_status_group)
+
         splitter.addWidget(right_panel)
 
         splitter.setSizes([500, 700])
@@ -346,6 +429,67 @@ class BidsCrosscheckWindow(QMainWindow):
         ensure_bidsignore(bids_folder, self.extras.bidsignore_patterns())
         self.extras.on_bids_folder_changed(bids_folder)
         self._rescan(reload_pending=True)
+        self._update_convert_button_enabled()
+
+    def _on_browse_raw_folder(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "Select raw data folder")
+        if folder:
+            self.raw_folder = Path(folder)
+            self.raw_folder_label.setText(str(self.raw_folder))
+            self._update_convert_button_enabled()
+
+    def _on_browse_override_file(self) -> None:
+        file, _ = QFileDialog.getOpenFileName(
+            self, f"Select {self.override_file_label}", "", self.override_file_filter
+        )
+        if file:
+            self.override_file = Path(file)
+            self.override_file_label_widget.setText(str(self.override_file))
+
+    def _on_clear_override_file(self) -> None:
+        self.override_file = None
+        self.override_file_label_widget.setText("(auto-detect)")
+
+    def _update_convert_button_enabled(self) -> None:
+        if self.raw_converter is None:
+            return
+        self.convert_button.setEnabled(self.raw_folder is not None and self.bids_folder is not None)
+
+    def _on_convert_to_bids(self) -> None:
+        if self.raw_converter is None or self.raw_folder is None or self.bids_folder is None:
+            return
+        self.convert_button.setEnabled(False)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            lines = self.raw_converter(self.raw_folder, self.bids_folder, self.override_file)
+            error = None
+        except Exception as error_raised:  # noqa: BLE001 -- arbitrary converter, shown not swallowed
+            logger.exception("Raw-to-BIDS conversion failed")
+            lines = []
+            error = str(error_raised)
+        finally:
+            QApplication.restoreOverrideCursor()
+            self.convert_button.setEnabled(True)
+
+        self._update_conversion_status_panel(lines, error)
+        if error is None:
+            self.load_bids_folder(self.bids_folder)
+
+    def _update_conversion_status_panel(self, lines: list[str], error: str | None) -> None:
+        """Updates the persistent "Last conversion" panel in place -- not a popup, so it
+        doesn't block on being dismissed and stays visible (below the scan-type detail
+        panes) as a standing record of what the last run did, until the next one replaces
+        it."""
+        if error:
+            self.conversion_status_group.setTitle("Last conversion -- failed")
+            self.conversion_status_text.setStyleSheet(f"color: {UNCROSSCHECKED_COLOR};")
+            self.conversion_status_text.setPlainText(f"Conversion failed:\n\n{error}")
+        else:
+            self.conversion_status_group.setTitle("Last conversion")
+            self.conversion_status_text.setStyleSheet("")
+            self.conversion_status_text.setPlainText(
+                "\n".join(lines) if lines else "Conversion finished with nothing to report."
+            )
 
     def _rescan(self, reload_pending: bool = False) -> None:
         if self.bids_folder is None:
@@ -435,9 +579,15 @@ class BidsCrosscheckWindow(QMainWindow):
             return
         summary = completeness_summary(self.scan, self.dataset_config)
         total = len(self.scan.scans)
-        parts = [f"{total} subjects"] + [
-            f"{scan_type}: {ok}/{total}" for scan_type, (ok, _total) in summary.items()
-        ]
+        parts = [f"{total} subjects"]
+        for scan_type, (ok, scan_total) in summary.items():
+            part = f"{scan_type}: {ok}/{scan_total}"
+            # Found for every subject -- a positive confirmation worth calling out, not just
+            # a fraction to eyeball (e.g. "debrief: 83/83" is easy to misread at a glance as
+            # "still missing some" without doing the arithmetic).
+            if scan_total and ok == scan_total:
+                part += f' <span style="color:{FOUND_EVERYWHERE_COLOR}">✓</span>'
+            parts.append(part)
         text = " | ".join(parts)
 
         # A subject still "needs crosschecking" if any of its scan types hasn't been marked
@@ -620,7 +770,7 @@ class BidsCrosscheckWindow(QMainWindow):
                 tag_label.setText(label_text)
                 tag_label.setToolTip(f"Tagged {label_text!r}.")
             else:
-                tag_label.setText(f'<span style="color:{PLEASE_SELECT_COLOR}">not tagged</span>')
+                tag_label.setText(f'<span style="color:{PLEASE_SELECT_COLOR}">✗</span>')
                 tag_label.setToolTip(
                     f'Not tagged yet -- click "Tag as {label_text}" in the recording pane '
                     "to add it."
@@ -633,8 +783,11 @@ class BidsCrosscheckWindow(QMainWindow):
     def _build_subject_datatype_widget(self, subject_id: str) -> QWidget:
         """One label per scan type showing the BIDS datatype folder its currently-effective
         file lives in right now (e.g. "eeg") -- blank for a scan type with nothing effective
-        yet (missing, or an unresolved duplicate). See `_datatype_tooltip` for what hovering
-        a value explains."""
+        yet (missing, or an unresolved duplicate), *and* for a scan type whose file sits
+        directly in the subject's own folder rather than a datatype subfolder underneath it
+        (`file.parent.name` would otherwise just repeat "sub-XXX", which isn't a datatype and
+        reads as a bug rather than "no datatype folder in use for this dataset yet"). See
+        `_datatype_tooltip` for what hovering a value explains."""
         row = QWidget()
         row_layout = QHBoxLayout(row)
         row_layout.setContentsMargins(4, 2, 4, 2)
@@ -645,6 +798,8 @@ class BidsCrosscheckWindow(QMainWindow):
             if file is None:
                 continue
             folder_name = file.parent.name
+            if folder_name == f"{SUBJECT_FOLDER_PREFIX}{subject_id}":
+                continue
             label = QLabel(folder_name)
             label.setToolTip(self._datatype_tooltip(scan_type, folder_name))
             row_layout.addWidget(label)
@@ -1111,39 +1266,40 @@ class BidsCrosscheckWindow(QMainWindow):
         row_layout.addStretch(1)
         return row
 
-    def _build_crosscheck_widget(self, subject_id: str, scan_type: str) -> QWidget:
-        """One "Mark/Un-mark crosschecked" control for a whole subject/scan-type.
+    def _build_subject_crosscheck_widget(self, subject_id: str) -> QWidget:
+        """One "Mark/Un-mark crosschecked" control covering every scan type for one subject
+        at once.
 
-        Crosschecked status (self._crosschecked) is keyed by (subject_id, scan_type), not by
-        file -- it means "someone has reviewed whichever recording currently counts as the
-        one for this scan type", not a property of any single candidate. Built exactly once
-        per scan type in the "Subject actions" pane (see `_build_subject_actions_group`), not
-        once per candidate row.
+        Crosschecked status (self._crosschecked) is still recorded per (subject_id,
+        scan_type) underneath -- this is a single-subject convenience over toggling every
+        scan type in one click (previously one button per scan type here; for a dataset with
+        several scan types, like crane's physiology/behaviour/debrief, reviewing a subject is
+        one decision, not one per scan type). Bulk multi-subject crosscheck already covers
+        every scan type this same way (see `_on_bulk_crosschecked`); this is that same
+        semantics for a single subject, without the bulk-action confirmation dialog.
         """
         container = QWidget()
         layout = QHBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        label_suffix = (
-            "" if len(self.dataset_config.scan_type_names()) == 1 else f" ({scan_type})"
+        scan_types = self.dataset_config.scan_type_names()
+        all_crosschecked = all(
+            (subject_id, scan_type) in self._crosschecked for scan_type in scan_types
         )
-        crosschecked = (subject_id, scan_type) in self._crosschecked
         crosscheck_button = QPushButton(
-            f"Un-mark crosschecked{label_suffix}"
-            if crosschecked
-            else f"Mark crosschecked{label_suffix}"
+            "Un-mark crosschecked" if all_crosschecked else "Mark crosschecked"
         )
         crosscheck_button.setToolTip(
-            "Remove the manual reviewed mark."
-            if crosschecked
-            else "Manually mark this subject/scan type as reviewed, independent of its "
-            "automatic ok/missing/duplicate status."
+            "Remove the manual reviewed mark, for every scan type."
+            if all_crosschecked
+            else "Manually mark this subject as reviewed for every scan type at once, "
+            "independent of its automatic ok/missing/duplicate status."
         )
         crosscheck_button.clicked.connect(
-            lambda: self._on_toggle_crosschecked(subject_id, scan_type)
+            lambda: self._on_toggle_subject_crosschecked(subject_id, not all_crosschecked)
         )
         layout.addWidget(crosscheck_button)
-        if crosschecked:
+        if all_crosschecked:
             crosschecked_label = QLabel(
                 f'<span style="color:#3498db">{CROSSCHECKED_ICON} Crosschecked</span>'
             )
@@ -1225,8 +1381,7 @@ class BidsCrosscheckWindow(QMainWindow):
             rename_button.clicked.connect(lambda: self._on_rename_subject(subject_id))
             layout.addWidget(rename_button)
 
-            for scan_type in self.dataset_config.scan_type_names():
-                layout.addWidget(self._build_crosscheck_widget(subject_id, scan_type))
+            layout.addWidget(self._build_subject_crosscheck_widget(subject_id))
         else:
             if self._task_correction_supported:
                 label = self.dataset_config.task_correction_label
@@ -1525,11 +1680,11 @@ class BidsCrosscheckWindow(QMainWindow):
         # reload_pending=True -- see _on_rename_all_selected for why.
         self._rescan(reload_pending=True)
 
-    def _on_toggle_crosschecked(self, subject_id: str, scan_type: str) -> None:
+    def _on_toggle_subject_crosschecked(self, subject_id: str, crosschecked: bool) -> None:
         if self.bids_folder is None:
             return
-        currently_crosschecked = (subject_id, scan_type) in self._crosschecked
-        set_crosschecked(self.bids_folder, subject_id, scan_type, not currently_crosschecked)
+        for scan_type in self.dataset_config.scan_type_names():
+            set_crosschecked(self.bids_folder, subject_id, scan_type, crosschecked)
         self._rescan()
 
     def _on_rename_subject(self, subject_id: str) -> None:
@@ -1555,6 +1710,9 @@ def run_bids_crosscheck_app(
     window_title: str,
     extras: CandidateExtras | None = None,
     settings_app_name: str | None = None,
+    raw_converter: Callable[[Path, Path, Path | None], list[str]] | None = None,
+    override_file_label: str | None = None,
+    override_file_filter: str = "All files (*)",
 ) -> None:
     app = QApplication.instance() or QApplication([])
     # Consistent tooltip look regardless of OS/theme default -- black text on white, matching
@@ -1565,6 +1723,14 @@ def run_bids_crosscheck_app(
         app.styleSheet() + "QToolTip { color: black; background-color: white; "
         "border: 1px solid black; }"
     )
-    window = BidsCrosscheckWindow(dataset_config, window_title, extras, settings_app_name)
+    window = BidsCrosscheckWindow(
+        dataset_config,
+        window_title,
+        extras,
+        settings_app_name,
+        raw_converter,
+        override_file_label,
+        override_file_filter,
+    )
     window.show()
     app.exec()

@@ -22,7 +22,10 @@ from mooi_toolbox.processing.crane_trial_intervals import CraneGetTrialIntervalS
 from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
 from mooi_toolbox.processing.trial_intervals import TrialIntervals
 
-data_folder = Path(r"crane_data\\")
+# data_folder = Path(r"crane_data\\")
+data_folder = Path(
+    r"C:\\Users\\stefan\\OneDrive - Stellenbosch University\\MscFiles_crane_crosschecked"
+)
 examples_folder = Path(r"examples\\")
 
 EXAMPLE_CRANE_PARTICIPANT_CORRECT_ID = "00020"
@@ -142,7 +145,7 @@ class TestBehaviourClassWithBiopacData(unittest.TestCase):
         )
 
     def test_biopac_behav_import(self):
-        correct_behaviour = RawCraneBehaviourData.load_from_config(
+        correct_behaviour = RawCraneBehaviourData.load_group_data_from_config(
             self.example_crane_participant_correct
         )
         build_crane_raw_behav_file_schema().validate(correct_behaviour.raw_behav_df)
@@ -162,7 +165,7 @@ class TestParticipantConfigFileHandling(unittest.TestCase):
 class TestBasicDataHandling(unittest.TestCase):
     def setUp(self):
         self.example_crane_participant_correct = FindCraneParticipantFilesStrategyStep().run(
-            DUMMY_CLEAN_ID, examples_folder
+            EXAMPLE_CRANE_PARTICIPANT_CORRECT_ID, data_folder
         )
         self.crane_participant_no_FILE = FindCraneParticipantFilesStrategyStep().run(
             CRANE_PARTICIPANT_NO_FILE_ID, examples_folder
@@ -200,8 +203,8 @@ class TestCraneBehaviourStrategy(unittest.TestCase):
 class TestCranePipeline(unittest.TestCase):
     def test_crane_pipeline_has_expected_output(self):
         pipeline_out = run_pipeline(
-            DUMMY_CLEAN_ID,
-            examples_folder,
+            EXAMPLE_CRANE_PARTICIPANT_CORRECT_ID,
+            data_folder,
         )
         # Order not NB
         pipeline_status_str: str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]

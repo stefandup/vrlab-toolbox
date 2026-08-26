@@ -41,7 +41,7 @@ class RawBehaviourData:
         return BidsEventsData()
 
     @classmethod
-    def load_from_config(cls, config_in: ParticipantConfig) -> Self:
+    def load_group_data_from_config(cls, config_in: ParticipantConfig) -> Self:
         behav_df = load_from_participant_config(config_in)
         return cls(config_in, behav_df)
 

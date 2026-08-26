@@ -1,11 +1,15 @@
 import logging
 import os
+from dataclasses import dataclass, field
 from functools import cache
+from pathlib import Path
 from typing import Self
 
 import pandas as pd
 import pandera.pandas as pa
+from typing_extensions import deprecated
 
+from mooi_toolbox.processing import pandera_defaults as pa_default
 from mooi_toolbox.processing.behaviour import RawBehaviourData
 from mooi_toolbox.processing.input_data import ParticipantConfig
 from mooi_toolbox.processing.output_data import PipelineOutputData
@@ -13,28 +17,30 @@ from mooi_toolbox.processing.output_data import PipelineOutputData
 logger = logging.getLogger(__name__)
 
 REDCAP_FN = "CraneGame_Emotional Experience Form.xlsx"
-
+GROUP_REDCAP_GLOB = "KHANYAEmotionLab-Getalldata_DATA_*.csv"
+# TODO: Do a MAP for converting from redcap. Do stick to core emotions as listed here.
 EMOTIONS_TESTED = (
-    "Boredom",
-    "Dissatisfaction",
-    "Joy",
-    "Sadness",
-    "Satisfaction",
-    "Confused",
-    "Anger",
+    "boredom",
+    "dissatisfaction",
+    "joy",
+    "sadness",
+    "satisfaction",
+    "confused",
+    "anger",
 )
-emotion_cols = [emotion.upper() for emotion in EMOTIONS_TESTED]
+emotion_cols = [emotion.lower() for emotion in EMOTIONS_TESTED]
 
-# TODO More checks possible here
 crane_raw_debrief_file_schema = pa.DataFrameSchema(
     {
-        "Subject_ID": pa.Column(str),
-        "started_with_Crane_MobiLab": pa.Column(str),
+        "record_id": pa_default.str_col(),
+        "started": pa_default.str_col(),  # Some have a str here others a 1/2
+        "height": pa_default.str_col(),
         "High_at_start_end": pa.Column(str),
-        "BARREL": pa.Column(str, pa.Check.isin(["GREEN", "RED"]), nullable=False),
+        # We generate this as it helps validate our EMOTIONS_TESTED variable
         **{
-            emotion: pa.Column(int, pa.Check.isin([1, 2, 3, 4, 5]), nullable=False)
+            f"crane_{emotion}_{barrel_color}": pa_default.likert_col()
             for emotion in emotion_cols
+            for barrel_color in ["rb", "gb"]
         },
     },
     strict=True,
@@ -45,21 +51,30 @@ DEBRIEF_OUTPUT_METRICS = tuple(emotion_cols)
 TRIAL_TYPES = ("SlipTrial", "NonSlipTrial")
 
 
-def _optional_float_column() -> pa.Column:
-    return pa.Column(float, nullable=True, coerce=True, required=False)
+def build_crane_debrief_pipeline_output_schema() -> pa.DataFrameSchema:
+    """
+    Debrief output data looks the same as the raw data, except it is a single subject row
+    without the SubjectID, which is supplied by the parent rawbehav class
+    """
+    return pa.DataFrameSchema(
+        {
+            "Debrief_started": pa_default.optional_str_col(),  # Some have a str here others a 1/2
+            "Debrief_height": pa_default.optional_str_col(),
+            "Debrief_High_at_start_end": pa_default.optional_str_col(),
+            **{
+                f"Debrief_crane_{metric}_{trial_type}": pa_default.optional_float_col()
+                for metric in DEBRIEF_OUTPUT_METRICS
+                for trial_type in TRIAL_TYPES
+            },
+        }
+    )
 
 
-crane_debrief_pipeline_output_schema = pa.DataFrameSchema(
-    {
-        f"Debrief_{metric}_{trial_type}": _optional_float_column()
-        for metric in DEBRIEF_OUTPUT_METRICS
-        for trial_type in TRIAL_TYPES
-    }
-)
-
-
+@dataclass
 class CraneDebriefPipelineOutput(PipelineOutputData):
-    validation_schema = crane_debrief_pipeline_output_schema
+    validation_schema: pa.DataFrameSchema = field(
+        default_factory=build_crane_debrief_pipeline_output_schema
+    )
 
 
 class RawDebriefBehaviourData(RawBehaviourData):
@@ -67,17 +82,30 @@ class RawDebriefBehaviourData(RawBehaviourData):
     filename_glob = REDCAP_FN
 
     @classmethod
-    def load_from_config(cls, config_in: ParticipantConfig) -> Self:
-        debrief_df = process(config_in)
+    def load_group_data_from_config(cls, config_in: ParticipantConfig) -> Self:
+
+        debrief_df = get_group_debrief_data(config_in.behav_folder)
+
         return cls(subject_config=config_in, raw_behav_df=debrief_df)
+
+    def get_single_subject_data(self, subject_id_in: str) -> "RawDebriefBehaviourData":
+
+        matching_subject_df = self.raw_behav_df.loc[self.raw_behav_df["record_id"] == subject_id_in]
+
+        raw_debrief_data_out = RawDebriefBehaviourData(
+            subject_config=self.subject_config, raw_behav_df=matching_subject_df
+        )
+
+        return raw_debrief_data_out
 
 
 class ImportCraneDebriefDataProcessStrategyStep:
     behaviour_output_type = RawDebriefBehaviourData
 
     def run(self, config_in: ParticipantConfig) -> RawDebriefBehaviourData:
-
-        return RawDebriefBehaviourData.load_from_config(config_in)
+        raw_group_behav_data = RawDebriefBehaviourData.load_group_data_from_config(config_in)
+        single_subject_data = raw_group_behav_data.get_single_subject_data(config_in.subject_id)
+        return single_subject_data
 
 
 class ProcessCraneDebriefBehaviourDataStrategyStep:
@@ -86,15 +114,46 @@ class ProcessCraneDebriefBehaviourDataStrategyStep:
     def run(
         self, config_in: ParticipantConfig, raw_behaviour_data_in: RawDebriefBehaviourData
     ) -> CraneDebriefPipelineOutput:
+
+        raw_data_df = raw_behaviour_data_in.raw_behav_df
+        pipeline_df_out = raw_data_df.copy()
+        pipeline_df_out.columns = pipeline_df_out.columns.str.replace(
+            "_gb", "_SlipTrial"
+        ).str.replace("_rb", "_NonSlipTrial")
+        pipeline_df_out = pipeline_df_out.drop(columns="record_id")
+        pipeline_df_out = pipeline_df_out.add_prefix("Debrief_")
+
         debrief_pipeline_data_out = CraneDebriefPipelineOutput(config_in.subject_id)
-        debrief_pipeline_data_out.append_dataframe(raw_behaviour_data_in.raw_behav_df, {})
+        debrief_pipeline_data_out.append_dataframe(
+            pipeline_df_out, build_crane_debrief_pipeline_output_schema().columns
+        )
 
         return debrief_pipeline_data_out
 
 
-# TODO: Fix this as it is likely out of scope
 @cache
-def load_group_debrief_data(behaviour_data_dir: str) -> pd.DataFrame:
+def get_group_debrief_data(group_data_fn: Path) -> pd.DataFrame:
+
+    red_cap_glob = GROUP_REDCAP_GLOB
+
+    debrief_fn_list = list(group_data_fn.rglob(red_cap_glob))
+
+    if len(debrief_fn_list) > 1:
+        logger.warning(f"Multiple files detected. Using {debrief_fn_list[0]}")
+
+    debrief_fn = debrief_fn_list[0]
+
+    df = pd.read_csv(debrief_fn)
+
+    debrief_cols_filter = list(crane_raw_debrief_file_schema.columns)
+
+    crane_debrief_df = df.filter(items=debrief_cols_filter)
+
+    return crane_debrief_df
+
+
+@deprecated("Older style data import")
+def load_group_debrief_data(behaviour_data_dir: Path) -> pd.DataFrame:
     red_cap_fn = REDCAP_FN
     data_fn = os.path.join(behaviour_data_dir, red_cap_fn)
 
