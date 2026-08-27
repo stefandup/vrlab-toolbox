@@ -1164,6 +1164,33 @@ noted here so they aren't lost, not expanded on for now.
   a better header check, a possible bug, and dead code to remove.
 - `processing/long_walk_pipeline.py:51` — messy pipeline, same cleanup Crane
   needs.
+- **Widen `GetTrialIntervalsFallbackStartegy` to cover "behaviour data
+  structurally absent," not just "present but failed."** Long walk has no
+  behavioural data at all — its intervals come purely from the Biopac
+  Trigger channel (`get_raw_biopac_trigger_intervals`), so `raw_behav_data_for_intervals`
+  would always be `None` under `PipelineTemplate`. The outer guard at
+  `pipeline.py:406` (`if raw_biodata_for_intervals is not None and
+  raw_behav_data_for_intervals is not None:`) only reaches `fallback_strategy`
+  from inside the `except` block when `get_interval_strategy.run()` raises —
+  never when behaviour data was never attempted in the first place — so
+  today a physiology-only pipeline can't reach the fallback path at all.
+  Relates to items 5 and 17 above (same guard, same `fallback_strategy`
+  mechanism), but is a distinct case: those are about Crane's behaviour data
+  being present-but-degraded; this is about a pipeline that structurally
+  never has behaviour data. If widened (fallback triggers whenever
+  `raw_behav_data_for_intervals is None`, not only on exception), long walk
+  could adopt `PipelineTemplate` with an interval strategy whose
+  `fallback_strategy` wraps `get_raw_biopac_trigger_intervals` +
+  `EXPECTED_INTERVAL_NR` checking, and reuse `ProcessEdaPhysiologyDataStrategyStep`
+  (`eda.py:77-92`) as-is instead of calling `run_eda_intervals` directly —
+  which would also pick up `correct_order()`, currently missing from long
+  walk's own EDA output. Backward compatible: `fallback_strategy` defaults to
+  `None`, so Crane/FOH are unaffected unless they opt in. Worth noting to
+  whoever owns `pipeline.py` that "fallback" would stretch to mean "the
+  primary path" for a physiology-only pipeline, not just a backup — a
+  naming/semantics wrinkle, not a functional risk. `mobi_core_pipeline.py`
+  is currently just a stub (EEG/EDA-ECG comment list, no code) but reads as
+  another physiology-only candidate for this same fix once it's built.
 - `processing/input_data.py:3` — dataclass could look for variables and
   generate errors.
 - `cli/vrlab_crane_qc.py:19` — add summary data processing.

@@ -150,7 +150,7 @@ icon legend to remember what it means).
 The **Datatype** column shows which BIDS *datatype* folder that
 recording's file currently lives in — `eeg` at first, since that's the
 name the collection software always uses (see [step
-12](#12-tag-files-as-foh) for why that's not accurate for FOH data, and
+12](#12-tag-files-with-real-bids-tags) for why that's not accurate for FOH data, and
 what it becomes once tagged). "Datatype" is BIDS's own term for this —
 the `eeg`/`beh`/`func`/... subfolder a recording sits in, not a filename
 thing. Hover a value to see what it means and, if it's about to change,
@@ -259,7 +259,8 @@ Above the recording detail, the **Subject actions** panel holds actions
 that apply to the whole subject rather than one specific recording:
 marking it reviewed, renaming its ID, re-reading its info from disk if a
 recording has changed since the tool last looked (**Refresh**), and
-sending it to junk (see [step 13](#13-send-a-subject-to-junk) below). It
+removing it from BIDS entirely (see [step
+13](#13-remove-a-subject-from-bids) below). It
 stays visible at a fixed spot regardless of what's selected — blank when
 nothing is, so there's no jumping around as you click between subjects.
 
@@ -366,7 +367,7 @@ Made a mistake and want to start over? Two buttons near the top of the
 window, next to "Remove non selected files from BIDS," cover the whole
 folder at once:
 
-- **"Restore all from BIDS..."** brings back every subject removed from
+- **"Restore all from raw folder..."** brings back every subject removed from
   BIDS — whether removed whole (step 13) or with a duplicate resolved
   (step 8). Nothing is moved back, since nothing was kept anywhere inside
   BIDS to move — this just clears the bookkeeping that told **Refresh
@@ -381,7 +382,7 @@ folder at once:
   including crosschecked marks.
 
 !!! warning "Bulk only, for this version at least"
-    Neither button lets you pick and choose. **"Restore all from BIDS"**
+    Neither button lets you pick and choose. **"Restore all from raw folder"**
     brings back every removed subject, not just one. **"Revert all
     changes"** reverses everything recorded, not just one decision — and
     only the *most recent* recorded decision for each subject/scan-type

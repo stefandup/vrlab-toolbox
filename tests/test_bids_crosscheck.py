@@ -491,6 +491,22 @@ class TestRecordTaskTag(unittest.TestCase):
 
         self.assertEqual(destination.name, "sub-001_task-foh_acq-lsl_run-2_beh.xdf")
 
+    def test_replaces_an_existing_task_entity_instead_of_duplicating_it(self):
+        # Real FOH raw recordings can already carry their own task- entity (e.g. the
+        # collection software's own "task-Default") -- must be replaced in place, not left
+        # sitting next to a second, colliding task-foh token.
+        file = _touch(
+            self.bids_folder / "sub-002" / "sub-002_ses-S001_task-Default_run-1_eeg.xdf"
+        )
+
+        destination = record_task_tag(
+            self.bids_folder, "002", "physiology", file, task="foh", suffix="beh", acq="lsl"
+        )
+
+        self.assertEqual(
+            destination.name, "sub-002_ses-S001_task-foh_acq-lsl_run-1_beh.xdf"
+        )
+
     def test_rejects_a_filename_with_no_run_token(self):
         file = _touch(self.bids_folder / "sub-002" / "sub-002_physiology.xdf")
 

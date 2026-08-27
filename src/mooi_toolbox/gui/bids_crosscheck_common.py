@@ -345,7 +345,7 @@ class BidsCrosscheckWindow(QMainWindow):
         self.commit_all_button.setToolTip(
             "Keeps every pick you've made. Removes every OTHER candidate for it from BIDS, "
             "for every pending pick at once -- still safe in the raw folder, which this tool "
-            "never touches; use \"Restore all from BIDS\" to bring them back later.\n\n"
+            "never touches; use \"Restore all from raw folder\" to bring them back later.\n\n"
             "Picking a candidate alone doesn't remove anything yet -- files stay exactly "
             "where they are until you click this.\n\n"
             "Not the same as removing a whole subject -- that's \"Remove from BIDS\" below."
@@ -366,7 +366,7 @@ class BidsCrosscheckWindow(QMainWindow):
         self.rename_all_button.setVisible(self._task_tag_supported)
         summary_bar.addWidget(self.rename_all_button)
 
-        self.restore_button = QPushButton("Restore all from BIDS...")
+        self.restore_button = QPushButton("Restore all from raw folder...")
         self.restore_button.setToolTip(
             "Brings back every subject removed from BIDS -- either a whole subject "
             "(\"Remove from BIDS\") or one with a committed duplicate pick.\n\n"
@@ -389,7 +389,7 @@ class BidsCrosscheckWindow(QMainWindow):
             "no way to revert just one decision; it's everything recorded, or nothing. Only "
             "reverts the LATEST recorded decision per subject/scan-type -- a file corrected "
             "more than once can't be reverted past its first correction. Removed subjects "
-            "are untouched -- use \"Restore all from BIDS\" for those."
+            "are untouched -- use \"Restore all from raw folder\" for those."
         )
         self.revert_all_button.clicked.connect(self._on_revert_all_decisions)
         summary_bar.addWidget(self.revert_all_button)
@@ -1163,7 +1163,7 @@ class BidsCrosscheckWindow(QMainWindow):
             return
         confirm = QMessageBox.question(
             self,
-            "Restore all from BIDS",
+            "Restore all from raw folder",
             "This will bring back every subject removed from BIDS (whole-subject removals "
             "and committed duplicate picks alike). Nothing is moved back -- this clears the "
             "bookkeeping so the next Refresh BIDS/Import re-derives them fresh from the raw "
@@ -1191,9 +1191,9 @@ class BidsCrosscheckWindow(QMainWindow):
             "every recorded decision, including crosschecked marks. There's no selective "
             "revert in this version -- it's everything recorded, or nothing. Only the "
             "LATEST recorded decision per subject/scan-type can be reverted -- a file "
-            "corrected more than once can't be reverted past its first correction. Junked "
-            "files are untouched -- use \"Restore all from junk\" first if you want those "
-            "back too. Continue?",
+            "corrected more than once can't be reverted past its first correction. Removed "
+            "subjects are untouched -- use \"Restore all from raw folder\" first if you want "
+            "those back too. Continue?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -1471,7 +1471,7 @@ class BidsCrosscheckWindow(QMainWindow):
         remove_button.setToolTip(
             "Deletes the whole subject folder from BIDS -- e.g. a pilot run, a "
             "non-participant, a test recording. Still safe in the raw folder, which this "
-            "tool never touches; use \"Restore all from BIDS\" to bring it back later. "
+            "tool never touches; use \"Restore all from raw folder\" to bring it back later. "
             "Lets you record why, so it stays auditable."
         )
         remove_button.clicked.connect(lambda: self._on_remove_subjects_from_bids(subject_ids))
@@ -1572,7 +1572,7 @@ class BidsCrosscheckWindow(QMainWindow):
             title,
             "This deletes the whole subject folder from BIDS for: "
             f"{', '.join(f'sub-{s}' for s in subject_ids)}. Still safe in the raw folder, "
-            "which this tool never touches -- use \"Restore all from BIDS\" to bring it back "
+            "which this tool never touches -- use \"Restore all from raw folder\" to bring it back "
             "later.\n\nOptional reason (why this shouldn't be in BIDS), or leave blank:",
         )
         if not confirmed:

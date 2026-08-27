@@ -622,6 +622,13 @@ def _task_tag_marker(task: str) -> str:
     return f"task-{task}"
 
 
+# Raw FOH recordings sometimes already carry a `task-<label>` entity of their own (e.g. the
+# recording software's own default, `task-Default`) -- record_task_tag replaces an existing
+# one in place rather than inserting a second, colliding `task-` token next to it.
+_TASK_ENTITY_PATTERN = re.compile(r"task-[A-Za-z0-9]+")
+_ACQ_ENTITY_PATTERN = re.compile(r"acq-[A-Za-z0-9]+")
+
+
 def record_task_tag(
     bids_folder: Path,
     subject_id: str,
@@ -632,11 +639,12 @@ def record_task_tag(
     acq: str | None = None,
     datatype_folder_name: str | None = None,
 ) -> Path:
-    """Rename `file` to `..._task-<task>[_acq-<acq>]_run-<NNN>_<suffix>{extension}`, inserting
-    a real `task-`/`acq-` entity before the run number and replacing whatever the collection
-    software put after it (e.g. `_eeg_philani`) with a real BIDS suffix -- BIDS suffixes are a
-    fixed vocabulary, and free text there isn't valid BIDS. Always available regardless of
-    stream detection.
+    """Rename `file` to `..._task-<task>[_acq-<acq>]_run-<NNN>_<suffix>{extension}`, replacing
+    an existing `task-`/`acq-` entity in place if the raw filename already carries one (e.g.
+    the collection software's own `task-Default`), or inserting one fresh if not -- and
+    replacing whatever the collection software put after the run number (e.g. `_eeg_philani`)
+    with a real BIDS suffix, since free text there isn't valid BIDS. Always available
+    regardless of stream detection.
 
     If `datatype_folder_name` is given and differs from `file`'s current parent folder name,
     that whole parent folder is renamed to it too, carrying along anything else still in it
@@ -654,11 +662,22 @@ def record_task_tag(
     run_token = RUN_TOKEN_PATTERN.search(file.stem)
     if run_token is None:
         raise BidsCrosscheckError(f"{file.name} has no run-<NNN> token to tag from")
-    acq_part = f"_acq-{acq}" if acq else ""
-    corrected_name = (
-        f"{file.stem[: run_token.start()]}{marker}{acq_part}_{run_token.group()}_{suffix}"
-        f"{file.suffix}"
-    )
+
+    prefix = file.stem[: run_token.start()]
+    if _TASK_ENTITY_PATTERN.search(prefix):
+        prefix = _TASK_ENTITY_PATTERN.sub(marker, prefix, count=1)
+    else:
+        prefix = f"{prefix}{marker}_"
+    if acq:
+        acq_token = f"acq-{acq}"
+        if _ACQ_ENTITY_PATTERN.search(prefix):
+            prefix = _ACQ_ENTITY_PATTERN.sub(acq_token, prefix, count=1)
+        else:
+            # Right after the (now-current) task- entity -- real BIDS entity order is
+            # sub-ses-task-acq-...-run-suffix.
+            prefix = _TASK_ENTITY_PATTERN.sub(lambda m: f"{m.group()}_{acq_token}", prefix, count=1)
+
+    corrected_name = f"{prefix}{run_token.group()}_{suffix}{file.suffix}"
     destination = file.with_name(corrected_name)
     if _is_real_collision(destination, file):
         # See record_date_correction for why this is checked explicitly rather than relying
