@@ -1,12 +1,12 @@
 """Standalone PySide6 tool: human-in-the-loop crosscheck for the crane BIDS folder.
 
-See docs/bids_crosscheck_plan.md and docs/bids_converter_plan.md. Glob patterns are
-extension-based (`*.mat`/`*.csv`/`*_debrief_events.tsv`), matching
-`cli/crane_convert_to_bids.py`'s real output -- debrief is narrowed to
-`*_debrief_events.tsv` rather than a bare `*.tsv` so it doesn't also match the session's
-own `scans.tsv` sidecar. Unlike FOH, crane has no tagging step (see
-`CraneCandidateExtras`'s comment on `task_correction_available`) -- the converter already
-writes real BIDS suffixes (`_beh`/`_physio`/`_debrief_events`) itself, so there's no raw
+See docs/bids_crosscheck_plan.md and docs/bids_converter_plan.md. Glob patterns match
+`cli/crane_convert_to_bids.py`'s real output by *suffix* (`*.mat`/`*_events.tsv`/
+`*_beh.tsv`), not by extension alone -- behaviour and debrief are both `.tsv` now, so a
+bare `*.tsv` would also match the session's own `scans.tsv` sidecar as well as conflate
+the two scan types with each other. Unlike FOH, crane has no tagging step (see
+`CraneCandidateExtras`'s comment on `task_tag_available`) -- the converter already
+writes real BIDS suffixes (`_physio`/`_events`/`_beh`) itself, so there's no raw
 collection-software junk left for a tag-rename to clean up.
 
 `CraneCandidateExtras` below is the crane analog of `FohCandidateExtras`
@@ -74,14 +74,14 @@ CRANE_DATASET_CONFIG = DatasetConfig(
     dataset_name="crane",
     scan_types=(
         ScanTypeConfig(name="physiology", glob_patterns=("*.mat",)),
-        ScanTypeConfig(name="behaviour", glob_patterns=("*.csv",)),
         # Not a bare "*.tsv" -- that would also match the session's own
-        # sub-XXX_ses-01_scans.tsv sidecar (see crane_convert_to_bids.py), which sits in the
-        # same subject folder tree and would otherwise show up as a bogus debrief candidate.
-        ScanTypeConfig(name="debrief", glob_patterns=("*_debrief_events.tsv",)),
+        # sub-XXX_ses-01_scans.tsv sidecar (see crane_convert_to_bids.py), and would conflate
+        # behaviour with debrief now that both scan types are written tab-delimited.
+        ScanTypeConfig(name="behaviour", glob_patterns=("*_events.tsv",)),
+        ScanTypeConfig(name="debrief", glob_patterns=("*_beh.tsv",)),
     ),
-    # No task_correction_label/task_correction_folder_name -- unlike FOH, crane has no
-    # tagging step at all (see CraneCandidateExtras' comment on task_correction_available).
+    # No task_tag_task/task_tag_folder_name -- unlike FOH, crane has no tagging step at all
+    # (see CraneCandidateExtras' comment on task_tag_available).
     # Crane's converter records each file's date as a scans.tsv row instead of a filename
     # prefix (see docs/bids_converter_plan.md) -- routes the crosscheck GUI's "Correct
     # date..." button to edit that row instead of renaming the file.
@@ -177,7 +177,7 @@ def _parse_physiology_info(file: Path) -> CranePhysiologyInfo:
 
 def _parse_behaviour_info(file: Path) -> CraneBehaviourInfo:
     try:
-        df = pd.read_csv(file)
+        df = pd.read_csv(file, sep="\t")
     except Exception:
         logger.warning("Could not read behaviour data from %s", file, exc_info=True)
         return CraneBehaviourInfo(
@@ -356,10 +356,10 @@ class CraneCandidateExtras(CandidateExtras):
 
         return None
 
-    # No task_correction_available override -- falls back to CandidateExtras' own "False"
+    # No task_tag_available override -- falls back to CandidateExtras' own "False"
     # for every scan type. Tagging (FOH's "Tag as foh") exists to replace non-BIDS free text
     # the *raw collection software* tacks on after the run token; crane_convert_to_bids.py
-    # already writes real BIDS suffixes (_beh/_physio/_debrief_events) itself, so there's no
+    # already writes real BIDS suffixes (_physio/_events/_beh) itself, so there's no
     # junk left to clean up, and tagging would instead destroy that distinction (it replaces
     # everything after run-<NNN> with a single generic label, same for all three scan types).
     # See docs/bids_converter_plan.md.

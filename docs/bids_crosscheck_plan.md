@@ -53,6 +53,25 @@ Crosscheck](foh-crosscheck.md). The decisions below (scan types, JSON
 recording, no-auto-merge, code layering) are all still accurate — it's
 mainly the UI layout that moved on from the original sketch.
 
+**Update (2026-08-27): junk/review became a single delete-and-restore
+mechanism, and FOH tagging now writes real BIDS entities.** `crosscheck_junk/`
+and `crosscheck_review/` (mentioned throughout this doc below) no longer
+exist — `record_subject_junked`/`restore_all_from_junk`/`restore_all_from_review`/
+`delete_all_in_review` were replaced by `record_subject_excluded` and
+`restore_all_from_bids` (`processing/bids_crosscheck.py`), which delete a
+removed subject/candidate outright instead of moving it into a special
+folder inside BIDS -- safe only because the raw folder (see "BIDS folder
+only" below) is never touched, so it was always the real recoverable copy.
+Separately, `task_correction`/`record_task_correction`/`remove_task_correction`
+were renamed to `task_tag`/`record_task_tag`/`remove_task_tag`, and FOH's
+tag itself changed from a bare non-BIDS `_foh` suffix to real BIDS entities
+(`task-foh`, `acq-lsl`, a real `beh` suffix) -- see
+`gui/foh_bids_crosscheck_gui.py`'s `FOH_DATASET_CONFIG` and
+`docs/pipeline_next_steps.md` item 25 for the pipeline-side follow-up this
+still needs. The rest of this document (below) still describes the
+mechanics in their *previous* shape -- read it for the reasoning, not as a
+literal description of current filenames/folders.
+
 ## Decision: BIDS folder only, never *writes to* the raw folder
 
 The crosscheck tool's own scanning/renaming logic (`scan_bids_folder`, every

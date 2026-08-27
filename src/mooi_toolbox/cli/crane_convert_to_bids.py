@@ -22,24 +22,29 @@ fix any that are wrong, once they're visible listed per subject.
 
 Output layout, and why it looks the way it does:
 - Every file goes in `sub-XXX/ses-01/beh/`, not directly in `sub-XXX/ses-01/` -- mirroring
-  FOH's `sub-XXX/eeg/` layout. This isn't cosmetic: `bids_crosscheck.record_task_correction`
-  (the crosscheck tool's "Tag as..." action) renames a *file's parent folder* to the
+  FOH's `sub-XXX/eeg/` layout. This isn't cosmetic: `bids_crosscheck.record_task_tag`
+  (the crosscheck tool's "Tag with..." action) renames a *file's parent folder* to the
   dataset's datatype folder when tagging -- if files sat directly in `sub-XXX/ses-01/`,
   tagging would rename that whole session folder itself. Placing them under `beh/` up front
   makes that rename a same-name no-op instead.
 - `ses-01` is a fixed placeholder, same spirit as `run-001` below -- crane has no real
   multi-session concept today, so this is always "01", not a real session count.
-- Every filename includes a `run-001` token -- `record_task_correction` requires one
+- Every filename includes a `run-001` token -- `record_task_tag` requires one
   (`RUN_TOKEN_PATTERN`) and raises otherwise. Crane doesn't have multi-run semantics today,
   so this is always "001", not a real run count.
-- Scan type is identified by *extension* (`.mat`/`.csv`/`.tsv`), not by a keyword in the
-  filename stem (`gui/crane_bids_crosscheck_gui.py`'s glob patterns) -- because
-  `record_task_correction` replaces everything after the run-<NNN> token with just
-  `_<label>`, so a keyword like "_physio" wouldn't survive tagging. Debrief is written
-  `.tsv` (not `.csv`, same as behaviour) specifically so all three scan types stay
-  distinguishable by extension alone even after a tag rename. `scans.tsv` itself sits one
-  level up (in `ses-01/`, not `ses-01/beh/`), so it never collides with that glob-by-extension
-  matching.
+- Scan type is identified by filename *suffix* (`gui/crane_bids_crosscheck_gui.py`'s glob
+  patterns match `_physio`/`_events`/`_beh`), not by extension alone -- behaviour
+  (`_events.tsv`) and debrief (`_beh.tsv`) now share the `.tsv` extension (see below), so
+  extension can no longer tell them apart by itself. `scans.tsv` itself sits one level up
+  (in `ses-01/`, not `ses-01/beh/`), so it never collides with either suffix-based glob.
+- Every filename also carries an `acq-<label>` entity (`acq-physiology`/`acq-behaviour`/
+  `acq-debrief`), naming which raw source the file came from independent of its BIDS
+  suffix. Real BIDS suffixes used: physiology -> `_physio` (`.mat`, raw `shutil.copy2`,
+  extension untouched); behaviour -> `_events` (per-trial task data -- this is BIDS's own
+  suffix for trial/timing data, which requires `.tsv`, so the raw `.csv` is read and
+  rewritten tab-delimited on copy rather than byte-copied); debrief -> `_beh` (the REDCAP
+  post-task questionnaire -- genuinely behavioural, not event-timing, data; already written
+  tab-delimited, so only its suffix/acq label changed, not its format).
 """
 
 import csv
@@ -334,7 +339,7 @@ def _has_debrief_file(output_folder: Path, subject_id: str) -> bool:
     datatype_folder = (
         output_folder / f"{SUBJECT_FOLDER_PREFIX}{subject_id}" / SESSION_TOKEN / DATATYPE_FOLDER_NAME
     )
-    return datatype_folder.is_dir() and any(datatype_folder.glob("*_debrief_events.tsv"))
+    return datatype_folder.is_dir() and any(datatype_folder.glob("*_beh.tsv"))
 
 
 def _session_folder(output_folder: Path, subject_id: str) -> Path:
@@ -389,18 +394,18 @@ def _existing_acq_date(output_folder: Path, subject_id: str) -> str | None:
     return rows[0]["acq_time"] if rows else None
 
 
-def _bids_filename(subject_id: str, suffix: str, extension: str) -> str:
+def _bids_filename(subject_id: str, acq: str, suffix: str, extension: str) -> str:
     return (
-        f"{SUBJECT_FOLDER_PREFIX}{subject_id}_{SESSION_TOKEN}_{TASK_TOKEN}_{RUN_TOKEN}_"
-        f"{suffix}{extension}"
+        f"{SUBJECT_FOLDER_PREFIX}{subject_id}_{SESSION_TOKEN}_{TASK_TOKEN}_acq-{acq}_"
+        f"{RUN_TOKEN}_{suffix}{extension}"
     )
 
 
-def _copy_into_subject_folder(
-    source: Path, output_folder: Path, subject_id: str, acq_date: str, suffix: str
+def _resolve_destination(
+    output_folder: Path, subject_id: str, acq: str, suffix: str, extension: str
 ) -> Path:
     destination = _datatype_folder(output_folder, subject_id) / _bids_filename(
-        subject_id, suffix, source.suffix
+        subject_id, acq, suffix, extension
     )
     if destination.exists():
         # Two different source files landed on the same destination name -- e.g. a Windows
@@ -412,11 +417,33 @@ def _copy_into_subject_folder(
         candidate = destination
         while candidate.exists():
             candidate = _datatype_folder(output_folder, subject_id) / _bids_filename(
-                subject_id, f"{suffix}-dup{counter}", source.suffix
+                subject_id, acq, f"{suffix}-dup{counter}", extension
             )
             counter += 1
         destination = candidate
+    return destination
+
+
+def _copy_into_subject_folder(
+    source: Path, output_folder: Path, subject_id: str, acq_date: str, acq: str, suffix: str
+) -> Path:
+    destination = _resolve_destination(output_folder, subject_id, acq, suffix, source.suffix)
     shutil.copy2(source, destination)
+    _append_scans_tsv_row(output_folder, subject_id, destination, acq_date)
+    return destination
+
+
+def _copy_into_subject_folder_as_tsv(
+    source: Path, output_folder: Path, subject_id: str, acq_date: str, acq: str, suffix: str
+) -> Path:
+    """Like `_copy_into_subject_folder`, but reformats the source into a true tab-delimited
+    `.tsv` rather than byte-copying it -- for a scan type whose BIDS suffix (`_events`)
+    requires `.tsv` even though the raw source is comma-delimited. A real reformat, not just
+    a rename: round-tripping through pandas can trim trailing float precision on numeric
+    columns, unlike every other scan type here which is still a pure byte copy.
+    """
+    destination = _resolve_destination(output_folder, subject_id, acq, suffix, ".tsv")
+    pd.read_csv(source).to_csv(destination, sep="\t", index=False)
     _append_scans_tsv_row(output_folder, subject_id, destination, acq_date)
     return destination
 
@@ -495,7 +522,7 @@ def convert_crane_to_bids(
         acq_date = parsed.date_prefix or "nodate"
         subject_acq_date.setdefault(parsed.subject_id, acq_date)
         destination = _copy_into_subject_folder(
-            mat_file, output_folder, parsed.subject_id, acq_date, "physio"
+            mat_file, output_folder, parsed.subject_id, acq_date, "physiology", "physio"
         )
         subject_physiology[parsed.subject_id].append(destination)
 
@@ -509,8 +536,8 @@ def convert_crane_to_bids(
             continue
         acq_date = parsed.date_prefix or "nodate"
         subject_acq_date.setdefault(parsed.subject_id, acq_date)
-        destination = _copy_into_subject_folder(
-            csv_file, output_folder, parsed.subject_id, acq_date, "beh"
+        destination = _copy_into_subject_folder_as_tsv(
+            csv_file, output_folder, parsed.subject_id, acq_date, "behaviour", "events"
         )
         subject_behaviour[parsed.subject_id].append(destination)
 
@@ -550,7 +577,7 @@ def convert_crane_to_bids(
                     or "nodate"
                 )
                 destination = _datatype_folder(output_folder, subject_id) / _bids_filename(
-                    subject_id, "debrief_events", ".tsv"
+                    subject_id, "debrief", "beh", ".tsv"
                 )
                 subject_rows.to_csv(destination, index=False, sep="\t")
                 _append_scans_tsv_row(output_folder, subject_id, destination, acq_date)

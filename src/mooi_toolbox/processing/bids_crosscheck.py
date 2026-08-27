@@ -12,8 +12,7 @@ logger = logging.getLogger(__name__)
 
 DECISIONS_FILENAME = "crosscheck.json"
 PENDING_SELECTIONS_FILENAME = "crosscheck_pending.json"
-JUNK_FOLDER_NAME = "crosscheck_junk"
-REVIEW_FOLDER_NAME = "crosscheck_review"
+EXCLUDED_SUBJECTS_FILENAME = "excluded_subjects.json"
 SUBJECT_FOLDER_PREFIX = "sub-"
 BIDSIGNORE_FILENAME = ".bidsignore"
 RUN_TOKEN_PATTERN = re.compile(r"run-\d+")
@@ -35,9 +34,14 @@ class ScanTypeConfig:
 class DatasetConfig:
     dataset_name: str
     scan_types: tuple[ScanTypeConfig, ...]
-    task_correction_scan_type: str | None = None
-    task_correction_label: str = "FOH"
-    task_correction_folder_name: str | None = None
+    task_tag_scan_type: str | None = None
+    # The BIDS `task-<task>` entity value to insert (e.g. "foh"), the BIDS suffix to rename
+    # the trailing free text to (e.g. "beh"), and an optional `acq-<acq>` entity (e.g. "lsl")
+    # -- see record_task_tag for how these combine into the actual filename.
+    task_tag_task: str = "foh"
+    task_tag_suffix: str = "beh"
+    task_tag_acq: str | None = None
+    task_tag_folder_name: str | None = None
     # True for datasets (e.g. crane) that record each file's acquisition date as a row in a
     # `scans.tsv` sidecar (see cli/crane_convert_to_bids.py) instead of a leading filename
     # date prefix -- gates whether the crosscheck GUI's "Correct date..." button edits that
@@ -86,20 +90,16 @@ class BidsFolderScan:
         return any(scan.status != "ok" for scan in self.scans[subject_id].values())
 
 
-def junk_folder(bids_folder: Path) -> Path:
-    return bids_folder / JUNK_FOLDER_NAME
-
-
-def review_folder(bids_folder: Path) -> Path:
-    return bids_folder / REVIEW_FOLDER_NAME
-
-
 def decisions_path(bids_folder: Path) -> Path:
     return bids_folder / DECISIONS_FILENAME
 
 
 def pending_selections_path(bids_folder: Path) -> Path:
     return bids_folder / PENDING_SELECTIONS_FILENAME
+
+
+def excluded_subjects_path(bids_folder: Path) -> Path:
+    return bids_folder / EXCLUDED_SUBJECTS_FILENAME
 
 
 def _is_real_collision(destination: Path, source: Path) -> bool:
@@ -127,8 +127,7 @@ def ensure_bidsignore(bids_folder: Path, extra_patterns: tuple[str, ...] = ()) -
     required = (
         DECISIONS_FILENAME,
         PENDING_SELECTIONS_FILENAME,
-        f"{JUNK_FOLDER_NAME}/",
-        f"{REVIEW_FOLDER_NAME}/",
+        EXCLUDED_SUBJECTS_FILENAME,
         *extra_patterns,
     )
     path = bids_folder / BIDSIGNORE_FILENAME
@@ -148,16 +147,30 @@ def ensure_bidsignore(bids_folder: Path, extra_patterns: tuple[str, ...] = ()) -
 
 def iter_subject_folders(bids_folder: Path):
     for entry in sorted(bids_folder.iterdir()):
-        if (
-            entry.is_dir()
-            and entry.name.startswith(SUBJECT_FOLDER_PREFIX)
-            and entry.name != JUNK_FOLDER_NAME
-        ):
+        if entry.is_dir() and entry.name.startswith(SUBJECT_FOLDER_PREFIX):
             yield entry.name[len(SUBJECT_FOLDER_PREFIX) :], entry
 
 
+def load_excluded_subjects(bids_folder: Path) -> dict[str, str | None]:
+    """`{subject_id: reason}` for every subject a human has removed from BIDS (reason may be
+    None). See `record_subject_excluded`."""
+    path = excluded_subjects_path(bids_folder)
+    if not path.exists():
+        return {}
+    with path.open("r", encoding="utf-8") as excluded_file:
+        return json.load(excluded_file)
+
+
+def save_excluded_subjects(bids_folder: Path, excluded: dict[str, str | None]) -> None:
+    _write_json_atomic(excluded_subjects_path(bids_folder), excluded)
+
+
 def existing_subject_ids(bids_folder: Path) -> set[str]:
-    """Every subject id already present as a `sub-XXX/` folder in `bids_folder`.
+    """Every subject id that should be treated as already handled: either it still has a
+    `sub-XXX/` folder in `bids_folder`, or it's been removed from BIDS via
+    `record_subject_excluded` (whose folder is deleted, not kept) -- without the latter half,
+    an excluded subject would look brand new to a raw-to-BIDS importer and get silently
+    re-copied back in on the very next refresh.
 
     Shared by every raw-to-BIDS importer (`cli/crane_convert_to_bids.py`,
     `cli/foh_import_to_bids.py`) to decide which subjects to skip -- copy-only,
@@ -166,16 +179,16 @@ def existing_subject_ids(bids_folder: Path) -> set[str]:
     per dataset.
     """
     if not bids_folder.is_dir():
-        return set()
-    return {subject_id for subject_id, _ in iter_subject_folders(bids_folder)}
+        return set(load_excluded_subjects(bids_folder))
+    present = {subject_id for subject_id, _ in iter_subject_folders(bids_folder)}
+    return present | set(load_excluded_subjects(bids_folder))
 
 
 def scan_bids_folder(bids_folder: Path, config: DatasetConfig) -> BidsFolderScan:
     """Scan `bids_folder` for every subject x scan-type candidate file.
 
-    Read-only: never moves, renames, or writes anything. The tool's own junk
-    folder (see `junk_folder`) is excluded, since it holds files a human has
-    already decided not to keep.
+    Read-only: never moves, renames, or writes anything. A subject a human has excluded (see
+    `record_subject_excluded`) simply isn't found here, since its folder no longer exists.
     """
     scans: dict[str, dict[str, SubjectScan]] = {}
 
@@ -254,106 +267,75 @@ def _decision_key(subject_id: str, scan_type: str | None = None) -> str:
 
 def _crosschecked_key(subject_id: str, scan_type: str) -> str:
     # Deliberately distinct from _decision_key: crosschecked is an independent, human-toggled
-    # marker that must not overwrite a selected_run/date_correction/task_correction entry
-    # already recorded under the same subject_id/scan_type.
+    # marker that must not overwrite a selected_run/date_correction/task_tag entry already
+    # recorded under the same subject_id/scan_type.
     return f"{_decision_key(subject_id, scan_type)}_crosschecked"
 
 
-def _subject_junked_key(subject_id: str) -> str:
-    # Deliberately distinct from _decision_key(subject_id) -- that bare key is already used by
-    # record_id_correction's id_correction entries; junking a subject must not collide with an
-    # existing ID-correction record for the same subject_id.
-    return f"{subject_id}_junked"
+def record_subject_excluded(bids_folder: Path, subject_id: str, reason: str | None = None) -> Path:
+    """Remove a whole subject's `sub-<id>/` folder from BIDS -- e.g. a test recording, or
+    someone who was never really a participant.
 
-
-def _move_to(bids_folder: Path, file: Path, destination_root: Path) -> Path:
-    destination = destination_root / file.relative_to(bids_folder)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(file), str(destination))
-    return destination
-
-
-def _restore_entry(
-    bids_folder: Path, entry: Path, source_root: Path, restored: list[Path]
-) -> None:
-    destination = bids_folder / entry.relative_to(source_root)
-    if entry.is_dir() and destination.exists():
-        # The mirrored folder already exists in bids_folder (e.g. record_selected_run only
-        # moved some of this subject's duplicate files aside, not the whole subject via
-        # record_subject_junked) -- merge by restoring its contents individually instead of
-        # moving the folder itself, which would collide with the existing one.
-        for child in sorted(entry.iterdir()):
-            _restore_entry(bids_folder, child, source_root, restored)
-        try:
-            entry.rmdir()
-        except OSError:
-            pass
-        return
-    if destination.exists():
-        raise BidsCrosscheckError(f"{destination} already exists -- resolve manually")
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(entry), str(destination))
-    restored.append(destination)
-
-
-def _restore_all_from(bids_folder: Path, source_root: Path) -> tuple[list[Path], list[str]]:
-    """Move everything currently in `source_root` back to where it came from.
-
-    Moved files and folders mirror the path they came from (see `_move_to` and
-    `record_subject_junked`), so restoring is a direct reverse of that mirror -- no need to
-    interpret which decision put something there. There's no selective, per-subject restore
-    in this version (see docs/foh-crosscheck.md) -- it's everything in that folder, or
-    nothing. Resilient at the file level, though: one entry that can't be restored (e.g.
-    something already sitting at its destination) doesn't block the rest -- returns
-    (restored_paths, error_messages) so the caller can report both.
+    Deletes outright rather than moving anywhere (unlike the old `crosscheck_junk/`): no
+    importer/converter in this project ever touches the raw folder, so it's still the
+    authoritative, recoverable copy -- keeping a second copy inside BIDS was redundant.
+    `reason`, if given, is recorded alongside the exclusion (`excluded_subjects.json`) so it
+    stays auditable. See `restore_all_from_bids` to undo -- it clears the exclusion and lets
+    the next raw-to-BIDS refresh re-derive the subject fresh from raw.
     """
-    if not source_root.is_dir():
-        return [], []
-    restored: list[Path] = []
-    errors: list[str] = []
-    for entry in sorted(source_root.iterdir()):
-        try:
-            _restore_entry(bids_folder, entry, source_root, restored)
-        except (BidsCrosscheckError, OSError) as error:
-            errors.append(f"{entry.relative_to(source_root)}: {error}")
-    return restored, errors
+    original_folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{subject_id}"
+    if not original_folder.is_dir():
+        raise BidsCrosscheckError(f"No subject folder for {subject_id!r}")
+
+    shutil.rmtree(original_folder)
+    excluded = load_excluded_subjects(bids_folder)
+    excluded[subject_id] = reason
+    save_excluded_subjects(bids_folder, excluded)
+    return original_folder
 
 
-def restore_all_from_junk(bids_folder: Path) -> tuple[list[Path], list[str]]:
-    """Move everything currently in `crosscheck_junk/` back to where it came from."""
-    return _restore_all_from(bids_folder, junk_folder(bids_folder))
+def restore_all_from_bids(bids_folder: Path) -> tuple[list[str], list[str]]:
+    """Undo every subject exclusion and every committed duplicate pick, so the next
+    raw-to-BIDS refresh re-derives all of it fresh from the never-touched raw folder.
 
-
-def restore_all_from_review(bids_folder: Path) -> tuple[list[Path], list[str]]:
-    """Move everything currently in `crosscheck_review/` back to where it came from."""
-    return _restore_all_from(bids_folder, review_folder(bids_folder))
-
-
-def delete_all_in_review(bids_folder: Path) -> tuple[int, list[str]]:
-    """Permanently delete everything currently in `crosscheck_review/`.
-
-    The one genuinely irreversible operation in this module -- everywhere else in this tool,
-    "removed" only ever means "moved to a folder it can be recovered from" (see junk_folder,
-    review_folder). This is for once a second crosschecker has actually looked through
-    crosscheck_review/ and confirmed none of it is needed -- at that point it's just taking
-    up space. Resilient at the entry level, like `_restore_all_from`: one failure doesn't
-    block the rest. Returns (deleted_count, error_messages).
+    There's no per-file restore any more: neither an excluded subject's folder
+    (`record_subject_excluded`) nor a non-selected duplicate candidate (`record_selected_run`)
+    is kept anywhere inside `bids_folder` once removed -- both are deleted outright, on the
+    guarantee that the raw folder still has the original. Restoring therefore can't just move
+    something back; for an excluded subject it clears the exclusion record, and for a
+    committed pick it deletes what's left of that subject's folder too, so the next refresh
+    re-derives the WHOLE subject (every scan type, not just the one that had a duplicate) --
+    any other decision already made for that subject (date corrections, crosschecked marks,
+    other scan types' picks) goes with it. Bulk only, same as before: it's everything, or
+    nothing. Resilient at the subject level: one failure doesn't block the rest. Returns
+    (restored_subject_ids, error_messages).
     """
-    review = review_folder(bids_folder)
-    if not review.is_dir():
-        return 0, []
-    deleted = 0
+    restored: set[str] = set()
     errors: list[str] = []
-    for entry in sorted(review.iterdir()):
+
+    excluded = load_excluded_subjects(bids_folder)
+    if excluded:
+        restored.update(excluded)
+        save_excluded_subjects(bids_folder, {})
+
+    decisions = load_decisions(bids_folder)
+    selected_run_keys = [key for key, entry in decisions.items() if entry.get("type") == "selected_run"]
+    changed = False
+    for key in selected_run_keys:
+        subject_id = decisions[key]["subject_id"]
+        folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{subject_id}"
         try:
-            if entry.is_dir():
-                shutil.rmtree(entry)
-            else:
-                entry.unlink()
-            deleted += 1
+            if folder.is_dir():
+                shutil.rmtree(folder)
+            del decisions[key]
+            changed = True
+            restored.add(subject_id)
         except OSError as error:
-            errors.append(f"{entry.relative_to(review)}: {error}")
-    return deleted, errors
+            errors.append(f"sub-{subject_id}: {error}")
+    if changed:
+        _write_decisions_atomic(bids_folder, decisions)
+
+    return sorted(restored), errors
 
 
 def record_selected_run(
@@ -363,18 +345,16 @@ def record_selected_run(
     selected_file: Path,
     candidate_files: tuple[Path, ...],
 ) -> None:
-    """Pick `selected_file` as canonical among `candidate_files`; move the rest to review.
+    """Pick `selected_file` as canonical among `candidate_files`; delete the rest outright.
 
-    Always `REVIEW_FOLDER_NAME`, never junk -- a non-selected duplicate isn't necessarily
-    wrong, just not this pick, so it's kept easy to find for a second crosschecker rather
-    than mixed in with genuinely disposable data. `JUNK_FOLDER_NAME`/`crosscheck_junk/` is
-    reserved entirely for `record_subject_junked` -- a whole subject that really is junk
-    (a pilot run, a non-participant, a test recording), not an individual candidate file.
+    Deleted, not moved aside (unlike the old `crosscheck_review/`) -- no importer/converter
+    in this project ever touches the raw folder, so a non-selected duplicate is always still
+    recoverable from there. See `restore_all_from_bids` to undo (re-derives the whole
+    subject fresh on the next refresh, not just this one file).
     """
     if selected_file not in candidate_files:
         raise BidsCrosscheckError(f"{selected_file} is not among the candidate files")
 
-    destination_root = bids_folder / REVIEW_FOLDER_NAME
     decisions = load_decisions(bids_folder)
     decisions[_decision_key(subject_id, scan_type)] = {
         "type": "selected_run",
@@ -387,7 +367,7 @@ def record_selected_run(
 
     for file in candidate_files:
         if file != selected_file:
-            _move_to(bids_folder, file, destination_root)
+            file.unlink()
 
 
 def record_date_correction(
@@ -460,7 +440,7 @@ def _write_scans_tsv_rows(path: Path, rows: list[dict[str, str]]) -> None:
 
 def _sync_scans_tsv_filename(bids_folder: Path, old_file: Path, new_file: Path) -> None:
     """Keep a `scans.tsv` sidecar's `filename` column pointed at `new_file` after
-    `record_task_correction`/`remove_task_correction`/`revert_all_decisions` renames a file
+    `record_task_tag`/`remove_task_tag`/`revert_all_decisions` renames a file
     (and possibly its parent datatype folder) -- otherwise the sidecar silently keeps listing
     the file under a name that no longer exists. No-op for datasets without one (e.g. FOH).
     """
@@ -603,35 +583,6 @@ def record_id_correction(bids_folder: Path, original_id: str, corrected_id: str)
     return corrected_folder
 
 
-def record_subject_junked(bids_folder: Path, subject_id: str, reason: str | None = None) -> Path:
-    """Move a whole subject's `sub-<id>/` folder to junk, decision recorded first.
-
-    Unlike `record_selected_run` (which junks non-selected duplicate files, one scan type at a
-    time), this removes the subject from the crosscheck view entirely -- e.g. a test recording,
-    or someone who was never really a participant. `reason`, if given, is recorded alongside the
-    decision so `crosscheck_junk/` stays auditable rather than an unexplained pile of folders.
-    """
-    original_folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{subject_id}"
-    if not original_folder.is_dir():
-        raise BidsCrosscheckError(f"No subject folder for {subject_id!r}")
-
-    destination = junk_folder(bids_folder) / original_folder.name
-    if destination.exists():
-        raise BidsCrosscheckError(f"{destination} already exists -- resolve manually")
-
-    decisions = load_decisions(bids_folder)
-    decisions[_subject_junked_key(subject_id)] = {
-        "type": "subject_junked",
-        "subject_id": subject_id,
-        "junked_reason": reason,
-    }
-    _write_decisions_atomic(bids_folder, decisions)
-
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(original_folder), str(destination))
-    return destination
-
-
 def crosschecked_scan_types(bids_folder: Path) -> set[tuple[str, str]]:
     """(subject_id, scan_type) pairs a human has manually marked as crosschecked.
 
@@ -667,18 +618,25 @@ def set_crosschecked(
     _write_decisions_atomic(bids_folder, decisions)
 
 
-def record_task_correction(
+def _task_tag_marker(task: str) -> str:
+    return f"task-{task}"
+
+
+def record_task_tag(
     bids_folder: Path,
     subject_id: str,
     scan_type: str,
     file: Path,
-    label: str = "FOH",
+    task: str,
+    suffix: str,
+    acq: str | None = None,
     datatype_folder_name: str | None = None,
 ) -> Path:
-    """Rename `file` to `..._run-<NNN>_{label}{suffix}`, replacing whatever the collection
-    software put after the run number (e.g. `_eeg_philani`) -- BIDS suffixes are a fixed
-    vocabulary, and free text there isn't valid BIDS. Always available regardless of stream
-    detection.
+    """Rename `file` to `..._task-<task>[_acq-<acq>]_run-<NNN>_<suffix>{extension}`, inserting
+    a real `task-`/`acq-` entity before the run number and replacing whatever the collection
+    software put after it (e.g. `_eeg_philani`) with a real BIDS suffix -- BIDS suffixes are a
+    fixed vocabulary, and free text there isn't valid BIDS. Always available regardless of
+    stream detection.
 
     If `datatype_folder_name` is given and differs from `file`'s current parent folder name,
     that whole parent folder is renamed to it too, carrying along anything else still in it
@@ -686,17 +644,21 @@ def record_task_correction(
     "eeg" regardless of what the recording actually contains, which is misleading once a file's
     been confirmed and tagged.
     """
-    # Case-insensitive: a file already tagged under a different casing of this label (e.g.
-    # legacy "_FOH" data from before the label's casing changed) still counts as tagged --
-    # Windows/macOS's case-insensitive filesystems would treat re-tagging it as a collision
-    # with itself anyway (see _is_real_collision).
-    if f"_{label}".lower() in file.stem.lower():
-        raise BidsCrosscheckError(f"{file.name} already carries the {label!r} label")
+    marker = _task_tag_marker(task)
+    # Case-insensitive: a file already tagged under a different casing of this marker still
+    # counts as tagged -- Windows/macOS's case-insensitive filesystems would treat re-tagging
+    # it as a collision with itself anyway (see _is_real_collision).
+    if marker.lower() in file.stem.lower():
+        raise BidsCrosscheckError(f"{file.name} already carries the {marker!r} tag")
 
     run_token = RUN_TOKEN_PATTERN.search(file.stem)
     if run_token is None:
-        raise BidsCrosscheckError(f"{file.name} has no run-<NNN> token to rename from")
-    corrected_name = f"{file.stem[: run_token.end()]}_{label}{file.suffix}"
+        raise BidsCrosscheckError(f"{file.name} has no run-<NNN> token to tag from")
+    acq_part = f"_acq-{acq}" if acq else ""
+    corrected_name = (
+        f"{file.stem[: run_token.start()]}{marker}{acq_part}_{run_token.group()}_{suffix}"
+        f"{file.suffix}"
+    )
     destination = file.with_name(corrected_name)
     if _is_real_collision(destination, file):
         # See record_date_correction for why this is checked explicitly rather than relying
@@ -712,12 +674,14 @@ def record_task_correction(
 
     decisions = load_decisions(bids_folder)
     decisions[_decision_key(subject_id, scan_type)] = {
-        "type": "task_correction",
+        "type": "task_tag",
         "subject_id": subject_id,
         "scan_type": scan_type,
         "original_filename": file.name,
         "corrected_filename": corrected_name,
-        "label": label,
+        "task": task,
+        "acq": acq,
+        "suffix": suffix,
         "original_parent_folder": original_parent_name,
         "corrected_parent_folder": new_parent.name if new_parent else original_parent_name,
     }
@@ -732,39 +696,50 @@ def record_task_correction(
     return destination
 
 
-def remove_task_correction(
+def remove_task_tag(
     bids_folder: Path,
     subject_id: str,
     scan_type: str,
     file: Path,
-    label: str = "FOH",
+    task: str,
+    suffix: str,
+    acq: str | None = None,
 ) -> Path:
-    """Reverse `record_task_correction`: rename `file` back to its recorded original name.
+    """Reverse `record_task_tag`: rename `file` back to its recorded original name.
 
-    Can't be computed structurally from `file`'s current name alone -- record_task_correction
-    replaces everything after the run-<NNN> token, so the original suffix (e.g.
-    `_eeg_philani`) isn't recoverable from `..._FOH` by itself. Falls back to stripping just
-    the tag (losing the original suffix) only if no matching recorded decision exists -- e.g.
-    the file was tagged outside this tool, or a later, different decision overwrote the record
-    at that key. The same fallback applies to the parent folder: it's only renamed back if the
-    matching decision recorded what it was renamed from (see `record_task_correction`).
+    Can't be computed structurally from `file`'s current name alone in general --
+    record_task_tag inserts the task-/acq- entity and replaces everything after the run-<NNN>
+    token, so the original free text (e.g. `_eeg_philani`) isn't recoverable from the tagged
+    name by itself. Falls back to a best-effort structural strip (losing the original free
+    text) only if no matching recorded decision exists -- e.g. the file was tagged outside
+    this tool, or a later, different decision overwrote the record at that key. The same
+    fallback applies to the parent folder: it's only renamed back if the matching decision
+    recorded what it was renamed from (see `record_task_tag`).
     """
-    suffix_tag = f"_{label}"
-    if not file.stem.lower().endswith(suffix_tag.lower()):
-        raise BidsCrosscheckError(f"{file.name} does not carry a trailing {label!r} tag")
+    marker = _task_tag_marker(task)
+    if marker.lower() not in file.stem.lower():
+        raise BidsCrosscheckError(f"{file.name} does not carry a {marker!r} tag")
 
     decisions = load_decisions(bids_folder)
     recorded = decisions.get(_decision_key(subject_id, scan_type))
     original_parent_folder = None
     if (
         recorded is not None
-        and recorded.get("type") == "task_correction"
+        and recorded.get("type") == "task_tag"
         and recorded.get("corrected_filename", "").lower() == file.name.lower()
     ):
         corrected_name = recorded["original_filename"]
         original_parent_folder = recorded.get("original_parent_folder")
     else:
-        corrected_name = f"{file.stem[: -len(suffix_tag)]}{file.suffix}"
+        run_token = RUN_TOKEN_PATTERN.search(file.stem)
+        if run_token is None:
+            raise BidsCrosscheckError(f"{file.name} has no run-<NNN> token to untag from")
+        acq_part = f"_acq-{acq}" if acq else ""
+        inserted = f"{marker}{acq_part}_"
+        prefix = file.stem[: run_token.start()]
+        if not prefix.lower().endswith(inserted.lower()):
+            raise BidsCrosscheckError(f"{file.name} doesn't match the expected tagged shape")
+        corrected_name = f"{prefix[: -len(inserted)]}{run_token.group()}{file.suffix}"
     destination = file.with_name(corrected_name)
     if _is_real_collision(destination, file):
         # See record_date_correction for why this is checked explicitly rather than relying
@@ -779,12 +754,14 @@ def remove_task_correction(
             raise BidsCrosscheckError(f"{new_parent} already exists -- resolve manually")
 
     decisions[_decision_key(subject_id, scan_type)] = {
-        "type": "task_correction_removed",
+        "type": "task_tag_removed",
         "subject_id": subject_id,
         "scan_type": scan_type,
         "original_filename": file.name,
         "corrected_filename": corrected_name,
-        "label": label,
+        "task": task,
+        "acq": acq,
+        "suffix": suffix,
         "original_parent_folder": original_parent_name,
         "corrected_parent_folder": new_parent.name if new_parent else original_parent_name,
     }
@@ -799,7 +776,7 @@ def remove_task_correction(
     return destination
 
 
-_REVERTIBLE_RENAME_TYPES = ("date_correction", "task_correction", "task_correction_removed")
+_REVERTIBLE_RENAME_TYPES = ("date_correction", "task_tag", "task_tag_removed")
 
 
 def revert_all_decisions(bids_folder: Path) -> tuple[list[Path], list[str]]:
@@ -814,8 +791,9 @@ def revert_all_decisions(bids_folder: Path) -> tuple[list[Path], list[str]]:
     record is already gone by the time this runs. There's no selective, per-decision revert in
     this version (see docs/foh-crosscheck.md) -- it's everything recorded, or nothing.
 
-    Junked files/subjects are untouched here -- see `restore_all_from_junk` for those; run
-    that first if you want renames reverted *and* junked files back before reverting them too.
+    Excluded subjects and committed duplicate picks are untouched here -- see
+    `restore_all_from_bids` for those; run that first if you want renames reverted *and*
+    excluded/committed subjects back before reverting them too.
     """
     decisions = load_decisions(bids_folder)
     reverted: list[Path] = []
@@ -835,7 +813,7 @@ def revert_all_decisions(bids_folder: Path) -> tuple[list[Path], list[str]]:
                     continue
                 corrected_file.rename(destination)
                 # date_correction entries never set this field, so this is a no-op for them --
-                # only task_correction/task_correction_removed can carry a parent-folder rename.
+                # only task_tag/task_tag_removed can carry a parent-folder rename.
                 original_parent_folder = entry.get("original_parent_folder")
                 if original_parent_folder and destination.parent.name != original_parent_folder:
                     new_parent = destination.parent.with_name(original_parent_folder)

@@ -19,7 +19,7 @@ folder + BIDS folder + an optional debrief-workbook override selector, all
 in the crosscheck window itself — see `bids_crosscheck_common.py`'s generic
 `raw_converter`/`override_file_label` hooks, which FOH doesn't use and gets
 no UI for). The debrief design idea below is implemented as described: each
-subject gets their own extracted row, written `..._debrief_events.tsv`
+subject gets their own extracted row, written `..._acq-debrief_run-001_beh.tsv`
 (tab-delimited, not the whole shared workbook). **Update: FOH's importer now exists too** — `cli/foh_import_to_bids.py`
 (`import_foh_raw_to_bids()`), wired into `gui/foh_bids_crosscheck_gui.py` the
 same way as crane's, via the same generic `raw_converter` hook. Unlike
@@ -82,15 +82,26 @@ date in a scan filename; per-scan acquisition dates belong in a
 `sub-XXX/ses-01/sub-XXX_ses-01_scans.tsv` sidecar instead (`filename`,
 `acq_time` columns, one row per file). Decided:
 
-- New layout: `sub-XXX/ses-01/beh/sub-XXX_ses-01_task-crane_run-001_{suffix}.ext`,
+- New layout: `sub-XXX/ses-01/beh/sub-XXX_ses-01_task-crane_acq-<label>_run-001_{suffix}.ext`,
   plus `sub-XXX/ses-01/sub-XXX_ses-01_scans.tsv` listing every file underneath
   with its date.
 - `ses-01` is a fixed placeholder, same spirit as `run-001` -- crane has no
   real multi-session concept today, so no session-detection logic was added.
-- Suffixes: `behaviour` -> `beh` (real BIDS suffix), `physiology` -> `physio`
-  (real BIDS suffix), `debrief_events` unchanged (not a real BIDS suffix, but
-  already serves as this project's extension-based scan-type disambiguator --
-  see the module docstring in `cli/crane_convert_to_bids.py`).
+- Suffixes: `physiology` -> `physio` (real BIDS suffix, `.mat`, raw copy),
+  `behaviour` -> `events` (real BIDS suffix for per-trial task/timing data --
+  reformatted from the raw `.csv` to true tab-delimited `.tsv` on copy, since
+  BIDS requires `.tsv` for `_events`), `debrief` -> `beh` (real BIDS suffix
+  for genuinely behavioural, non-timing data -- the REDCAP post-task
+  questionnaire; already tab-delimited, so this was a pure suffix rename).
+  Every filename also carries an `acq-<label>` entity
+  (`acq-physiology`/`acq-behaviour`/`acq-debrief`) naming which raw source it
+  came from, since behaviour and debrief now share both a `.tsv` extension
+  and (as of this rename) real BIDS suffixes that alone don't disambiguate
+  them from a same-named file of a different scan type. **Decided
+  2026-08-27** -- see `cli/crane_convert_to_bids.py`'s module docstring for
+  the full reasoning; previously `behaviour` was `_beh` and `debrief` was
+  `_debrief_events` (not a real BIDS suffix), which had the two swapped
+  relative to what they actually contain.
 - `acq_time` values are carried through as-is (same as the old filename date
   prefix was) -- not normalized to true ISO8601, since they aren't reliably
   parseable as real calendar dates (inconsistent length/format across raw
@@ -108,8 +119,8 @@ date in a scan filename; per-scan acquisition dates belong in a
   because crane's raw filenames carried non-BIDS junk needing cleanup -- FOH's
   tagging exists to replace free text the *raw collection software* tacks on
   after the run token (`..._eeg_philani.xdf` -> `..._foh.xdf`). Crane's
-  converter already writes real BIDS suffixes (`_beh`/`_physio`/
-  `_debrief_events`) itself, so there's nothing left to clean up -- and tagging
+  converter already writes real BIDS suffixes (`_physio`/`_events`/
+  `_beh`) itself, so there's nothing left to clean up -- and tagging
   would instead have *destroyed* that distinction, since `record_task_correction`
   replaces everything after `run-<NNN>` with one generic label, the same for
   all three scan types. Duplicate-picking (`record_selected_run`) and
@@ -129,23 +140,25 @@ date in a scan filename; per-scan acquisition dates belong in a
   inspecting before designing anything crane-side, rather than inventing a
   scheme from nothing -- see the "FOH's importer now exists too" update
   above for where that ended up.
-- **Crane:** no naming convention decided yet. The crosscheck tool's own
-  glob patterns (`processing/bids_crosscheck.py`'s `CRANE_DATASET_CONFIG`,
-  in `gui/crane_bids_crosscheck_gui.py`) are currently guesses grounded in
-  `bids_crosscheck_plan.md`'s mockup — a real converter's output naming is
-  what should settle those, not the other way around.
-- **Debrief file, design idea (not decided):** the raw debrief source is one
-  shared REDCAP workbook (`crane_debrief_behaviour.REDCAP_FN`) covering every
-  subject, not a per-subject file. Copying that whole workbook as-is into
-  every `sub-XXX/` folder (one `*redcap*` glob match each) would work
-  mechanically but duplicates every other subject's row into each subject's
-  folder for no reason. Discussed alternative: the converter extracts just
-  that one subject's row and writes it as its own per-subject file, in the
-  same spirit as `crane_behaviour.RawCraneBehaviourData.to_bids_events()`
-  already does for behaviour (a `BidsEventsData`/events-style output) — i.e.
-  a small per-subject debrief file, not a duplicated multi-subject workbook.
-  Not spec'd further than that; revisit once a converter is actually being
-  built.
+- **Crane:** ~~no naming convention decided yet~~ **Decided** — see the
+  "crane naming moved to real BIDS conventions" update above; the crosscheck
+  tool's `CRANE_DATASET_CONFIG` glob patterns (`gui/crane_bids_crosscheck_gui.py`)
+  now match the converter's real output rather than being guesses.
+- **Debrief file, design idea:** ~~not decided~~ **Decided and implemented** —
+  the converter extracts just the matching subject's row from the shared
+  REDCAP workbook and writes it as its own per-subject `..._acq-debrief_run-001_beh.tsv`
+  file (`load_debrief_export`/`convert_crane_to_bids` in
+  `cli/crane_convert_to_bids.py`), exactly the small-per-subject-file
+  alternative discussed below rather than duplicating the whole workbook.
+
+## TODO
+
+- **Re-implement/re-verify raw-to-BIDS conversion for both FOH and crane once
+  their real pipelines change.** Noted 2026-08-27 by the project owner while
+  finalizing the crane debrief/behaviour suffix swap above — a reminder that
+  today's `crane_convert_to_bids.py`/`foh_import_to_bids.py` naming will need
+  a fresh implementation pass on both sides later, not a scoped task right
+  now.
 
 ## Out of scope for now
 

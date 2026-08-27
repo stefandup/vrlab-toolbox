@@ -109,10 +109,10 @@ raw one. This is the folder every step from here on actually works with.
 
 The tool also makes sure a `.bidsignore` file at the top of that folder
 lists its own files — `crosscheck.json`, `crosscheck_pending.json`,
-`crosscheck_junk/`, `crosscheck_review/`, and its cached recording info —
-appending to `.bidsignore` if one already exists (without touching
-anything else in it) or creating one if not, so a BIDS validator doesn't
-flag them as unexpected.
+`excluded_subjects.json`, and its cached recording info — appending to
+`.bidsignore` if one already exists (without touching anything else in
+it) or creating one if not, so a BIDS validator doesn't flag them as
+unexpected.
 
 ### 4. Read the subject list
 
@@ -215,41 +215,38 @@ name in the subject list — worth a second look before you commit to it.
 
 ### 8. Save your decision
 
-Once you're confident, click **"Move non-selected to crosscheck_review"**
+Once you're confident, click **"Remove non-selected files from BIDS"**
 in the **Subject actions** panel (above the recording detail) — this
-moves the other recording(s) aside into a `crosscheck_review` folder
-(nothing is ever deleted) and records your decision. It only appears
-enabled once you've actually picked something; the button's label counts
-your pending picks so you can see at a glance whether there's anything to
-save.
+deletes the other recording(s) from your BIDS folder and records your
+decision. Nothing is lost: the raw folder (step 2) is never touched by
+this tool, so a removed recording is always still sitting there if you
+ever need it back — see [step 14](#14-restore-or-revert-everything) to
+bring it back into BIDS. It only appears enabled once you've actually
+picked something; the button's label counts your pending picks so you
+can see at a glance whether there's anything to save.
 
-!!! note "What's crosscheck_review/, and why not junk?"
-    `crosscheck_review/` is a folder this tool creates at the top of your
-    BIDS folder to hold recordings that weren't picked. It's deliberately
-    a separate concept from **junk**: a duplicate that wasn't picked isn't
-    necessarily wrong, just not the recording being used — you might not
-    be fully sure it should be ruled out entirely. Putting it in
-    `crosscheck_review/` keeps it easy for a second crosschecker to find
-    and double-check later, rather than quietly mixed in with data that's
-    genuinely disposable (a pilot run, a non-participant). That's what
-    **junk** is for instead — see [step 13](#13-send-a-subject-to-junk) —
-    and it's a separate, deliberate action, not something committing a
-    pick ever does on its own.
+!!! note "Why delete instead of moving it aside?"
+    Earlier versions of this tool moved a non-picked duplicate into a
+    `crosscheck_review/` folder inside BIDS instead of deleting it. That
+    turned out to be redundant: the raw folder is never touched by this
+    tool either way, so it was already the recoverable copy. Deleting the
+    BIDS-side copy keeps things simpler — there's just your raw folder and
+    your BIDS folder, nothing in between.
 
     Nothing moves the moment you *pick* a candidate (step 6) — picking is
     just a preview. Files stay exactly where they are until you actually
-    click a "...to crosscheck_review" button.
+    click a "Remove non-selected..." button.
 
 If you've gone through several subjects and picked a recording for each
 without saving as you went, you don't have to repeat that per subject —
-click **"Move all non-selected to crosscheck_review"** near the top of
+click **"Remove non selected files from BIDS"** near the top of
 the window to save everything you've picked in one go, or select just the
-ones you want first and use **"Commit selected to crosscheck_review"** in
-the Subject actions panel instead (see [Working with several subjects at
-once](#working-with-several-subjects-at-once) below). Because either of
-those affects more than one subject at once, both ask you to confirm
-before doing anything — the single-subject version above doesn't, since
-it's already a deliberate one-at-a-time click.
+ones you want first and use **"Remove non-selected files from BIDS for
+selected"** in the Subject actions panel instead (see [Working with
+several subjects at once](#working-with-several-subjects-at-once) below).
+Because either of those affects more than one subject at once, both ask
+you to confirm before doing anything — the single-subject version above
+doesn't, since it's already a deliberate one-at-a-time click.
 
 !!! note "Didn't get to finish?"
     If you close the tool with picks still pending (still showing the ⏳
@@ -292,23 +289,24 @@ subjects to the same new ID wouldn't make sense.)
 
 !!! note "Why don't I see \"Correct date...\" next to every candidate?"
     For a subject with more than one candidate recording, **"Correct
-    date..."** (and **"Tag as foh"**, see below) only appears next to
-    whichever one you've picked with the radio button — there's nothing to
-    correct on a file you haven't confirmed is the right one yet. Pick it
-    first (step 6), and the button appears.
+    date..."** (and **"Tag with foh BIDS tags"**, see below) only appears
+    next to whichever one you've picked with the radio button — there's
+    nothing to correct on a file you haven't confirmed is the right one
+    yet. Pick it first (step 6), and the button appears.
 
-### 12. Tag files as foh
+### 12. Tag files with real BIDS tags
 
-Once you're confident a recording is the right one, click **"Tag as
-foh"** next to it. This replaces whatever comes after the `run-<NNN>`
-part of the filename with `_foh` — so `..._run-001_eeg_philani.xdf`
-becomes `..._run-001_foh.xdf`, not `..._run-001_eeg_philani_foh.xdf`. The
-collection software often tacks on extra free text there (a device
-suffix, a collector's name), which isn't a valid BIDS suffix; tagging
-cleans that up at the same time as marking the file, rather than tagging
-on top of it. Lowercase, matching BIDS's own suffix convention (`eeg`,
-`beh`, ...) — "FOH" the study name stays capitalized everywhere else on
-this page; this is just the filename tag.
+Once you're confident a recording is the right one, click **"Tag with
+foh BIDS tags"** next to it. This inserts a `task-foh` entity (and an
+`acq-lsl` entity, since this was collected over Lab Streaming Layer) just
+before the `run-<NNN>` part of the filename, and replaces whatever comes
+after it with the real BIDS suffix `beh` — so
+`..._run-001_eeg_philani.xdf` becomes
+`..._task-foh_acq-lsl_run-001_beh.xdf`, not
+`..._run-001_eeg_philani_foh.xdf`. The collection software often tacks on
+extra free text after the run number (a device suffix, a collector's
+name), which isn't valid BIDS; tagging cleans that up at the same time as
+marking the file, rather than tagging on top of it.
 
 !!! note "What's the eeg -> beh folder switch about?"
     The folder the file lives in gets renamed too, from `eeg` to `beh` —
@@ -324,98 +322,87 @@ this page; this is just the filename tag.
     Nothing else in that folder gets left behind: any other file still
     sitting there — an unresolved duplicate you haven't picked yet, say —
     moves along with the folder rather than being separated from it.
-    Un-tagging (below) renames the folder back to `eeg`.
+    Removing the tag (below) renames the folder back to `eeg`.
 
 Tagged the wrong recording, or tagged one that turns out not to be a real
-foh recording after all? The same button turns into **"Un-tag as foh"**
-once a file carries the tag — click it to restore the original filename
-(the tool remembers what that was when it tagged the file, even though
-it's no longer visible in the current name) and strip the tag back off.
-The 🏷 icon comes back on that subject until you tag the right one (or
-decide none of its candidates should be).
+foh recording after all? The same button turns into **"Remove foh BIDS
+tags"** once a file carries the tag — click it to restore the original
+filename (the tool remembers what that was when it tagged the file, even
+though it's no longer visible in the current name) and strip the tags
+back off. The 🏷 icon comes back on that subject until you tag the right
+one (or decide none of its candidates should be).
 
 If you'd rather do this for every subject in one pass instead of
-file-by-file, click **"Tag all selected as foh"** near the top of the
-window (next to "Move all non-selected to crosscheck_review"). It walks
-every subject, tags whichever recording currently counts as "the one,"
-and skips anything already tagged — and, like "Move all non-selected to
-crosscheck_review," it asks you to confirm first since it touches every
+file-by-file, click **"Tag all selected with foh BIDS tags"** near the
+top of the window (next to "Remove non selected files from BIDS"). It
+walks every subject, tags whichever recording currently counts as "the
+one," and skips anything already tagged — and, like "Remove non selected
+files from BIDS," it asks you to confirm first since it touches every
 subject at once. It only ever adds tags, never removes them, so an
-accidental tag still needs undoing by hand with "Un-tag as foh."
+accidental tag still needs undoing by hand with "Remove foh BIDS tags."
 
 Only want to tag the subjects you've currently selected rather than the
 whole folder? Select them in the subject list first, then use **"Tag
-selected as foh"** in the **Subject actions** panel instead — same
-behaviour, just scoped to your selection.
+selected with foh BIDS tags"** in the **Subject actions** panel instead —
+same behaviour, just scoped to your selection.
 
-### 13. Send a subject to junk
+### 13. Remove a subject from BIDS
 
 Sometimes a whole subject doesn't belong in the folder at all — a test
 recording that got saved alongside real data, or someone who was never
-really a participant. The **Subject actions** panel has two ways to
-remove one:
+really a participant. Click **"Remove from BIDS..."** in the **Subject
+actions** panel — this deletes the subject's entire folder from BIDS
+(their raw recording is untouched, and still sitting in the raw folder
+from step 2) and asks you for an optional reason first, so it's clear
+later why they were removed. Leave the reason blank and click OK if you
+don't need to record one, or Cancel to back out without removing anything.
 
-- **"Send to junk..."** moves the subject's entire folder into
-  `crosscheck_junk/`, out of this view.
-- **"Mark as non-participant / non-foh and junk..."** does the same
-  thing, but records *why* first, so anyone looking in the junk folder
-  later can see it wasn't just an ordinary duplicate cleanup.
+If you removed the wrong subject, see [step
+14](#14-restore-or-revert-everything) to bring them back.
 
-Both ask you to confirm first, and — like everything else this tool
-moves — nothing is ever deleted. If you junked the wrong subject, their
-folder is still sitting in `crosscheck_junk/`; move it back by hand.
+### 14. Restore or revert everything
 
-### 14. Restore from junk, restore from review, or revert everything
+Made a mistake and want to start over? Two buttons near the top of the
+window, next to "Remove non selected files from BIDS," cover the whole
+folder at once:
 
-Made a mistake and want to start over? Four buttons near the top of the
-window, next to "Move all non-selected to crosscheck_review," cover the
-whole folder at once:
-
-- **"Restore all from junk..."** moves everything currently sitting in
-  `crosscheck_junk/` back to where it came from — whole subjects sent
-  there with "Send to junk..." (step 13).
-- **"Restore all from review..."** does the same thing for
-  `crosscheck_review/` (step 8) — its own separate button, so restoring
-  one never accidentally pulls back the other.
-- **"Permanently delete review..."** — see the warning below. This one's
-  different from everything else in this list.
+- **"Restore all from BIDS..."** brings back every subject removed from
+  BIDS — whether removed whole (step 13) or with a duplicate resolved
+  (step 8). Nothing is moved back, since nothing was kept anywhere inside
+  BIDS to move — this just clears the bookkeeping that told **Refresh
+  BIDS** to skip them, so click **Refresh BIDS** (step 2) afterward to
+  actually bring the data back in. For a subject that had a duplicate
+  resolved, this brings back their *whole* folder, not just the one file
+  that was removed — any other decision already made for them (a
+  corrected date, a crosschecked mark, another scan type's pick) goes
+  with it and needs redoing.
 - **"Revert all changes..."** reverses every recorded rename — corrected
   dates, corrected IDs, foh tags — and clears every recorded decision,
   including crosschecked marks.
 
 !!! warning "Bulk only, for this version at least"
-    None of the restore/revert buttons let you pick and choose. **"Restore
-    all from junk"** and **"Restore all from review"** each bring back
-    everything in their own folder, not just one subject's files.
-    **"Revert all changes"** reverses everything recorded, not just one
-    decision — and only the *most recent* recorded decision for each
-    subject/scan-type can be reversed, since each new correction overwrites
-    the previous record rather than keeping a history. A recording that
-    was, say, date-corrected and *then* tagged foh can only be reverted
-    back to its date-corrected state, not all the way back to its very
-    first filename.
+    Neither button lets you pick and choose. **"Restore all from BIDS"**
+    brings back every removed subject, not just one. **"Revert all
+    changes"** reverses everything recorded, not just one decision — and
+    only the *most recent* recorded decision for each subject/scan-type
+    can be reversed, since each new correction overwrites the previous
+    record rather than keeping a history. A recording that was, say,
+    date-corrected and *then* tagged foh can only be reverted back to its
+    date-corrected state, not all the way back to its very first
+    filename.
 
-    Junked and review-folder files aren't touched by "Revert all
-    changes" — if you want everything back, restore those first.
-
-!!! danger "\"Permanently delete review\" cannot be undone"
-    Every other button on this page moves files somewhere recoverable —
-    that's the whole point of junk and review folders, and it's why this
-    page keeps saying "nothing is ever deleted." This one button is the
-    single exception: it deletes whatever's currently in
-    `crosscheck_review/` for good, not moved anywhere, not recoverable by
-    hand afterwards. Only use it once a second crosschecker has actually
-    gone through the review folder and confirmed there's nothing in it
-    worth keeping.
+    Subjects removed from BIDS aren't touched by "Revert all changes" —
+    if you want everything back, restore those first.
 
 ## Working with several subjects at once
 
 Click a subject to select it, or Ctrl-click (or Shift-click for a range)
 to select several at once. With more than one selected, the detail panel
 switches to a **"Subject actions — N subjects selected"** panel with bulk
-versions of the actions above: **Commit selected to crosscheck_review**,
-**Refresh**, **Tag selected as foh**, **Mark selected crosschecked** /
-**Un-mark selected crosschecked**, and **Send selected to junk...**.
+versions of the actions above: **Remove non-selected files from BIDS for
+selected**, **Refresh**, **Tag selected with foh BIDS tags**, **Mark
+selected crosschecked** / **Un-mark selected crosschecked**, and **Remove
+selected from BIDS...**.
 
 Two things stay single-subject only, on purpose:
 
@@ -425,8 +412,8 @@ Two things stay single-subject only, on purpose:
   than one candidate — that judgement call always stays in the
   per-subject recording panel, never a bulk action. A subject still
   waiting on that pick is simply skipped by any bulk action that needs an
-  actual file to work with (e.g. **Commit selected to crosscheck_review**
-  or bulk FOH-tagging).
+  actual file to work with (e.g. **Remove non-selected files from BIDS
+  for selected** or bulk FOH-tagging).
 
 ## A sibling tool for Crane
 

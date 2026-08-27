@@ -1124,6 +1124,32 @@ applies to item 22's BIDS direction above: a timepoint input folder should
 be handled as a `Path` end to end, not a string that gets converted back and
 forth.
 
+### 25. `input_data.py`'s FOH physiology lookup needs updating for the new real-BIDS task tag
+
+Not done yet — flagged 2026-08-27 for the project owner to pick up themselves; out of
+scope for the crosscheck/converter rework that prompted it (see
+[bids_converter_plan.md](bids_converter_plan.md)'s TODO section for the FOH+crane
+re-implementation reminder this is part of).
+
+The FOH crosscheck GUI's "Tag as..." action (`gui/foh_bids_crosscheck_gui.py`'s
+`FOH_DATASET_CONFIG`, via `processing/bids_crosscheck.record_task_tag`) now writes real BIDS
+entities instead of a bare non-BIDS label: a tagged recording used to end in `..._foh.xdf`
+and now ends in `..._task-foh_acq-lsl_run-<NNN>_beh.xdf` (task-foh entity, acq-lsl entity,
+real `beh` suffix, same `.xdf` extension).
+
+`processing/input_data.py:167-183` (`ParticipantConfig.from_lsl_data`'s physiology lookup)
+still expects the *old* shape: it globs `*{id}*{PIPELINE_ID}{extension}` (`PIPELINE_ID =
+"foh"`, hardcoded at `input_data.py:20`) and then requires the filename's last
+underscore-delimited token to be exactly `"foh.xdf"`
+(`str(xdf_path.name).split("_")[-1] != f"{PIPELINE_ID}.xdf"`). Once real FOH data actually
+gets tagged with the new scheme, that check's last token will be `"beh.xdf"`, not `"foh.xdf"`
+— every real recording would raise `ValueError("No physiology files matching *_foh.xdf found
+for participant ...")` instead of being found. This is real pipeline/processing code
+(`processing/`, not `cli/`/`gui/`), so it was deliberately left untouched by the
+crosscheck/converter rework — needs its own pass to match the new filename shape (and decide
+whether `PIPELINE_ID`'s manual sync with `FOH_DATASET_CONFIG.task_tag_task`, already flagged
+as a loose end, gets addressed at the same time).
+
 ## Deferred: FOH & LongWalk
 
 Picked up once Crane's contract, tests, and cleanup above are settled —

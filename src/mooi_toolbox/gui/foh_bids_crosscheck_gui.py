@@ -49,17 +49,21 @@ INFO_SCHEMA_VERSION = 2
 FOH_DATASET_CONFIG = DatasetConfig(
     dataset_name="foh",
     scan_types=(ScanTypeConfig(name="recording", glob_patterns=("*.xdf",)),),
-    task_correction_scan_type="recording",
-    # Lowercase, matching BIDS's own suffix/label convention (e.g. "eeg", "beh") -- "FOH" the
-    # study name stays capitalized everywhere else, this is just the filename tag.
-    task_correction_label="foh",
-    # The raw collection folder is literally named "eeg" regardless of what's actually in it --
-    # this is physiology (and sometimes behaviour) data over LSL, not EEG. "beh" (behavioural
-    # data) is the closest fit in BIDS's own datatype vocabulary, unlike "foh" itself, which
-    # isn't a real BIDS term -- renaming *to* "foh" would just move the same problem down a
-    # level. Only takes effect once a recording's confirmed and tagged (see
-    # record_task_correction).
-    task_correction_folder_name="beh",
+    task_tag_scan_type="recording",
+    # Lowercase, matching BIDS's own entity/suffix convention -- "FOH" the study name stays
+    # capitalized everywhere else, this is just the filename tag. Tagging now writes real BIDS
+    # entities/suffix (see record_task_tag) instead of a bare non-BIDS "_foh" label: a
+    # `task-foh` entity (this recording is FOH's task), an `acq-lsl` entity (collected over
+    # Lab Streaming Layer -- there may eventually be non-LSL FOH files too, so this isn't
+    # redundant), and a real `beh` suffix. "beh" (behavioural data) is the closest fit in
+    # BIDS's own suffix vocabulary for this physiology-plus-sometimes-behaviour-over-LSL
+    # recording, unlike "foh" itself, which isn't a real BIDS term.
+    task_tag_task="foh",
+    task_tag_acq="lsl",
+    task_tag_suffix="beh",
+    # The raw collection folder is literally named "eeg" regardless of what's actually in it.
+    # Only takes effect once a recording's confirmed and tagged (see record_task_tag).
+    task_tag_folder_name="beh",
 )
 
 
@@ -217,7 +221,7 @@ class FohCandidateExtras(CandidateExtras):
         self._dirty = False
 
     def describe(self, scan_type: str, file: Path) -> str | None:
-        if scan_type != FOH_DATASET_CONFIG.task_correction_scan_type:
+        if scan_type != FOH_DATASET_CONFIG.task_tag_scan_type:
             return None
         info = self._candidate_info(file)
         found_streams = sum(info.streams.values())
@@ -237,7 +241,7 @@ class FohCandidateExtras(CandidateExtras):
         return " &nbsp;&nbsp; ".join(parts)
 
     def describe_tooltip(self, scan_type: str, file: Path) -> str | None:
-        if scan_type != FOH_DATASET_CONFIG.task_correction_scan_type:
+        if scan_type != FOH_DATASET_CONFIG.task_tag_scan_type:
             return None
         info = self._candidate_info(file)
         lines = ["Streams found in this recording:"]
@@ -254,7 +258,7 @@ class FohCandidateExtras(CandidateExtras):
         return "\n".join(lines)
 
     def detail(self, scan_type: str, file: Path) -> str | None:
-        if scan_type != FOH_DATASET_CONFIG.task_correction_scan_type:
+        if scan_type != FOH_DATASET_CONFIG.task_tag_scan_type:
             return None
         info = self._candidate_info(file)
         streams_text = " ".join(
@@ -287,21 +291,21 @@ class FohCandidateExtras(CandidateExtras):
             f"&nbsp;&nbsp; {channels_text} &nbsp;&nbsp; {rate_text}"
         )
 
-    def task_correction_available(self, scan_type: str) -> bool:
-        return scan_type == FOH_DATASET_CONFIG.task_correction_scan_type
+    def task_tag_available(self, scan_type: str) -> bool:
+        return scan_type == FOH_DATASET_CONFIG.task_tag_scan_type
 
     def refreshable(self, scan_type: str) -> bool:
-        return scan_type == FOH_DATASET_CONFIG.task_correction_scan_type
+        return scan_type == FOH_DATASET_CONFIG.task_tag_scan_type
 
     def refresh(self, scan_type: str, file: Path) -> None:
         """Force a reparse for one candidate. Caller batches the disk write via `flush()`
         (e.g. once after refreshing every subject in a bulk selection, not once per file)."""
-        if scan_type != FOH_DATASET_CONFIG.task_correction_scan_type:
+        if scan_type != FOH_DATASET_CONFIG.task_tag_scan_type:
             return
         self._candidate_info(file, force=True)
 
     def has_warning(self, scan_type: str, file: Path) -> bool:
-        if scan_type != FOH_DATASET_CONFIG.task_correction_scan_type:
+        if scan_type != FOH_DATASET_CONFIG.task_tag_scan_type:
             return False
         info = self._candidate_info(file)
         if _srate_mismatch(info):
