@@ -11,8 +11,9 @@ matplotlib.use("Agg")
 
 from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.crane_behaviour import RawCraneBehaviourData
-from mooi_toolbox.processing.crane_debrief_behaviour import REDCAP_FN, RawDebriefBehaviourData
+from mooi_toolbox.processing.crane_debrief_behaviour import RawDebriefBehaviourData
 from mooi_toolbox.processing.crane_dummy_data import (
+    DUMMY_GROUP_DEBRIEF_FN,
     REFERENCE_ERROR_TYPES,
     characterize_reference_trigger_pattern,
     discover_template_pairs,
@@ -149,8 +150,8 @@ class TestReferenceTriggerPatternGeneration(unittest.TestCase):
     def test_repeated_calls_accumulate_debrief_rows_instead_of_overwriting(self):
         first = self._generate_matching("missing_initial_trigger", "REFACCUM1")
         second = self._generate_matching("missing_last_trigger", "REFACCUM2")
-        workbook = pd.read_excel(self.output_folder / REDCAP_FN, engine="openpyxl")
-        subject_ids = set(workbook["Subject_ID"])
+        workbook = pd.read_csv(self.output_folder / DUMMY_GROUP_DEBRIEF_FN)
+        subject_ids = set(workbook["record_id"])
         self.assertIn(first.subject_id, subject_ids)
         self.assertIn(second.subject_id, subject_ids)
 

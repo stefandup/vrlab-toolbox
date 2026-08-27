@@ -92,6 +92,10 @@ class RawDebriefBehaviourData(RawBehaviourData):
 
         matching_subject_df = self.raw_behav_df.loc[self.raw_behav_df["record_id"] == subject_id_in]
 
+        if matching_subject_df.empty:
+            logger.error(f"Subject {subject_id_in} not found in {GROUP_REDCAP_GLOB}.")
+            raise ValueError
+
         raw_debrief_data_out = RawDebriefBehaviourData(
             subject_config=self.subject_config, raw_behav_df=matching_subject_df
         )
@@ -137,6 +141,10 @@ def get_group_debrief_data(group_data_fn: Path) -> pd.DataFrame:
     red_cap_glob = GROUP_REDCAP_GLOB
 
     debrief_fn_list = list(group_data_fn.rglob(red_cap_glob))
+
+    if not debrief_fn_list:
+        logger.error(f"Could not find debrief data at {GROUP_REDCAP_GLOB}.")
+        raise FileNotFoundError
 
     if len(debrief_fn_list) > 1:
         logger.warning(f"Multiple files detected. Using {debrief_fn_list[0]}")

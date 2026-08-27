@@ -11,7 +11,7 @@ from mooi_toolbox.processing.crane_behaviour import (
     EMOTIONS_TESTED,
     build_crane_raw_behav_file_schema,
 )
-from mooi_toolbox.processing.crane_debrief_behaviour import REDCAP_FN, emotion_cols
+from mooi_toolbox.processing.crane_debrief_behaviour import GROUP_REDCAP_GLOB, emotion_cols
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,9 @@ OUTCOME_COUNT_COLUMNS = (
     "NrForcedSlips",
 )
 TRIGGER_PULSE_GAP_SECONDS = 3.0
+# A literal filename matching GROUP_REDCAP_GLOB's wildcard -- the dummy debrief data doesn't
+# have a real export date, so the wildcard is filled with a fixed token instead.
+DUMMY_GROUP_DEBRIEF_FN = GROUP_REDCAP_GLOB.replace("*", "dummy")
 
 
 @dataclass
@@ -249,18 +252,16 @@ def _mutate_physiology_dict(
 
 
 def _build_debrief_rows(subject_id: str, rng: np.random.Generator) -> pd.DataFrame:
-    rows: list[dict[str, str | int]] = [
-        {
-            "Subject_ID": subject_id,
-            "Subject_Names": f"Dummy Participant {subject_id}",
-            "started_with_Crane_MobiLab": str(rng.choice(["Yes", "No"])),
-            "High_at_start_end": str(rng.choice(["High", "Low"])),
-            "BARREL": barrel,
-            **{emotion: int(rng.integers(1, 6)) for emotion in emotion_cols},
-        }
-        for barrel in ("GREEN", "RED")
-    ]
-    return pd.DataFrame(rows)
+    row: dict[str, str | int] = {
+        "record_id": subject_id,
+        "started": str(rng.choice(["1", "2"])),
+        "height": str(rng.integers(150, 195)),
+        "High_at_start_end": str(rng.choice(["High", "Low"])),
+    }
+    for emotion in emotion_cols:
+        row[f"crane_{emotion}_rb"] = int(rng.integers(1, 6))
+        row[f"crane_{emotion}_gb"] = int(rng.integers(1, 6))
+    return pd.DataFrame([row])
 
 
 def generate_dummy_participant(
@@ -298,10 +299,10 @@ def generate_dummy_participant(
 
 
 def generate_dummy_debrief_workbook(debrief_rows: list[pd.DataFrame], output_folder: Path) -> Path:
-    workbook_path = output_folder / REDCAP_FN
+    csv_path = output_folder / DUMMY_GROUP_DEBRIEF_FN
     combined = pd.concat(debrief_rows, ignore_index=True) if debrief_rows else pd.DataFrame()
-    combined.to_excel(workbook_path, index=False, engine="openpyxl")
-    return workbook_path
+    combined.to_csv(csv_path, index=False)
+    return csv_path
 
 
 def generate_dummy_dataset(
@@ -349,15 +350,15 @@ def generate_dummy_dataset(
 
 
 def _append_debrief_rows_to_workbook(debrief_rows: pd.DataFrame, output_folder: Path) -> Path:
-    """Merges debrief_rows into output_folder's debrief workbook, keeping rows already there."""
-    workbook_path = output_folder / REDCAP_FN
-    if workbook_path.exists():
-        existing_rows = pd.read_excel(workbook_path, engine="openpyxl")
+    """Merges debrief_rows into output_folder's debrief CSV, keeping rows already there."""
+    csv_path = output_folder / DUMMY_GROUP_DEBRIEF_FN
+    if csv_path.exists():
+        existing_rows = pd.read_csv(csv_path)
         combined_rows = pd.concat([existing_rows, debrief_rows], ignore_index=True)
     else:
         combined_rows = debrief_rows
-    combined_rows.to_excel(workbook_path, index=False, engine="openpyxl")
-    return workbook_path
+    combined_rows.to_csv(csv_path, index=False)
+    return csv_path
 
 
 def find_reference_mat_file(reference_folder: Path, reference_subject_id: str) -> Path:
