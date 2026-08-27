@@ -1,414 +1,519 @@
+from __future__ import annotations
+
 import logging
-import os
 from pathlib import Path
 
 import click
+import matplotlib.pyplot as plt
 import pandas as pd
+from rich.progress import Progress
 
 from mooi_toolbox import mobi_logging
-from mooi_toolbox.cli.check_mobi_xdf import check_mobi_xdf as get_and_check_xdf
-from mooi_toolbox.processing import eda, lsl
-from mooi_toolbox.processing.eeg import EEGProcessingError, run_spiral_eeg_processing
+from mooi_toolbox.processing.graphomotor_pipeline import run_pipeline
+from mooi_toolbox.processing.graphomotor_xdf import find_subject_ids
 from mooi_toolbox.processing.plot_utils import save_plot
+from mooi_toolbox.processing.spiral import SpiralTaskProcessor
 
 logger = logging.getLogger(__name__)
 
-EDA_COLUMN_NAMES = ["EDA", "EDA0", "GSR", "GSR0"]
+def remove_unwanted_old_pngs(
+    subject_folder: Path,
+    subject_id: str,
+) -> None:
+    """Remove figures produced by older Spiral versions."""
 
-
-def get_stream_name(stream) -> str:
-    return stream["info"]["name"][0]
-
-
-def get_stream_type(stream) -> str:
-    return stream["info"].get("type", [""])[0]
-
-
-def get_effective_srate(stream) -> float:
-    time_stamps = stream.get("time_stamps", [])
-
-    if len(time_stamps) < 2:
-        return 0
-
-    duration = time_stamps[-1] - time_stamps[0]
-
-    if duration <= 0:
-        return 0
-
-    return len(time_stamps) / duration
-
-
-def get_column_names_from_stream(stream) -> list[str]:
-    try:
-        channels = stream["info"]["desc"][0]["channels"][0]["channel"]
-        return [channel["label"][0] for channel in channels]
-    except Exception:
-        time_series = stream.get("time_series", [])
-
-        if len(time_series) == 0:
-            return []
-
-        first_sample = time_series[0]
-
-        if hasattr(first_sample, "__len__"):
-            n_channels = len(first_sample)
-        else:
-            n_channels = 1
-
-        return [f"channel_{i}" for i in range(n_channels)]
-
-
-def stream_to_dataframe(stream) -> pd.DataFrame:
-    column_names = get_column_names_from_stream(stream)
-
-    if len(column_names) == 0:
-        raise ValueError("Stream has no samples or no channel names.")
-
-    df = pd.DataFrame(
-        stream["time_series"],
-        columns=column_names,
+    unwanted_names = (
+        f"{subject_id}_selected_stream_sample_counts.png",
+        f"{subject_id}_pen_spiral_xy.png",
+        f"{subject_id}_neon_gaze_xy.png",
     )
 
-    df.insert(0, "time_stamps", stream["time_stamps"])
-
-    return df
-
-
-def find_eda_stream(streams):
-    for stream in streams:
-        if len(stream.get("time_series", [])) == 0:
-            continue
-
-        column_names = get_column_names_from_stream(stream)
-
-        for column in column_names:
-            if column in EDA_COLUMN_NAMES:
-                return stream, column
-
-    return None, None
-
-
-def find_eeg_stream(streams):
-    for stream in streams:
-        if len(stream.get("time_series", [])) == 0:
-            continue
-
-        stream_name = get_stream_name(stream).lower()
-        stream_type = get_stream_type(stream).lower()
-
-        if stream_name == "eeg" or stream_type == "eeg":
-            return stream
-
-    return None
-
-
-def find_ipad_stream(streams):
-    for stream in streams:
-        if len(stream.get("time_series", [])) == 0:
-            continue
-
-        stream_name = get_stream_name(stream).lower()
-        stream_type = get_stream_type(stream).lower()
-
-        if (
-            "mindlogger" in stream_name
-            or "live_event" in stream_name
-            or "live_event" in stream_type
-            or "drawing" in stream_name
-        ):
-            return stream
-
-    return None
-
-
-def has_spiral_markers(streams) -> bool:
-    return find_ipad_stream(streams) is not None
-
-
-def score_xdf_streams(streams) -> int:
-    score = 0
-
-    for stream in streams:
-        stream_name = get_stream_name(stream).lower()
-        stream_type = get_stream_type(stream).lower()
-        n_samples = len(stream.get("time_series", []))
-
-        if n_samples == 0:
-            continue
-
-        if stream_name == "eeg" or stream_type == "eeg":
-            score += 1000
-
-        if "opensignals" in stream_name:
-            score += 500
-
-        if "mindlogger" in stream_name or "live_event" in stream_type:
-            score += 300
-
-        if "neon" in stream_name:
-            score += 100
-
-        if n_samples > 10000:
-            score += 100
-
-    return score
-
-
-def find_best_xdf_files(root: Path, verbose: bool = False) -> list[Path]:
-    best_files = {}
-
-    for xdf_fn in root.rglob("*.xdf"):
-        subject_id = lsl.get_subject_id(xdf_fn)
+    for filename in unwanted_names:
+        path = subject_folder / filename
 
         try:
-            streams = get_and_check_xdf(xdf_fn, verbose=False)
-        except Exception as error:
-            logger.warning(
-                "Skipping %s because XDF could not be loaded: %s",
-                xdf_fn.name,
-                error,
-            )
+            path.unlink()
+        except FileNotFoundError:
             continue
 
-        score = score_xdf_streams(streams)
 
-        if verbose:
-            logger.info(
-                "XDF candidate subject=%s file=%s score=%s",
-                subject_id,
-                xdf_fn.name,
-                score,
-            )
+def remove_legacy_csvs(output_folder: Path) -> None:
+    """Remove CSVs produced by the older three-file Spiral output."""
 
-        if score == 0:
+    legacy_files = (
+        "spiral_all_xdf_candidates.csv",
+        "spiral_selected_xdf_summary.csv",
+        "spiral_selected_processing_out.csv",
+    )
+
+    for filename in legacy_files:
+        path = output_folder / filename
+
+        try:
+            path.unlink()
+        except FileNotFoundError:
             continue
 
-        if subject_id not in best_files:
-            best_files[subject_id] = {
-                "xdf_fn": xdf_fn,
-                "score": score,
-            }
-        elif score > best_files[subject_id]["score"]:
-            best_files[subject_id] = {
-                "xdf_fn": xdf_fn,
-                "score": score,
-            }
-
-    return [item["xdf_fn"] for item in best_files.values()]
 
 
-def process_eda_stream(
-    stream,
-    eda_column: str,
-    subject_id: str,
-    output_folder: Path,
-) -> pd.DataFrame:
-    eda_raw_timestamped = stream_to_dataframe(stream)
+def clean_final_output(output_df: pd.DataFrame) -> pd.DataFrame:
+    """Keep only useful participant-level Spiral output columns.
 
-    if eda_column != "EDA":
-        eda_raw_timestamped = eda_raw_timestamped.rename(columns={eda_column: "EDA"})
+    Selection/debugging information required internally by the pipeline is
+    deliberately excluded from the final analysis CSV.
+    """
 
-    sampling_rate = get_effective_srate(stream)
+    # Core fields we explicitly want in the final CSV.
+    preferred_columns = [
+        # Participant / selected recording
+        "Subject_ID",
+        "XDF_File",
 
-    if sampling_rate <= 0:
-        sampling_rate = 1000
+        # Selection QC
+        "Selection_Status",
+        "Selection_Reason",
 
-    logger.info("Processing EDA with sampling rate %.3f Hz", sampling_rate)
+        # Spiral drawing
+        "Drawing_Detected",
+        "Drawing_Window_Duration_sec",
+        "Drawing_Active_Duration_sec",
 
-    eda_proc_out = eda.run_nk_eda_processing(
-        eda_raw_timestamped["EDA"],
-        sampling_rate=sampling_rate,
-    )
+        # EDA / ECG
+        "EDA_Present",
+        "EDA_Coverage_pct",
+        "ECG_Present",
+        "ECG_Coverage_pct",
 
-    eda_data_out = eda.get_eda_data_out(
-        eda_proc_out,
-        interval_label="FullRecording_",
-    )
+        # Eye tracking
+        "Neon_Gaze_Present",
+        "Neon_Gaze_Coverage_pct",
 
-    fig = eda.plot_eda(
-        eda_raw_timestamped=eda_raw_timestamped,
-        scr_participant_data=eda_data_out,
-        nk_complete_ts_out=eda_proc_out,
-        vr_intervals=None,
-        show_plots=False,
-    )
+        # EEG
+        "EEG_Present",
+        "EEG_Coverage_pct",
 
-    try:
-        save_plot(
-            fig,
-            output_folder,
-            subject_id,
-            f"Subject {subject_id} EDA QC",
-        )
-    except AttributeError as error:
-        logger.info("Error saving EDA plot: %s", error)
+        # Spiral hand switch
+        "Switch_Time_sec",
 
-    return eda_data_out
+        # C3 motor EEG
+        "C3_dominant_alpha",
+        "C3_nondominant_alpha",
+        "C3_dominant_beta",
+        "C3_nondominant_beta",
+
+        # C4 motor EEG
+        "C4_dominant_alpha",
+        "C4_nondominant_alpha",
+        "C4_dominant_beta",
+        "C4_nondominant_beta",
+    ]
+
+
+    debug_columns = {
+        "Selected_XDF",
+        "QC_Status",
+        "Missing_Items",
+        "XDF_Path",
+
+        "Candidate_Count",
+        "Candidate_Files",
+        "Selection_Ambiguous",
+
+        "Selection_Class",
+        "Selection_Label",
+        "Selection_Note",
+        "Selection_Tuple",
+        "Selected_By",
+
+        "Filename_Is_Current_EEG_XDF",
+        "Subject_Has_Any_EEG_XDF",
+        "Selected_XDF_Has_EEG",
+
+        "Drawing_Start_XDF_Time",
+        "Drawing_End_XDF_Time",
+
+        # Pen diagnostic fields
+        "Pen_Present",
+        "Pen_Samples",
+        "Pen_Stream_Name",
+        "Pen_Stream_Type",
+        "Pen_Effective_SRate",
+        "Pen_Duration_sec",
+
+        # Neon diagnostic fields
+        "Neon_Gaze_Samples",
+        "Neon_Gaze_Stream_Name",
+        "Neon_Gaze_Stream_Type",
+        "Neon_Gaze_Effective_SRate",
+        "Neon_Gaze_Duration_sec",
+
+        "Any_Neon_Present",
+        "Any_Neon_Samples",
+        "Any_Neon_Stream_Name",
+        "Any_Neon_Stream_Type",
+
+        # EEG diagnostic fields
+        "EEG_Samples",
+        "EEG_Stream_Name",
+        "EEG_Stream_Type",
+        "EEG_Effective_SRate",
+        "EEG_Duration_sec",
+
+        # EDA / ECG diagnostic fields
+        "EDA_Samples",
+        "EDA_Stream_Name",
+        "ECG_Samples",
+        "ECG_Stream_Name",
+
+        # Generic XDF diagnostics
+        "Total_Streams",
+        "Total_NonEmpty_Streams",
+        "Total_Samples_All_Streams",
+    }
+
+    final_columns = [
+        column
+        for column in preferred_columns
+        if column in output_df.columns
+    ]
+
+    additional_processed_columns = [
+        column
+        for column in output_df.columns
+        if column not in final_columns
+        and column not in debug_columns
+    ]
+
+    final_columns += additional_processed_columns
+
+    # Protect against duplicate column names.
+    final_columns = list(dict.fromkeys(final_columns))
+
+    return output_df.loc[:, final_columns].copy()
+
 
 
 @click.command()
 @click.argument(
     "input_folder",
-    type=click.Path(exists=True, dir_okay=True),
+    type=click.Path(
+        exists=True,
+        file_okay=False,
+        path_type=Path,
+    ),
     required=True,
 )
 @click.argument(
     "output_folder",
-    type=click.Path(exists=True, dir_okay=True),
+    type=click.Path(
+        exists=True,
+        file_okay=False,
+        path_type=Path,
+    ),
     required=True,
 )
-@click.option("--verbose", is_flag=True, help="Give verbose output")
-def main(input_folder: str, output_folder: Path, verbose: bool):
-    """CLI tool for batch processing spiral task EEG and EDA data."""
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help="Give verbose output.",
+)
+@click.option(
+    "--skip-heavy-processing",
+    is_flag=True,
+    help=(
+        "Only make stream/QC summaries and PNGs; "
+        "skip EDA/EEG processing."
+    ),
+)
+def main(
+    input_folder: Path,
+    output_folder: Path,
+    verbose: bool,
+    skip_heavy_processing: bool,
+):
+    """Batch-process the Spiral graphomotor task."""
 
     logger.info(
-        "Looking into input folder: %s. Output folder: %s",
+        "Looking into input folder: %s",
         input_folder,
+    )
+    logger.info(
+        "Output folder: %s",
         output_folder,
     )
 
-    out_fn = os.path.join(
-        output_folder,
-        "spiral_process_batch_out.csv",
-    )
+    remove_legacy_csvs(output_folder)
 
-    root = Path(input_folder)
-    out_file_parts = []
+    subject_ids = find_subject_ids(input_folder)
 
-    best_xdf_files = find_best_xdf_files(root, verbose=verbose)
-
-    if len(best_xdf_files) == 0:
-        logger.warning("No usable XDF files found.")
+    if not subject_ids:
+        logger.warning(
+            "No XDF files found under %s.",
+            input_folder,
+        )
         return
 
-    for xdf_fn in best_xdf_files:
-        subject_id = lsl.get_subject_id(xdf_fn)
+    participant_parts: list[pd.DataFrame] = []
 
-        mobi_logging.log_section(logger, f"Subject {subject_id}")
+    task_processor = SpiralTaskProcessor()
 
-        try:
-            streams = get_and_check_xdf(xdf_fn, verbose=False)
-        except Exception as error:
-            logger.warning(
-                "Skipping %s because XDF could not be loaded: %s",
-                xdf_fn.name,
-                error,
-            )
-            continue
 
-        if not has_spiral_markers(streams):
-            logger.info(
-                "Skipping %s because it does not contain iPad / spiral markers.",
-                xdf_fn.name,
-            )
-            continue
+    with Progress() as progress:
 
-        logger.info(
-            "Selected XDF for subject %s: %s",
-            subject_id,
-            xdf_fn.name,
+        task = progress.add_task(
+            "Processing subjects",
+            total=len(subject_ids),
         )
 
-        eda_stream, eda_column = find_eda_stream(streams)
-        eeg_stream = find_eeg_stream(streams)
+        for subject_id in subject_ids:
 
-        logger.info("EDA found: %s %s", eda_stream is not None, eda_column)
-        logger.info("EEG found: %s", eeg_stream is not None)
-        logger.info("iPad markers found: %s", has_spiral_markers(streams))
+            progress.update(
+                task,
+                description=f"Processing subject {subject_id}",
+                advance=1,
+            )
 
-        participant_parts = []
+            mobi_logging.log_section(
+                logger,
+                f"Subject {subject_id}",
+            )
 
-        if eda_stream is not None and eda_column is not None:
             try:
-                eda_data_out = process_eda_stream(
-                    stream=eda_stream,
-                    eda_column=eda_column,
-                    subject_id=subject_id,
-                    output_folder=output_folder,
+                pipeline_output = run_pipeline(
+                    participant_id_in=subject_id,
+                    data_folder_in=input_folder,
+                    output_folder_in=output_folder,
+                    task_processor=task_processor,
+                    skip_heavy_processing=skip_heavy_processing,
+                    verbose=verbose,
                 )
 
-                participant_parts.append(eda_data_out.reset_index(drop=True))
-                logger.info("Done EDA for subject %s", subject_id)
+            except (
+                OSError,
+                RuntimeError,
+                ValueError,
+                TypeError,
+                KeyError,
+                IndexError,
+            ) as error:
 
-            except Exception as error:
                 logger.warning(
-                    "Skipping EDA for subject %s because processing failed: %s",
+                    "Skipping subject %s because Spiral processing failed: %s",
                     subject_id,
                     error,
                 )
-        else:
-            logger.warning("No EDA stream found for subject %s", subject_id)
 
-        if eeg_stream is not None:
-            try:
-                eeg_proc_out = run_spiral_eeg_processing(
-                    eeg_stream=eeg_stream,
-                    streams=streams,
-                    subject_id=subject_id,
-                    show_plots=False,
+                continue
+
+
+            if pipeline_output.selected_df_out.empty:
+
+                logger.warning(
+                    "No selected XDF output for %s.",
+                    subject_id,
                 )
 
-                eeg_data_out = eeg_proc_out["summary_data"]
+                continue
+
+            participant_df = (
+                pipeline_output.selected_df_out
+                .reset_index(drop=True)
+                .copy()
+            )
+
+
+            if not pipeline_output.processing_df_out.empty:
+
+                processing_df = (
+                    pipeline_output.processing_df_out
+                    .reset_index(drop=True)
+                    .copy()
+                )
+
+                # Already contained in the selected dataframe.
+                processing_df = processing_df.drop(
+                    columns=[
+                        "Subject_ID",
+                        "XDF_File",
+                    ],
+                    errors="ignore",
+                )
+
+                participant_df = pd.concat(
+                    [
+                        participant_df,
+                        processing_df,
+                    ],
+                    axis=1,
+                )
+
+            participant_parts.append(
+                participant_df
+            )
+
+
+            subject_output_folder = (
+                output_folder / subject_id
+            )
+
+            subject_output_folder.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+
+            remove_unwanted_old_pngs(
+                subject_output_folder,
+                subject_id,
+            )
+
+            for (
+                figure_label,
+                figure,
+            ) in pipeline_output.figure_data_out.items():
 
                 try:
                     save_plot(
-                        eeg_proc_out["qc_figure"],
-                        output_folder,
+                        figure,
+                        subject_output_folder,
                         subject_id,
-                        f"Subject {subject_id} Spiral EEG QC",
+                        figure_label,
                     )
 
-                    save_plot(
-                        eeg_proc_out["all_channels_figure"],
-                        output_folder,
-                        subject_id,
-                        f"Subject {subject_id} EEG All Channels Entire Run",
-                    )
+                finally:
+                    plt.close(figure)
 
-                except AttributeError as error:
-                    logger.info("Error saving EEG plot: %s", error)
 
-                participant_parts.append(eeg_data_out.reset_index(drop=True))
-                logger.info("Done spiral EEG for subject %s", subject_id)
+            if verbose:
 
-            except EEGProcessingError as error:
-                logger.warning(
-                    "Skipping EEG for subject %s because processing failed: %s",
-                    subject_id,
-                    error,
+                selected_row = (
+                    pipeline_output
+                    .selected_df_out
+                    .iloc[0]
                 )
-            except Exception as error:
-                logger.warning(
-                    "Skipping EEG for subject %s because processing failed: %s",
-                    subject_id,
-                    error,
+
+                logger.info(
+                    "Selected XDF: %s",
+                    selected_row.get(
+                        "XDF_File",
+                        "",
+                    ),
                 )
-        else:
-            logger.warning("No EEG stream found for subject %s", subject_id)
 
-        if len(participant_parts) == 0:
-            logger.warning("No spiral output for subject %s", subject_id)
-            continue
+                logger.info(
+                    "Selection status: %s",
+                    selected_row.get(
+                        "Selection_Status",
+                        "",
+                    ),
+                )
 
-        participant_data_out = pd.concat(participant_parts, axis=1)
+                logger.info(
+                    "Selection reason: %s",
+                    selected_row.get(
+                        "Selection_Reason",
+                        "",
+                    ),
+                )
 
-        for column in ["Subject_ID", "XDF_File"]:
-            if column in participant_data_out.columns:
-                participant_data_out = participant_data_out.drop(columns=[column])
+                logger.info(
+                    "Drawing window: %.1f sec",
+                    float(
+                        selected_row.get(
+                            "Drawing_Window_Duration_sec",
+                            0,
+                        )
+                        or 0
+                    ),
+                )
 
-        participant_data_out.insert(0, "XDF_File", xdf_fn.name)
-        participant_data_out.insert(0, "Subject_ID", subject_id)
+                logger.info(
+                    "Active drawing: %.1f sec",
+                    float(
+                        selected_row.get(
+                            "Drawing_Active_Duration_sec",
+                            0,
+                        )
+                        or 0
+                    ),
+                )
 
-        out_file_parts.append(participant_data_out)
+                logger.info(
+                    (
+                        "Coverage: "
+                        "EDA %.1f%% | "
+                        "ECG %.1f%% | "
+                        "Neon %.1f%% | "
+                        "EEG %.1f%%"
+                    ),
+                    float(
+                        selected_row.get(
+                            "EDA_Coverage_pct",
+                            0,
+                        )
+                        or 0
+                    ),
+                    float(
+                        selected_row.get(
+                            "ECG_Coverage_pct",
+                            0,
+                        )
+                        or 0
+                    ),
+                    float(
+                        selected_row.get(
+                            "Neon_Gaze_Coverage_pct",
+                            0,
+                        )
+                        or 0
+                    ),
+                    float(
+                        selected_row.get(
+                            "EEG_Coverage_pct",
+                            0,
+                        )
+                        or 0
+                    ),
+                )
 
-    if len(out_file_parts) == 0:
-        logger.warning("No files were successfully processed.")
+    if not participant_parts:
+
+        logger.warning(
+            "No participant output was produced."
+        )
+
         return
 
-    out_df = pd.concat(out_file_parts, axis=0)
-    out_df.to_csv(out_fn, index=False)
+    output_df = pd.concat(
+        participant_parts,
+        axis=0,
+        ignore_index=True,
+    )
 
-    logger.info("Saved output to %s", out_fn)
+    output_df = clean_final_output(
+        output_df
+    )
+
+
+    out_fn = (
+        output_folder
+        / "spiral_process_batch_out.csv"
+    )
+
+    output_df.to_csv(
+        out_fn,
+        index=False,
+    )
+
+    logger.info(
+        "Saved Spiral batch output to %s",
+        out_fn,
+    )
+
+    logger.info(
+        "Final CSV contains %d participants and %d columns.",
+        len(output_df),
+        len(output_df.columns),
+    )
 
 
 if __name__ == "__main__":
