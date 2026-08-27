@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pandera.pandas as pa
 import scipy.io as sio
 
 from mooi_toolbox.processing.biopac import clean_biopac_labels
@@ -11,7 +12,10 @@ from mooi_toolbox.processing.crane_behaviour import (
     EMOTIONS_TESTED,
     build_crane_raw_behav_file_schema,
 )
-from mooi_toolbox.processing.crane_debrief_behaviour import GROUP_REDCAP_GLOB, emotion_cols
+from mooi_toolbox.processing.crane_debrief_behaviour import (
+    GROUP_REDCAP_GLOB,
+    crane_raw_debrief_file_schema,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +52,55 @@ TRIGGER_PULSE_GAP_SECONDS = 3.0
 # A literal filename matching GROUP_REDCAP_GLOB's wildcard -- the dummy debrief data doesn't
 # have a real export date, so the wildcard is filled with a fixed token instead.
 DUMMY_GROUP_DEBRIEF_FN = GROUP_REDCAP_GLOB.replace("*", "dummy")
+
+CLEAN_SCENARIO_LABEL = "clean"
+# One-line explanation of what each scenario is for, keyed the same way generate_dummy_participant
+# labels its DummyParticipantResult.scenario (error_type, or CLEAN_SCENARIO_LABEL for None) --
+# written into every dummy folder's log so a human opening it later doesn't have to read this
+# module's source to know why e.g. one participant has no physiology file.
+SCENARIO_DESCRIPTIONS: dict[str, str] = {
+    CLEAN_SCENARIO_LABEL: (
+        "Well-formed participant -- physiology, behaviour and debrief all present. Exercises "
+        "the ordinary happy-path conversion/pipeline run."
+    ),
+    "missing_physiology": (
+        "No .mat physiology file generated -- exercises handling of a subject with no "
+        "physiology recording."
+    ),
+    "missing_behaviour": (
+        "No behaviour .csv file generated -- exercises handling of a subject with no "
+        "behaviour recording."
+    ),
+    "missing_debrief": (
+        "No debrief row added to the group export -- exercises handling of a subject whose "
+        "debrief never got exported (e.g. a record_id mismatch)."
+    ),
+    "date_mismatch": (
+        "Behaviour and physiology files carry different date prefixes -- exercises detection "
+        "of an inconsistent acquisition date across a subject's raw files."
+    ),
+    "bad_trigger_count": (
+        "One interior trigger pulse is flattened out of the physiology trigger channel -- "
+        "exercises detection of a wrong overall trigger count."
+    ),
+    "short_trigger": (
+        "An extra trigger pulse is inserted shortly after a real one -- exercises detection "
+        "of an anomalously short inter-trigger interval."
+    ),
+    "missing_initial_trigger": (
+        "The first trigger pulse is flattened out -- exercises detection of a recording "
+        "that's missing its initial trigger."
+    ),
+    "missing_last_trigger": (
+        "The last trigger pulse is flattened out -- exercises detection of a recording "
+        "that's missing its final trigger."
+    ),
+    "double_initial_trigger": (
+        "The first trigger pulse is duplicated shortly after itself -- exercises detection "
+        "of a double initial trigger."
+    ),
+}
+DUMMY_DATA_LOG_FILENAME = "dummy_data_log.txt"
 
 
 @dataclass
@@ -251,17 +304,44 @@ def _mutate_physiology_dict(
     return mutated
 
 
+def _isin_check_values(column: pa.Column) -> list | None:
+    """The allowed-value list from a `Check.isin(...)` on this schema column, if it has one --
+    lets _build_debrief_rows pull e.g. the likert scale's valid values straight from
+    crane_raw_debrief_file_schema instead of duplicating them here by hand.
+    """
+    for check in column.checks:
+        if check.name == "isin":
+            return list(check.statistics["allowed_values"])
+    return None
+
+
 def _build_debrief_rows(subject_id: str, rng: np.random.Generator) -> pd.DataFrame:
+    """One dummy debrief row, shaped by crane_raw_debrief_file_schema itself rather than a
+    hand-maintained column list -- so a schema change (e.g. a new emotion added to
+    EMOTIONS_TESTED) is picked up here automatically instead of silently producing a row
+    missing a column that the schema's strict=True would later reject elsewhere. Only the
+    three free-text columns the schema doesn't constrain the values of get a hardcoded
+    plausible value below; every other column's allowed values come straight from its own
+    Check.isin() (e.g. the likert-scale emotion ratings).
+    """
     row: dict[str, str | int] = {
         "record_id": subject_id,
         "started": str(rng.choice(["1", "2"])),
         "height": str(rng.integers(150, 195)),
         "High_at_start_end": str(rng.choice(["High", "Low"])),
     }
-    for emotion in emotion_cols:
-        row[f"crane_{emotion}_rb"] = int(rng.integers(1, 6))
-        row[f"crane_{emotion}_gb"] = int(rng.integers(1, 6))
-    return pd.DataFrame([row])
+    for column_name, column in crane_raw_debrief_file_schema.columns.items():
+        if column_name in row:
+            continue
+        allowed_values = _isin_check_values(column)
+        if allowed_values is None:
+            raise ValueError(
+                f"Don't know how to generate a dummy value for debrief column {column_name!r} "
+                "-- add it to _build_debrief_rows."
+            )
+        row[column_name] = rng.choice(allowed_values)
+
+    return crane_raw_debrief_file_schema.validate(pd.DataFrame([row]))
 
 
 def generate_dummy_participant(
@@ -294,7 +374,7 @@ def generate_dummy_participant(
     if error_type != "missing_debrief":
         debrief_rows = _build_debrief_rows(subject_id, rng)
 
-    result = DummyParticipantResult(subject_id, error_type or "clean", csv_path, mat_path)
+    result = DummyParticipantResult(subject_id, error_type or CLEAN_SCENARIO_LABEL, csv_path, mat_path)
     return result, debrief_rows
 
 
@@ -303,6 +383,41 @@ def generate_dummy_debrief_workbook(debrief_rows: list[pd.DataFrame], output_fol
     combined = pd.concat(debrief_rows, ignore_index=True) if debrief_rows else pd.DataFrame()
     combined.to_csv(csv_path, index=False)
     return csv_path
+
+
+def _dummy_data_log_line(result: DummyParticipantResult) -> str:
+    description = SCENARIO_DESCRIPTIONS.get(result.scenario, result.scenario)
+    behaviour = result.csv_path.name if result.csv_path else "(none)"
+    physiology = result.mat_path.name if result.mat_path else "(none)"
+    return (
+        f"{result.subject_id} [{result.scenario}]: {description} "
+        f"(behaviour={behaviour}, physiology={physiology})"
+    )
+
+
+def write_dummy_data_log(results: list[DummyParticipantResult], output_folder: Path) -> Path:
+    """Writes output_folder/DUMMY_DATA_LOG_FILENAME, one line per participant explaining what
+    their scenario is for -- e.g. that one participant has no physiology file *on purpose*,
+    because it's exercising the missing-physiology error path, not a generation bug. Overwrites
+    any previous log, same as generate_dummy_debrief_workbook overwrites the previous debrief
+    export -- both reflect a fresh generate_dummy_dataset() run, not an accumulation across runs.
+    """
+    path = output_folder / DUMMY_DATA_LOG_FILENAME
+    lines = [_dummy_data_log_line(result) for result in results]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+def append_dummy_data_log_entry(result: DummyParticipantResult, output_folder: Path) -> Path:
+    """Appends one line to output_folder/DUMMY_DATA_LOG_FILENAME for a single participant
+    generated outside generate_dummy_dataset() (generate_dummy_participant_matching_reference)
+    -- keeps whatever's already logged there, same as _append_debrief_rows_to_workbook keeps
+    existing debrief rows rather than overwriting them.
+    """
+    path = output_folder / DUMMY_DATA_LOG_FILENAME
+    with path.open("a", encoding="utf-8") as log_file:
+        log_file.write(_dummy_data_log_line(result) + "\n")
+    return path
 
 
 def generate_dummy_dataset(
@@ -346,6 +461,7 @@ def generate_dummy_dataset(
             debrief_rows.append(participant_debrief_rows)
 
     generate_dummy_debrief_workbook(debrief_rows, output_folder)
+    write_dummy_data_log(results, output_folder)
     return results
 
 
@@ -427,4 +543,5 @@ def generate_dummy_participant_matching_reference(
     )
     if not debrief_rows.empty:
         _append_debrief_rows_to_workbook(debrief_rows, output_folder)
+    append_dummy_data_log_entry(result, output_folder)
     return result

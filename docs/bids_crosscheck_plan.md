@@ -2,9 +2,9 @@
 
 ## Overview
 
-Raw-to-BIDS conversion for crane and FOH (crane: not yet converted; FOH: partially,
-via an external converter) dumps every matching file into the BIDS folder, duplicates
-included, since the converter doesn't decide between them. `ParticipantConfig` (in
+Raw-to-BIDS conversion for crane and FOH dumps every matching file into the BIDS
+folder, duplicates included, since the converter doesn't decide between them.
+`ParticipantConfig` (in
 `processing/input_data.py`) already detects this today: `from_physiology_data` and
 `from_lsl_data` both log a warning when zero or multiple files match a subject's
 scan type, then silently pick one (`[0]` for crane, `[-1]` for FOH) and move on.
@@ -20,9 +20,9 @@ dataset switcher — this matches the existing pattern of one standalone `.exe` 
 pipeline (`vrlab_crane_process.exe`, `mobi_foh_assess_data.exe`).
 
 This tool assumes a populated BIDS folder already exists. Producing one is a
-separate, earlier step this plan doesn't cover — see `bids_converter_plan.md`
-for that gap (not yet started for crane; FOH's converter is external to this
-repo).
+separate, earlier step this plan doesn't cover in detail — see
+`bids_converter_plan.md` for how that's actually done for each dataset today
+(`cli/crane_convert_to_bids.py`, `cli/foh_import_to_bids.py`).
 
 ## Current status (as of 2026-08-13)
 
@@ -53,12 +53,17 @@ Crosscheck](foh-crosscheck.md). The decisions below (scan types, JSON
 recording, no-auto-merge, code layering) are all still accurate — it's
 mainly the UI layout that moved on from the original sketch.
 
-## Decision: BIDS folder only, never the raw folder
+## Decision: BIDS folder only, never *writes to* the raw folder
 
-The crosscheck tool only ever reads/writes inside the BIDS output folder (including
-its own junk folder). It never touches the raw data folder. Raw-to-BIDS conversion
-is a separate, earlier step, outside this tool's responsibility — "start over" means
-re-running the converter, not anything this tool does.
+The crosscheck tool's own scanning/renaming logic (`scan_bids_folder`, every
+`record_*` decision function) only ever reads/writes inside the BIDS output folder
+(including its own junk folder) — it never touches the raw data folder. The one
+carve-out is the optional `raw_converter` hook (`gui/bids_crosscheck_common.py`):
+both crane's and FOH's crosscheck windows now offer a "Refresh BIDS"/import step
+that *reads* the raw folder to copy new subjects across, but that logic lives in
+its own separate module (`cli/crane_convert_to_bids.py`, `cli/foh_import_to_bids.py`)
+and never writes back into it — "start over" still means re-pointing this tool at a
+fresh BIDS folder, not anything that touches raw data.
 
 ## Decision: scan types per dataset
 

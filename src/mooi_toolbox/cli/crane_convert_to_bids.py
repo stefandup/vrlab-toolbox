@@ -58,7 +58,7 @@ from rich.console import Console
 from rich.table import Table
 
 from mooi_toolbox import mobi_logging
-from mooi_toolbox.processing.bids_crosscheck import SUBJECT_FOLDER_PREFIX
+from mooi_toolbox.processing.bids_crosscheck import SUBJECT_FOLDER_PREFIX, existing_subject_ids
 from mooi_toolbox.processing.crane_debrief_behaviour import (
     GROUP_REDCAP_GLOB,
     crane_raw_debrief_file_schema,
@@ -144,6 +144,45 @@ def extract_subject_id(file: Path) -> str | None:
     return parsed.subject_id if parsed is not None else None
 
 
+def explain_unparseable_filename(file: Path) -> str:
+    """Plain-English reason `parse_crane_filename` returned None for this file's stem --
+    grounded directly in `_SUBJECT_ID_PATTERN` (that regex is the only place this failure
+    is decided, so the explanation is derived from it rather than guessed independently).
+    Used by the crosscheck GUI's unparseable-filename correction dialog; not stored
+    anywhere, recomputed on demand since it's cheap (one regex check on a filename stem).
+    """
+    stem = file.stem
+    if not re.search(r"_CraneOut$", stem, re.IGNORECASE):
+        return 'Filename doesn\'t end in "_CraneOut" -- not recognized as crane raw data at all.'
+    remainder = re.sub(r"_CraneOut$", "", stem, flags=re.IGNORECASE)
+    if not remainder.strip():
+        return 'Nothing before "_CraneOut" to use as a subject id.'
+    return 'Ends in "_CraneOut" but the id portion still didn\'t match the expected pattern.'
+
+
+def resolve_crane_filename(
+    file: Path, input_folder: Path, corrections: dict[str, str]
+) -> ParsedCraneFilename | None:
+    """Like `parse_crane_filename`, but checks a human-declared correction first (see
+    `load_raw_filename_id_corrections`) -- keyed by the file's path relative to
+    `input_folder`, not bare filename, so two different files that happen to share a name
+    in different subfolders don't collide. A corrected file has no derivable date (the
+    filename didn't parse at all, so there's nothing to extract it from) -- `date_prefix`
+    is always None for a corrected result, same as `convert_crane_to_bids` already handles
+    for a missing date_prefix (falls back to "nodate").
+    """
+    try:
+        key = file.relative_to(input_folder).as_posix()
+    except ValueError:
+        key = file.name
+    corrected_subject_id = corrections.get(key)
+    if corrected_subject_id:
+        return ParsedCraneFilename(
+            subject_id=canonicalize_subject_id(corrected_subject_id), date_prefix=None
+        )
+    return parse_crane_filename(file)
+
+
 def discover_raw_subject_ids(input_folder: Path) -> set[str]:
     """Every subject id derivable from raw physiology/behaviour filenames, read-only -- the
     same ids `convert_crane_to_bids` would derive, without copying anything. Used by the
@@ -157,6 +196,26 @@ def discover_raw_subject_ids(input_folder: Path) -> set[str]:
         if subject_id is not None:
             ids.add(subject_id)
     return ids
+
+
+def discover_unparseable_raw_files(
+    input_folder: Path, corrections: dict[str, str]
+) -> list[Path]:
+    """Every raw physiology/behaviour filename that still doesn't resolve to a subject id
+    after `corrections` are applied, read-only -- the same files a real
+    `convert_crane_to_bids` run would skip and report via `CraneConversionSummary.
+    unparseable_files`, without requiring a conversion run first. Used by the crosscheck
+    GUI's unparseable-filename correction dialog so it can be opened any time, same as
+    `DebriefRecordIdCorrectionDialog` doesn't require "Refresh BIDS" to have run first.
+    """
+    return sorted(
+        (
+            file
+            for file in (*input_folder.rglob(PHYSIOLOGY_GLOB), *input_folder.rglob(BEHAVIOUR_GLOB))
+            if resolve_crane_filename(file, input_folder, corrections) is None
+        ),
+        key=lambda file: file.relative_to(input_folder).as_posix(),
+    )
 
 
 DEBRIEF_ID_CORRECTIONS_FILENAME = "debrief_id_corrections.json"
@@ -181,6 +240,35 @@ def load_debrief_id_corrections(bids_folder: Path) -> dict[str, str]:
 
 def save_debrief_id_corrections(bids_folder: Path, corrections: dict[str, str]) -> None:
     path = _debrief_id_corrections_path(bids_folder)
+    tmp_path = path.with_suffix(".json.tmp")
+    with tmp_path.open("w", encoding="utf-8") as tmp_file:
+        json.dump(corrections, tmp_file, indent=2, sort_keys=True)
+    os.replace(tmp_path, path)
+
+
+RAW_FILENAME_ID_CORRECTIONS_FILENAME = "raw_filename_id_corrections.json"
+
+
+def _raw_filename_id_corrections_path(bids_folder: Path) -> Path:
+    return bids_folder / RAW_FILENAME_ID_CORRECTIONS_FILENAME
+
+
+def load_raw_filename_id_corrections(bids_folder: Path) -> dict[str, str]:
+    """`{filename_relative_to_input_folder: corrected_subject_id}`, as saved by the crosscheck
+    GUI's unparseable-filename correction dialog -- see `resolve_crane_filename`. Lives in
+    `bids_folder`, same reasoning as `load_debrief_id_corrections`: this converter never
+    touches `input_folder`, so a correction about it is still recorded on the BIDS side.
+    Empty (not an error) if nothing's been saved yet.
+    """
+    path = _raw_filename_id_corrections_path(bids_folder)
+    if not path.exists():
+        return {}
+    with path.open("r", encoding="utf-8") as corrections_file:
+        return json.load(corrections_file)
+
+
+def save_raw_filename_id_corrections(bids_folder: Path, corrections: dict[str, str]) -> None:
+    path = _raw_filename_id_corrections_path(bids_folder)
     tmp_path = path.with_suffix(".json.tmp")
     with tmp_path.open("w", encoding="utf-8") as tmp_file:
         json.dump(corrections, tmp_file, indent=2, sort_keys=True)
@@ -240,16 +328,6 @@ def load_debrief_export(input_folder: Path, override: Path | None = None) -> pd.
 
     df = pd.read_csv(export_path)
     return df.filter(items=list(crane_raw_debrief_file_schema.columns))
-
-
-def existing_subject_ids(output_folder: Path) -> set[str]:
-    if not output_folder.is_dir():
-        return set()
-    return {
-        entry.name.removeprefix(SUBJECT_FOLDER_PREFIX)
-        for entry in output_folder.iterdir()
-        if entry.is_dir() and entry.name.startswith(SUBJECT_FOLDER_PREFIX)
-    }
 
 
 def _has_debrief_file(output_folder: Path, subject_id: str) -> bool:
@@ -359,6 +437,7 @@ class CraneConversionSummary:
     skipped_files: int = 0
     unmatched_debrief: list[str] = field(default_factory=list)
     backfilled_debrief_ids: list[str] = field(default_factory=list)
+    unparseable_files: list[Path] = field(default_factory=list)
 
 
 def convert_crane_to_bids(
@@ -393,6 +472,11 @@ def convert_crane_to_bids(
         if corrections:
             debrief_df["record_id"] = debrief_df["record_id"].replace(corrections)
 
+    # Human-declared filename -> subject_id fixes from the crosscheck GUI's unparseable-
+    # filename correction dialog (see load_raw_filename_id_corrections) -- checked by
+    # resolve_crane_filename before falling back to parse_crane_filename, below.
+    raw_filename_corrections = load_raw_filename_id_corrections(output_folder)
+
     subject_physiology: dict[str, list[Path]] = defaultdict(list)
     subject_behaviour: dict[str, list[Path]] = defaultdict(list)
     subject_debrief: dict[str, Path] = {}
@@ -401,7 +485,7 @@ def convert_crane_to_bids(
     unparseable_files: list[Path] = []
 
     for mat_file in physiology_files:
-        parsed = parse_crane_filename(mat_file)
+        parsed = resolve_crane_filename(mat_file, input_folder, raw_filename_corrections)
         if parsed is None:
             unparseable_files.append(mat_file)
             continue
@@ -416,7 +500,7 @@ def convert_crane_to_bids(
         subject_physiology[parsed.subject_id].append(destination)
 
     for csv_file in behaviour_files:
-        parsed = parse_crane_filename(csv_file)
+        parsed = resolve_crane_filename(csv_file, input_folder, raw_filename_corrections)
         if parsed is None:
             unparseable_files.append(csv_file)
             continue
@@ -534,6 +618,7 @@ def convert_crane_to_bids(
         skipped_files=skipped_files,
         backfilled_debrief_ids=backfilled_debrief_ids,
         unmatched_debrief=unmatched_debrief,
+        unparseable_files=unparseable_files,
     )
 
 

@@ -3,17 +3,13 @@
 ## Overview
 
 `bids_crosscheck_plan.md`'s crosscheck tool assumes a populated BIDS folder
-already exists to point it at. That earlier step — raw-to-BIDS conversion —
-doesn't exist in this toolbox today: FOH is partially converted via an
-external converter (not part of this repo, exact tooling/location unknown),
-and crane has no converter at all. `pipeline_next_steps.md` item 22 flags
-"move toward BIDS" as a direction for the import layer, but that's about
+already exists to point it at. This page tracks that earlier step —
+raw-to-BIDS conversion — which now exists for both datasets (see the updates
+below), each living in its own `cli/` module rather than being an external,
+outside-this-repo tool. `pipeline_next_steps.md` item 22 flags "move toward
+BIDS" as a direction for the import layer, but that's about
 `ParticipantConfig` reading from timepoint folders, not about producing a
 BIDS folder in the first place.
-
-**Not yet started.** This page is a placeholder recording that the gap
-exists and where it sits relative to related work, so it doesn't need to be
-rediscovered from scratch later — not a design.
 
 **Update: crane's converter now exists** — `cli/crane_convert_to_bids.py`
 (`convert_crane_to_bids()`), copy-only and incremental (skips subjects
@@ -24,8 +20,18 @@ in the crosscheck window itself — see `bids_crosscheck_common.py`'s generic
 `raw_converter`/`override_file_label` hooks, which FOH doesn't use and gets
 no UI for). The debrief design idea below is implemented as described: each
 subject gets their own extracted row, written `..._debrief_events.tsv`
-(tab-delimited, not the whole shared workbook). FOH's converter is still
-external, as noted above.
+(tab-delimited, not the whole shared workbook). **Update: FOH's importer now exists too** — `cli/foh_import_to_bids.py`
+(`import_foh_raw_to_bids()`), wired into `gui/foh_bids_crosscheck_gui.py` the
+same way as crane's, via the same generic `raw_converter` hook. Unlike
+crane's, it's a plain recursive copy, not a real conversion: FOH's raw
+recording software already writes each subject's `.xdf` files straight into
+a real `sub-XXX/ses-.../eeg/` BIDS layout at the point of recording (see
+[FOH Crosscheck](foh-crosscheck.md#2-point-it-at-your-raw-folder-and-import)),
+so there's no filename reshaping or per-subject-id parsing to do — just
+`existing_subject_ids()` (moved into `processing/bids_crosscheck.py` so both
+importers share it) to decide which `sub-XXX/` folders are new, then
+`shutil.copytree()` for each. No debrief-equivalent complexity, so it skips
+the `override_file_label`/`extra_raw_action` hooks crane's wiring uses.
 
 **TODO: schema-validate the debrief workbook input.** The converter
 currently reads whatever the REDCAP export happens to contain and does
@@ -118,10 +124,11 @@ date in a scan filename; per-scan acquisition dates belong in a
   afterward. A converter that already picked canonical runs itself would
   make the crosscheck tool partly redundant — keep that division of labor
   deliberate rather than let the converter creep into picking winners.
-- **FOH:** whatever the existing external converter already produces is
-  real precedent (naming convention, `sub-XXX/` layout) worth inspecting
-  before designing anything crane-side, rather than inventing a scheme from
-  nothing.
+- **FOH:** the raw recording software's own naming convention (`sub-XXX/`
+  layout, real BIDS filenames from the start) was real precedent worth
+  inspecting before designing anything crane-side, rather than inventing a
+  scheme from nothing -- see the "FOH's importer now exists too" update
+  above for where that ended up.
 - **Crane:** no naming convention decided yet. The crosscheck tool's own
   glob patterns (`processing/bids_crosscheck.py`'s `CRANE_DATASET_CONFIG`,
   in `gui/crane_bids_crosscheck_gui.py`) are currently guesses grounded in

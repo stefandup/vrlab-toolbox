@@ -1,8 +1,8 @@
 """Standalone PySide6 tool: human-in-the-loop crosscheck for the FOH BIDS folder.
 
-See docs/bids_crosscheck_plan.md. The `*.xdf` recording pattern is the one glob
-pattern the plan pins down explicitly (crosscheck does its own broad `.xdf` scan
-rather than reusing `from_lsl_data`'s `_eeg.xdf`-only filter).
+See docs/bids_crosscheck_plan.md and docs/bids_converter_plan.md. The `*.xdf` recording
+pattern is the one glob pattern the plan pins down explicitly (crosscheck does its own
+broad `.xdf` scan rather than reusing `from_lsl_data`'s `_eeg.xdf`-only filter).
 """
 
 import json
@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pyxdf
 
+from mooi_toolbox.cli.foh_import_to_bids import FohImportSummary, import_foh_raw_to_bids
 from mooi_toolbox.gui.bids_crosscheck_common import CandidateExtras, run_bids_crosscheck_app
 from mooi_toolbox.processing.bids_crosscheck import DatasetConfig, ScanTypeConfig
 from mooi_toolbox.processing.biodata import ACCEPTED_LABEL_PATTERN, CANONICAL_LABEL_SPELLING
@@ -343,12 +344,52 @@ class FohCandidateExtras(CandidateExtras):
         return info
 
 
+class _ListLogHandler(logging.Handler):
+    """Captures formatted log records into a list instead of printing them -- used to relay
+    `import_foh_raw_to_bids`'s `logger.info` calls into the crosscheck GUI's status dialog,
+    since that function reports progress via the standard logger rather than a GUI-specific
+    callback (see its own docstring)."""
+
+    def __init__(self) -> None:
+        super().__init__(level=logging.INFO)
+        self.lines: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.lines.append(f"[{record.levelname}] {self.format(record)}")
+
+
+def _format_import_summary(summary: FohImportSummary) -> str:
+    if not summary.new_subject_ids:
+        return "No new subjects found -- everything in the raw folder is already imported."
+    return "Added " + str(len(summary.new_subject_ids)) + " new subject(s):\n\n" + "\n".join(
+        f"sub-{subject_id}" for subject_id in summary.new_subject_ids
+    )
+
+
+def _run_foh_import(raw_folder: Path, bids_folder: Path, _override_file: Path | None) -> list[str]:
+    """The FOH-specific `raw_converter` callback `BidsCrosscheckWindow` calls when the
+    "Refresh BIDS" button is clicked. FOH has no override-file concept (unlike crane's
+    debrief-export picker), so the third argument is always None and ignored -- kept only
+    to match the shared `raw_converter` call signature.
+    """
+    handler = _ListLogHandler()
+    importer_logger = logging.getLogger("mooi_toolbox.cli.foh_import_to_bids")
+    importer_logger.addHandler(handler)
+    try:
+        summary = import_foh_raw_to_bids(raw_folder, bids_folder)
+    finally:
+        importer_logger.removeHandler(handler)
+
+    return [*handler.lines, "", _format_import_summary(summary)]
+
+
 def main() -> None:
     run_bids_crosscheck_app(
         FOH_DATASET_CONFIG,
         "FOH BIDS Crosscheck",
         FohCandidateExtras(),
         settings_app_name="FohBidsCrosscheck",
+        raw_converter=_run_foh_import,
     )
 
 

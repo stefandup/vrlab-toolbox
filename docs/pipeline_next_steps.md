@@ -1047,7 +1047,71 @@ change to read from a `sub-XXX/` BIDS folder instead of a shared flat
 `data_folder_in`. Not started — deliberately deferred until the BIDS folder
 side (converter + crosscheck) is settled, so this isn't designed twice.
 
-## Working Rule
+### 23. Manually test the crane unparseable-filename correction dialog
+
+Not yet run by a human. `crane_convert_to_bids.py` (corrections JSON, `resolve_crane_filename`,
+`discover_unparseable_raw_files`, `explain_unparseable_filename`), `bids_crosscheck_common.py`
+(`extra_raw_action` generalized to `extra_raw_actions`, a list), and `crane_bids_crosscheck_gui.py`
+(`UnparseableFilenameCorrectionDialog`, new "Fix unparseable filenames..." button) were all
+written and read back for consistency, but never actually launched.
+
+Needed — launch the GUI (`python -m mooi_toolbox.gui.crane_bids_crosscheck_gui`, or however this
+is normally invoked) against a raw folder containing a deliberately mis-named file, and check:
+
+- both "Raw folder" and "BIDS folder" need to be selected before "Fix unparseable filenames..."
+  (and "Fix debrief record IDs...") enable at all;
+- the dialog lists the mis-named file(s) with the correct relative-to-raw-folder path;
+- selecting a row updates the "Why this failed" bottom pane with a sensible plain-English reason;
+- before ever clicking "Refresh BIDS" in this session, the bottom pane's log-excerpt line reads
+  the "no matching line yet" placeholder rather than erroring;
+- after clicking "Refresh BIDS" once, reselecting the same row shows the matching captured log
+  line instead;
+- typing a subject id and clicking Save writes `raw_filename_id_corrections.json` into the BIDS
+  folder, keyed by the file's relative path;
+- leaving the box blank and saving does *not* add an entry (or removes one if it existed) — the
+  file should still be skipped and still show up next time the dialog is opened;
+- after saving a real correction and clicking "Refresh BIDS" again, the file is copied into the
+  corrected subject's `sub-XXX/ses-01/beh/` folder, with `acq_time` recorded as `"nodate"` in
+  `scans.tsv` (corrected entries have no derivable date prefix);
+- reopening the dialog afterward no longer lists that now-resolved file;
+- two unparseable files that happen to share a bare filename in different raw subfolders can be
+  corrected independently, without one overwriting the other's entry;
+- the existing "Fix debrief record IDs..." button/dialog still works unchanged — regression
+  check on the `extra_raw_action` → `extra_raw_actions` list generalization;
+- the FOH crosscheck GUI (`gui/foh_bids_crosscheck_gui.py`, which passes no `extra_raw_actions`
+  at all) still launches and behaves normally — same shared-code regression concern, FOH side.
+
+### 24. Manually test the FOH raw-folder import feature
+
+Not yet run by a human. `cli/foh_import_to_bids.py` (`import_foh_raw_to_bids`,
+`FohImportSummary`), `processing/bids_crosscheck.py` (`existing_subject_ids`, moved out of
+`crane_convert_to_bids.py` so both importers share it; `iter_subject_folders`, de-privatized
+for the same reason), and `gui/foh_bids_crosscheck_gui.py` (`_run_foh_import` wired in as the
+`raw_converter`) were all written, unit-tested (`import_foh_raw_to_bids` against a folder
+shaped like a real `sub-XXX/ses-.../eeg/` layout, `_old1`-style duplicates included), and the
+full `tests/test_bids_crosscheck.py` suite still passes — but the GUI itself has never been
+launched.
+
+Needed — launch `mobi_foh_bids_crosscheck` and check:
+
+- a **Raw folder** row and **Refresh BIDS** button now appear above the existing **BIDS
+  folder** row, same as crane's;
+- pointing Raw folder at a copy of a real FOH raw folder and clicking **Refresh BIDS** copies
+  every subject across, `_old1`/`_old2`/... duplicates included, and the crosscheck view
+  handles them as ordinary duplicates exactly as before;
+- hovering **Refresh BIDS** shows the generic tooltip with no mention of debrief anything
+  (that clause is crane-only now — see `convert_button_tooltip`);
+- the raw folder is untouched afterward (file count/timestamps unchanged);
+- resolving a duplicate for one subject (pick, commit, mark crosschecked), then clicking
+  **Refresh BIDS** again, leaves that subject completely alone — decision not clobbered, "Last
+  conversion" reports it as already-present rather than re-copied;
+- adding one more subject to the raw copy and clicking **Refresh BIDS** again adds only that
+  subject;
+- `foh_import_to_bids <raw_folder> <bids_folder>` works standalone from a terminal too;
+- crane's own crosscheck GUI still behaves normally afterward (regression check on the shared
+  `bids_crosscheck_common.py`/`existing_subject_ids` changes both features now depend on) —
+  can likely be folded into the same pass as item 23's crane regression checks rather than
+  repeated separately.
 
 Do not rewrite everything at once. Preserve working behaviour and improve
 one structural issue at a time: function-based strategy contracts first,

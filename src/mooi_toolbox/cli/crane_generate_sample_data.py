@@ -9,6 +9,7 @@ from rich.table import Table
 from mooi_toolbox import mobi_logging
 from mooi_toolbox.cli.crane_convert_to_bids import convert_crane_to_bids, print_conversion_summary
 from mooi_toolbox.processing.crane_dummy_data import (
+    DUMMY_DATA_LOG_FILENAME,
     ERROR_TYPES,
     REFERENCE_ERROR_TYPES,
     generate_dummy_dataset,
@@ -26,7 +27,9 @@ Examples:
 
 \b
   Also add one participant per known error scenario (missing files, bad
-  triggers, ...):
+  triggers, ...) -- each including a synthetic debrief row generated straight
+  from crane_raw_debrief_file_schema (see crane_debrief_behaviour.py), so the
+  group debrief export is never missing a column the real pipeline expects:
   crane_generate_sample_data examples/crane_templates examples --with-errors --seed 42
 
 \b
@@ -49,11 +52,19 @@ Examples:
     --reference-output-subject-id DUMMY011
 
 \b
-  Also convert the freshly-generated raw data into a BIDS folder in the same
-  call, via crane_convert_to_bids.convert_crane_to_bids -- output_folder still
-  ends up holding the plain raw CraneOut files either way:
+  Generate straight into a BIDS-shaped folder in the same call, via
+  crane_convert_to_bids.convert_crane_to_bids -- output_folder still ends up
+  holding the plain raw CraneOut files either way, this just also converts
+  them into --bids-folder for you:
   crane_generate_sample_data examples/crane_templates examples \\
     --with-errors --seed 42 --bids-folder examples_bids
+
+\b
+  Every run writes/updates "{DUMMY_DATA_LOG_FILENAME}" inside output_folder --
+  a plain-text, one-line-per-participant explanation of what each generated
+  participant's scenario is for (e.g. that one has no physiology file *on
+  purpose*, to exercise the missing-physiology error path). Open it any time
+  to see what's in a given dummy folder without reading this tool's source.
 """
 
 
@@ -118,7 +129,14 @@ def main(
     reference_output_subject_id: str | None,
     bids_folder: Path | None,
 ) -> None:
-    """Generate synthetic crane participant data by cloning and perturbing template files."""
+    """Generate synthetic crane participant data by cloning and perturbing template files.
+
+    Also generates a matching debrief row per participant (shaped by
+    crane_raw_debrief_file_schema, so it stays valid if that schema ever changes) into a
+    dummy group debrief export in output_folder, and writes/updates output_folder's
+    DUMMY_DATA_LOG_FILENAME -- a plain-text log explaining what each participant's scenario
+    is for.
+    """
 
     output_folder.mkdir(parents=True, exist_ok=True)
 

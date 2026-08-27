@@ -35,8 +35,9 @@ class ParticipantConfig:
     output_folder: Path
     verbose: bool
     show_plots: bool
-    # _expected_date_format = "%Y%m%d%H%M"
 
+    # _expected_date_format = "%Y%m%d%H%M"
+    # @deprecated("Moving to BIDS folder use after crosscheck rather than raw crane files.")
     @classmethod
     def from_physiology_data(
         cls,

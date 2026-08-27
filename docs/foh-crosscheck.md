@@ -75,10 +75,37 @@ mobi_foh_bids_crosscheck
 The tool remembers the last BIDS folder you had open, so after your first
 time using it, it'll usually open straight to where you left off.
 
-### 2. Point it at your BIDS folder
+### 2. Point it at your raw folder and import
+
+FOH recordings arrive from the recording software already named and laid
+out the real BIDS way (`sub-XXX/ses-.../eeg/sub-XXX_ses-..._eeg.xdf`,
+possibly with an `_old1`, `_old2`, ... suffix if a session was
+restarted) — but that's still **raw** data: nobody's looked at it yet,
+duplicates and all, and it hasn't been through the crosscheck decisions
+below. To keep that raw data untouched while you work, this tool always
+crosschecks a separate **BIDS folder**, and copies new subjects into it
+from your **raw folder** on request rather than working on the raw
+folder directly.
+
+Click **Browse...** next to **Raw folder** and select the folder your
+recordings actually land in, then click **Refresh BIDS**. This copies
+every subject not already in your BIDS folder across, whole and
+untouched — files already imported are never re-copied, overwritten, or
+even looked at again, so a crosscheck decision you've already made (a
+pick, a tag, a correction) can never be clobbered by re-running this.
+Nothing in the raw folder is ever changed or deleted by this step. The
+**Last conversion** panel below the subject details shows exactly what
+the last click did — which subjects were added, which were already
+there and skipped.
+
+Safe to click any time, including repeatedly (e.g. once more recordings
+have come in) — there's no harm in clicking it and finding nothing new.
+
+### 3. Point it at your BIDS folder
 
 If nothing loads automatically, click **Browse...** at the top and select
-your FOH BIDS folder.
+your FOH BIDS folder — the destination folder from step 2 above, not the
+raw one. This is the folder every step from here on actually works with.
 
 The tool also makes sure a `.bidsignore` file at the top of that folder
 lists its own files — `crosscheck.json`, `crosscheck_pending.json`,
@@ -87,7 +114,7 @@ appending to `.bidsignore` if one already exists (without touching
 anything else in it) or creating one if not, so a BIDS validator doesn't
 flag them as unexpected.
 
-### 3. Read the subject list
+### 4. Read the subject list
 
 Above the list, a summary line gives you the folder's overall state at a
 glance — total subject count, how many recordings were found — and, in
@@ -123,7 +150,7 @@ icon legend to remember what it means).
 The **Datatype** column shows which BIDS *datatype* folder that
 recording's file currently lives in — `eeg` at first, since that's the
 name the collection software always uses (see [step
-11](#11-tag-files-as-foh) for why that's not accurate for FOH data, and
+12](#12-tag-files-as-foh) for why that's not accurate for FOH data, and
 what it becomes once tagged). "Datatype" is BIDS's own term for this —
 the `eeg`/`beh`/`func`/... subfolder a recording sits in, not a filename
 thing. Hover a value to see what it means and, if it's about to change,
@@ -147,7 +174,7 @@ actions** panel (see below) to make it look again.
 Tick **Issues only** above the list to hide every subject that's already
 fine, so you only see the ones that need a decision.
 
-### 4. Click a subject to see its details
+### 5. Click a subject to see its details
 
 The right-hand panel shows full detail for whichever subject is selected
 on the left. If there's more than one recording, you'll see each one
@@ -159,13 +186,13 @@ Shift-click in the list — for bulk actions across your selection. See
 [Working with several subjects at once](#working-with-several-subjects-at-once)
 below.)
 
-### 5. Pick the right recording
+### 6. Pick the right recording
 
 Click the button next to the correct recording. This doesn't save
 anything yet — it's a preview, marked with the ⏳ icon, so you can change
 your mind before committing to it.
 
-### 6. Check the recording detail before saving
+### 7. Check the recording detail before saving
 
 Once a recording counts as "the one" for a subject — either it was the
 only candidate, or you've picked it with the radio button — a small panel
@@ -186,7 +213,7 @@ If the sampling rate disagrees by more than 10%, or either channel is
 missing, that's shown in red, and the subject picks up a ❗ next to its
 name in the subject list — worth a second look before you commit to it.
 
-### 7. Save your decision
+### 8. Save your decision
 
 Once you're confident, click **"Move non-selected to crosscheck_review"**
 in the **Subject actions** panel (above the recording detail) — this
@@ -205,11 +232,11 @@ save.
     `crosscheck_review/` keeps it easy for a second crosschecker to find
     and double-check later, rather than quietly mixed in with data that's
     genuinely disposable (a pilot run, a non-participant). That's what
-    **junk** is for instead — see [step 12](#12-send-a-subject-to-junk) —
+    **junk** is for instead — see [step 13](#13-send-a-subject-to-junk) —
     and it's a separate, deliberate action, not something committing a
     pick ever does on its own.
 
-    Nothing moves the moment you *pick* a candidate (step 5) — picking is
+    Nothing moves the moment you *pick* a candidate (step 6) — picking is
     just a preview. Files stay exactly where they are until you actually
     click a "...to crosscheck_review" button.
 
@@ -229,13 +256,13 @@ it's already a deliberate one-at-a-time click.
     icon), that's fine — they aren't lost. The tool remembers them and
     they'll still be there, still pending, next time you open it.
 
-### 8. Mark a subject as reviewed (optional)
+### 9. Mark a subject as reviewed (optional)
 
 Above the recording detail, the **Subject actions** panel holds actions
 that apply to the whole subject rather than one specific recording:
 marking it reviewed, renaming its ID, re-reading its info from disk if a
 recording has changed since the tool last looked (**Refresh**), and
-sending it to junk (see [step 12](#12-send-a-subject-to-junk) below). It
+sending it to junk (see [step 13](#13-send-a-subject-to-junk) below). It
 stays visible at a fixed spot regardless of what's selected — blank when
 nothing is, so there's no jumping around as you click between subjects.
 
@@ -245,14 +272,15 @@ its name in the subject list. This is a manual note for your own or your
 team's reference; it doesn't change anything else. Click the same button
 again ("Un-mark crosschecked") to remove the mark.
 
-### 9. Look at the raw files yourself
+### 10. Look at the files yourself
 
 Click **"Reveal subject folder"** next to a recording to open that
-subject's folder in your system's file browser (Explorer on Windows,
-Finder on macOS) — useful if you want to check something the tool
-doesn't show, or just confirm what's actually sitting on disk.
+subject's folder — inside your **BIDS folder**, not the raw one — in
+your system's file browser (Explorer on Windows, Finder on macOS) —
+useful if you want to check something the tool doesn't show, or just
+confirm what's actually sitting on disk.
 
-### 10. Fix an obviously wrong date or ID
+### 11. Fix an obviously wrong date or ID
 
 If a recording's filename has the wrong date in it, click
 **"Correct date..."** next to it and type the right one. If a whole
@@ -267,9 +295,9 @@ subjects to the same new ID wouldn't make sense.)
     date..."** (and **"Tag as foh"**, see below) only appears next to
     whichever one you've picked with the radio button — there's nothing to
     correct on a file you haven't confirmed is the right one yet. Pick it
-    first (step 5), and the button appears.
+    first (step 6), and the button appears.
 
-### 11. Tag files as foh
+### 12. Tag files as foh
 
 Once you're confident a recording is the right one, click **"Tag as
 foh"** next to it. This replaces whatever comes after the `run-<NNN>`
@@ -285,7 +313,7 @@ this page; this is just the filename tag.
 !!! note "What's the eeg -> beh folder switch about?"
     The folder the file lives in gets renamed too, from `eeg` to `beh` —
     you'll see this reflected immediately in the **Datatype** column
-    (step 3). The raw collection software always names this folder `eeg`,
+    (step 4). The raw collection software always names this folder `eeg`,
     no matter what's actually recorded in it. For FOH that's simply
     wrong: this is physiology data, sometimes with behavioural data,
     collected over LSL — not brain activity, not EEG. `beh` ("behavioural"
@@ -320,7 +348,7 @@ whole folder? Select them in the subject list first, then use **"Tag
 selected as foh"** in the **Subject actions** panel instead — same
 behaviour, just scoped to your selection.
 
-### 12. Send a subject to junk
+### 13. Send a subject to junk
 
 Sometimes a whole subject doesn't belong in the folder at all — a test
 recording that got saved alongside real data, or someone who was never
@@ -337,7 +365,7 @@ Both ask you to confirm first, and — like everything else this tool
 moves — nothing is ever deleted. If you junked the wrong subject, their
 folder is still sitting in `crosscheck_junk/`; move it back by hand.
 
-### 13. Restore from junk, restore from review, or revert everything
+### 14. Restore from junk, restore from review, or revert everything
 
 Made a mistake and want to start over? Four buttons near the top of the
 window, next to "Move all non-selected to crosscheck_review," cover the
@@ -345,9 +373,9 @@ whole folder at once:
 
 - **"Restore all from junk..."** moves everything currently sitting in
   `crosscheck_junk/` back to where it came from — whole subjects sent
-  there with "Send to junk..." (step 12).
+  there with "Send to junk..." (step 13).
 - **"Restore all from review..."** does the same thing for
-  `crosscheck_review/` (step 7) — its own separate button, so restoring
+  `crosscheck_review/` (step 8) — its own separate button, so restoring
   one never accidentally pulls back the other.
 - **"Permanently delete review..."** — see the warning below. This one's
   different from everything else in this list.
@@ -403,10 +431,11 @@ Two things stay single-subject only, on purpose:
 ## A sibling tool for Crane
 
 The Crane experiment has its own equivalent tool, `vrlab_crane_bids_crosscheck`
-— same idea, same layout, just checking `physiology`/`behaviour`/`debrief`
-files instead of a single FOH recording. Everything on this page applies
-there too, once Crane's raw-to-BIDS conversion exists (see [BIDS Converter
-Plan](bids_converter_plan.md) — that part isn't built yet).
+— same idea, same layout (including its own raw folder + "Refresh BIDS"
+step), just checking `physiology`/`behaviour`/`debrief` files instead of a
+single FOH recording, and its raw-to-BIDS step does real reshaping rather
+than a plain copy (see [BIDS Converter Plan](bids_converter_plan.md) for
+what differs). Everything else on this page applies there too.
 
 ---
 

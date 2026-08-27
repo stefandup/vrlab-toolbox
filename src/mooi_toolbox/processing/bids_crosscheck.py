@@ -146,7 +146,7 @@ def ensure_bidsignore(bids_folder: Path, extra_patterns: tuple[str, ...] = ()) -
         logger.warning("Could not update %s -- continuing without it", path, exc_info=True)
 
 
-def _iter_subject_folders(bids_folder: Path):
+def iter_subject_folders(bids_folder: Path):
     for entry in sorted(bids_folder.iterdir()):
         if (
             entry.is_dir()
@@ -154,6 +154,20 @@ def _iter_subject_folders(bids_folder: Path):
             and entry.name != JUNK_FOLDER_NAME
         ):
             yield entry.name[len(SUBJECT_FOLDER_PREFIX) :], entry
+
+
+def existing_subject_ids(bids_folder: Path) -> set[str]:
+    """Every subject id already present as a `sub-XXX/` folder in `bids_folder`.
+
+    Shared by every raw-to-BIDS importer (`cli/crane_convert_to_bids.py`,
+    `cli/foh_import_to_bids.py`) to decide which subjects to skip -- copy-only,
+    incremental-by-subject is the common contract across datasets (see
+    docs/bids_converter_plan.md), even though what counts as "a subject's data" differs
+    per dataset.
+    """
+    if not bids_folder.is_dir():
+        return set()
+    return {subject_id for subject_id, _ in iter_subject_folders(bids_folder)}
 
 
 def scan_bids_folder(bids_folder: Path, config: DatasetConfig) -> BidsFolderScan:
@@ -165,7 +179,7 @@ def scan_bids_folder(bids_folder: Path, config: DatasetConfig) -> BidsFolderScan
     """
     scans: dict[str, dict[str, SubjectScan]] = {}
 
-    for subject_id, subject_folder in _iter_subject_folders(bids_folder):
+    for subject_id, subject_folder in iter_subject_folders(bids_folder):
         scans[subject_id] = {}
         for scan_type_cfg in config.scan_types:
             files: set[Path] = set()

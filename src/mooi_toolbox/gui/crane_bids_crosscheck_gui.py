@@ -29,13 +29,16 @@ from pathlib import Path
 import pandas as pd
 import scipy.io as sio
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
+    QGroupBox,
     QHeaderView,
     QLabel,
     QTableWidget,
     QTableWidgetItem,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -44,13 +47,21 @@ from mooi_toolbox.cli.crane_convert_to_bids import (
     CraneConversionSummary,
     convert_crane_to_bids,
     discover_raw_subject_ids,
+    discover_unparseable_raw_files,
     existing_subject_ids,
+    explain_unparseable_filename,
     guess_corrected_subject_id,
     load_debrief_export,
     load_debrief_id_corrections,
+    load_raw_filename_id_corrections,
     save_debrief_id_corrections,
+    save_raw_filename_id_corrections,
 )
-from mooi_toolbox.gui.bids_crosscheck_common import CandidateExtras, run_bids_crosscheck_app
+from mooi_toolbox.gui.bids_crosscheck_common import (
+    DEFAULT_CONVERT_BUTTON_TOOLTIP,
+    CandidateExtras,
+    run_bids_crosscheck_app,
+)
 from mooi_toolbox.processing.bids_crosscheck import DatasetConfig, ScanTypeConfig
 from mooi_toolbox.processing.biodata import ACCEPTED_LABEL_PATTERN, CANONICAL_LABEL_SPELLING
 from mooi_toolbox.processing.biopac import clean_biopac_labels
@@ -592,10 +603,135 @@ class DebriefRecordIdCorrectionDialog(QDialog):
 
 
 def _on_fix_debrief_record_ids(raw_folder: Path, bids_folder: Path, parent: QWidget) -> None:
-    """The crane-specific `extra_raw_action` callback for the "Fix debrief record IDs..."
+    """The crane-specific `extra_raw_actions` callback for the "Fix debrief record IDs..."
     button -- see `DebriefRecordIdCorrectionDialog`.
     """
     DebriefRecordIdCorrectionDialog(raw_folder, bids_folder, parent).exec()
+
+
+class UnparseableFilenameCorrectionDialog(QDialog):
+    """Lets a human declare "this raw filename really belongs to this subject" for a raw
+    physiology/behaviour filename `parse_crane_filename` couldn't extract a subject id from
+    at all -- corrections are saved to their own JSON
+    (`crane_convert_to_bids.save_raw_filename_id_corrections`, in the BIDS folder) and
+    applied the next time "Refresh BIDS" runs (`crane_convert_to_bids.resolve_crane_filename`).
+    Same shape as `DebriefRecordIdCorrectionDialog`: self-contained (works without a prior
+    conversion run), plain editable table, corrections keyed so a fixed filename drops off
+    the list next time this dialog is opened.
+
+    The bottom pane explains why the selected filename failed to parse
+    (`explain_unparseable_filename`, grounded in the same regex that decided it did) and
+    shows any matching line from the last "Refresh BIDS" run's captured log output
+    (`parent.last_conversion_log_lines`) -- both reuse existing machinery rather than
+    building a new diagnostic path.
+    """
+
+    def __init__(self, raw_folder: Path, bids_folder: Path, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.raw_folder = raw_folder
+        self.bids_folder = bids_folder
+        self._log_lines: list[str] = getattr(parent, "last_conversion_log_lines", [])
+        self.setWindowTitle("Fix unparseable filenames")
+        self.resize(720, 560)
+
+        layout = QVBoxLayout(self)
+        existing_corrections = load_raw_filename_id_corrections(bids_folder)
+        self._files = discover_unparseable_raw_files(raw_folder, existing_corrections)
+
+        if not self._files:
+            layout.addWidget(QLabel("No unparseable raw filenames found in the raw folder."))
+            buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+            buttons.rejected.connect(self.reject)
+            layout.addWidget(buttons)
+            return
+
+        info_label = QLabel(
+            'These raw filenames don\'t match crane\'s expected "[date_]<id>_CraneOut" '
+            "shape, so no subject id could be extracted -- they're skipped entirely, not "
+            "copied. Type the correct subject id for any you recognize, or leave blank to "
+            "keep skipping it. This never renames the raw file; corrections are saved "
+            'separately and applied the next time you click "Refresh BIDS".'
+        )
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+
+        self.table = QTableWidget(len(self._files), 2)
+        self.table.setHorizontalHeaderLabels(["Filename", "Corrected subject id"])
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.table.setColumnWidth(1, 220)
+        self.table.verticalHeader().setVisible(False)
+        for row, file in enumerate(self._files):
+            key = self._key(file)
+            name_item = QTableWidgetItem(key)
+            name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.table.setItem(row, 0, name_item)
+            self.table.setItem(row, 1, QTableWidgetItem(existing_corrections.get(key, "")))
+        self.table.itemSelectionChanged.connect(self._on_selection_changed)
+        layout.addWidget(self.table, 1)
+
+        # Persistent bottom pane -- always visible below the table, updated for whichever
+        # row is currently selected, same spirit as bids_crosscheck_common.py's "Last
+        # conversion" status panel (fixed-height QTextEdit, not a popup).
+        reason_group = QGroupBox("Why this failed")
+        reason_layout = QVBoxLayout(reason_group)
+        self.reason_text = QTextEdit()
+        self.reason_text.setReadOnly(True)
+        self.reason_text.setFont(QFont("Courier New"))
+        self.reason_text.setMaximumHeight(140)
+        self.reason_text.setPlainText("Select a row above to see why it couldn't be parsed.")
+        reason_layout.addWidget(self.reason_text)
+        layout.addWidget(reason_group)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self._on_save)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _key(self, file: Path) -> str:
+        try:
+            return file.relative_to(self.raw_folder).as_posix()
+        except ValueError:
+            return file.name
+
+    def _on_selection_changed(self) -> None:
+        rows = {index.row() for index in self.table.selectedIndexes()}
+        if not rows:
+            self.reason_text.setPlainText("Select a row above to see why it couldn't be parsed.")
+            return
+        file = self._files[min(rows)]
+        reason = explain_unparseable_filename(file)
+        relevant_lines = [line for line in self._log_lines if file.name in line]
+        if relevant_lines:
+            log_text = "\n".join(relevant_lines)
+        else:
+            log_text = (
+                '(no matching line from the last "Refresh BIDS" run in this session -- run '
+                "it again to see one)"
+            )
+        self.reason_text.setPlainText(f"{reason}\n\nFrom the last conversion run:\n{log_text}")
+
+    def _on_save(self) -> None:
+        corrections = load_raw_filename_id_corrections(self.bids_folder)
+        for row, file in enumerate(self._files):
+            key = self._key(file)
+            item = self.table.item(row, 1)
+            corrected_id = item.text().strip() if item is not None else ""
+            if corrected_id:
+                corrections[key] = corrected_id
+            else:
+                corrections.pop(key, None)
+        save_raw_filename_id_corrections(self.bids_folder, corrections)
+        self.accept()
+
+
+def _on_fix_unparseable_filenames(raw_folder: Path, bids_folder: Path, parent: QWidget) -> None:
+    """The crane-specific `extra_raw_actions` callback for the "Fix unparseable
+    filenames..." button -- see `UnparseableFilenameCorrectionDialog`.
+    """
+    UnparseableFilenameCorrectionDialog(raw_folder, bids_folder, parent).exec()
 
 
 def _run_crane_conversion(
@@ -629,11 +765,24 @@ def main() -> None:
         raw_converter=_run_crane_conversion,
         override_file_label="Debrief export",
         override_file_filter="CSV files (*.csv)",
-        extra_raw_action=(
-            "Fix debrief record IDs...",
-            "Declare corrected subject ids for debrief record_id values that don't match "
-            "any known subject. Saved separately -- never edits the raw debrief export.",
-            _on_fix_debrief_record_ids,
+        extra_raw_actions=[
+            (
+                "Fix debrief record IDs...",
+                "Declare corrected subject ids for debrief record_id values that don't match "
+                "any known subject. Saved separately -- never edits the raw debrief export.",
+                _on_fix_debrief_record_ids,
+            ),
+            (
+                "Fix unparseable filenames...",
+                "Declare corrected subject ids for raw physiology/behaviour filenames that "
+                "don't match the expected pattern at all, so they're skipped entirely. Saved "
+                "separately -- never renames the raw file.",
+                _on_fix_unparseable_filenames,
+            ),
+        ],
+        convert_button_tooltip=(
+            f"{DEFAULT_CONVERT_BUTTON_TOOLTIP} Also backfills a missing debrief file for an "
+            "already-converted subject, if one wasn't matched on an earlier run."
         ),
     )
 

@@ -14,6 +14,7 @@ dependencies = {file = ["requirements.txt"]}
 [project.scripts]
 crane_convert_to_bids = "mooi_toolbox.cli.crane_convert_to_bids:main"
 crane_generate_sample_data = "mooi_toolbox.cli.crane_generate_sample_data:main"
+foh_import_to_bids = "mooi_toolbox.cli.foh_import_to_bids:main"
 mobi_check_xdf = "mooi_toolbox.cli.check_mobi_xdf:main"
 mobi_foh_assess_data = "mooi_toolbox.cli.mobi_FOH_assess_data:main"
 mobi_foh_bids_crosscheck = "mooi_toolbox.gui.foh_bids_crosscheck_gui:main"

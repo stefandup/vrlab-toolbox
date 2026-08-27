@@ -89,6 +89,11 @@ STATUS_ICON_TOOLTIP = (
     f"{WARNING_ICON} the currently selected file has a dataset-specific issue -- "
     "see its detail panel"
 )
+DEFAULT_CONVERT_BUTTON_TOOLTIP = (
+    "Safe to run any time, including repeatedly. Only ever adds new subjects -- never "
+    "re-copies, overwrites, or touches a subject/file already in the BIDS folder below, "
+    "and never touches the raw folder at all."
+)
 TAG_COLUMN_TOOLTIP = (
     "Whether the currently-effective recording has been tagged yet, and with what. Blank "
     "for a scan type that doesn't use tagging, or with nothing effective yet."
@@ -170,16 +175,22 @@ class BidsCrosscheckWindow(QMainWindow):
         raw_converter: Callable[[Path, Path, Path | None], list[str]] | None = None,
         override_file_label: str | None = None,
         override_file_filter: str = "All files (*)",
-        extra_raw_action: tuple[str, str, Callable[[Path, Path, QWidget], None]] | None = None,
+        extra_raw_actions: list[tuple[str, str, Callable[[Path, Path, QWidget], None]]]
+        | None = None,
+        convert_button_tooltip: str = DEFAULT_CONVERT_BUTTON_TOOLTIP,
     ):
         """`raw_converter`, if given, adds a "Raw folder" selector and "Refresh BIDS" button
-        above the BIDS folder one -- optional, dataset-specific (only crane has a raw
-        converter today; FOH's stays external, so it passes None and gets none of this UI).
-        Called as `raw_converter(raw_folder, bids_folder, override_file)`, expected to do its
-        own writing into `bids_folder` and return human-readable lines describing what it
-        did, for display in the "Last conversion" status panel; a raised exception is caught
-        and shown as an error there instead. This window never imports the dataset-specific
-        converter itself -- it only ever calls whatever callable it's handed.
+        above the BIDS folder one -- optional, dataset-specific (crane and FOH both supply
+        one today). Called as `raw_converter(raw_folder, bids_folder, override_file)`,
+        expected to do its own writing into `bids_folder` and return human-readable lines
+        describing what it did, for display in the "Last conversion" status panel; a raised
+        exception is caught and shown as an error there instead. This window never imports
+        the dataset-specific converter itself -- it only ever calls whatever callable it's
+        handed.
+
+        `convert_button_tooltip`, if given, overrides the "Refresh BIDS" button's default
+        tooltip -- for a dataset-specific detail worth calling out beyond the generic
+        "only ever adds new subjects" guarantee (e.g. crane's debrief backfill behavior).
 
         `override_file_label`, if given (only meaningful alongside `raw_converter`), adds a
         third, optional single-file selector -- e.g. crane's "override which workbook counts
@@ -189,11 +200,11 @@ class BidsCrosscheckWindow(QMainWindow):
         for that picker (e.g. "Excel files (*.xlsx)") -- this window has no opinion on what
         kind of file it is, only that the dataset-specific converter does.
 
-        `extra_raw_action`, if given (only meaningful alongside `raw_converter`), adds one
-        more button next to "Refresh BIDS" -- `(button_label, tooltip, callback)`, called as
-        `callback(raw_folder, bids_folder, self)` once both are set. e.g. crane's "Fix debrief
-        record IDs..." dialog. Same "this window doesn't know what the callback does" contract
-        as `raw_converter`.
+        `extra_raw_actions`, if given (only meaningful alongside `raw_converter`), adds one
+        more button per entry next to "Refresh BIDS" -- each `(button_label, tooltip,
+        callback)`, called as `callback(raw_folder, bids_folder, self)` once both are set.
+        e.g. crane's "Fix debrief record IDs..." and "Fix unparseable filenames..." dialogs.
+        Same "this window doesn't know what the callback does" contract as `raw_converter`.
         """
         super().__init__()
         self.dataset_config = dataset_config
@@ -201,10 +212,17 @@ class BidsCrosscheckWindow(QMainWindow):
         self.raw_converter = raw_converter
         self.override_file_label = override_file_label
         self.override_file_filter = override_file_filter
-        self.extra_raw_action = extra_raw_action
+        self.extra_raw_actions = extra_raw_actions or []
+        self.convert_button_tooltip = convert_button_tooltip
         self.bids_folder: Path | None = None
         self.raw_folder: Path | None = None
         self.override_file: Path | None = None
+        # Lines captured from the last "Refresh BIDS" run's log output (see
+        # _update_conversion_status_panel) -- exposed as a public attribute so an
+        # extra_raw_actions callback (e.g. crane's unparseable-filename dialog) can show
+        # relevant excerpts from it without this window needing to know what "relevant"
+        # means for any particular dataset.
+        self.last_conversion_log_lines: list[str] = []
         self.scan: BidsFolderScan | None = None
         self._crosschecked: set[tuple[str, str]] = set()
         self._pending_selections: dict[str, dict[str, Path]] = {}
@@ -251,23 +269,21 @@ class BidsCrosscheckWindow(QMainWindow):
             raw_browse_button.clicked.connect(self._on_browse_raw_folder)
             raw_bar.addWidget(raw_browse_button)
             self.convert_button = QPushButton("Refresh BIDS")
-            self.convert_button.setToolTip(
-                "Safe to run any time, including repeatedly. Only ever adds new subjects and "
-                "backfills missing debrief files -- never re-copies, overwrites, or touches a "
-                "subject/file already in the BIDS folder below, and never touches the raw "
-                "folder at all."
-            )
+            self.convert_button.setToolTip(self.convert_button_tooltip)
             self.convert_button.setEnabled(False)
             self.convert_button.clicked.connect(self._on_convert_to_bids)
             raw_bar.addWidget(self.convert_button)
 
-            if self.extra_raw_action is not None:
-                label, tooltip, _callback = self.extra_raw_action
-                self.extra_raw_action_button = QPushButton(label)
-                self.extra_raw_action_button.setToolTip(tooltip)
-                self.extra_raw_action_button.setEnabled(False)
-                self.extra_raw_action_button.clicked.connect(self._on_extra_raw_action)
-                raw_bar.addWidget(self.extra_raw_action_button)
+            self.extra_raw_action_buttons: list[QPushButton] = []
+            for label, tooltip, callback in self.extra_raw_actions:
+                button = QPushButton(label)
+                button.setToolTip(tooltip)
+                button.setEnabled(False)
+                button.clicked.connect(
+                    lambda _checked=False, callback=callback: self._on_extra_raw_action(callback)
+                )
+                raw_bar.addWidget(button)
+                self.extra_raw_action_buttons.append(button)
 
             root_layout.addLayout(raw_bar)
 
@@ -487,13 +503,14 @@ class BidsCrosscheckWindow(QMainWindow):
             return
         both_selected = self.raw_folder is not None and self.bids_folder is not None
         self.convert_button.setEnabled(both_selected)
-        if self.extra_raw_action is not None:
-            self.extra_raw_action_button.setEnabled(both_selected)
+        for button in self.extra_raw_action_buttons:
+            button.setEnabled(both_selected)
 
-    def _on_extra_raw_action(self) -> None:
-        if self.extra_raw_action is None or self.raw_folder is None or self.bids_folder is None:
+    def _on_extra_raw_action(
+        self, callback: Callable[[Path, Path, QWidget], None]
+    ) -> None:
+        if self.raw_folder is None or self.bids_folder is None:
             return
-        _label, _tooltip, callback = self.extra_raw_action
         callback(self.raw_folder, self.bids_folder, self)
 
     def _on_convert_to_bids(self) -> None:
@@ -521,6 +538,7 @@ class BidsCrosscheckWindow(QMainWindow):
         doesn't block on being dismissed and stays visible (below the scan-type detail
         panes) as a standing record of what the last run did, until the next one replaces
         it."""
+        self.last_conversion_log_lines = lines
         if error:
             self.conversion_status_group.setTitle("Last conversion -- failed")
             self.conversion_status_text.setStyleSheet(f"color: {UNCROSSCHECKED_COLOR};")
@@ -1783,7 +1801,9 @@ def run_bids_crosscheck_app(
     raw_converter: Callable[[Path, Path, Path | None], list[str]] | None = None,
     override_file_label: str | None = None,
     override_file_filter: str = "All files (*)",
-    extra_raw_action: tuple[str, str, Callable[[Path, Path, QWidget], None]] | None = None,
+    extra_raw_actions: list[tuple[str, str, Callable[[Path, Path, QWidget], None]]]
+    | None = None,
+    convert_button_tooltip: str = DEFAULT_CONVERT_BUTTON_TOOLTIP,
 ) -> None:
     app = QApplication.instance() or QApplication([])
     # Consistent tooltip look regardless of OS/theme default -- black text on white, matching
@@ -1802,7 +1822,8 @@ def run_bids_crosscheck_app(
         raw_converter,
         override_file_label,
         override_file_filter,
-        extra_raw_action,
+        extra_raw_actions,
+        convert_button_tooltip,
     )
     window.show()
     app.exec()
