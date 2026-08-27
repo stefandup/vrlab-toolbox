@@ -36,7 +36,9 @@ Output layout, and why it looks the way it does:
   distinguishable by extension alone even after a tag rename.
 """
 
+import json
 import logging
+import os
 import re
 import shutil
 from collections import defaultdict
@@ -50,7 +52,10 @@ from rich.table import Table
 
 from mooi_toolbox import mobi_logging
 from mooi_toolbox.processing.bids_crosscheck import SUBJECT_FOLDER_PREFIX
-from mooi_toolbox.processing.crane_debrief_behaviour import REDCAP_FN
+from mooi_toolbox.processing.crane_debrief_behaviour import (
+    GROUP_REDCAP_GLOB,
+    crane_raw_debrief_file_schema,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,21 +64,6 @@ BEHAVIOUR_GLOB = "*_CraneOut.csv"
 # See module docstring's "Output layout" section for why these two exist.
 DATATYPE_FOLDER_NAME = "beh"
 RUN_TOKEN = "run-001"
-# REDCAP exports a value for these subject-level columns only on a row's first appearance,
-# blank on any continuation rows for the same subject -- same forward-fill
-# `crane_debrief_behaviour.load_group_debrief_data` already does for the pipeline's own
-# reading of this workbook, needed here too so a per-subject filter doesn't miss a
-# continuation row with a blank Subject_ID.
-DEBRIEF_SUBJECT_COLS = ("Subject_ID", "started_with_Crane_MobiLab", "High_at_start_end")
-# Known REDCAP renames of the two DEBRIEF_SUBJECT_COLS fields above (beyond Subject_ID,
-# handled separately via SUBJECT_ID_HEADER_ALIASES) -- confirmed by whoever maintains the
-# export, added one at a time as they're actually seen, not guessed. An unmapped rename just
-# means that field isn't forward-filled (a blank on a subject's later rows in the output
-# .tsv) -- doesn't affect subject-id matching, so leaving one unmapped rather than guessing
-# wrong is the safe default. "High_at_start_end" doesn't have a confirmed rename yet.
-DEBRIEF_SUBJECT_COL_ALIASES: dict[str, str] = {
-    "started": "started_with_Crane_MobiLab",
-}
 # Real filenames are `{date}_{subject_id}_CraneOut.{ext}`, but: the date prefix isn't always
 # there; it's sometimes joined with "-" instead of "_" (e.g. "20267291154-PID5562_CraneOut");
 # and a subject id can carry a Windows duplicate-copy marker (" (1)", " (2)", ...) from a file
@@ -99,6 +89,20 @@ def canonicalize_subject_id(subject_id: str) -> str:
     if match:
         return f"PID{match.group(1)}"
     return subject_id
+
+
+def guess_corrected_subject_id(record_id: str) -> str:
+    """Best-effort automatic fix for a mismatched debrief `record_id` -- strips stray
+    whitespace and a spurious trailing ".0" (from a numeric-looking id read without a string
+    dtype hint, e.g. "10016" -> 10016.0 -> "10016.0"), then applies the same PID-dash
+    normalization filename-derived ids already get (`canonicalize_subject_id`). Used by the
+    crosscheck GUI's debrief record-id correction dialog as the pre-filled first guess -- an
+    id that's merely mis-formatted, not actually wrong, becomes an exact match for free.
+    """
+    guess = record_id.strip()
+    if guess.endswith(".0") and guess[:-2].isdigit():
+        guess = guess[:-2]
+    return canonicalize_subject_id(guess)
 
 
 @dataclass
@@ -129,6 +133,50 @@ def extract_subject_id(file: Path) -> str | None:
     parsed = parse_crane_filename(file)
     return parsed.subject_id if parsed is not None else None
 
+
+def discover_raw_subject_ids(input_folder: Path) -> set[str]:
+    """Every subject id derivable from raw physiology/behaviour filenames, read-only -- the
+    same ids `convert_crane_to_bids` would derive, without copying anything. Used by the
+    crosscheck GUI's debrief record-id correction dialog to know which subject ids a
+    mismatched `record_id` could reasonably be corrected to, without requiring a real
+    conversion run first.
+    """
+    ids: set[str] = set()
+    for file in (*input_folder.rglob(PHYSIOLOGY_GLOB), *input_folder.rglob(BEHAVIOUR_GLOB)):
+        subject_id = extract_subject_id(file)
+        if subject_id is not None:
+            ids.add(subject_id)
+    return ids
+
+
+DEBRIEF_ID_CORRECTIONS_FILENAME = "debrief_id_corrections.json"
+
+
+def _debrief_id_corrections_path(bids_folder: Path) -> Path:
+    return bids_folder / DEBRIEF_ID_CORRECTIONS_FILENAME
+
+
+def load_debrief_id_corrections(bids_folder: Path) -> dict[str, str]:
+    """`{original_record_id: corrected_subject_id}`, as saved by the crosscheck GUI's debrief
+    record-id correction dialog. Lives in `bids_folder`, not the raw input folder -- this
+    module's own docstring guarantees it never touches `input_folder`, and this correction
+    file shouldn't become the exception. Empty (not an error) if nothing's been saved yet.
+    """
+    path = _debrief_id_corrections_path(bids_folder)
+    if not path.exists():
+        return {}
+    with path.open("r", encoding="utf-8") as corrections_file:
+        return json.load(corrections_file)
+
+
+def save_debrief_id_corrections(bids_folder: Path, corrections: dict[str, str]) -> None:
+    path = _debrief_id_corrections_path(bids_folder)
+    tmp_path = path.with_suffix(".json.tmp")
+    with tmp_path.open("w", encoding="utf-8") as tmp_file:
+        json.dump(corrections, tmp_file, indent=2, sort_keys=True)
+    os.replace(tmp_path, path)
+
+
 EXAMPLES_EPILOG = """
 Examples:
 
@@ -138,158 +186,53 @@ Examples:
 """
 
 
-def _find_debrief_workbook(input_folder: Path, override: Path | None = None) -> Path | None:
-    """Locate the shared REDCAP workbook. `override`, if given, is used as-is, no searching
-    -- for when auto-detection guesses wrong or refuses (ambiguous, multiple .xlsx candidates)
-    and a human just knows which file is the real one. Otherwise prefers an exact `REDCAP_FN`
-    match (what the real pipeline's `load_group_debrief_data` requires today), but falls back
-    to any single `.xlsx` file found -- confirmed against real data that the on-disk filename
-    can differ from `REDCAP_FN` by punctuation alone (underscores vs. spaces), which would
-    make the exact-match pipeline path silently find nothing too. Flag that constant/filename
-    mismatch to a human rather than silently "fixing" it here. Searched recursively (like
-    every other lookup here) since it may not sit directly at input_folder's top level.
+def _find_debrief_export(input_folder: Path, override: Path | None = None) -> Path | None:
+    """Locate the shared REDCAP group export. `override`, if given, is used as-is, no
+    searching -- for when auto-detection refuses (multiple candidates) and a human just
+    knows which file is the real one. Otherwise searches recursively for
+    `GROUP_REDCAP_GLOB`, the same pattern `crane_debrief_behaviour.get_group_debrief_data`
+    matches against for the real pipeline's own debrief loading, so a file this converter
+    finds is guaranteed to also be the one the pipeline itself would load later.
     """
     if override is not None:
         return override
 
-    exact_matches = sorted(input_folder.rglob(REDCAP_FN))
-    if exact_matches:
-        return exact_matches[0]
-
-    xlsx_candidates = sorted(input_folder.rglob("*.xlsx"))
-    if len(xlsx_candidates) == 1:
+    candidates = sorted(input_folder.rglob(GROUP_REDCAP_GLOB))
+    if not candidates:
         logger.warning(
-            "No file named %r, but found %s -- using it as the debrief workbook. This means "
-            "processing/crane_debrief_behaviour.py's REDCAP_FN constant doesn't match the "
-            "real filename either, which would also break the pipeline's own debrief "
-            "loading -- worth fixing REDCAP_FN or renaming the file.",
-            REDCAP_FN,
-            xlsx_candidates[0].name,
-        )
-        return xlsx_candidates[0]
-
-    if xlsx_candidates:
-        logger.warning(
-            "No file named %r, and %d other .xlsx files found -- ambiguous, skipping debrief "
-            "entirely: %s",
-            REDCAP_FN,
-            len(xlsx_candidates),
-            ", ".join(path.name for path in xlsx_candidates),
-        )
-    else:
-        logger.warning(
-            "No file named %r and no other .xlsx file found in %s -- skipping debrief "
-            "entirely",
-            REDCAP_FN,
+            "No file matching %r found in %s -- skipping debrief entirely",
+            GROUP_REDCAP_GLOB,
             input_folder,
         )
-    return None
-
-
-def _normalize_subject_id_column(series: pd.Series) -> pd.Series:
-    """Fallback string-ification for a Subject_ID column, for when the read-time dtype hint
-    below (the real fix) couldn't be applied because no matching raw header was found. A
-    zero-padded, numeric-looking ID cell (e.g. "00002") read WITHOUT a dtype hint gets
-    pandas' auto-inferred numeric type (2.0) -- plain `.astype(str)` on that produces "2.0",
-    not "2", let alone the original "00002". This strips a spurious ".0" for whole numbers;
-    it can't recover already-lost leading zeros, since that information is gone by the time
-    pandas has inferred a numeric dtype.
-    """
-    if pd.api.types.is_float_dtype(series):
-        return series.apply(
-            lambda v: str(int(v)) if pd.notna(v) and float(v).is_integer() else str(v)
-        )
-    return series.astype(str).str.strip()
-
-
-# "record_id" is REDCAP's own default name for a project's first/primary field, present in
-# every REDCAP project unless someone explicitly renames it -- recognized here as a synonym
-# for "Subject_ID" since an export can come out under REDCAP's default name instead of a
-# crane-specific rename. Just this one well-known REDCAP-standard alternative, not a general
-# column-name-guessing system.
-SUBJECT_ID_HEADER_ALIASES = ("subject_id", "record_id")
-
-
-def _find_subject_id_header(columns) -> str | None:
-    """Find whatever the raw (uncleaned) column header for Subject_ID actually is, so it can
-    be used as a `pd.read_excel(..., dtype=...)` key -- that dict is matched against the
-    literal on-disk header, before any of this module's own cleaning/renaming runs.
-    """
-    for column in columns:
-        if str(column).strip().lower().replace(" ", "_") in SUBJECT_ID_HEADER_ALIASES:
-            return column
-    return None
-
-
-def _load_cleaned_debrief_workbook(
-    input_folder: Path, override: Path | None = None
-) -> pd.DataFrame | None:
-    """Read+clean the shared REDCAP workbook, without `load_group_debrief_data`'s further
-    pivot/proportion transform -- that produces pipeline *output* metrics, not the raw
-    per-subject row this converter wants to hand a human reviewer.
-
-    TODO: this reads whatever REDCAP happened to export and hopes the columns/values look
-    right (see the header/dtype gymnastics below and the case-insensitive/dash-insensitive
-    matching in convert_crane_to_bids) -- there's no schema validating the shape up front.
-    REDCAP exports are human-triggered and people taking liberties with the export options
-    (wrong columns included, wrong format) is exactly the kind of thing a schema check (e.g.
-    reusing or adapting crane_debrief_behaviour.crane_raw_debrief_file_schema) would catch
-    with a clear error instead of a silent downstream mismatch. Not done here since a strict
-    schema also risks being too rigid for a converter that's meant to dump, not decide --
-    needs a real design pass on what "invalid enough to reject" means for this file, not a
-    quick add.
-    """
-    workbook_path = _find_debrief_workbook(input_folder, override)
-    if workbook_path is None:
         return None
 
-    # Read Subject_ID as text from the very start, matching what makes the real pipeline's
-    # own matching (crane_debrief_behaviour.load_group_debrief_data's
-    # `pd.read_excel(data_fn, dtype={"Subject_ID": str})`) reliable. This is NOT the same as
-    # reading with no dtype hint and str()-ing the result afterwards in
-    # _normalize_subject_id_column: a numeric-looking Excel cell read without a dtype hint
-    # gets pandas' auto-inferred numeric type first (e.g. becomes the float 1.0), and
-    # str(1.0) == "1.0" -- the real "00001"-style representation is already gone by the time
-    # there's a chance to reformat it. The header name is discovered from a cheap
-    # header-only read first, since `dtype` needs the exact raw (uncleaned) column name.
-    header_only = pd.read_excel(workbook_path, nrows=0)
-    raw_subject_id_header = _find_subject_id_header(header_only.columns)
-    dtype_hint = {raw_subject_id_header: str} if raw_subject_id_header is not None else None
-    df = pd.read_excel(workbook_path, dtype=dtype_hint)
-    df.columns = df.columns.str.strip().str.replace(" ", "_").str.replace("/", "_")
-
-    # Matched case-insensitively against either known alias (see SUBJECT_ID_HEADER_ALIASES)
-    # rather than requiring the literal "Subject_ID" spelling -- same risk as the REDCAP_FN
-    # filename mismatch above: the real workbook's header casing/naming isn't confirmed
-    # against crane_raw_debrief_file_schema's expectation.
-    subject_id_column = next(
-        (col for col in df.columns if col.lower() in SUBJECT_ID_HEADER_ALIASES), None
-    )
-    if subject_id_column is None:
+    if len(candidates) > 1:
         logger.warning(
-            "No 'Subject_ID'/'record_id' column found in %s after cleaning -- skipping "
-            "debrief entirely. Columns found: %s",
-            workbook_path,
-            ", ".join(df.columns) or "(none)",
+            "Multiple files matching %r found -- using %s: %s",
+            GROUP_REDCAP_GLOB,
+            candidates[0].name,
+            ", ".join(path.name for path in candidates),
         )
+    return candidates[0]
+
+
+def load_debrief_export(input_folder: Path, override: Path | None = None) -> pd.DataFrame | None:
+    """Read+filter the shared REDCAP group export -- one already-wide row per subject
+    (`record_id` plus `crane_<emotion>_rb`/`_gb` columns), the same shape
+    `crane_debrief_behaviour.get_group_debrief_data` loads for the real pipeline. Filtered
+    against `crane_raw_debrief_file_schema`'s own column set (not validated against it --
+    this converter is meant to dump, not decide) so this converter's debrief columns never
+    drift from what the real pipeline expects.
+    """
+    export_path = _find_debrief_export(input_folder, override)
+    if export_path is None:
         return None
-    df = df.rename(columns={subject_id_column: "Subject_ID"})
-    df["Subject_ID"] = _normalize_subject_id_column(df["Subject_ID"]).apply(canonicalize_subject_id)
 
-    df = df.rename(
-        columns={
-            col: DEBRIEF_SUBJECT_COL_ALIASES[col.lower()]
-            for col in df.columns
-            if col.lower() in DEBRIEF_SUBJECT_COL_ALIASES
-        }
-    )
-    present_subject_cols = [col for col in DEBRIEF_SUBJECT_COLS if col in df.columns]
-    df[present_subject_cols] = df[present_subject_cols].ffill()
-    df = df.dropna(how="all")
-    return df.drop(columns="Subject_Names", errors="ignore")
+    df = pd.read_csv(export_path)
+    return df.filter(items=list(crane_raw_debrief_file_schema.columns))
 
 
-def _existing_subject_ids(output_folder: Path) -> set[str]:
+def existing_subject_ids(output_folder: Path) -> set[str]:
     if not output_folder.is_dir():
         return set()
     return {
@@ -370,7 +313,7 @@ class CraneConversionSummary:
 
 
 def convert_crane_to_bids(
-    input_folder: Path, output_folder: Path, debrief_workbook: Path | None = None
+    input_folder: Path, output_folder: Path, debrief_export: Path | None = None
 ) -> CraneConversionSummary:
     """Core, UI-agnostic conversion logic -- see module docstring for the "why" behind the
     output layout. Progress/problems are reported via the standard `logger` (info for
@@ -379,20 +322,27 @@ def convert_crane_to_bids(
     display the result their own way -- attach a `logging.Handler` to this module's logger
     around the call to capture those messages for display elsewhere.
 
-    `debrief_workbook`, if given, overrides auto-detection of the shared REDCAP workbook --
-    for when the on-disk filename doesn't match `REDCAP_FN` *and* there's more than one
-    `.xlsx` candidate in `input_folder` (auto-detection refuses rather than guessing between
-    them), or when auto-detection would otherwise pick the wrong one.
+    `debrief_export`, if given, overrides auto-detection of the shared REDCAP group export --
+    for when there's more than one file matching `GROUP_REDCAP_GLOB` in `input_folder`
+    (auto-detection refuses rather than guessing between them), or when auto-detection would
+    otherwise pick the wrong one.
     """
     output_folder.mkdir(parents=True, exist_ok=True)
-    already_converted = _existing_subject_ids(output_folder)
+    already_converted = existing_subject_ids(output_folder)
 
     # Recursive (like every real pipeline lookup this mirrors -- input_data.py's
     # from_physiology_data, behaviour.py, vrlab_crane_process.py -- all use rglob), since raw
     # files aren't guaranteed to sit directly at input_folder's top level.
     physiology_files = sorted(input_folder.rglob(PHYSIOLOGY_GLOB))
     behaviour_files = sorted(input_folder.rglob(BEHAVIOUR_GLOB))
-    debrief_df = _load_cleaned_debrief_workbook(input_folder, debrief_workbook)
+    debrief_df = load_debrief_export(input_folder, debrief_export)
+    if debrief_df is not None:
+        # Human-declared record_id -> subject_id fixes from the crosscheck GUI's debrief
+        # correction dialog (see load_debrief_id_corrections) -- applied here, not in
+        # load_debrief_export, so that function stays a pure read of the raw export.
+        corrections = load_debrief_id_corrections(output_folder)
+        if corrections:
+            debrief_df["record_id"] = debrief_df["record_id"].replace(corrections)
 
     subject_physiology: dict[str, list[Path]] = defaultdict(list)
     subject_behaviour: dict[str, list[Path]] = defaultdict(list)
@@ -443,8 +393,8 @@ def convert_crane_to_bids(
 
     # Debrief backfill: an already-converted subject (physiology/behaviour skipped above,
     # untouched by design) still gets reconsidered for debrief specifically if they don't
-    # have one yet -- e.g. a previous run's debrief workbook didn't match them, and this run
-    # was given a corrected/different one via debrief_workbook. Subjects that already have a
+    # have one yet -- e.g. a previous run's debrief export didn't match them, and this run
+    # was given a corrected/different one via debrief_export. Subjects that already have a
     # debrief file are left alone either way -- never overwritten, same as everything else
     # this converter touches.
     backfill_candidate_ids = sorted(
@@ -454,11 +404,12 @@ def convert_crane_to_bids(
     backfilled_debrief_ids: list[str] = []
 
     if debrief_df is not None:
-        # Case-insensitive, in case the workbook's Subject_ID values and filename-derived ids
-        # differ only in casing (e.g. "pid10016" vs "PID10016").
-        debrief_lookup_key = debrief_df["Subject_ID"].str.upper()
+        # Exact match on record_id, same as the real pipeline's own
+        # `crane_debrief_behaviour.RawDebriefBehaviourData.get_single_subject_data` -- record_id
+        # is expected to already be the canonical subject id, not a value needing case
+        # normalization the way the old Subject_ID-based workbook did.
         for subject_id in debrief_candidate_ids:
-            subject_rows = debrief_df[debrief_lookup_key == subject_id.upper()]
+            subject_rows = debrief_df[debrief_df["record_id"] == subject_id]
             if not subject_rows.empty:
                 date_prefix = (
                     subject_date_prefix.get(subject_id)
@@ -495,17 +446,17 @@ def convert_crane_to_bids(
         # "0"-prefixed numeric id sorts before every letter-prefixed one, so "first 15" alone
         # could show only one shape and hide entirely that the other shape exists further
         # in. Showing both ends (plus the total count) avoids that blind spot.
-        all_values = sorted(debrief_df["Subject_ID"].dropna().unique())
+        all_values = sorted(debrief_df["record_id"].dropna().unique())
         if len(all_values) <= 20:
             sample_desc = ", ".join(all_values)
         else:
             sample_desc = f"{', '.join(all_values[:10])}, ..., {', '.join(all_values[-10:])}"
         logger.warning(
-            "No debrief row found for %d subject(s) -- check whether their Subject_ID in %s "
-            "actually matches the ID in their filenames: %s. %d total distinct Subject_ID "
-            "value(s) found in the workbook (first/last 10 shown if more than 20): %s",
+            "No debrief row found for %d subject(s) -- check whether their record_id in %r "
+            "actually matches the ID in their filenames: %s. %d total distinct record_id "
+            "value(s) found in the export (first/last 10 shown if more than 20): %s",
             len(unmatched_debrief),
-            REDCAP_FN,
+            GROUP_REDCAP_GLOB,
             ", ".join(unmatched_debrief),
             len(all_values),
             sample_desc,
@@ -583,15 +534,15 @@ def print_conversion_summary(summary: CraneConversionSummary) -> None:
 )
 @click.argument("output_folder", type=click.Path(path_type=Path), required=True)
 @click.option(
-    "--debrief-workbook",
+    "--debrief-export",
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     default=None,
-    help="Override the shared REDCAP workbook auto-detection -- use when the on-disk "
-    "filename doesn't match REDCAP_FN and there's more than one .xlsx candidate.",
+    help="Override the shared REDCAP group export auto-detection -- use when there's more "
+    "than one file matching GROUP_REDCAP_GLOB.",
 )
 @click.option("--verbose", is_flag=True, help="Give verbose output")
 def main(
-    input_folder: Path, output_folder: Path, debrief_workbook: Path | None, verbose: bool
+    input_folder: Path, output_folder: Path, debrief_export: Path | None, verbose: bool
 ) -> None:
     """Copy-only converter: raw crane data folder -> BIDS-shaped output folder.
 
@@ -599,7 +550,7 @@ def main(
     skipped entirely (not re-copied, not touched) -- safe to re-run against a source folder
     that's gained new subjects since the last run.
     """
-    summary = convert_crane_to_bids(input_folder, output_folder, debrief_workbook)
+    summary = convert_crane_to_bids(input_folder, output_folder, debrief_export)
     print_conversion_summary(summary)
 
 

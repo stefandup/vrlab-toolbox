@@ -12,8 +12,8 @@ so it stays distinguishable from behaviour by extension alone.
 (`foh_bids_crosscheck_gui.py`) -- deferred until now per
 docs/bids_crosscheck_plan.md#crane-parity-with-foh-s-gui-improvements. Its content
 parsing is best-effort against the *raw* data formats crane actually produces today
-(Biopac `.mat` physiology, per-subject behaviour `.csv`, one shared REDCAP `.xlsx`
-debrief workbook -- see `processing/biopac.py`, `processing/crane_behaviour.py`,
+(Biopac `.mat` physiology, per-subject behaviour `.csv`, one shared REDCAP `.csv`
+group debrief export -- see `processing/biopac.py`, `processing/crane_behaviour.py`,
 `processing/crane_debrief_behaviour.py`), since there's no real crane BIDS output yet
 to confirm the post-conversion format/columns against (examples/crane_bids_dummy is a
 filename/folder-structure mockup only -- its files are empty). Every parser below
@@ -29,8 +29,28 @@ from pathlib import Path
 
 import pandas as pd
 import scipy.io as sio
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
+    QHeaderView,
+    QLabel,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
-from mooi_toolbox.cli.crane_convert_to_bids import CraneConversionSummary, convert_crane_to_bids
+from mooi_toolbox.cli.crane_convert_to_bids import (
+    CraneConversionSummary,
+    convert_crane_to_bids,
+    discover_raw_subject_ids,
+    existing_subject_ids,
+    guess_corrected_subject_id,
+    load_debrief_export,
+    load_debrief_id_corrections,
+    save_debrief_id_corrections,
+)
 from mooi_toolbox.gui.bids_crosscheck_common import CandidateExtras, run_bids_crosscheck_app
 from mooi_toolbox.processing.bids_crosscheck import DatasetConfig, ScanTypeConfig
 from mooi_toolbox.processing.biodata import ACCEPTED_LABEL_PATTERN, CANONICAL_LABEL_SPELLING
@@ -67,16 +87,19 @@ EXPECTED_PHYSIO_CHANNELS = ("EDA",)
 # pipeline (processing/crane_behaviour.py, processing/crane_debrief_behaviour.py) -- reused
 # here as an advisory "does this look complete" check, not full pandera validation, since a
 # stricter check (value ranges, balanced conditions, ...) belongs to the pipeline, not a
-# glance-level crosscheck. The debrief schema describes the shared REDCAP workbook's columns;
-# whether a per-subject BIDS debrief file keeps the same columns (incl. Subject_ID) is
-# unconfirmed -- see module docstring.
+# glance-level crosscheck. The debrief schema describes the shared REDCAP group export's
+# columns (record_id plus wide crane_<emotion>_rb/_gb columns); a per-subject BIDS debrief
+# file keeps the same columns since `crane_convert_to_bids.load_debrief_export` filters
+# against this same schema before writing it.
 BEHAVIOUR_EXPECTED_COLUMNS = tuple(build_crane_raw_behav_file_schema().columns.keys())
 DEBRIEF_EXPECTED_COLUMNS = tuple(crane_raw_debrief_file_schema.columns.keys())
 
 CHECK = "✓"
 CROSS = "✗"
+WARNING = "❗"
 CHECK_COLOR = "#2ecc71"
 CROSS_COLOR = "#e74c3c"
+WARNING_COLOR = "#f39c12"
 INFO_CACHE_FILENAME = "crosscheck_info_cache.json"
 # Bumped whenever a parser's output shape or derivation changes, so a cached entry that still
 # matches the file's mtime/size (nothing to re-read) but was computed by older logic gets
@@ -245,10 +268,18 @@ class CraneCandidateExtras(CandidateExtras):
             info = self._behaviour_or_debrief_info(scan_type, file)
             complete = info.columns is not None and not info.missing_columns
             label = "Behaviour" if scan_type == BEHAVIOUR_SCAN_TYPE else "Debrief"
-            columns_text = (
-                f'<span style="color:{CHECK_COLOR if complete else CROSS_COLOR}">'
-                f"{label} {CHECK if complete else CROSS}</span>"
-            )
+            if complete:
+                icon, color = CHECK, CHECK_COLOR
+            elif scan_type == DEBRIEF_SCAN_TYPE and info.columns is not None:
+                # The file exists and is readable but is missing expected columns -- a
+                # narrower problem than a completely absent debrief file (which
+                # bids_crosscheck_common.py's "missing" status shows as a plain X for
+                # instead), so a distinct warning glyph here keeps the two failure modes
+                # visually distinguishable at a glance.
+                icon, color = WARNING, WARNING_COLOR
+            else:
+                icon, color = CROSS, CROSS_COLOR
+            columns_text = f'<span style="color:{color}">{label} {icon}</span>'
             parts = []
             if info.n_rows is not None:
                 row_word = "trials" if scan_type == BEHAVIOUR_SCAN_TYPE else "row(s)"
@@ -431,22 +462,154 @@ def _format_conversion_summary(summary: CraneConversionSummary) -> str:
     return "\n".join(lines)
 
 
+class DebriefRecordIdCorrectionDialog(QDialog):
+    """Lets a human declare "this messy debrief record_id really means this subject",
+    without ever touching the raw REDCAP export -- corrections are saved to their own JSON
+    (`crane_convert_to_bids.save_debrief_id_corrections`, in the BIDS folder) and applied the
+    next time "Refresh BIDS" runs (`crane_convert_to_bids.convert_crane_to_bids`). A plain
+    editable table with freeform text, not a dropdown-matched picker -- same correction style
+    as `bids_crosscheck_common.py`'s existing "Correct date..."/"Rename subject ID..."
+    `QInputDialog.getText` dialogs, just extended to handle more than one row at a time.
+    """
+
+    def __init__(self, raw_folder: Path, bids_folder: Path, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.bids_folder = bids_folder
+        self.setWindowTitle("Fix debrief record IDs")
+        self.resize(640, 420)
+
+        layout = QVBoxLayout(self)
+        self._unmatched_record_ids: list[str] = []
+        self._unmatched_subject_ids: list[str] = []
+
+        existing_corrections = load_debrief_id_corrections(bids_folder)
+        debrief_df = load_debrief_export(raw_folder)
+        if debrief_df is None:
+            layout.addWidget(QLabel("No debrief export found in the raw folder."))
+            buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+            buttons.rejected.connect(self.reject)
+            layout.addWidget(buttons)
+            return
+
+        known_ids = discover_raw_subject_ids(raw_folder) | existing_subject_ids(bids_folder)
+        record_ids = debrief_df["record_id"].astype(str)
+        corrected_ids = record_ids.replace(existing_corrections)
+        self._unmatched_record_ids = sorted(record_ids[~corrected_ids.isin(known_ids)].unique())
+        # What a guess is actually checked against: subjects still missing a debrief, not
+        # every known id -- a guess landing on a subject that already has one would just
+        # create a second, wrong debrief for them, not fix anything.
+        self._unmatched_subject_ids = sorted(known_ids - set(corrected_ids))
+
+        layout.addWidget(
+            QLabel(
+                "These record_id values in the debrief export don't match any known subject "
+                "id. Each row is pre-filled with a best-effort guess (stray whitespace/PID-dash "
+                "fixes) -- edit any that are still wrong, or clear the box to skip. This never "
+                'changes the raw export; corrections are saved separately and applied the next '
+                'time you click "Refresh BIDS".'
+            )
+        )
+
+        self.table = QTableWidget(len(self._unmatched_record_ids), 3)
+        self.table.setHorizontalHeaderLabels(
+            ["record_id (from export)", "Matched", "Corrected subject id"]
+        )
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeaderItem(1).setToolTip(
+            f"{CHECK} matches a subject still missing a debrief file\n"
+            f"{CROSS} doesn't match any subject still missing a debrief file -- double-check "
+            "it, or this subject may genuinely have no debrief data (e.g. never completed it)"
+        )
+        self.table.verticalHeader().setVisible(False)
+        for row, record_id in enumerate(self._unmatched_record_ids):
+            record_item = QTableWidgetItem(record_id)
+            record_item.setFlags(record_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.table.setItem(row, 0, record_item)
+            match_item = QTableWidgetItem("")
+            match_item.setFlags(match_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.table.setItem(row, 1, match_item)
+            guess = existing_corrections.get(record_id) or guess_corrected_subject_id(record_id)
+            self.table.setItem(row, 2, QTableWidgetItem(guess))
+            self._update_match_icon(row)
+        self.table.itemChanged.connect(self._on_item_changed)
+        layout.addWidget(self.table, 1)
+
+        if self._unmatched_subject_ids:
+            reference_label = QLabel(
+                "Subject ids still without a debrief match: "
+                + ", ".join(self._unmatched_subject_ids)
+            )
+            reference_label.setWordWrap(True)
+            layout.addWidget(reference_label)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self._on_save)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _update_match_icon(self, row: int) -> None:
+        item = self.table.item(row, 2)
+        text = item.text().strip() if item is not None else ""
+        if not text:
+            icon, tooltip = "", ""
+        elif text in self._unmatched_subject_ids:
+            icon, tooltip = CHECK, "Matches a subject still missing a debrief file"
+        else:
+            icon, tooltip = (
+                CROSS,
+                "Doesn't match any subject still missing a debrief file -- double-check it, "
+                "or this subject may genuinely have no debrief data",
+            )
+        match_item = self.table.item(row, 1)
+        if match_item is not None:
+            match_item.setText(icon)
+            match_item.setToolTip(tooltip)
+
+    def _on_item_changed(self, item: QTableWidgetItem) -> None:
+        if item.column() == 2:
+            self._update_match_icon(item.row())
+
+    def _on_save(self) -> None:
+        corrections = load_debrief_id_corrections(self.bids_folder)
+        for row, record_id in enumerate(self._unmatched_record_ids):
+            item = self.table.item(row, 2)
+            corrected_id = item.text().strip() if item is not None else ""
+            if corrected_id:
+                corrections[record_id] = corrected_id
+            else:
+                corrections.pop(record_id, None)
+        save_debrief_id_corrections(self.bids_folder, corrections)
+        self.accept()
+
+
+def _on_fix_debrief_record_ids(raw_folder: Path, bids_folder: Path, parent: QWidget) -> None:
+    """The crane-specific `extra_raw_action` callback for the "Fix debrief record IDs..."
+    button -- see `DebriefRecordIdCorrectionDialog`.
+    """
+    DebriefRecordIdCorrectionDialog(raw_folder, bids_folder, parent).exec()
+
+
 def _run_crane_conversion(
-    raw_folder: Path, bids_folder: Path, debrief_workbook: Path | None
+    raw_folder: Path, bids_folder: Path, debrief_export: Path | None
 ) -> list[str]:
     """The crane-specific `raw_converter` callback `BidsCrosscheckWindow` calls when the
-    "Convert to BIDS..." button is clicked. Captures `convert_crane_to_bids`'s own log
-    output (info/warning messages about skipped subjects, unmatched debrief rows, ...)
-    alongside the final summary, so both show up together in the status panel.
-    `debrief_workbook` comes straight from the window's optional override-file picker --
-    None unless the user has explicitly picked one, in which case it overrides this
-    function's own auto-detection of the shared REDCAP workbook.
+    "Refresh BIDS" button is clicked. Captures `convert_crane_to_bids`'s own log output
+    (info/warning messages about skipped subjects, unmatched debrief rows, ...) alongside
+    the final summary, so both show up together in the status panel. `debrief_export` comes
+    straight from the window's optional override-file picker -- None unless the user has
+    explicitly picked one, in which case it overrides this function's own auto-detection of
+    the shared REDCAP group export.
     """
     handler = _ListLogHandler()
     converter_logger = logging.getLogger("mooi_toolbox.cli.crane_convert_to_bids")
     converter_logger.addHandler(handler)
     try:
-        summary = convert_crane_to_bids(raw_folder, bids_folder, debrief_workbook)
+        summary = convert_crane_to_bids(raw_folder, bids_folder, debrief_export)
     finally:
         converter_logger.removeHandler(handler)
 
@@ -460,8 +623,14 @@ def main() -> None:
         CraneCandidateExtras(),
         settings_app_name="CraneBidsCrosscheck",
         raw_converter=_run_crane_conversion,
-        override_file_label="Debrief workbook",
-        override_file_filter="Excel files (*.xlsx)",
+        override_file_label="Debrief export",
+        override_file_filter="CSV files (*.csv)",
+        extra_raw_action=(
+            "Fix debrief record IDs...",
+            "Declare corrected subject ids for debrief record_id values that don't match "
+            "any known subject. Saved separately -- never edits the raw debrief export.",
+            _on_fix_debrief_record_ids,
+        ),
     )
 
 

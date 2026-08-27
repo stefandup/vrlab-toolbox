@@ -121,9 +121,12 @@ class ProcessCraneDebriefBehaviourDataStrategyStep:
 
         raw_data_df = raw_behaviour_data_in.raw_behav_df
         pipeline_df_out = raw_data_df.copy()
-        pipeline_df_out.columns = pipeline_df_out.columns.str.replace(
-            "_gb", "_SlipTrial"
-        ).str.replace("_rb", "_NonSlipTrial")
+        # TODO: Perhaps fix dissastifaction spelling in redcap? :)
+        pipeline_df_out.columns = (
+            pipeline_df_out.columns.str.replace("_gb", "_SlipTrial")
+            .str.replace("_rb", "_NonSlipTrial")
+            .str.replace("dissastifaction", "dissatisfaction")
+        )
         pipeline_df_out = pipeline_df_out.drop(columns="record_id")
         pipeline_df_out = pipeline_df_out.add_prefix("Debrief_")
 

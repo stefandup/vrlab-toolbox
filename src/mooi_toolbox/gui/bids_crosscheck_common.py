@@ -76,6 +76,7 @@ FOUND_EVERYWHERE_COLOR = "#2ecc71"
 SUBJECT_ID_ROLE = Qt.ItemDataRole.UserRole
 SETTINGS_ORGANIZATION = "MooiToolbox"
 LAST_BIDS_FOLDER_SETTINGS_KEY = "last_bids_folder"
+LAST_RAW_FOLDER_SETTINGS_KEY = "last_raw_folder"
 STATUS_ICON_TOOLTIP = (
     f"{STATUS_ICON['ok']} complete -- exactly one file found\n"
     f"{STATUS_ICON['missing']} missing -- no file found\n"
@@ -167,9 +168,10 @@ class BidsCrosscheckWindow(QMainWindow):
         raw_converter: Callable[[Path, Path, Path | None], list[str]] | None = None,
         override_file_label: str | None = None,
         override_file_filter: str = "All files (*)",
+        extra_raw_action: tuple[str, str, Callable[[Path, Path, QWidget], None]] | None = None,
     ):
-        """`raw_converter`, if given, adds a "Raw folder" selector and "Convert to BIDS..."
-        button above the BIDS folder one -- optional, dataset-specific (only crane has a raw
+        """`raw_converter`, if given, adds a "Raw folder" selector and "Refresh BIDS" button
+        above the BIDS folder one -- optional, dataset-specific (only crane has a raw
         converter today; FOH's stays external, so it passes None and gets none of this UI).
         Called as `raw_converter(raw_folder, bids_folder, override_file)`, expected to do its
         own writing into `bids_folder` and return human-readable lines describing what it
@@ -184,6 +186,12 @@ class BidsCrosscheckWindow(QMainWindow):
         to its own auto-detection). `override_file_filter` is the QFileDialog filter string
         for that picker (e.g. "Excel files (*.xlsx)") -- this window has no opinion on what
         kind of file it is, only that the dataset-specific converter does.
+
+        `extra_raw_action`, if given (only meaningful alongside `raw_converter`), adds one
+        more button next to "Refresh BIDS" -- `(button_label, tooltip, callback)`, called as
+        `callback(raw_folder, bids_folder, self)` once both are set. e.g. crane's "Fix debrief
+        record IDs..." dialog. Same "this window doesn't know what the callback does" contract
+        as `raw_converter`.
         """
         super().__init__()
         self.dataset_config = dataset_config
@@ -191,6 +199,7 @@ class BidsCrosscheckWindow(QMainWindow):
         self.raw_converter = raw_converter
         self.override_file_label = override_file_label
         self.override_file_filter = override_file_filter
+        self.extra_raw_action = extra_raw_action
         self.bids_folder: Path | None = None
         self.raw_folder: Path | None = None
         self.override_file: Path | None = None
@@ -207,11 +216,21 @@ class BidsCrosscheckWindow(QMainWindow):
         self.resize(1100, 650)
         self._build_ui()
         self._restore_last_bids_folder()
+        self._restore_last_raw_folder()
 
     def _restore_last_bids_folder(self) -> None:
         stored = self._settings.value(LAST_BIDS_FOLDER_SETTINGS_KEY, "")
         if stored and Path(stored).is_dir():
             self.load_bids_folder(Path(stored))
+
+    def _restore_last_raw_folder(self) -> None:
+        if self.raw_converter is None:
+            return
+        stored = self._settings.value(LAST_RAW_FOLDER_SETTINGS_KEY, "")
+        if stored and Path(stored).is_dir():
+            self.raw_folder = Path(stored)
+            self.raw_folder_label.setText(str(self.raw_folder))
+            self._update_convert_button_enabled()
 
     def _build_ui(self) -> None:
         central = QWidget()
@@ -229,15 +248,25 @@ class BidsCrosscheckWindow(QMainWindow):
             )
             raw_browse_button.clicked.connect(self._on_browse_raw_folder)
             raw_bar.addWidget(raw_browse_button)
-            self.convert_button = QPushButton("Convert to BIDS...")
+            self.convert_button = QPushButton("Refresh BIDS")
             self.convert_button.setToolTip(
-                "Run the raw-to-BIDS converter. Only ever adds new subjects into the BIDS "
-                "folder below -- never touches the raw folder, never re-copies or overwrites "
-                "a subject that's already there."
+                "Safe to run any time, including repeatedly. Only ever adds new subjects and "
+                "backfills missing debrief files -- never re-copies, overwrites, or touches a "
+                "subject/file already in the BIDS folder below, and never touches the raw "
+                "folder at all."
             )
             self.convert_button.setEnabled(False)
             self.convert_button.clicked.connect(self._on_convert_to_bids)
             raw_bar.addWidget(self.convert_button)
+
+            if self.extra_raw_action is not None:
+                label, tooltip, _callback = self.extra_raw_action
+                self.extra_raw_action_button = QPushButton(label)
+                self.extra_raw_action_button.setToolTip(tooltip)
+                self.extra_raw_action_button.setEnabled(False)
+                self.extra_raw_action_button.clicked.connect(self._on_extra_raw_action)
+                raw_bar.addWidget(self.extra_raw_action_button)
+
             root_layout.addLayout(raw_bar)
 
             if self.override_file_label is not None:
@@ -436,6 +465,7 @@ class BidsCrosscheckWindow(QMainWindow):
         if folder:
             self.raw_folder = Path(folder)
             self.raw_folder_label.setText(str(self.raw_folder))
+            self._settings.setValue(LAST_RAW_FOLDER_SETTINGS_KEY, str(self.raw_folder))
             self._update_convert_button_enabled()
 
     def _on_browse_override_file(self) -> None:
@@ -453,7 +483,16 @@ class BidsCrosscheckWindow(QMainWindow):
     def _update_convert_button_enabled(self) -> None:
         if self.raw_converter is None:
             return
-        self.convert_button.setEnabled(self.raw_folder is not None and self.bids_folder is not None)
+        both_selected = self.raw_folder is not None and self.bids_folder is not None
+        self.convert_button.setEnabled(both_selected)
+        if self.extra_raw_action is not None:
+            self.extra_raw_action_button.setEnabled(both_selected)
+
+    def _on_extra_raw_action(self) -> None:
+        if self.extra_raw_action is None or self.raw_folder is None or self.bids_folder is None:
+            return
+        _label, _tooltip, callback = self.extra_raw_action
+        callback(self.raw_folder, self.bids_folder, self)
 
     def _on_convert_to_bids(self) -> None:
         if self.raw_converter is None or self.raw_folder is None or self.bids_folder is None:
@@ -831,7 +870,18 @@ class BidsCrosscheckWindow(QMainWindow):
 
             extra_html = None
             extra_tooltip = None
-            if subject_scan.status == "ok":
+            if subject_scan.status == "missing":
+                # Otherwise a completely missing scan type (e.g. no debrief data at all for
+                # this subject) shows nothing here -- easy to misread as "nothing to report"
+                # rather than "genuinely absent". _build_scan_type_group (the detail pane)
+                # already shows "MISSING" for this same case; this is the compact row's
+                # equivalent. Plain X (not STATUS_ICON["missing"]'s "○") to read consistently
+                # with the ✓/✗ each dataset's own describe() already uses for the "ok" case.
+                extra_html = (
+                    f'<span style="color:{UNCROSSCHECKED_COLOR}">{scan_type.capitalize()} ✗</span>'
+                )
+                extra_tooltip = f"No {scan_type} file found for this subject."
+            elif subject_scan.status == "ok":
                 extra_html = self.extras.describe(scan_type, subject_scan.files[0])
                 extra_tooltip = self.extras.describe_tooltip(scan_type, subject_scan.files[0])
             elif subject_scan.status == "duplicate":
@@ -1713,6 +1763,7 @@ def run_bids_crosscheck_app(
     raw_converter: Callable[[Path, Path, Path | None], list[str]] | None = None,
     override_file_label: str | None = None,
     override_file_filter: str = "All files (*)",
+    extra_raw_action: tuple[str, str, Callable[[Path, Path, QWidget], None]] | None = None,
 ) -> None:
     app = QApplication.instance() or QApplication([])
     # Consistent tooltip look regardless of OS/theme default -- black text on white, matching
@@ -1731,6 +1782,7 @@ def run_bids_crosscheck_app(
         raw_converter,
         override_file_label,
         override_file_filter,
+        extra_raw_action,
     )
     window.show()
     app.exec()
