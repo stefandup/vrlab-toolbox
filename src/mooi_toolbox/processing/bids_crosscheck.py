@@ -1,3 +1,4 @@
+import csv
 import json
 import logging
 import os
@@ -37,6 +38,11 @@ class DatasetConfig:
     task_correction_scan_type: str | None = None
     task_correction_label: str = "FOH"
     task_correction_folder_name: str | None = None
+    # True for datasets (e.g. crane) that record each file's acquisition date as a row in a
+    # `scans.tsv` sidecar (see cli/crane_convert_to_bids.py) instead of a leading filename
+    # date prefix -- gates whether the crosscheck GUI's "Correct date..." button edits that
+    # row (record_scans_tsv_date_correction) or renames the file (record_date_correction).
+    dates_in_scans_tsv: bool = False
 
     def scan_type_names(self) -> tuple[str, ...]:
         return tuple(scan_type.name for scan_type in self.scan_types)
@@ -409,6 +415,117 @@ def record_date_correction(
     return destination
 
 
+def _find_scans_tsv(bids_folder: Path, file: Path) -> Path | None:
+    """The `*_scans.tsv` sidecar that should list `file`, if this dataset uses one -- walks up
+    from `file`'s own folder looking for one, rather than assuming a fixed depth, since only
+    crane uses this layout today and its exact nesting shouldn't need to be hardcoded here too.
+    Returns None if there isn't one (e.g. FOH, which doesn't use `scans.tsv` at all) by the
+    time it reaches `bids_folder`.
+    """
+    folder = file.parent
+    while True:
+        matches = sorted(folder.glob("*_scans.tsv"))
+        if matches:
+            return matches[0]
+        if folder == bids_folder or folder == folder.parent:
+            return None
+        folder = folder.parent
+
+
+def _read_scans_tsv_rows(path: Path) -> list[dict[str, str]]:
+    with path.open("r", newline="", encoding="utf-8") as tsv_file:
+        return list(csv.DictReader(tsv_file, delimiter="\t"))
+
+
+def _write_scans_tsv_rows(path: Path, rows: list[dict[str, str]]) -> None:
+    with path.open("w", newline="", encoding="utf-8") as tsv_file:
+        writer = csv.DictWriter(tsv_file, fieldnames=["filename", "acq_time"], delimiter="\t")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _sync_scans_tsv_filename(bids_folder: Path, old_file: Path, new_file: Path) -> None:
+    """Keep a `scans.tsv` sidecar's `filename` column pointed at `new_file` after
+    `record_task_correction`/`remove_task_correction`/`revert_all_decisions` renames a file
+    (and possibly its parent datatype folder) -- otherwise the sidecar silently keeps listing
+    the file under a name that no longer exists. No-op for datasets without one (e.g. FOH).
+    """
+    scans_tsv = _find_scans_tsv(bids_folder, new_file)
+    if scans_tsv is None:
+        return
+    old_relative = old_file.relative_to(scans_tsv.parent).as_posix()
+    new_relative = new_file.relative_to(scans_tsv.parent).as_posix()
+    if old_relative == new_relative:
+        return
+    rows = _read_scans_tsv_rows(scans_tsv)
+    changed = False
+    for row in rows:
+        if row.get("filename") == old_relative:
+            row["filename"] = new_relative
+            changed = True
+    if changed:
+        _write_scans_tsv_rows(scans_tsv, rows)
+
+
+def read_scans_tsv_date(bids_folder: Path, file: Path) -> str | None:
+    """Current `acq_time` value for `file`'s row in its `scans.tsv`, if any -- used by the
+    crosscheck GUI to pre-fill its "Correct date..." dialog for datasets with
+    `DatasetConfig.dates_in_scans_tsv` set, the same way `file.name.split("_")[0]` pre-fills it
+    for filename-prefix datasets.
+    """
+    scans_tsv = _find_scans_tsv(bids_folder, file)
+    if scans_tsv is None:
+        return None
+    relative_name = file.relative_to(scans_tsv.parent).as_posix()
+    for row in _read_scans_tsv_rows(scans_tsv):
+        if row.get("filename") == relative_name:
+            return row.get("acq_time")
+    return None
+
+
+def record_scans_tsv_date_correction(
+    bids_folder: Path,
+    subject_id: str,
+    scan_type: str,
+    file: Path,
+    corrected_date: str,
+) -> Path:
+    """Crane counterpart to `record_date_correction`, for datasets that record each file's
+    acquisition date as a row in a `scans.tsv` sidecar (BIDS's own place for it) instead of a
+    leading filename prefix -- see docs/bids_converter_plan.md. Rewrites the matching row's
+    `acq_time` value in place; `file` itself is never renamed, so this returns `file` unchanged
+    (there's nothing for a caller to follow, unlike `record_date_correction`'s rename).
+    """
+    scans_tsv = _find_scans_tsv(bids_folder, file)
+    if scans_tsv is None:
+        raise BidsCrosscheckError(f"No scans.tsv found for {file.name} -- nothing to correct")
+
+    relative_name = file.relative_to(scans_tsv.parent).as_posix()
+    rows = _read_scans_tsv_rows(scans_tsv)
+    matching_rows = [row for row in rows if row.get("filename") == relative_name]
+    if not matching_rows:
+        raise BidsCrosscheckError(f"No {relative_name!r} row found in {scans_tsv}")
+
+    original_date = matching_rows[0].get("acq_time", "")
+
+    decisions = load_decisions(bids_folder)
+    decisions[_decision_key(subject_id, scan_type)] = {
+        "type": "scans_tsv_date_correction",
+        "subject_id": subject_id,
+        "scan_type": scan_type,
+        "scans_tsv": scans_tsv.relative_to(bids_folder).as_posix(),
+        "filename": relative_name,
+        "original_date": original_date,
+        "corrected_date": corrected_date,
+    }
+    _write_decisions_atomic(bids_folder, decisions)
+
+    for row in matching_rows:
+        row["acq_time"] = corrected_date
+    _write_scans_tsv_rows(scans_tsv, rows)
+    return file
+
+
 def record_id_correction(bids_folder: Path, original_id: str, corrected_id: str) -> Path:
     """Rename every file for `original_id`, then its `sub-XXX/` folder, to `corrected_id`."""
     original_folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{original_id}"
@@ -434,6 +551,14 @@ def record_id_correction(bids_folder: Path, original_id: str, corrected_id: str)
         if _is_real_collision(destination, file):
             raise BidsCrosscheckError(f"{destination} already exists -- resolve manually")
 
+    # A `scans.tsv` (crane's DatasetConfig.dates_in_scans_tsv layout) lists other renamed
+    # files by name in its own `filename` column -- renaming the files on disk above doesn't
+    # touch that column, so without this it'd silently go stale, still pointing at the old
+    # subject id. No-op for datasets without one (e.g. FOH): scans_tsv_renames is just empty.
+    scans_tsv_renames = [
+        (file, new_name) for file, new_name in renames if new_name.endswith("_scans.tsv")
+    ]
+
     decisions = load_decisions(bids_folder)
     decisions[_decision_key(original_id)] = {
         "type": "id_correction",
@@ -451,6 +576,16 @@ def record_id_correction(bids_folder: Path, original_id: str, corrected_id: str)
         file.rename(file.with_name(new_name))
 
     original_folder.rename(corrected_folder)
+
+    for file, new_name in scans_tsv_renames:
+        relative_dir = file.parent.relative_to(original_folder)
+        scans_tsv = corrected_folder / relative_dir / new_name
+        rows = _read_scans_tsv_rows(scans_tsv)
+        for row in rows:
+            if row.get("filename") and original_token in row["filename"]:
+                row["filename"] = row["filename"].replace(original_token, corrected_token)
+        _write_scans_tsv_rows(scans_tsv, rows)
+
     return corrected_folder
 
 
@@ -579,6 +714,7 @@ def record_task_correction(
         old_parent = destination.parent
         old_parent.rename(new_parent)
         destination = new_parent / destination.name
+    _sync_scans_tsv_filename(bids_folder, file, destination)
     return destination
 
 
@@ -645,6 +781,7 @@ def remove_task_correction(
         old_parent = destination.parent
         old_parent.rename(new_parent)
         destination = new_parent / destination.name
+    _sync_scans_tsv_filename(bids_folder, file, destination)
     return destination
 
 
@@ -691,7 +828,22 @@ def revert_all_decisions(bids_folder: Path) -> tuple[list[Path], list[str]]:
                     if not new_parent.exists():
                         destination.parent.rename(new_parent)
                         destination = new_parent / destination.name
+                _sync_scans_tsv_filename(bids_folder, corrected_file, destination)
                 reverted.append(destination)
+            elif entry_type == "scans_tsv_date_correction":
+                scans_tsv = bids_folder / entry["scans_tsv"]
+                if not scans_tsv.is_file():
+                    continue
+                rows = _read_scans_tsv_rows(scans_tsv)
+                matching_rows = [
+                    row for row in rows if row.get("filename") == entry["filename"]
+                ]
+                if not matching_rows:
+                    continue
+                for row in matching_rows:
+                    row["acq_time"] = entry["original_date"]
+                _write_scans_tsv_rows(scans_tsv, rows)
+                reverted.append(scans_tsv)
             elif entry_type == "id_correction":
                 corrected_folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{entry['corrected_id']}"
                 if not corrected_folder.is_dir():

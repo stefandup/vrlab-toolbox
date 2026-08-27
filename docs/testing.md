@@ -148,6 +148,20 @@ crane_generate_sample_data examples/crane_templates examples --with-errors --see
 time. Bump `--n-clean` and rerun to see how new `DUMMY0XX` participants get
 added; drop `--with-errors` for clean participants only.
 
+`examples/` (the `output_folder` argument) is a plain **raw** folder — the
+same shape `cli/crane_convert_to_bids.py` expects as input. Add
+`--bids-folder` to also convert it into a BIDS folder in the same call:
+
+```bash
+crane_generate_sample_data examples/crane_templates examples --with-errors --seed 42 --bids-folder examples_bids
+```
+
+`examples/` still ends up holding the plain raw files either way; the BIDS
+folder is purely additional, printed as a second summary table alongside the
+"Generated crane dummy data" one. This is a development/testing convenience
+only — the generator itself has no connection to the crosscheck GUI (see
+docs/bids_converter_plan.md).
+
 !!! note "Going further"
     `tests/test_crane_dummy_data.py` calls `generate_dummy_dataset()`
     directly (not the CLI) into a throwaway `tempfile` folder on every test

@@ -1,24 +1,23 @@
 """Standalone PySide6 tool: human-in-the-loop crosscheck for the crane BIDS folder.
 
-See docs/bids_crosscheck_plan.md. Glob patterns are extension-based (`*.mat`/`*.csv`/
-`*.tsv`), matching `cli/crane_convert_to_bids.py`'s real output -- deliberately *not*
-keyword-based (e.g. `*physiology*`) because tagging (`task_correction_available` below)
-renames a file to `..._run-<NNN>_<label><ext>`, discarding any keyword in the stem. Only
-the extension survives a tag rename, so it's the one thing all three scan types can still
-be told apart by afterwards. Debrief is `.tsv` (not `.csv`, same as behaviour) specifically
-so it stays distinguishable from behaviour by extension alone.
+See docs/bids_crosscheck_plan.md and docs/bids_converter_plan.md. Glob patterns are
+extension-based (`*.mat`/`*.csv`/`*_debrief_events.tsv`), matching
+`cli/crane_convert_to_bids.py`'s real output -- debrief is narrowed to
+`*_debrief_events.tsv` rather than a bare `*.tsv` so it doesn't also match the session's
+own `scans.tsv` sidecar. Unlike FOH, crane has no tagging step (see
+`CraneCandidateExtras`'s comment on `task_correction_available`) -- the converter already
+writes real BIDS suffixes (`_beh`/`_physio`/`_debrief_events`) itself, so there's no raw
+collection-software junk left for a tag-rename to clean up.
 
 `CraneCandidateExtras` below is the crane analog of `FohCandidateExtras`
-(`foh_bids_crosscheck_gui.py`) -- deferred until now per
-docs/bids_crosscheck_plan.md#crane-parity-with-foh-s-gui-improvements. Its content
-parsing is best-effort against the *raw* data formats crane actually produces today
-(Biopac `.mat` physiology, per-subject behaviour `.csv`, one shared REDCAP `.csv`
-group debrief export -- see `processing/biopac.py`, `processing/crane_behaviour.py`,
-`processing/crane_debrief_behaviour.py`), since there's no real crane BIDS output yet
-to confirm the post-conversion format/columns against (examples/crane_bids_dummy is a
-filename/folder-structure mockup only -- its files are empty). Every parser below
-fails soft (logs a warning, reports "couldn't read") rather than raising, so a format
-mismatch once real BIDS output exists shows up as an info gap, not a crash.
+(`foh_bids_crosscheck_gui.py`). Its content parsing is best-effort against the *raw* data
+formats crane actually produces today (Biopac `.mat` physiology, per-subject behaviour
+`.csv`, one shared REDCAP `.csv` group debrief export -- see `processing/biopac.py`,
+`processing/crane_behaviour.py`, `processing/crane_debrief_behaviour.py`), not against the
+post-conversion BIDS format -- so a parser here can still read a converted file's content
+fine, but its column/shape checks describe what the raw pipeline expects, not any
+BIDS-specific schema. Every parser below fails soft (logs a warning, reports "couldn't
+read") rather than raising, so a format mismatch shows up as an info gap, not a crash.
 """
 
 import json
@@ -65,14 +64,17 @@ CRANE_DATASET_CONFIG = DatasetConfig(
     scan_types=(
         ScanTypeConfig(name="physiology", glob_patterns=("*.mat",)),
         ScanTypeConfig(name="behaviour", glob_patterns=("*.csv",)),
-        ScanTypeConfig(name="debrief", glob_patterns=("*.tsv",)),
+        # Not a bare "*.tsv" -- that would also match the session's own
+        # sub-XXX_ses-01_scans.tsv sidecar (see crane_convert_to_bids.py), which sits in the
+        # same subject folder tree and would otherwise show up as a bogus debrief candidate.
+        ScanTypeConfig(name="debrief", glob_patterns=("*_debrief_events.tsv",)),
     ),
-    # Every scan type is taggable here (unlike FOH, where only "recording" is) -- see
-    # CraneCandidateExtras.task_correction_available. task_correction_folder_name="beh"
-    # matches crane_convert_to_bids.py's own sub-XXX/beh/ layout, so the folder-rename
-    # record_task_correction does on tagging is a same-name no-op, not an actual move.
-    task_correction_label="crane",
-    task_correction_folder_name="beh",
+    # No task_correction_label/task_correction_folder_name -- unlike FOH, crane has no
+    # tagging step at all (see CraneCandidateExtras' comment on task_correction_available).
+    # Crane's converter records each file's date as a scans.tsv row instead of a filename
+    # prefix (see docs/bids_converter_plan.md) -- routes the crosscheck GUI's "Correct
+    # date..." button to edit that row instead of renaming the file.
+    dates_in_scans_tsv=True,
 )
 
 PHYSIOLOGY_SCAN_TYPE = "physiology"
@@ -343,11 +345,13 @@ class CraneCandidateExtras(CandidateExtras):
 
         return None
 
-    def task_correction_available(self, scan_type: str) -> bool:
-        """All three scan types are taggable, unlike FOH's single "recording" type -- see
-        CRANE_DATASET_CONFIG and the module docstring for the run-token/extension-based-glob
-        requirements this relies on."""
-        return scan_type in (PHYSIOLOGY_SCAN_TYPE, BEHAVIOUR_SCAN_TYPE, DEBRIEF_SCAN_TYPE)
+    # No task_correction_available override -- falls back to CandidateExtras' own "False"
+    # for every scan type. Tagging (FOH's "Tag as foh") exists to replace non-BIDS free text
+    # the *raw collection software* tacks on after the run token; crane_convert_to_bids.py
+    # already writes real BIDS suffixes (_beh/_physio/_debrief_events) itself, so there's no
+    # junk left to clean up, and tagging would instead destroy that distinction (it replaces
+    # everything after run-<NNN> with a single generic label, same for all three scan types).
+    # See docs/bids_converter_plan.md.
 
     def refreshable(self, scan_type: str) -> bool:
         return scan_type in (PHYSIOLOGY_SCAN_TYPE, BEHAVIOUR_SCAN_TYPE, DEBRIEF_SCAN_TYPE)

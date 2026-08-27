@@ -12,30 +12,37 @@ any subject whose `sub-XXX/` folder is already there is left completely alone an
 so re-running against a source folder that's since gained new subjects only ever adds
 those, never re-copies or overwrites an existing one.
 
-Date prefixes are carried through unchanged from the raw filenames -- they're not reliably
-parseable as real calendar dates (inconsistent length/format across sessions), so no attempt
-is made to normalize them here. Use the crosscheck tool's "Correct date..." button to fix any
-that are wrong, once they're visible listed per subject.
+Dates are never put in a filename (that's not real BIDS) -- instead each copied file gets a
+row in its session's `sub-XXX/ses-01/sub-XXX_ses-01_scans.tsv` sidecar (`filename`, `acq_time`
+columns), BIDS's own place for a per-scan acquisition date. Those values are carried through
+unchanged from the raw filenames' date prefixes -- they're not reliably parseable as real
+calendar dates (inconsistent length/format across sessions), so no attempt is made to
+normalize them into true ISO8601 here. Use the crosscheck tool's "Correct date..." button to
+fix any that are wrong, once they're visible listed per subject.
 
 Output layout, and why it looks the way it does:
-- Every file goes in `sub-XXX/beh/`, not directly in `sub-XXX/` -- mirroring FOH's
-  `sub-XXX/eeg/` layout. This isn't cosmetic: `bids_crosscheck.record_task_correction`
+- Every file goes in `sub-XXX/ses-01/beh/`, not directly in `sub-XXX/ses-01/` -- mirroring
+  FOH's `sub-XXX/eeg/` layout. This isn't cosmetic: `bids_crosscheck.record_task_correction`
   (the crosscheck tool's "Tag as..." action) renames a *file's parent folder* to the
-  dataset's datatype folder when tagging -- if files sat directly in `sub-XXX/`, tagging
-  would rename the whole subject folder itself, merging every tagged subject into one
-  shared top-level folder. Placing them under `beh/` up front makes that rename a same-name
-  no-op instead.
+  dataset's datatype folder when tagging -- if files sat directly in `sub-XXX/ses-01/`,
+  tagging would rename that whole session folder itself. Placing them under `beh/` up front
+  makes that rename a same-name no-op instead.
+- `ses-01` is a fixed placeholder, same spirit as `run-001` below -- crane has no real
+  multi-session concept today, so this is always "01", not a real session count.
 - Every filename includes a `run-001` token -- `record_task_correction` requires one
   (`RUN_TOKEN_PATTERN`) and raises otherwise. Crane doesn't have multi-run semantics today,
   so this is always "001", not a real run count.
 - Scan type is identified by *extension* (`.mat`/`.csv`/`.tsv`), not by a keyword in the
   filename stem (`gui/crane_bids_crosscheck_gui.py`'s glob patterns) -- because
   `record_task_correction` replaces everything after the run-<NNN> token with just
-  `_<label>`, so a keyword like "_physiology" wouldn't survive tagging. Debrief is written
+  `_<label>`, so a keyword like "_physio" wouldn't survive tagging. Debrief is written
   `.tsv` (not `.csv`, same as behaviour) specifically so all three scan types stay
-  distinguishable by extension alone even after a tag rename.
+  distinguishable by extension alone even after a tag rename. `scans.tsv` itself sits one
+  level up (in `ses-01/`, not `ses-01/beh/`), so it never collides with that glob-by-extension
+  matching.
 """
 
+import csv
 import json
 import logging
 import os
@@ -61,9 +68,12 @@ logger = logging.getLogger(__name__)
 
 PHYSIOLOGY_GLOB = "*_CraneOut.mat"
 BEHAVIOUR_GLOB = "*_CraneOut.csv"
-# See module docstring's "Output layout" section for why these two exist.
+# See module docstring's "Output layout" section for why these exist.
 DATATYPE_FOLDER_NAME = "beh"
+SESSION_TOKEN = "ses-01"
 RUN_TOKEN = "run-001"
+TASK_TOKEN = "task-crane"
+SCANS_TSV_COLUMNS = ("filename", "acq_time")
 # Real filenames are `{date}_{subject_id}_CraneOut.{ext}`, but: the date prefix isn't always
 # there; it's sometimes joined with "-" instead of "_" (e.g. "20267291154-PID5562_CraneOut");
 # and a subject id can carry a Windows duplicate-copy marker (" (1)", " (2)", ...) from a file
@@ -243,54 +253,93 @@ def existing_subject_ids(output_folder: Path) -> set[str]:
 
 
 def _has_debrief_file(output_folder: Path, subject_id: str) -> bool:
-    datatype_folder = output_folder / f"{SUBJECT_FOLDER_PREFIX}{subject_id}" / DATATYPE_FOLDER_NAME
+    datatype_folder = (
+        output_folder / f"{SUBJECT_FOLDER_PREFIX}{subject_id}" / SESSION_TOKEN / DATATYPE_FOLDER_NAME
+    )
     return datatype_folder.is_dir() and any(datatype_folder.glob("*_debrief_events.tsv"))
 
 
-def _existing_date_prefix(output_folder: Path, subject_id: str) -> str | None:
-    """Best-effort date prefix for a subject already converted in an earlier run, read off
-    whatever file's already sitting in their beh/ folder -- used only for naming a backfilled
-    debrief file consistently with its siblings, since that subject's date prefix was never
-    derived this run (see subject_date_prefix, only populated for files copied in this call).
-    """
-    datatype_folder = output_folder / f"{SUBJECT_FOLDER_PREFIX}{subject_id}" / DATATYPE_FOLDER_NAME
-    if not datatype_folder.is_dir():
-        return None
-    existing_files = sorted(f for f in datatype_folder.iterdir() if f.is_file())
-    return existing_files[0].name.split("_")[0] if existing_files else None
-
-
-def _datatype_folder(output_folder: Path, subject_id: str) -> Path:
-    folder = output_folder / f"{SUBJECT_FOLDER_PREFIX}{subject_id}" / DATATYPE_FOLDER_NAME
+def _session_folder(output_folder: Path, subject_id: str) -> Path:
+    folder = output_folder / f"{SUBJECT_FOLDER_PREFIX}{subject_id}" / SESSION_TOKEN
     folder.mkdir(parents=True, exist_ok=True)
     return folder
 
 
-def _bids_filename(date_prefix: str, subject_id: str, suffix: str, extension: str) -> str:
-    return f"{date_prefix}_{SUBJECT_FOLDER_PREFIX}{subject_id}_{RUN_TOKEN}_{suffix}{extension}"
+def _datatype_folder(output_folder: Path, subject_id: str) -> Path:
+    folder = _session_folder(output_folder, subject_id) / DATATYPE_FOLDER_NAME
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
+def _scans_tsv_path(output_folder: Path, subject_id: str) -> Path:
+    return _session_folder(output_folder, subject_id) / (
+        f"{SUBJECT_FOLDER_PREFIX}{subject_id}_{SESSION_TOKEN}_scans.tsv"
+    )
+
+
+def _read_scans_tsv_rows(path: Path) -> list[dict[str, str]]:
+    if not path.exists():
+        return []
+    with path.open("r", newline="", encoding="utf-8") as tsv_file:
+        return list(csv.DictReader(tsv_file, delimiter="\t"))
+
+
+def _append_scans_tsv_row(
+    output_folder: Path, subject_id: str, scan_file: Path, acq_date: str
+) -> None:
+    """Record one copied file's date as a row in its session's `scans.tsv` -- BIDS's own place
+    for a per-scan acquisition date, now that dates are never part of a filename (see module
+    docstring). `acq_date` is carried through as-is, same as the old filename date prefix was.
+    """
+    path = _scans_tsv_path(output_folder, subject_id)
+    relative_name = scan_file.relative_to(path.parent).as_posix()
+    rows = _read_scans_tsv_rows(path)
+    rows.append({"filename": relative_name, "acq_time": acq_date})
+    with path.open("w", newline="", encoding="utf-8") as tsv_file:
+        writer = csv.DictWriter(tsv_file, fieldnames=SCANS_TSV_COLUMNS, delimiter="\t")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _existing_acq_date(output_folder: Path, subject_id: str) -> str | None:
+    """Best-effort acquisition date for a subject already converted in an earlier run, read
+    back off whatever's already in their `scans.tsv` -- used only for dating a backfilled
+    debrief file's own row consistently with its siblings, since that subject's date was never
+    derived this run (see subject_acq_date, only populated for files copied in this call).
+    """
+    rows = _read_scans_tsv_rows(_scans_tsv_path(output_folder, subject_id))
+    return rows[0]["acq_time"] if rows else None
+
+
+def _bids_filename(subject_id: str, suffix: str, extension: str) -> str:
+    return (
+        f"{SUBJECT_FOLDER_PREFIX}{subject_id}_{SESSION_TOKEN}_{TASK_TOKEN}_{RUN_TOKEN}_"
+        f"{suffix}{extension}"
+    )
 
 
 def _copy_into_subject_folder(
-    source: Path, output_folder: Path, subject_id: str, date_prefix: str, suffix: str
+    source: Path, output_folder: Path, subject_id: str, acq_date: str, suffix: str
 ) -> Path:
     destination = _datatype_folder(output_folder, subject_id) / _bids_filename(
-        date_prefix, subject_id, suffix, source.suffix
+        subject_id, suffix, source.suffix
     )
     if destination.exists():
         # Two different source files landed on the same destination name -- e.g. a Windows
         # duplicate-copy pair ("... (1)_CraneOut.mat" / "... (2)_CraneOut.mat") that share a
-        # date prefix once the "(N)" marker is stripped from the subject id. Both are real
-        # candidate files the crosscheck tool should let a human pick between, so disambiguate
-        # rather than silently overwrite one with shutil.copy2's default behaviour.
+        # date once the "(N)" marker is stripped from the subject id. Both are real candidate
+        # files the crosscheck tool should let a human pick between, so disambiguate rather
+        # than silently overwrite one with shutil.copy2's default behaviour.
         counter = 2
         candidate = destination
         while candidate.exists():
             candidate = _datatype_folder(output_folder, subject_id) / _bids_filename(
-                date_prefix, subject_id, f"{suffix}-dup{counter}", source.suffix
+                subject_id, f"{suffix}-dup{counter}", source.suffix
             )
             counter += 1
         destination = candidate
     shutil.copy2(source, destination)
+    _append_scans_tsv_row(output_folder, subject_id, destination, acq_date)
     return destination
 
 
@@ -347,7 +396,7 @@ def convert_crane_to_bids(
     subject_physiology: dict[str, list[Path]] = defaultdict(list)
     subject_behaviour: dict[str, list[Path]] = defaultdict(list)
     subject_debrief: dict[str, Path] = {}
-    subject_date_prefix: dict[str, str] = {}
+    subject_acq_date: dict[str, str] = {}
     skipped_files = 0
     unparseable_files: list[Path] = []
 
@@ -359,10 +408,10 @@ def convert_crane_to_bids(
         if parsed.subject_id in already_converted:
             skipped_files += 1
             continue
-        date_prefix = parsed.date_prefix or "nodate"
-        subject_date_prefix.setdefault(parsed.subject_id, date_prefix)
+        acq_date = parsed.date_prefix or "nodate"
+        subject_acq_date.setdefault(parsed.subject_id, acq_date)
         destination = _copy_into_subject_folder(
-            mat_file, output_folder, parsed.subject_id, date_prefix, "physiology"
+            mat_file, output_folder, parsed.subject_id, acq_date, "physio"
         )
         subject_physiology[parsed.subject_id].append(destination)
 
@@ -374,10 +423,10 @@ def convert_crane_to_bids(
         if parsed.subject_id in already_converted:
             skipped_files += 1
             continue
-        date_prefix = parsed.date_prefix or "nodate"
-        subject_date_prefix.setdefault(parsed.subject_id, date_prefix)
+        acq_date = parsed.date_prefix or "nodate"
+        subject_acq_date.setdefault(parsed.subject_id, acq_date)
         destination = _copy_into_subject_folder(
-            csv_file, output_folder, parsed.subject_id, date_prefix, "behaviour"
+            csv_file, output_folder, parsed.subject_id, acq_date, "beh"
         )
         subject_behaviour[parsed.subject_id].append(destination)
 
@@ -411,15 +460,16 @@ def convert_crane_to_bids(
         for subject_id in debrief_candidate_ids:
             subject_rows = debrief_df[debrief_df["record_id"] == subject_id]
             if not subject_rows.empty:
-                date_prefix = (
-                    subject_date_prefix.get(subject_id)
-                    or _existing_date_prefix(output_folder, subject_id)
+                acq_date = (
+                    subject_acq_date.get(subject_id)
+                    or _existing_acq_date(output_folder, subject_id)
                     or "nodate"
                 )
                 destination = _datatype_folder(output_folder, subject_id) / _bids_filename(
-                    date_prefix, subject_id, "debrief_events", ".tsv"
+                    subject_id, "debrief_events", ".tsv"
                 )
                 subject_rows.to_csv(destination, index=False, sep="\t")
+                _append_scans_tsv_row(output_folder, subject_id, destination, acq_date)
                 subject_debrief[subject_id] = destination
                 if subject_id in backfill_candidate_ids:
                     backfilled_debrief_ids.append(subject_id)

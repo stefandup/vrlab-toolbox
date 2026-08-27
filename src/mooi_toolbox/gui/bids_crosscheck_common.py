@@ -48,8 +48,10 @@ from mooi_toolbox.processing.bids_crosscheck import (
     delete_all_in_review,
     ensure_bidsignore,
     load_pending_selections,
+    read_scans_tsv_date,
     record_date_correction,
     record_id_correction,
+    record_scans_tsv_date_correction,
     record_selected_run,
     record_subject_junked,
     record_task_correction,
@@ -1282,10 +1284,17 @@ class BidsCrosscheckWindow(QMainWindow):
 
         if is_effective_candidate:
             date_button = QPushButton("Correct date...")
-            date_button.setToolTip(
-                "Rewrite this file's leading date prefix (the part before the first '_') "
-                "if it doesn't match when the recording actually happened."
-            )
+            if self.dataset_config.dates_in_scans_tsv:
+                date_tooltip = (
+                    "Rewrite this file's acquisition date in scans.tsv if it doesn't match "
+                    "when the recording actually happened."
+                )
+            else:
+                date_tooltip = (
+                    "Rewrite this file's leading date prefix (the part before the first '_') "
+                    "if it doesn't match when the recording actually happened."
+                )
+            date_button.setToolTip(date_tooltip)
             date_button.clicked.connect(lambda: self._on_correct_date(subject_id, scan_type, file))
             row_layout.addWidget(date_button)
 
@@ -1688,16 +1697,27 @@ class BidsCrosscheckWindow(QMainWindow):
     def _on_correct_date(self, subject_id: str, scan_type: str, file: Path) -> None:
         if self.bids_folder is None:
             return
-        original_date = file.name.split("_")[0]
+        uses_scans_tsv = self.dataset_config.dates_in_scans_tsv
+        if uses_scans_tsv:
+            original_date = read_scans_tsv_date(self.bids_folder, file) or ""
+            prompt = f"Corrected acquisition date for {file.name}:"
+        else:
+            original_date = file.name.split("_")[0]
+            prompt = f"Corrected date prefix for {file.name}:"
         corrected_date, confirmed = QInputDialog.getText(
-            self, "Correct date", f"Corrected date prefix for {file.name}:", text=original_date
+            self, "Correct date", prompt, text=original_date
         )
         if not confirmed or not corrected_date or corrected_date == original_date:
             return
         try:
-            destination = record_date_correction(
-                self.bids_folder, subject_id, scan_type, file, corrected_date
-            )
+            if uses_scans_tsv:
+                destination = record_scans_tsv_date_correction(
+                    self.bids_folder, subject_id, scan_type, file, corrected_date
+                )
+            else:
+                destination = record_date_correction(
+                    self.bids_folder, subject_id, scan_type, file, corrected_date
+                )
             self._follow_rename_in_pending(subject_id, scan_type, file, destination)
         except (BidsCrosscheckError, OSError) as error:
             QMessageBox.warning(self, "Could not correct date", str(error))

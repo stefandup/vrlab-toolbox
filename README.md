@@ -93,6 +93,19 @@ mismatches, bad triggers, ...). Run `crane_generate_sample_data --help`
 for all options. See the docs site's Testing page for what `examples/` is
 used for.
 
+`examples/` is a plain **raw** folder (the same shape `crane_convert_to_bids`
+expects as input) -- add `--bids-folder` to also convert it into a BIDS
+folder in the same command, instead of running `crane_convert_to_bids`
+separately afterward:
+
+```bash
+crane_generate_sample_data examples/crane_templates examples --with-errors --seed 42 --bids-folder examples_bids
+```
+
+`examples/` still ends up holding the plain raw files either way -- the BIDS
+folder is purely additional. This is a development/testing tool only, not
+part of the crosscheck GUI.
+
 #### Reproducing a real participant's trigger anomaly, without exposing their data
 
 Chasing a specific trigger-pattern bug from a real `crane_data/`

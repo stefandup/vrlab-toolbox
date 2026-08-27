@@ -7,6 +7,7 @@ from rich.progress import Progress
 from rich.table import Table
 
 from mooi_toolbox import mobi_logging
+from mooi_toolbox.cli.crane_convert_to_bids import convert_crane_to_bids, print_conversion_summary
 from mooi_toolbox.processing.crane_dummy_data import (
     ERROR_TYPES,
     REFERENCE_ERROR_TYPES,
@@ -46,6 +47,13 @@ Examples:
     --reference-subject-id PID16186 \\
     --reference-error-type missing_initial_trigger \\
     --reference-output-subject-id DUMMY011
+
+\b
+  Also convert the freshly-generated raw data into a BIDS folder in the same
+  call, via crane_convert_to_bids.convert_crane_to_bids -- output_folder still
+  ends up holding the plain raw CraneOut files either way:
+  crane_generate_sample_data examples/crane_templates examples \\
+    --with-errors --seed 42 --bids-folder examples_bids
 """
 
 
@@ -89,6 +97,14 @@ Examples:
     default=None,
     help="Subject ID for the generated participant (default: REF<reference-subject-id>).",
 )
+@click.option(
+    "--bids-folder",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="If given, also runs the freshly-generated raw data in output_folder through "
+    "crane_convert_to_bids into this BIDS folder -- generate and convert in one call instead "
+    "of two. output_folder still ends up holding the plain raw CraneOut files either way.",
+)
 def main(
     template_folder: Path,
     output_folder: Path,
@@ -100,6 +116,7 @@ def main(
     reference_subject_id: str | None,
     reference_error_type: str | None,
     reference_output_subject_id: str | None,
+    bids_folder: Path | None,
 ) -> None:
     """Generate synthetic crane participant data by cloning and perturbing template files."""
 
@@ -156,6 +173,11 @@ def main(
 
     Console().print(table)
     logger.info("Generated %d dummy participants in %s", len(results), output_folder)
+
+    if bids_folder is not None:
+        logger.info("Converting %s into BIDS folder %s", output_folder, bids_folder)
+        summary = convert_crane_to_bids(output_folder, bids_folder)
+        print_conversion_summary(summary)
 
 
 if __name__ == "__main__":

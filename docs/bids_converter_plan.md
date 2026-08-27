@@ -42,6 +42,74 @@ reject" means for a converter that's meant to dump, not decide — a schema
 strict enough to catch real mistakes but not so strict it rejects
 legitimate export variations needs actual thought, not a quick add.
 
+**Decision: the dummy-data generator stays a separate, dev-only CLI tool --
+not part of the crosscheck GUI.** `crane_generate_sample_data`
+(`crane_dummy_data.py`) exists purely to produce synthetic data for local
+development and testing; it has nothing to do with reviewing real
+participant data, which is what the crosscheck window is for. A "Generate
+dummy data..." button was briefly wired into the crosscheck window's raw-folder
+actions and then removed again -- worth noting so it doesn't get
+re-added by mistake later. Along the way this surfaced a real point of
+confusion worth recording: the crosscheck window's "Last conversion" panel
+only reflects conversions run *from that window's own "Refresh BIDS" button,
+in the current session* -- generating data or converting via the standalone
+CLIs (`crane_generate_sample_data`, `crane_convert_to_bids`) and then pointing
+the crosscheck window at the result leaves the panel reading "No conversion
+run yet.", correctly, since no conversion happened through the window itself.
+That's expected, not a bug.
+
+**Update: `crane_generate_sample_data` can now also convert what it
+generates.** A new optional `--bids-folder` flag runs the freshly-generated
+raw data straight through `crane_convert_to_bids.convert_crane_to_bids`,
+printing both the "Generated crane dummy data" and "Crane raw -> BIDS
+conversion" tables in one call -- e.g.
+`crane_generate_sample_data examples/crane_templates examples --with-errors --seed 42 --bids-folder examples_bids`.
+`output_folder` (the plain raw CraneOut folder) is always written regardless
+of whether `--bids-folder` is given; the BIDS folder is purely additive. See
+the README's "Generate sample data" section and docs/testing.md for the
+user-facing writeup.
+
+**Update: crane naming moved to real BIDS conventions (no date in filenames).**
+A student reviewing the output pointed out the filenames weren't real BIDS
+(`{date}_sub-XXX_run-001_{suffix}.ext`, date first) -- real BIDS never puts a
+date in a scan filename; per-scan acquisition dates belong in a
+`sub-XXX/ses-01/sub-XXX_ses-01_scans.tsv` sidecar instead (`filename`,
+`acq_time` columns, one row per file). Decided:
+
+- New layout: `sub-XXX/ses-01/beh/sub-XXX_ses-01_task-crane_run-001_{suffix}.ext`,
+  plus `sub-XXX/ses-01/sub-XXX_ses-01_scans.tsv` listing every file underneath
+  with its date.
+- `ses-01` is a fixed placeholder, same spirit as `run-001` -- crane has no
+  real multi-session concept today, so no session-detection logic was added.
+- Suffixes: `behaviour` -> `beh` (real BIDS suffix), `physiology` -> `physio`
+  (real BIDS suffix), `debrief_events` unchanged (not a real BIDS suffix, but
+  already serves as this project's extension-based scan-type disambiguator --
+  see the module docstring in `cli/crane_convert_to_bids.py`).
+- `acq_time` values are carried through as-is (same as the old filename date
+  prefix was) -- not normalized to true ISO8601, since they aren't reliably
+  parseable as real calendar dates (inconsistent length/format across raw
+  filenames).
+- The crosscheck GUI's "Correct date..." button now edits the matching
+  `scans.tsv` row for crane instead of renaming the file, gated through a new
+  `DatasetConfig.dates_in_scans_tsv` flag -- FOH keeps today's filename-rename
+  behavior unchanged. `record_id_correction`, `record_task_correction`, and
+  `remove_task_correction` (bids_crosscheck.py) were also updated to keep
+  `scans.tsv`'s `filename` column in sync whenever they rename a file, so the
+  sidecar doesn't go stale.
+- **Crane's "Tag as crane" step was removed entirely** (`CraneCandidateExtras`
+  no longer overrides `task_correction_available`, so it falls back to
+  `False`). It only ever existed for UI parity with FOH's workflow, not
+  because crane's raw filenames carried non-BIDS junk needing cleanup -- FOH's
+  tagging exists to replace free text the *raw collection software* tacks on
+  after the run token (`..._eeg_philani.xdf` -> `..._foh.xdf`). Crane's
+  converter already writes real BIDS suffixes (`_beh`/`_physio`/
+  `_debrief_events`) itself, so there's nothing left to clean up -- and tagging
+  would instead have *destroyed* that distinction, since `record_task_correction`
+  replaces everything after `run-<NNN>` with one generic label, the same for
+  all three scan types. Duplicate-picking (`record_selected_run`) and
+  `set_crosschecked` already cover "this is the confirmed file" without
+  touching the filename, so nothing was lost by dropping it.
+
 ## Known constraints from related work
 
 - **The converter should dump, not decide.** `bids_crosscheck_plan.md`'s
