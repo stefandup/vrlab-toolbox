@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol, TypeVar, cast
 
+import pandera.pandas as pa
 from matplotlib.figure import Figure
 
 from mooi_toolbox.mobi_logging import LOG_DATE_FORMAT, LOG_FORMAT
@@ -172,7 +173,7 @@ class SequentialBehaviourImportSteps:
                 pipeline_raw_behav_data = step.run(config_in=config_in)
                 self.raw_behaviour_data_Store.add(pipeline_raw_behav_data)
                 pipeline_status.set(step.behaviour_output_type, ProcessingStatus.OK)
-            except (ValueError, FileNotFoundError) as e:
+            except (ValueError, FileNotFoundError, pa.errors.SchemaError) as e:
                 logger.warning(
                     "Error importing behaviour data for participant %s. %s", config_in.subject_id, e
                 )
@@ -206,7 +207,7 @@ class SequentialBehaviourProcessingSteps:
                 behavioural_output_data = behavioural_output_data.merge(step_output)
                 pipeline_status.set(step.input_data_type, ProcessingStatus.OK)
 
-            except (ValueError, FileNotFoundError) as e:
+            except (ValueError, FileNotFoundError, pa.errors.SchemaError) as e:
                 logger.warning(
                     "Error processing %s for participant %s. %s",
                     step.input_data_type,

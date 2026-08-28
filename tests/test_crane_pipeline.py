@@ -1,9 +1,15 @@
+import tempfile
 import unittest
 from pathlib import Path
 
 import matplotlib
+import numpy as np
+from click.testing import CliRunner
+
+from mooi_toolbox.cli.vrlab_crane_process import main as run_batch
 
 matplotlib.use("Agg")
+from mooi_toolbox.cli.crane_convert_to_bids import convert_crane_to_bids
 from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.biopac import BiopacPhysiologyDataImportStartegy
 from mooi_toolbox.processing.crane_behaviour import (
@@ -13,6 +19,11 @@ from mooi_toolbox.processing.crane_behaviour import (
     build_crane_raw_behav_file_schema,
 )
 from mooi_toolbox.processing.crane_debrief_behaviour import RawDebriefBehaviourData
+from mooi_toolbox.processing.crane_dummy_data import (
+    discover_template_pairs,
+    generate_dummy_debrief_workbook,
+    generate_dummy_participant,
+)
 from mooi_toolbox.processing.crane_pipeline import (
     FindCraneParticipantFilesStrategyStep,
     run_pipeline,
@@ -242,6 +253,44 @@ class TestCranePipelineDummyData(unittest.TestCase):
         self.assertEqual(pipeline_out.status.status[TrialIntervals], ProcessingStatus.ERROR)
         status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
         self.assertEqual(sorted(status_str.split(" ")), sorted(short_trigger_status_str.split(" ")))
+
+    def test_crane_flags_unbalanced_trial_conditions_without_crashing(self):
+        # Regression test: build_crane_raw_behav_file_schema's balanced_block_trial_conditions
+        # check raises pandera.errors.SchemaError, which used to escape
+        # SequentialBehaviourImportSteps.run() untouched and crash the whole batch (see the
+        # except tuples in pipeline.py). Generated fresh via crane_dummy_data rather than added
+        # to EXAMPLES_FOLDER's committed BIDS fixtures.
+        with tempfile.TemporaryDirectory() as raw_dir, tempfile.TemporaryDirectory() as bids_dir:
+            raw_folder = Path(raw_dir)
+            bids_folder = Path(bids_dir)
+            csv_template, mat_template = discover_template_pairs(Path("examples/crane_templates"))[
+                0
+            ]
+            subject_id = "DUMMYUNBAL"
+
+            _, debrief_rows = generate_dummy_participant(
+                csv_template,
+                mat_template,
+                subject_id,
+                "2026900",
+                "2026900",
+                raw_folder,
+                np.random.default_rng(0),
+                error_type="unbalanced_trial_conditions",
+            )
+            generate_dummy_debrief_workbook([debrief_rows], raw_folder)
+            convert_crane_to_bids(raw_folder, bids_folder)
+
+            pipeline_out = run_pipeline(subject_id, bids_folder)
+
+            self.assertEqual(
+                pipeline_out.status.status[RawCraneBehaviourData], ProcessingStatus.ERROR
+            )
+
+    def test_batch_processing(self):
+        with tempfile.TemporaryDirectory() as output_folder:
+            result = CliRunner().invoke(run_batch, [str(EXAMPLES_FOLDER), output_folder])
+        self.assertEqual(result.exit_code, 0, msg=result.output)
 
 
 # ---------------------------------------------------------------------------

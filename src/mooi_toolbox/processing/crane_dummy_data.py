@@ -9,7 +9,9 @@ import scipy.io as sio
 
 from mooi_toolbox.processing.biopac import clean_biopac_labels
 from mooi_toolbox.processing.crane_behaviour import (
+    BLOCK_TYPES,
     EMOTIONS_TESTED,
+    TRIAL_TYPES,
     build_crane_raw_behav_file_schema,
 )
 from mooi_toolbox.processing.crane_debrief_behaviour import (
@@ -25,6 +27,7 @@ ERROR_TYPES = (
     "missing_debrief",
     "bad_trigger_count",
     "short_trigger",
+    "unbalanced_trial_conditions",
 )
 
 # Trigger-anomaly scenarios driven by a reference recording's pulse timing rather than a random
@@ -82,6 +85,12 @@ SCENARIO_DESCRIPTIONS: dict[str, str] = {
         "An extra trigger pulse is inserted shortly after a real one -- exercises detection "
         "of an anomalously short inter-trigger interval."
     ),
+    "unbalanced_trial_conditions": (
+        "One non-training trial is dropped from a single BlockType x TrialType condition -- "
+        "reproduces an incomplete/aborted session and exercises the raw-behaviour schema's "
+        "balanced_block_trial_conditions check, plus the pipeline's ability to flag it as an "
+        "error for that participant without stopping the rest of the batch."
+    ),
     "missing_initial_trigger": (
         "The first trigger pulse is flattened out -- exercises detection of a recording "
         "that's missing its initial trigger."
@@ -134,6 +143,24 @@ def _mutate_behaviour_df(behav_df: pd.DataFrame, rng: np.random.Generator) -> pd
     mutated["EmotionFeedback"] = rng.choice(EMOTIONS_TESTED, size=n_rows)
 
     return build_crane_raw_behav_file_schema().validate(mutated)
+
+
+def _unbalance_trial_conditions(behav_df: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
+    """Drops one non-training row from a single BlockType x TrialType condition, applied after
+    _mutate_behaviour_df's own validate() call so the deliberately-broken balance never trips
+    that internal QA check -- only the real pipeline's build_crane_raw_behav_file_schema, when it
+    later imports this file, should ever see the imbalance.
+    """
+    non_training = behav_df[~behav_df["Training"]]
+    condition_rows = non_training[
+        (non_training["BlockType"] == BLOCK_TYPES[0]) & (non_training["TrialType"] == TRIAL_TYPES[0])
+    ]
+    if condition_rows.empty:
+        raise ValueError(
+            f"No non-training rows found for {BLOCK_TYPES[0]}/{TRIAL_TYPES[0]} to unbalance."
+        )
+    dropped_index = rng.choice(condition_rows.index)
+    return behav_df.drop(index=dropped_index)
 
 
 def _trigger_channel_index(mat_dict: dict) -> int:
@@ -365,6 +392,8 @@ def generate_dummy_participant(
 
     if error_type != "missing_behaviour":
         behav_df = _mutate_behaviour_df(pd.read_csv(csv_template), rng)
+        if error_type == "unbalanced_trial_conditions":
+            behav_df = _unbalance_trial_conditions(behav_df, rng)
         csv_path = output_folder / f"{csv_date_string}_{subject_id}_CraneOut.csv"
         behav_df.to_csv(csv_path, index=False)
 

@@ -37,6 +37,7 @@ ERROR_SCENARIO_STATUS_KEY = {
     "missing_debrief": RawDebriefBehaviourData,
     "bad_trigger_count": TrialIntervals,
     "short_trigger": TrialIntervals,
+    "unbalanced_trial_conditions": RawCraneBehaviourData,
 }
 
 

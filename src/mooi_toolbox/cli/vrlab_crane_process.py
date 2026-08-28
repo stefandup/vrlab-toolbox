@@ -42,8 +42,8 @@ def main(input_folder: Path, output_folder: Path, verbose: bool, subject_id: str
 
     root = Path(input_folder)
     out_file_parts = []
-
-    subject_mat_files = list(root.rglob(f"*{subject_id}_CraneOut.mat"))
+    physio_glob_str = "sub-*_task-crane_acq-physiology*_physio.mat"
+    subject_mat_files = list(root.rglob(physio_glob_str))
 
     with Progress() as progress:
         task = progress.add_task("Processing subjects", total=len(subject_mat_files))
@@ -92,6 +92,9 @@ def main(input_folder: Path, output_folder: Path, verbose: bool, subject_id: str
                     "Skipping subject %s because processing failed: %s", subject_id, error
                 )
                 continue
+    if out_file_parts is None:
+        logger.warning(f"No files found searching for {physio_glob_str}.")
+        raise FileNotFoundError
 
     participant_df_out = pd.concat(out_file_parts, axis=0)
 

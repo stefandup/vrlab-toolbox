@@ -11,18 +11,19 @@ function Show-Help {
     @"
 Usage: .\build.ps1 -Full | -Exe | -Inno
 
-  -Full   Build every tool in specs/*.spec from source, assemble toolbox/,
-          then compile the installer. Slow -- rebuilds every exe.
+  -Full   Build every tool from specs/toolbox.spec, assemble toolbox/,
+          then compile the installer.
 
-  -Exe    Only build every tool in specs/*.spec from source into dist/.
+  -Exe    Only build specs/toolbox.spec from source into dist/mooi_toolbox/.
           Skips assembling toolbox/ and compiling the installer -- use this
           when you just want the exes (e.g. iterating on tool code) without
           needing Inno Setup installed at all.
 
-  -Inno   Skip the PyInstaller build. Reuses the exes already in dist/,
-          reassembles toolbox/, and (re)compiles toolbox_installer.iss.
-          Fast -- use this after a -Full or -Exe build already succeeded
-          and only the Inno Setup script needs a fix.
+  -Inno   Skip the PyInstaller build. Reuses dist/mooi_toolbox/ from a
+          previous build, reassembles toolbox/, and (re)compiles
+          toolbox_installer.iss. Fast -- use this after a -Full or -Exe
+          build already succeeded and only the Inno Setup script needs a
+          fix.
 
 No option given: prints this help and exits without building anything.
 "@ | Write-Host
@@ -30,16 +31,21 @@ No option given: prints this help and exits without building anything.
 
 function Build-Exes {
     pip install -e . --no-deps
-    Get-ChildItem -Path (Join-Path $PSScriptRoot "specs") -Filter *.spec | ForEach-Object { pyinstaller $_.FullName }
+    pyinstaller (Join-Path $PSScriptRoot "specs\toolbox.spec")
 }
 
 function Build-Installer {
     $version = (git describe --tags --always).Trim()
 
+    $bundleDir = Join-Path $PSScriptRoot "dist\mooi_toolbox"
+    if (-not (Test-Path $bundleDir)) {
+        throw "$bundleDir not found -- run '.\build.ps1 -Full' or '-Exe' first."
+    }
+
     $toolboxDir = Join-Path $PSScriptRoot "toolbox"
     if (Test-Path $toolboxDir) { Remove-Item $toolboxDir -Recurse -Force }
     New-Item -ItemType Directory -Path $toolboxDir | Out-Null
-    Copy-Item (Join-Path $PSScriptRoot "dist\*.exe") $toolboxDir
+    Copy-Item (Join-Path $bundleDir "*") $toolboxDir -Recurse
 
     $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
     if (-not (Test-Path $iscc)) {
@@ -61,10 +67,6 @@ elseif ($Exe) {
     Build-Exes
 }
 elseif ($Inno) {
-    $distDir = Join-Path $PSScriptRoot "dist"
-    if (-not (Test-Path $distDir)) {
-        throw "dist/ not found -- run '.\build.ps1 -Full' first to build the exes."
-    }
     Build-Installer
 }
 else {

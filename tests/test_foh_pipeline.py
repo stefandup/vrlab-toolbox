@@ -84,7 +84,7 @@ class TestFOHPipeline(unittest.TestCase):
         self.assertEqual(pipeline_out.status.status[FohRawTargetBehaviourData], ProcessingStatus.OK)
         self.assertEqual(pipeline_out.status.status[TrialIntervals], ProcessingStatus.OK)
 
-    def test_batch_processing(self):
+    def test_crane_batch_processing(self):
         with tempfile.TemporaryDirectory() as output_folder:
             result = CliRunner().invoke(run_batch, [str(BIDS_FOLDER), output_folder])
         self.assertEqual(result.exit_code, 0, msg=result.output)

@@ -24,20 +24,13 @@ jobs:
       - name: Install package
         run: pip install -e . --no-deps
 
-      - name: Build exe
-        run: |
-          pyinstaller specs/vrlab_crane_process.spec
-          pyinstaller specs/vrlab_foh_assess_data.spec
-
-      - name: Build remaining toolbox exes
-        run: |
-          $built = @('vrlab_crane_process.spec', 'vrlab_foh_assess_data.spec')
-          Get-ChildItem -Path specs -Filter *.spec | Where-Object { $built -notcontains $_.Name } | ForEach-Object { pyinstaller $_.FullName }
+      - name: Build toolbox exes
+        run: pyinstaller specs/toolbox.spec
 
       - name: Assemble toolbox folder
         run: |
           New-Item -ItemType Directory -Path toolbox | Out-Null
-          Copy-Item dist\*.exe toolbox
+          Copy-Item dist\mooi_toolbox\* toolbox -Recurse
 
       - name: Install Inno Setup
         run: choco install innosetup -y
@@ -51,7 +44,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/vrlab_crane_process.exe
-            dist/vrlab_foh_assess_data.exe
             Output/*.exe
             Output/*.bin

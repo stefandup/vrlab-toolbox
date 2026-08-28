@@ -177,7 +177,7 @@ def get_start_time(header):
 
 
 def get_subject_id(xdf_fn: Path) -> str:
-    return os.path.basename(xdf_fn).split("_")[0]
+    return str(os.path.basename(xdf_fn).split("_")[0]).replace("sub-", "")
 
 
 def gather_xdf_data_streams(streams: list, stream_ids: list[str]) -> dict[str, pd.DataFrame]:
