@@ -327,7 +327,8 @@ class TestRestoreAllFromBids(unittest.TestCase):
         # The WHOLE subject is re-derived on the next refresh, not just the removed file --
         # see restore_all_from_bids's docstring for why.
         self.assertFalse((self.bids_folder / "sub-001").exists())
-        self.assertNotIn("selected_run", {e.get("type") for e in load_decisions(self.bids_folder).values()})
+        decision_types = {e.get("type") for e in load_decisions(self.bids_folder).values()}
+        self.assertNotIn("selected_run", decision_types)
 
     def test_no_op_on_a_folder_with_nothing_removed(self):
         restored, errors = restore_all_from_bids(self.bids_folder)

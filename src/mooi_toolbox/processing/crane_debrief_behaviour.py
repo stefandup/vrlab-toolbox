@@ -79,7 +79,7 @@ class CraneDebriefPipelineOutput(PipelineOutputData):
 
 class RawDebriefBehaviourData(RawBehaviourData):
     validation_schema = crane_raw_debrief_file_schema
-    filename_glob = REDCAP_FN
+    filename_glob = "sub-{participant_id}_*acq-debrief*.tsv"
 
     @classmethod
     def load_group_data_from_config(cls, config_in: ParticipantConfig) -> Self:

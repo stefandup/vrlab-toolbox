@@ -427,9 +427,10 @@ Crane output row), and `build_eda_physiology_output_schema` (`eda.py`).
 
 ### What this actually looks like
 
-Using the synthetic `DUMMY000` participant in `examples/` (see
-[Testing](testing.md#the-examples-folder) for where that data comes from),
-here's what actually flows through these two contracts.
+Using the synthetic `DUMMY000` participant's raw, pre-BIDS output in
+`examples/` (see [Testing](testing.md#the-examples-folder) for where that
+data comes from, and how it now also gets converted to BIDS), here's what
+actually flows through these two contracts.
 
 `RawCraneBehaviourData.raw_behav_df` — straight from
 `examples/2026100_DUMMY000_CraneOut.csv`, one row per trial:

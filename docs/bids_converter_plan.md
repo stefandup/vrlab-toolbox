@@ -69,7 +69,9 @@ generates.** A new optional `--bids-folder` flag runs the freshly-generated
 raw data straight through `crane_convert_to_bids.convert_crane_to_bids`,
 printing both the "Generated crane dummy data" and "Crane raw -> BIDS
 conversion" tables in one call -- e.g.
-`crane_generate_sample_data examples/crane_templates examples --with-errors --seed 42 --bids-folder examples_bids`.
+`crane_generate_sample_data examples/crane_templates examples --with-errors --seed 42 --bids-folder examples/crane_bids_dummy`
+(`examples/crane_bids_dummy` is the actual folder `tests/test_crane_pipeline.py`
+now reads from -- see docs/testing.md).
 `output_folder` (the plain raw CraneOut folder) is always written regardless
 of whether `--bids-folder` is given; the BIDS folder is purely additive. See
 the README's "Generate sample data" section and docs/testing.md for the

@@ -6,11 +6,14 @@ from mooi_toolbox.processing.crane_behaviour import RawCraneBehaviourData
 from mooi_toolbox.processing.crane_pipeline import FindCraneParticipantFilesStrategyStep
 
 data_folder = Path("crane_data")
-example_crane_participant_correct = FindCraneParticipantFilesStrategyStep().run(
-    "00020", data_folder
-)
-
 example_correct_bids_events_file_fn = Path(r"references\\example_events.tsv")
+
+
+def setUpModule():
+    global example_crane_participant_correct
+    example_crane_participant_correct = FindCraneParticipantFilesStrategyStep().run(
+        "00020", data_folder
+    )
 
 
 class TestBidsEventsDataBasicImport(unittest.TestCase):

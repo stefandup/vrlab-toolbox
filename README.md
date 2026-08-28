@@ -94,17 +94,19 @@ for all options. See the docs site's Testing page for what `examples/` is
 used for.
 
 `examples/` is a plain **raw** folder (the same shape `crane_convert_to_bids`
-expects as input) -- add `--bids-folder` to also convert it into a BIDS
-folder in the same command, instead of running `crane_convert_to_bids`
-separately afterward:
+expects as input) -- add `--bids-folder examples/crane_bids_dummy` to also
+convert it into the BIDS folder the test suite reads from, in the same
+command, instead of running `crane_convert_to_bids` separately afterward:
 
 ```bash
-crane_generate_sample_data examples/crane_templates examples --with-errors --seed 42 --bids-folder examples_bids
+crane_generate_sample_data examples/crane_templates examples --with-errors --seed 42 --bids-folder examples/crane_bids_dummy
 ```
 
 `examples/` still ends up holding the plain raw files either way -- the BIDS
 folder is purely additional. This is a development/testing tool only, not
-part of the crosscheck GUI.
+part of the crosscheck GUI. Note that Crane's own pipeline doesn't read this
+BIDS layout yet (see the docs site's Testing page) -- generating it is what
+gives the in-progress BIDS refactor real data to run tests against.
 
 #### Reproducing a real participant's trigger anomaly, without exposing their data
 

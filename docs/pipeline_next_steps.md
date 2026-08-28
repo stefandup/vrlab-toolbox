@@ -1150,6 +1150,87 @@ crosscheck/converter rework — needs its own pass to match the new filename sha
 whether `PIPELINE_ID`'s manual sync with `FOH_DATASET_CONFIG.task_tag_task`, already flagged
 as a loose end, gets addressed at the same time).
 
+### 26. Dead/stale tracked files — candidates for removal
+
+Found during a REVIEW-style audit of `git ls-files` against actual imports/callers across
+`src/`, `tests/`, `docs/`, and `pyproject.toml` (2026-08-27). Nothing below has been deleted —
+this is a punch list, not an action taken. Each entry was independently verified (grep for
+every plausible import form, or a direct file-existence check), not taken on a prior doc's
+word alone — a couple of these findings are, in fact, *because* an earlier part of this same
+doc turned out to be stale (see the `run_lsl_pipeline` entry below).
+
+**High confidence — no callers/references found anywhere in the tree:**
+
+- `src/mooi_toolbox/processing/__pycache__/__init__.cpython-313.pyc` and
+  `src/mooi_toolbox/processing/__pycache__/check_plux_data.cpython-313.pyc` — compiled bytecode
+  cache files that are tracked in git despite `.gitignore` excluding `__pycache__/`. The second
+  one is doubly stale: it's the cache for `check_plux_data.py`, a source module deleted from
+  `src/` back in the "Refactor check_plux_data into focused processing modules" commit — no
+  `.py` file of that name exists anywhere in the tree today, only its leftover `.pyc`.
+- `src/mooi_toolbox/qc/crane_behav_qc.py` — raises `DeprecationWarning` on import ("This file
+  needs to be incorporated into crane behaviour"), every function body is a bare `pass` stub,
+  and nothing imports it anywhere.
+- `src/mooi_toolbox/processing/opensignals.py` (`calculate_sampling_rate`/`plot_sampling_rate`)
+  — zero callers found under `src/` or `tests/`.
+- `crane_trial_intervals.py`'s two `@deprecated` functions,
+  `align_crane_behav_intervals_with_trigger_intervals` and `get_crane_predicted_trigger_intervals`
+  — zero callers; the file's other contents (e.g. `CraneGetTrialIntervalStrategyStep`) are still
+  actively used, so this is a function-level removal within the file, not the whole file. Matches
+  item 9's own note above flagging these as deletion candidates "once the new path is confirmed
+  stable" — independently reconfirmed here.
+- `references/matched_debug_df_testa.parquet` — its only consumer is
+  `get_crane_predicted_trigger_intervals` above, itself dead code with no callers.
+- `src/mooi_toolbox/window_manager/window_layout copy.json` — filename literally contains
+  " copy"; the real, actively-used file is the sibling `window_layout.json` (see `README.md`'s
+  `auto_arrange_windows` section). Unreferenced by any code.
+- `src/mooi_toolbox/window_manager/Automate/x.txt` and
+  `src/mooi_toolbox/window_manager/Automate/Graphomotor/x.txt` — both tracked, both completely
+  empty, unreferenced anywhere — look like accidental editor/`touch` artifacts.
+- `src/mooi_toolbox/processing/eeg.py`'s `run_spiral_eeg_processing` (`@deprecated`, described
+  as a "Backward-compatible wrapper for older callers") — zero callers; the real implementation
+  it wraps lives in, and is called from, `spiral.py` directly.
+- `foh_pipeline.py`'s `run_lsl_pipeline` and `trial_intervals.py`'s `create_lsl_trial_intervals`
+  (both `@deprecated`) — zero real callers anywhere in `src/`. **This means several passages
+  earlier in this doc (items 21/24's "Needed" list, e.g. "still wired into ... `mobi_FOH_process.py`")
+  are themselves stale**: `mobi_FOH_process.py` (the single-file CLI these passages describe as
+  the last caller of the deprecated path) no longer exists in this checkout at all — see the
+  `pyproject.toml` entry below, which still points at it. Once that's confirmed intentional
+  (not an accidental past deletion), the deprecated `run_lsl_pipeline`/`create_lsl_trial_intervals`
+  chain and this doc's own now-inaccurate references to `mobi_FOH_process.py` can both be cleaned
+  up together.
+- `pyproject.toml`'s `[project.scripts]` — two entries point at files that no longer exist in
+  the tree: `mobi_foh_process = "mooi_toolbox.cli.mobi_FOH_process:main"` and
+  `vrlab_crane_summary_data = "mooi_toolbox.cli.vrlab_crane_qc:main"`. Not files to delete, but
+  the config itself is broken (running either console script after a fresh `pip install -e .`
+  would fail with an import error) and needs fixing or removing alongside whichever of the above
+  gets cleaned up.
+
+**Medium confidence — worth a human check before acting:**
+
+- `src/mooi_toolbox/window_manager/Automate/TestController.py`, `automation_layer.py`,
+  `session_controller.py`, `signal_checker.py` (the top-level `Automate/` folder, not the
+  `Automate/Graphomotor/` subfolder) — no tracked launcher script invokes any of these, unlike
+  `Automate/Graphomotor/graphomotor_gui.py` (launched by the tracked `Start_Graphomotor.bat`).
+  `signal_checker.py` is byte-for-byte identical to the copy already in `Automate/Graphomotor/`,
+  and `automation_layer.py` shares most function names with that folder's version — reads as an
+  earlier generation of the same automation tooling, superseded by `Graphomotor/`. Needs lab
+  context to confirm nothing outside this repo still launches it directly.
+- `src/mooi_toolbox/cli/pull_redcap.py` — no `main()` (runs top-level code on import), a
+  hardcoded empty `API_TOKEN = ""`, not registered in `pyproject.toml`, not mentioned in
+  `README.md`/`docs/`. Reads as an unfinished/abandoned one-off script.
+- `src/mooi_toolbox/cli/mobi_spiral_process_batch.py` — has a real, working `click`-based
+  `main()` and imports live pipeline code (`spiral.py`), but unlike every other `cli/*.py` file
+  with a `main()`, it isn't registered in `pyproject.toml`'s `[project.scripts]`. Could be
+  intentional WIP rather than dead — confirm with whoever's been working on the Spiral pipeline.
+- `for_mooi_xdf_processing.ipynb` (repo root) — an ad hoc exploratory notebook with a hardcoded
+  absolute local path and imports (`dash`/`plotly`) not listed in `requirements.txt`/
+  `requirements-dev.txt`. Not referenced by `README.md`, `docs/`, or any script.
+
+**Also noted, not a file issue:** `tests/test_long_walk_pipeline.py` is currently empty (no
+content at all) — `docs/testing.md` lists it alongside `test_crane_pipeline.py`/`test_bids.py`
+as an example of "one file roughly per module under test," which overstates what it actually
+has. Either fill it in or flag it explicitly as an intentional stub.
+
 ## Deferred: FOH & LongWalk
 
 Picked up once Crane's contract, tests, and cleanup above are settled —

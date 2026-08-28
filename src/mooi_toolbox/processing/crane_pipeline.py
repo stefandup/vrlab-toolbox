@@ -103,7 +103,7 @@ class FindCraneParticipantFilesStrategyStep:
         self, participant_id_in: str, data_folder_in: Path, output_folder_in: Path | None = None
     ) -> ParticipantConfig:
 
-        return ParticipantConfig.from_physiology_data(
+        return ParticipantConfig.from_bids_data(
             id_in=participant_id_in,
             physiology_data_type_in=self.physiology_data_type,
             data_folder_in=data_folder_in,
