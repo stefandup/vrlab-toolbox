@@ -1,0 +1,203 @@
+111 INFO: PyInstaller: 6.21.0, contrib hooks: 2026.6
+112 INFO: Python: 3.13.14
+126 INFO: Platform: Windows-11-10.0.26200-SP0
+126 INFO: Python environment: C:\Users\stefan\mobi_mooi_toolbox\.venv
+133 INFO: Module search paths (PYTHONPATH):
+['c:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Scripts\\pyinstaller.exe',
+ 'C:\\Program '
+ 'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\python313.zip',
+ 'C:\\Program '
+ 'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\DLLs',
+ 'C:\\Program '
+ 'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib',
+ 'C:\\Program '
+ 'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0',
+ 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv',
+ 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages',
+ 'C:\\Users\\stefan\\mobi_mooi_toolbox\\src',
+ 'C:\\Users\\stefan\\mobi_mooi_toolbox\\src\\mooi_toolbox\\cli']
+468 INFO: Appending 'datas' from .spec
+469 INFO: checking Analysis
+632 INFO: Building because C:\Users\stefan\mobi_mooi_toolbox\build\toolbox\base_library.zip changed
+632 INFO: Looking for Python shared library...
+632 INFO: Using Python shared library: C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\python313.dll
+632 INFO: Running Analysis Analysis-00.toc
+632 INFO: Target bytecode optimization level: 0
+632 INFO: Initializing module dependency graph...
+633 INFO: Initializing module graph hook caches...
+642 INFO: Analyzing modules for base_library.zip ...
+1470 INFO: Processing standard module hook 'hook-encodings.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+2105 INFO: Processing standard module hook 'hook-math.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+2997 INFO: Processing standard module hook 'hook-pickle.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+3581 INFO: Processing standard module hook 'hook-heapq.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+3966 INFO: Caching module dependency graph...
+3995 INFO: Analyzing C:\Users\stefan\mobi_mooi_toolbox\src\mooi_toolbox\cli\check_mobi_xdf.py
+4114 INFO: Processing standard module hook 'hook-sysconfig.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+4118 INFO: Processing standard module hook 'hook-_ctypes.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+4127 INFO: Processing pre-safe-import-module hook 'hook-typing_extensions.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+4129 INFO: SetuptoolsInfo: initializing cached setuptools info...
+4776 INFO: Processing standard module hook 'hook-multiprocessing.util.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+4891 INFO: Processing standard module hook 'hook-xml.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+5437 INFO: Processing standard module hook 'hook-platform.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+5483 INFO: Processing standard module hook 'hook-difflib.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+5529 INFO: Processing standard module hook 'hook-webbrowser.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+5618 INFO: Processing standard module hook 'hook-xml.etree.cElementTree.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+5631 INFO: Processing standard module hook 'hook-numpy.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+6595 INFO: Processing standard module hook 'hook-psutil.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+7583 INFO: Processing standard module hook 'hook-charset_normalizer.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+7788 INFO: Processing standard module hook 'hook-rich.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+8384 INFO: Processing standard module hook 'hook-pygments.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+9748 INFO: Processing standard module hook 'hook-IPython.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+11176 INFO: Processing standard module hook 'hook-xml.dom.domreg.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+11577 INFO: Processing standard module hook 'hook-pytest.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+11766 INFO: Processing standard module hook 'hook-py.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+11990 INFO: Processing pre-safe-import-module hook 'hook-packaging.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+12108 INFO: Processing pre-safe-import-module hook 'hook-tomli.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+12109 INFO: Setuptools: 'tomli' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.tomli'!
+12113 INFO: Processing standard module hook 'hook-setuptools.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+12122 INFO: Processing pre-safe-import-module hook 'hook-distutils.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+12145 INFO: Processing pre-safe-import-module hook 'hook-jaraco.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+12145 INFO: Setuptools: 'jaraco' appears to be a full setuptools-vendored copy - creating alias to 'setuptools._vendor.jaraco'!
+12153 INFO: Processing pre-safe-import-module hook 'hook-more_itertools.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+12154 INFO: Setuptools: 'more_itertools' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.more_itertools'!
+12401 INFO: Processing standard module hook 'hook-setuptools._vendor.jaraco.text.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+12401 INFO: Processing pre-safe-import-module hook 'hook-importlib_resources.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+12407 INFO: Processing pre-safe-import-module hook 'hook-backports.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+12407 INFO: Setuptools: 'backports' appears to be a partial setuptools-vendored copy - extending search paths to ['C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\setuptools\\_vendor\\backports', 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\backports']!
+12408 INFO: Processing pre-safe-import-module hook 'hook-backports.tarfile.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+12408 INFO: Setuptools: 'backports.tarfile' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.backports.tarfile'!
+12469 INFO: Processing standard module hook 'hook-backports.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+12524 INFO: Processing pre-safe-import-module hook 'hook-importlib_metadata.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+12543 INFO: Processing standard module hook 'hook-importlib_metadata.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+12559 INFO: Processing pre-safe-import-module hook 'hook-zipp.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+13049 INFO: Processing pre-safe-import-module hook 'hook-wheel.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+13050 INFO: Setuptools: 'wheel' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.wheel'!
+13601 INFO: Processing standard module hook 'hook-pkg_resources.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+13870 INFO: Processing pre-safe-import-module hook 'hook-platformdirs.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+13878 INFO: Processing standard module hook 'hook-platformdirs.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+14365 INFO: Processing standard module hook 'hook-wcwidth.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+15019 INFO: Processing standard module hook 'hook-jedi.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+15708 INFO: Processing standard module hook 'hook-parso.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+16605 INFO: Processing standard module hook 'hook-sqlite3.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+17232 INFO: Processing standard module hook 'hook-matplotlib.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+17571 INFO: Processing pre-safe-import-module hook 'hook-gi.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+17749 INFO: Processing standard module hook 'hook-matplotlib.backend_bases.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+17847 INFO: Processing standard module hook 'hook-PIL.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+17929 INFO: Processing standard module hook 'hook-PIL.Image.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+18414 INFO: Processing standard module hook 'hook-PIL.ImageFilter.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+19085 INFO: Processing standard module hook 'hook-jinja2.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+19485 INFO: Processing standard module hook 'hook-matplotlib.backends.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+19591 INFO: Processing standard module hook 'hook-matplotlib.pyplot.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+20453 INFO: Processing standard module hook 'hook-dateutil.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+20519 INFO: Processing pre-safe-import-module hook 'hook-six.moves.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+22069 INFO: Processing standard module hook 'hook-certifi.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+22090 INFO: Processing standard module hook 'hook-zmq.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+22598 INFO: Processing standard module hook 'hook-orjson.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+22974 INFO: Processing pre-find-module-path hook 'hook-tkinter.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_find_module_path'
+22976 INFO: TclTkInfo: initializing cached Tcl/Tk info...
+23520 INFO: Processing standard module hook 'hook-_tkinter.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+23543 INFO: Processing standard module hook 'hook-PySide6.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+23740 INFO: Processing standard module hook 'hook-shiboken6.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+23860 INFO: Processing standard module hook 'hook-PySide6.QtNetwork.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+29371 INFO: Processing standard module hook 'hook-PySide6.QtCore.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+34829 INFO: Processing module hooks (post-graph stage)...
+34835 INFO: Processing standard module hook 'hook-zoneinfo.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+35033 INFO: Processing standard module hook 'hook-matplotlib.backends.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+35034 INFO: Matplotlib backend selection method: automatic discovery of used backends
+35308 INFO: Trying determine the default backend as first importable candidate from the list: ['QtAgg', 'Qt5Agg', 'Gtk4Agg', 'Gtk3Agg', 'TkAgg', 'WxAgg']
+35769 INFO: Selected matplotlib backends: ['QtAgg']
+35771 INFO: Processing standard module hook 'hook-matplotlib.backends.backend_qtagg.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+35775 INFO: Processing standard module hook 'hook-matplotlib.backends.qt_compat.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+35775 INFO: hook-matplotlib.backends.qt_compat: selected 'PySide6' as Qt bindings because hook for 'PySide6' has been run before.
+36383 INFO: Processing standard module hook 'hook-PySide6.QtGui.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+60496 INFO: Processing standard module hook 'hook-PySide6.QtWidgets.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+64927 INFO: Processing standard module hook 'hook-PIL.SpiderImagePlugin.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+66517 INFO: Processing standard module hook 'hook-_tkinter.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+66517 INFO: Processing standard module hook 'hook-tzdata.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+66974 INFO: Performing binary vs. data reclassification (3682 entries)
+67186 INFO: Looking for ctypes DLLs
+67292 INFO: Analyzing run-time hooks ...
+67297 INFO: Including run-time hook 'pyi_rth_inspect.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+67299 INFO: Including run-time hook 'pyi_rth_pkgutil.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+67301 INFO: Including run-time hook 'pyi_rth_multiprocessing.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+67302 INFO: Including run-time hook 'pyi_rth_pkgres.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+67305 INFO: Including run-time hook 'pyi_rth_setuptools.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+67306 INFO: Including run-time hook 'pyi_rth_pyside6.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+67307 INFO: Processing pre-find-module-path hook 'hook-_pyi_rth_utils.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_find_module_path'
+67308 INFO: Processing standard module hook 'hook-_pyi_rth_utils.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+67310 INFO: Including run-time hook 'pyi_rth__tkinter.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+67311 INFO: Including run-time hook 'pyi_rth_mplconfig.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+67318 INFO: Including run-time hook 'pyi_rth_traitlets.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\rthooks'
+67391 INFO: Creating base_library.zip...
+67407 INFO: Looking for dynamic libraries
+C:\Users\stefan\mobi_mooi_toolbox\.venv\Lib\site-packages\PyInstaller\building\build_main.py:227: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  __import__(package)
+0.00s - Debugger warning: It seems that frozen modules are being used, which may
+0.00s - make the debugger miss breakpoints. Please pass -Xfrozen_modules=off
+0.00s - to python to disable frozen modules.
+0.00s - Note: Debugging will proceed. Set PYDEVD_DISABLE_FILE_VALIDATION=1 to disable this validation.
+69198 INFO: Extra DLL search directories (AddDllDirectory): ['C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\shiboken6', 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\numpy.libs']
+69198 INFO: Extra DLL search directories (PATH): ['C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PySide6']
+70611 INFO: Warnings written to C:\Users\stefan\mobi_mooi_toolbox\build\toolbox\warn-toolbox.txt
+70719 INFO: Graph cross-reference written to C:\Users\stefan\mobi_mooi_toolbox\build\toolbox\xref-toolbox.html
+70802 INFO: checking PYZ
+70869 INFO: checking PKG
+70882 INFO: Building because C:\Users\stefan\mobi_mooi_toolbox\build\toolbox\localpycs\pyimod03_ctypes.pyc changed
+70882 INFO: Building PKG (CArchive) vrlab_check_xdf.pkg
+70920 INFO: Building PKG (CArchive) vrlab_check_xdf.pkg completed successfully.
+70921 INFO: Bootloader C:\Users\stefan\mobi_mooi_toolbox\.venv\Lib\site-packages\PyInstaller\bootloader\Windows-64bit-intel\run.exe
+70921 INFO: checking EXE
+70934 INFO: Rebuilding EXE-00.toc because pkg is more recent
+70934 INFO: Building EXE from EXE-00.toc
+70934 INFO: Copying bootloader EXE to C:\Users\stefan\mobi_mooi_toolbox\build\toolbox\vrlab_check_xdf.exe
+70985 INFO: Copying icon to EXE
+71042 INFO: Copying 0 resources to EXE
+71042 INFO: Embedding manifest in EXE
+71101 INFO: Appending PKG archive to EXE
+71313 INFO: Fixing EXE headers
+71733 INFO: Building EXE from EXE-00.toc completed successfully.
+71735 INFO: Module search paths (PYTHONPATH):
+['c:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Scripts\\pyinstaller.exe',
+ 'C:\\Program '
+ 'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\python313.zip',
+ 'C:\\Program '
+ 'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\DLLs',
+ 'C:\\Program '
+ 'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\Lib',
+ 'C:\\Program '
+ 'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0',
+ 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv',
+ 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages',
+ 'C:\\Users\\stefan\\mobi_mooi_toolbox\\src',
+ 'C:\\Users\\stefan\\mobi_mooi_toolbox\\src\\mooi_toolbox\\cli',
+ 'C:\\Users\\stefan\\mobi_mooi_toolbox\\src\\mooi_toolbox\\gui']
+72087 INFO: Appending 'datas' from .spec
+72088 INFO: checking Analysis
+72387 INFO: Building because C:\Users\stefan\mobi_mooi_toolbox\build\toolbox\base_library.zip changed
+72387 INFO: Looking for Python shared library...
+72387 INFO: Using Python shared library: C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\python313.dll
+72387 INFO: Running Analysis Analysis-01.toc
+72387 INFO: Target bytecode optimization level: 0
+72387 INFO: Reusing cached module dependency graph...
+72417 INFO: Initializing module graph hook caches...
+72436 INFO: Analyzing C:\Users\stefan\mobi_mooi_toolbox\src\mooi_toolbox\gui\crane_bids_crosscheck_gui.py
+72468 INFO: Processing standard module hook 'hook-pandas.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+73543 INFO: Processing standard module hook 'hook-platform.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+73569 INFO: Processing standard module hook 'hook-sysconfig.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+73572 INFO: Processing standard module hook 'hook-_ctypes.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+73579 INFO: Processing standard module hook 'hook-pickle.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+73597 INFO: Processing standard module hook 'hook-numpy.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+73709 INFO: Processing standard module hook 'hook-math.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+73925 INFO: Processing standard module hook 'hook-difflib.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+73925 INFO: Processing standard module hook 'hook-heapq.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+74086 INFO: Processing standard module hook 'hook-multiprocessing.util.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+74206 INFO: Processing standard module hook 'hook-xml.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+75331 INFO: Processing standard module hook 'hook-webbrowser.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+75369 INFO: Processing standard module hook 'hook-psutil.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+76038 INFO: Processing pre-safe-import-module hook 'hook-typing_extensions.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+76453 INFO: Processing standard module hook 'hook-charset_normalizer.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+76491 INFO: Processing standard module hook 'hook-encodings.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+77019 INFO: Processing standard module hook 'hook-pytz.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+77235 INFO: Processing standard module hook 'hook-scipy.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+77751 INFO: Processing standard module hook 'hook-pytest.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+77832 INFO: Processing standard module hook 'hook-pygments.py' from 'C:\\Users\\stefan\\mobi_mooi_toolbox\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'

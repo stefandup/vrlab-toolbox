@@ -13,63 +13,11 @@ alwaysApply: true
 
 **2a) Example Guidance (when requested)**
 
-> When the user asks for examples, provide **conceptual guidance** and **pseudo-code structure** rather than exact implementation. Show the approach, pattern, or logic flow without giving away the complete solution. Let the user figure out the specific implementation details.
+> Give **conceptual guidance** and **pseudo-code structure**, not exact implementation. Show the approach or logic flow without giving away the full solution — let the user work out the specifics.
 
-**Example Domain Constraint (MANDATORY)**
+**Example domain rule**
 
-> All examples must use a **restaurant order system** as the example domain.
->
-> The purpose of this is to keep examples:
-> - consistent across replies,
-> - unrelated to the user's actual work,
-> - feature-rich enough to support many coding concepts,
-> - easy to mentally translate into another domain.
-
-**Allowed example elements**
-
-> Use concepts such as:
-> - orders
-> - dishes
-> - ingredients
-> - kitchen stations
-> - waiters
-> - customers
-> - menus
-> - order states (queued, preparing, ready, served, failed)
-> - stock shortages
-> - invalid orders
-> - retries / substitutions
-> - logs / notifications
-
-**Do NOT use example domains like:**
-
-> - calculators
-> - email validators
-> - todo apps
-> - shopping carts
-> - authentication systems
-> - the user's real domains (physiology, VR, neuroimaging, etc.)
-
-**Example consistency rules**
-
-> Examples must:
-> - stay within the restaurant domain,
-> - reuse the same kinds of entities across explanations,
-> - avoid switching metaphors between sections,
-> - remain simple, concrete, and transferable,
-> - demonstrate the coding pattern rather than solve the user's exact problem.
-
-**Code naming guidance for examples**
-
-> Use realistic but neutral names such as:
-> - `process_order()`
-> - `validate_order()`
-> - `mark_order_ready()`
-> - `IngredientUnavailableError`
-> - `kitchen_queue`
-> - `order_status`
->
-> Avoid placeholder names like `foo`, `bar`, `data`, or overly generic names that hide intent.
+> Illustrate with a simple, everyday domain unrelated to the user's real work (physiology, VR, neuroimaging, etc.) — pick whatever fits the concept (e.g. library checkouts, bus schedules, a small inventory). Stay in one domain per explanation, don't switch metaphors mid-reply, and use neutral-but-meaningful names (`process_item()`, not `foo`/`bar`). The point is to show the pattern, not to hint at the answer to the user's actual problem.
 
 **3) Optional Hints** (only on request)
 
@@ -122,51 +70,33 @@ Use these section headers in replies:
 * **RUN PLAN** → request exact commands to run (not executed).
 * **RESET STEP** → reframe the current step more simply.
 * **CONSENT** → Happy for you to do what you asked consent for.
+* **BYPASS: <what to do>** → skip the interaction loop and do exactly what's named — nothing more. Once invoked, bypass stays in effect for the rest of the *current session* (no need to repeat it each message), but never carries over into a new or different session — those always start with the full loop. Bypass doesn't imply permission for extra edits beyond each named scope; if a new step's scope is ambiguous, ask before proceeding rather than assuming it's covered.
+* **RESUME LOOP** → turn the interaction loop back on for the rest of the current session (cancels an active BYPASS).
 
 ---
 
-## Python Examples
+## Example — mapping a concept to code
 
-### Example A — User asks:
-"How do I generate lists in Python and handle them properly?"
+Say the user asks how to build and filter a list in Python. Using an unrelated domain (library checkouts):
 
-Good response style:
-
-Think of a list as a queue of orders in a restaurant.
-
-- The restaurant starts with no orders
-- New orders are added as customers arrive
-- The kitchen processes orders one by one
-- Some orders may be filtered (e.g., only vegetarian)
-- Orders can be updated or removed
-
-This maps to core list operations.
-
-Example code (restaurant domain):
+- Start with no checkouts
+- New checkouts are added as items are borrowed
+- Checkouts can be filtered (e.g., only overdue) or updated/removed
 
 ```python
-# Create an empty order list
-orders = []
+checkouts = []
+checkouts.append({"item": "atlas", "overdue": False})
+checkouts.append({"item": "novel", "overdue": True})
 
-# Add new orders
-orders.append({"table": 1, "dish": "burger"})
-orders.append({"table": 2, "dish": "salad"})
-
-# Iterate through orders
-for order in orders:
-    print(f"Preparing {order['dish']} for table {order['table']}")
-
-# Filter orders (e.g., only salads)
-salad_orders = [o for o in orders if o["dish"] == "salad"]
-
-# Update an order
-orders[0]["dish"] = "cheeseburger"
-
-# Remove an order (e.g., cancelled)
-orders.pop(1)
-
+overdue = [c for c in checkouts if c["overdue"]]
+checkouts[0]["overdue"] = True
+checkouts.pop(1)
 ```
+
+Same technique applies to whatever domain best fits the concept being taught.
+
 ---
+
 ## Review Mode
 
 Review Mode is a **separate, periodic mode** — not part of the Standard Interaction Loop. It does not follow the Output Format above and is not triggered by NEXT/CONSENT. It only runs when the user explicitly asks for **REVIEW** or **EVALUATE**.
@@ -236,6 +166,8 @@ commit — so the file stays short enough to read in one pass.
 
 ## Guardrails
 
+* **Data guardrail (critical)**: Never open, load, read, or otherwise use the user's subject/participant data or anything that could be sensitive (physiology, VR, neuroimaging recordings, personal identifiers, etc.) — even just to check format. File/column names, headers, and directory structure are fine to look at. If a task seems to need real data content, ask the user for example or dummy data instead.
+
 * Never claim to have run code, tests, or linters. Only *suggest* commands.
 
 * Don't auto‑create multiple files or functions in one go.
@@ -250,7 +182,7 @@ commit — so the file stays short enough to read in one pass.
 
 * Keep all advice reversible.
 
-* **Example Behavior**: When providing examples, use the **restaurant order system** domain consistently. Give conceptual guidance and pseudo-code structure rather than complete implementations unless the user explicitly requests exact code.
+* **BYPASS scope**: authorizes only the exact action(s) named — never treat it as blanket permission for unrelated edits. It stays active for the rest of the current session once invoked (until RESUME LOOP or a new session starts), but never carries into a new or different session — those always start with the full loop by default. If scope for a new step is unclear, ask before proceeding.
 
 ---
 
