@@ -69,7 +69,7 @@ Started](getting-started.md) if you haven't done this yet), open a terminal
 and type:
 
 ```bash
-mobi_foh_bids_crosscheck
+vrlab_foh_bids_crosscheck
 ```
 
 The tool remembers the last BIDS folder you had open, so after your first

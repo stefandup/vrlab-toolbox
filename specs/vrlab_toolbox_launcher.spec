@@ -1,12 +1,15 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
+
 from PyInstaller.utils.hooks import copy_metadata
 
+REPO_ROOT = os.path.join(SPECPATH, "..")
+
 a = Analysis(
-    ['src\\mooi_toolbox\\cli\\vrlab_crane_process.py'],
+    [os.path.join(REPO_ROOT, "src", "mooi_toolbox", "gui", "toolbox_launcher.py")],
     pathex=[],
     binaries=[],
     datas=[
-        ("references/matched_debug_df_testa.parquet","references"),
         *copy_metadata("mooi-toolbox")
     ],
     hiddenimports=[],
@@ -25,14 +28,14 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='vrlab_crane_process',
+    name='vrlab_toolbox_launcher',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

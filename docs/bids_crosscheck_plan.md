@@ -17,7 +17,7 @@ recorded so it doesn't have to be re-made every run.
 
 Two separate tools, one per dataset (crane, FOH), rather than one app with a
 dataset switcher — this matches the existing pattern of one standalone `.exe` per
-pipeline (`vrlab_crane_process.exe`, `mobi_foh_assess_data.exe`).
+pipeline (`vrlab_crane_process.exe`, `vrlab_foh_assess_data.exe`).
 
 This tool assumes a populated BIDS folder already exists. Producing one is a
 separate, earlier step this plan doesn't cover in detail — see
@@ -27,8 +27,10 @@ separate, earlier step this plan doesn't cover in detail — see
 ## Current status (as of 2026-08-13)
 
 Both tools exist and are usable — `vrlab_crane_bids_crosscheck` and
-`mobi_foh_bids_crosscheck` (console-script commands via `pip install -e .`;
-no packaged `.exe` yet, packaging was deliberately deferred). Implementation
+`vrlab_foh_bids_crosscheck` (console-script commands via `pip install -e .`,
+and packaged as `vrlab_crane_bids_crosscheck.exe`/`vrlab_foh_bids_crosscheck.exe`
+via the toolbox installer — see [Building & Releasing](packaging.md)).
+Implementation
 went beyond this document's original mockup in a few ways worth knowing
 about before reading the layout section below as gospel:
 

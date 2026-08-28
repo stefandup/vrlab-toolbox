@@ -1,8 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
+
 from PyInstaller.utils.hooks import copy_metadata
 
+REPO_ROOT = os.path.join(SPECPATH, "..")
+
 a = Analysis(
-    ['src\\mooi_toolbox\\cli\\mobi_FOH_assess_data.py'],
+    [os.path.join(REPO_ROOT, "src", "mooi_toolbox", "cli", "mobi_FOH_assess_data.py")],
     pathex=[],
     binaries=[],
     datas=[
@@ -24,7 +28,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='mobi_foh_assess_data',
+    name='vrlab_foh_assess_data',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

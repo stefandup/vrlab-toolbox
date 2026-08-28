@@ -26,12 +26,32 @@ jobs:
 
       - name: Build exe
         run: |
-          pyinstaller vrlab_crane_process.spec
-          pyinstaller mobi_FOH_assess_data.spec
+          pyinstaller specs/vrlab_crane_process.spec
+          pyinstaller specs/vrlab_foh_assess_data.spec
+
+      - name: Build remaining toolbox exes
+        run: |
+          $built = @('vrlab_crane_process.spec', 'vrlab_foh_assess_data.spec')
+          Get-ChildItem -Path specs -Filter *.spec | Where-Object { $built -notcontains $_.Name } | ForEach-Object { pyinstaller $_.FullName }
+
+      - name: Assemble toolbox folder
+        run: |
+          New-Item -ItemType Directory -Path toolbox | Out-Null
+          Copy-Item dist\*.exe toolbox
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+
+      - name: Compile installer
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^v',''
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" toolbox_installer.iss "/DMyAppVersion=$version"
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/vrlab_crane_process.exe
-            dist/mobi_FOH_assess_data.exe
+            dist/vrlab_foh_assess_data.exe
+            Output/*.exe
+            Output/*.bin

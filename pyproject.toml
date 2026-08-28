@@ -24,6 +24,7 @@ vrlab_plot_target_data = "mooi_toolbox.cli.plot_subject_target_scr_bars:main"
 vrlab_crane_bids_crosscheck = "mooi_toolbox.gui.crane_bids_crosscheck_gui:main"
 vrlab_crane_process = "mooi_toolbox.cli.vrlab_crane_process:main"
 vrlab_crane_summary_data = "mooi_toolbox.cli.vrlab_crane_qc:main"
+vrlab_toolbox_launcher = "mooi_toolbox.gui.toolbox_launcher:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

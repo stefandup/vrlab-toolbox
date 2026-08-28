@@ -26,6 +26,8 @@ temp/
 spss_scripts/
 build/
 dist/
+toolbox/
+Output/
 /site/
 examples/*
 redcap_data/

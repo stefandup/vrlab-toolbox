@@ -36,17 +36,18 @@ Run this from inside the `mobi_mooi_toolbox` folder. See the docs site's Testing
 
 ### Just want to run the compiled `.exe`, not the full source?
 
-Two different routes end up with `vrlab_crane_process` available as a typed command, and they get onto your **`PATH`** (the list of folders your terminal searches when you type a command name) differently:
+Three routes end up with the toolbox's commands available as typed commands, and they get onto your **`PATH`** (the list of folders your terminal searches when you type a command name) differently:
 
-- **Clone + `pip install -e .`** (the [Setup](#setup) section below) — once your virtual environment is active, `vrlab_crane_process` just works. That's because activating a venv automatically adds its own `Scripts/`(Windows)/`bin/`(macOS/Linux) folder — where `pip install` put the command — onto your `PATH` for you. Nothing to configure by hand.
-- **A standalone `vrlab_crane_process.exe`** (built with PyInstaller, no Python install needed — see the docs site's Building & Releasing page for how and why) — this one **isn't** on your `PATH` automatically. You either run it by typing its full path every time, or add its containing folder to `PATH` yourself:
+- **Clone + `pip install -e .`** (the [Setup](#setup) section below) — once your virtual environment is active, every command (`vrlab_crane_process`, `vrlab_foh_assess_data`, etc.) just works. That's because activating a venv automatically adds its own `Scripts/`(Windows)/`bin/`(macOS/Linux) folder — where `pip install` put the commands — onto your `PATH` for you. Nothing to configure by hand.
+- **The Mooi Toolbox installer** (`MooiToolboxSetup.exe`, attached to this repo's GitHub Releases — built with PyInstaller + Inno Setup, no Python install needed — see the docs site's Building & Releasing page for how) — installs every tool into one folder, adds that folder to your `PATH` automatically (current user only, no admin rights needed), and puts a desktop shortcut on your desktop for a launcher with a button per GUI tool. CLIs still run from a terminal, exactly like the commands used throughout this README, once you've opened a **new** terminal window after installing.
+- **A single standalone `.exe`** downloaded on its own (also attached to each Release, for when you only need one tool) — this one **isn't** on your `PATH` automatically like the installer above. You either run it by typing its full path every time, or add its containing folder to `PATH` yourself:
 
   **Windows, using the GUI (no PowerShell needed):**
 
   1. Press the Windows key and search for **"Edit the system environment variables"**, then open it.
   2. Click the **Environment Variables...** button.
   3. Under **User variables**, select **Path**, then click **Edit...**.
-  4. Click **New**, paste in the folder containing `vrlab_crane_process.exe` (e.g. `C:\path\to\folder`), then click **OK** on every open dialog.
+  4. Click **New**, paste in the folder containing the `.exe` (e.g. `C:\path\to\folder`), then click **OK** on every open dialog.
   5. Open a **new** terminal window — the change only applies to terminals opened after this point.
 
   For a fuller walkthrough with screenshots: [ComputerHope: How to add a directory to the Windows PATH](https://www.computerhope.com/issues/ch000549.htm).
@@ -58,7 +59,7 @@ Two different routes end up with `vrlab_crane_process` available as a typed comm
   source ~/.bashrc
   ```
 
-  Once that folder is on `PATH`, you can type `vrlab_crane_process` from any terminal, in any folder, same as the pip-installed version.
+  Once that folder is on `PATH`, you can type the command name from any terminal, in any folder, same as the pip-installed version.
 
 ---
 
@@ -277,14 +278,17 @@ Important package areas:
 
 ## Build executable
 
-This project includes small PyInstaller wrapper scripts for building the
-`vrlab_crane_process` command as a single executable.
+This project includes PyInstaller spec files (in `specs/`) for building every
+toolbox command — CLI and GUI — as a standalone executable, plus a launcher
+GUI and an Inno Setup script that bundles all of them into one
+`MooiToolboxSetup.exe` installer.
 
-The useful part is portability: the built executable in `dist/` can be copied
-to another folder, including a folder on your `PATH`, without copying the rest
-of this project source code. See the docs site's Building & Releasing page
-for *why* PyInstaller specifically, what the `.spec` file actually bundles,
-how version tags work, and how this build runs automatically on a tag push.
+The useful part is portability: the built executables in `dist/` can be
+copied to another folder, including a folder on your `PATH`, without copying
+the rest of this project's source code. See the docs site's Building &
+Releasing page for *why* PyInstaller specifically, what each `.spec` file
+bundles, how the installer works, how version tags flow through it, and how
+this build runs automatically on a tag push.
 
 Install PyInstaller in your active virtual environment first:
 
@@ -292,7 +296,14 @@ Install PyInstaller in your active virtual environment first:
 python -m pip install pyinstaller
 ```
 
-On Windows, run `.\build.ps1` (in PowerShell).
+On Windows, run `.\build.ps1 -Full` (in PowerShell). It builds every `.spec`
+file under `specs/`, gathers the resulting exes into a `toolbox/` folder, and
+— if [Inno Setup 6](https://jrsoftware.org/isinfo.php) is installed —
+compiles `toolbox_installer.iss` into `Output\MooiToolboxSetup.exe`. Running `.\build.ps1` with no flag just prints usage and builds nothing.
+`.\build.ps1 -Exe` builds just the exes (no Inno Setup needed at all); once
+that's succeeded, `.\build.ps1 -Inno` recompiles just the installer (e.g.
+after editing `toolbox_installer.iss`) without rerunning the slow
+PyInstaller step.
 
 On macOS or Linux:
 
@@ -300,13 +311,12 @@ On macOS or Linux:
 bash build_mac.sh
 ```
 
-Both scripts run:
+This only builds two of the toolbox's tools (`vrlab_crane_process`,
+`vrlab_foh_assess_data`) as plain `--onefile` builds — there's no macOS/Linux
+equivalent of the full toolbox build or the installer yet, since Inno Setup
+is Windows-only.
 
-```bash
-pyinstaller --onefile src/mooi_toolbox/cli/vrlab_crane_process.py
-```
-
-PyInstaller writes temporary build files to `build/` and the executable to
+PyInstaller writes temporary build files to `build/` and the executables to
 `dist/`. If PyInstaller reports that the obsolete `pathlib` backport is
 installed in the virtual environment, uninstall that package:
 

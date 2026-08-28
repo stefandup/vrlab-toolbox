@@ -13,10 +13,10 @@ below.
 
 If you're a data collector and just need to run `vrlab_crane_process` —
 not read, change, or even clone the code — you don't need Python, a venv,
-or any of the setup below. A compiled `vrlab_crane_process.exe` is built
-automatically and attached to this repo's **GitHub Releases** page every
-time a version tag is pushed (the [Building & Releasing](packaging.md)
-page covers how, if you're curious).
+or any of the setup below. A `MooiToolboxSetup.exe` installer, plus every
+tool's standalone `.exe` on its own, is built automatically and attached to
+this repo's **GitHub Releases** page every time a version tag is pushed (the
+[Building & Releasing](packaging.md) page covers how, if you're curious).
 
 To get it:
 
@@ -24,23 +24,33 @@ To get it:
    the right-hand sidebar of the repo's main page, or `.../releases` at
    the end of the repo URL).
 2. Pick the release you want — usually the latest one at the top.
-3. Under **Assets**, download `vrlab_crane_process.exe`.
+3. Under **Assets**, download `MooiToolboxSetup.exe` and run it.
 
-That one file *is* the tool — no Python install, no `pip install`, nothing
-else to download. Run it exactly like the `vrlab_crane_process` command
-used throughout this page, just by its full path:
+The installer puts every tool's `.exe` in one folder, adds that folder to
+your `PATH` automatically (current user only — no admin rights needed), and
+adds a desktop shortcut to a launcher with a button for each GUI tool. Once
+it's done, open a **new** terminal window (the `PATH` change only applies to
+terminals opened after installing) and run it exactly like the commands used
+throughout the rest of this page:
+
+```bash
+vrlab_crane_process crane_data crane_data/output
+```
+
+### Just want the one file, no installer?
+
+Each tool's standalone `.exe` (e.g. `vrlab_crane_process.exe`) is also
+attached to the release on its own, if you don't want the rest of the
+toolbox. That file *is* the tool — no Python install, no `pip install`,
+nothing else to download — but unlike the installer above, it **isn't**
+added to your `PATH` automatically. Run it by its full path:
 
 ```bash
 C:\path\to\vrlab_crane_process.exe crane_data crane_data/output
 ```
 
-### Add it to your PATH (do this — it's the preferred way to run it)
-
-There's no installer for this yet — a proper one is on the bucket list,
-but isn't built. Until then, adding the `.exe`'s folder to your `PATH` is
-the recommended way to run it: type `vrlab_crane_process` from any folder,
-in any terminal, same as if you'd `pip install`-ed it, without retyping
-(or mistyping) a long file path every single time.
+...or add its containing folder to `PATH` yourself, the same way the
+installer does it for you:
 
 **Windows, using the GUI (no PowerShell needed):**
 
@@ -48,7 +58,7 @@ in any terminal, same as if you'd `pip install`-ed it, without retyping
    variables"**, then open it.
 2. Click the **Environment Variables...** button.
 3. Under **User variables**, select **Path**, then click **Edit...**.
-4. Click **New**, paste in the folder containing `vrlab_crane_process.exe`
+4. Click **New**, paste in the folder containing the `.exe`
    (e.g. `C:\path\to\folder`), then click **OK** on every open dialog.
 5. Open a **new** terminal window — the change only applies to terminals
    opened after this point.
@@ -58,14 +68,8 @@ directory to the Windows PATH](https://www.computerhope.com/issues/ch000549.htm)
 
 **macOS/Linux**, add to your shell profile — see the project's
 `README.md` (in the workspace root), section "Just want to run the
-compiled `.exe`, not the full source?", for the exact command.
-
-Once that folder is on `PATH`, run it exactly like the commands used
-throughout the rest of this page:
-
-```bash
-vrlab_crane_process crane_data crane_data/output
-```
+compiled `.exe`, not the full source?", for the exact command. Note the
+installer itself is Windows-only (see the "Going further" note below).
 
 ### Checking it's the right file, and getting help
 

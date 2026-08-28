@@ -39,6 +39,14 @@ become strategy steps too, or stay outside the template.
 
 ## Open Work
 
+**Refresh pass, 2026-08-28:** ran the full suite (`MPLBACKEND=Agg python -m pytest tests/`) and
+spot-checked several items below against current code (file existence, `grep -rn TODO src/`,
+current line numbers). Result: 121 passed, 3 skipped (unchanged — items 15's double-trigger
+tests and the still-empty `test_long_walk_pipeline.py`, per item 26), **1 new failure** —
+`test_foh_pipeline.py::TestFOHPipeline::test_batch_processing`, root-caused and folded into
+item 25's update below. Everything else checked (items 18, 19, 26) is still accurate as
+written — no other drift found this pass.
+
 ### 1. Decide: mutate-in-place vs. return-new-object
 
 `PipelineOutputData.append_dataframe()` mutates `self` and returns `None`,
@@ -1092,7 +1100,7 @@ shaped like a real `sub-XXX/ses-.../eeg/` layout, `_old1`-style duplicates inclu
 full `tests/test_bids_crosscheck.py` suite still passes — but the GUI itself has never been
 launched.
 
-Needed — launch `mobi_foh_bids_crosscheck` and check:
+Needed — launch `vrlab_foh_bids_crosscheck` and check:
 
 - a **Raw folder** row and **Refresh BIDS** button now appear above the existing **BIDS
   folder** row, same as crane's;
@@ -1149,6 +1157,24 @@ for participant ...")` instead of being found. This is real pipeline/processing 
 crosscheck/converter rework — needs its own pass to match the new filename shape (and decide
 whether `PIPELINE_ID`'s manual sync with `FOH_DATASET_CONFIG.task_tag_task`, already flagged
 as a loose end, gets addressed at the same time).
+
+**Update (2026-08-28, found while refreshing this doc — file has moved on since the
+paragraph above was written):** the code no longer has a single `from_lsl_data` physiology
+lookup at those line numbers — `ParticipantConfig` now has a separate `from_bids_data`
+classmethod (`input_data.py:41-`), and *its* physiology glob is the one actually exercised by
+`vrlab_foh_batch_process` today: `search_root.rglob(f"sub-{id_in}_*{physiology_data_type_in.value}")`
+(`input_data.py:62`). Running the full test suite during this refresh reproduced a live failure
+from exactly this line: `tests/test_foh_pipeline.py::TestFOHPipeline::test_batch_processing`
+fails, with every subject logging `No physiology files matching sub-sub-PID17374*task-foh*_beh.xdf
+found for participant sub-PID17374` (real log line, real ID). `mobi_FOH_process_batch.py:41` passes
+`lsl.get_subject_id(xdf_fn)` — which already returns a `sub-`-prefixed BIDS ID — straight through
+as `id_in`, so `from_bids_data`'s own `f"sub-{id_in}_*"` glob prepends a second `sub-`, and nothing
+ever matches. Distinct bug from the "beh.xdf vs foh.xdf" suffix mismatch predicted above (that one
+may or may not still apply separately — not verified this pass), but same root cause this item
+already named: the physiology lookup hasn't been updated to match the current BIDS-tagged filename
+shape. Fix is either strip a leading `sub-` from `id_in` before formatting the glob, or stop
+double-adding it. The test failure is new evidence, not previously recorded in this doc; it's a
+real regression against `tests/`, not a hypothetical.
 
 ### 26. Dead/stale tracked files — candidates for removal
 
@@ -1231,6 +1257,43 @@ content at all) — `docs/testing.md` lists it alongside `test_crane_pipeline.py
 as an example of "one file roughly per module under test," which overstates what it actually
 has. Either fill it in or flag it explicitly as an intentional stub.
 
+### 27. Cross-platform build: Mac (then Linux), CLI-first distribution
+
+Not started — packaging/distribution, not pipeline architecture, but tracked here as the
+project's running punch list. Discussed 2026-08-28, prompted by "would a Mac build be brain
+surgery or mechanical, like FSL does it?"
+
+**Current state:** `specs/*.spec` (PyInstaller) are already OS-agnostic — paths are built from
+`SPECPATH`/`REPO_ROOT`, not hardcoded Windows paths, and no `.ico`/Windows-only assets are
+referenced. 9 of 11 tools are `console=True` (plain CLI); only the two BIDS crosscheck GUIs and
+`vrlab_toolbox_launcher` (`gui/toolbox_launcher.py`) are `console=False` (windowed, launched by
+double-clicking a Desktop shortcut). `build_mac.sh` exists only as a stub — two tools,
+`--onefile`, no `.parquet`/version-metadata bundling (see [packaging.md](packaging.md#L104-L110),
+which already flags this as a known gap). Windows packaging (`build.ps1`,
+`toolbox_installer.iss`) uses Inno Setup — Windows-only, no equivalent on Mac/Linux — to build a
+desktop-shortcut installer that edits `HKEY_CURRENT_USER\Environment` for `PATH`.
+
+**Direction agreed:** drop the double-click launcher model in favor of FSL's — every tool,
+GUI included, is just a command typed in a terminal, with the toolbox's `bin`-equivalent folder
+added to `PATH` once (shell profile edit, not registry). This removes the need for an Inno-Setup
+equivalent, an `.app`/Dock icon, and (for a CLI-first release) likely the Apple Developer
+account/notarization pipeline that a double-click-distributed `.app` would need to avoid
+Gatekeeper friction.
+
+Needed:
+
+- extend `build_mac.sh` to loop over all `specs/*.spec`, same as `build.ps1` does, instead of the
+  two hardcoded `--onefile` tools;
+- decide the Mac/Linux PATH-setup step (shell rc edit via install script, vs. just documenting
+  "add this folder to PATH");
+- decide whether `vrlab_toolbox_launcher` / the two crosscheck GUIs still ship at all in a
+  CLI-first model, or become plain terminal-launched commands like the other 9 tools;
+- add a `macos-latest` (then `ubuntu-latest`) job to `.github/workflows/release.yml`, alongside
+  the existing Windows-only one;
+- Mac first, Linux second — Linux adds its own wrinkle Mac doesn't (no single standard installer
+  format; PySide6-on-Linux frozen builds have known Qt platform-plugin (`xcb`/Wayland) issues) —
+  better to isolate that from the "new install flow" work by doing Mac's simpler case first.
+
 ## Deferred: FOH & LongWalk
 
 Picked up once Crane's contract, tests, and cleanup above are settled —
@@ -1274,7 +1337,10 @@ noted here so they aren't lost, not expanded on for now.
   another physiology-only candidate for this same fix once it's built.
 - `processing/input_data.py:3` — dataclass could look for variables and
   generate errors.
-- `cli/vrlab_crane_qc.py:19` — add summary data processing.
+- `cli/vrlab_crane_qc.py:19` — add summary data processing. **Stale as of 2026-08-28:**
+  `vrlab_crane_qc.py` no longer exists under `src/mooi_toolbox/cli/` — confirms item 26's
+  finding that `pyproject.toml`'s `vrlab_crane_summary_data` entry points at a missing file.
+  This TODO can't be actioned until that's resolved (file restored, or entry/TODO dropped).
 - `cli/check_mobi_xdf.py:24` — show missing streams.
 - `cli/vrlab_crane_process.py:109` — data labels for SPSS output.
   (The str-to-path handling previously tracked here is resolved:

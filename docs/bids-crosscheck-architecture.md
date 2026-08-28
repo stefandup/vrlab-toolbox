@@ -15,7 +15,7 @@ Crosscheck](foh-crosscheck.md).
   if the app crashes mid-operation.
 - **One tool per dataset**, not one app with a dataset switcher — matches
   this repo's existing pattern of one CLI/entry point per pipeline
-  (`vrlab_crane_process`, `mobi_foh_assess_data`, …).
+  (`vrlab_crane_process`, `vrlab_foh_assess_data`, …).
 - **No automatic collision resolution.** If a rename ever leaves two files
   looking like duplicates again, that's treated as an ordinary duplicate,
   routed through the same review — deliberately one mechanism, not two.
@@ -160,7 +160,7 @@ that across restarts too).
 Add `settings_app_name` (used as the `QSettings` application name — see
 below) unique per dataset, and register a console-script entry in
 `pyproject.toml`'s `[project.scripts]`, matching the existing
-`vrlab_crane_bids_crosscheck` / `mobi_foh_bids_crosscheck` pattern.
+`vrlab_crane_bids_crosscheck` / `vrlab_foh_bids_crosscheck` pattern.
 
 ## Libraries used
 
