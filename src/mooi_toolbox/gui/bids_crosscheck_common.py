@@ -7,7 +7,9 @@ docs/bids_crosscheck_plan.md for the design.
 """
 
 import logging
+from collections import Counter
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QItemSelectionModel, QSettings, Qt, QUrl
@@ -17,6 +19,9 @@ from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
     QCheckBox,
+    QDateTimeEdit,
+    QDialog,
+    QDialogButtonBox,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
@@ -46,11 +51,13 @@ from mooi_toolbox.processing.bids_crosscheck import (
     completeness_summary,
     crosschecked_scan_types,
     ensure_bidsignore,
+    list_scans_tsv_rows,
     load_pending_selections,
     read_scans_tsv_date,
     record_date_correction,
     record_id_correction,
     record_scans_tsv_date_correction,
+    record_scans_tsv_row_date_correction,
     record_selected_run,
     record_subject_excluded,
     record_task_tag,
@@ -69,6 +76,7 @@ CROSSCHECKED_ICON = "☑"
 PENDING_ICON = "⏳"
 NEEDS_TAG_ICON = "🏷"
 WARNING_ICON = "❗"
+SCANS_TSV_DATE_ISSUE_ICON = "✗"
 PLEASE_SELECT_COLOR = "#f39c12"
 PENDING_COLOR = "#9b59b6"
 UNCROSSCHECKED_COLOR = "#e74c3c"
@@ -117,6 +125,82 @@ BIDS_DATATYPE_NAMES = {
     "perf": "perfusion",
     "pet": "positron emission tomography",
 }
+
+
+SCANS_TSV_DATE_FORMAT = "%Y%m%d%H%M"
+SCANS_TSV_DATE_QT_FORMAT = "yyyyMMddHHmm"
+
+
+def _parse_scans_tsv_date(value: str | None) -> datetime | None:
+    """Parses a scans.tsv `acq_time` value as the strict YYYYMMDDHHMM format the scans.tsv
+    pane checks every row against. Crane's converter itself just writes whatever digit string
+    it can scrape from a raw filename (see cli/crane_convert_to_bids.py) -- neither this format
+    nor a consistent length -- so most existing values are expected to fail this until a human
+    corrects them via the pane.
+    """
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, SCANS_TSV_DATE_FORMAT)
+    except ValueError:
+        return None
+
+
+def _scans_tsv_reference_date(rows: list[dict[str, str]]) -> datetime | None:
+    """The majority `acq_time` value among a subject's own scans.tsv rows -- there's nothing
+    else in a scans.tsv to compare against, so one outlier among several agreeing rows is a
+    much more useful signal than "no rows agree with anything". Shared by the scans.tsv pane's
+    per-row tick/cross (`_build_scans_tsv_row`) and the master subject list's at-a-glance
+    SCANS_TSV_DATE_ISSUE_ICON (`_scans_tsv_has_date_issue`), so the two never disagree about
+    what counts as an issue.
+    """
+    valid_dates = [
+        parsed
+        for parsed in (_parse_scans_tsv_date(row.get("acq_time")) for row in rows)
+        if parsed is not None
+    ]
+    return Counter(valid_dates).most_common(1)[0][0] if valid_dates else None
+
+
+class ScansTsvDateCorrectionDialog(QDialog):
+    """Lets a human pick a corrected `acq_time` for one scans.tsv row. A single QDateTimeEdit
+    gives both a directly-typable YYYYMMDDHHMM field and a calendar popup (its trailing
+    calendar-icon button) for picking the date visually, so there's exactly one value to keep
+    in sync rather than a free-text box plus a separate picker -- and since QDateTimeEdit only
+    ever holds a valid date/time, whatever it returns is guaranteed well-formed. Defaults to
+    today when the row's existing value doesn't parse (see `_parse_scans_tsv_date`), so
+    correcting an unparseable/missing value starts from a sensible point rather than a blank
+    or invalid one.
+    """
+
+    def __init__(self, filename: str, current_date: str, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setWindowTitle("Correct acquisition date")
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(f"Acquisition date for {filename}:"))
+
+        self.date_edit = QDateTimeEdit()
+        self.date_edit.setDisplayFormat(SCANS_TSV_DATE_QT_FORMAT)
+        self.date_edit.setCalendarPopup(True)
+        parsed = _parse_scans_tsv_date(current_date)
+        self.date_edit.setDateTime(parsed or datetime.now())
+        layout.addWidget(self.date_edit)
+
+        today_button = QPushButton("Today")
+        today_button.setToolTip("Reset the field above to right now.")
+        today_button.clicked.connect(lambda: self.date_edit.setDateTime(datetime.now()))
+        layout.addWidget(today_button)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def corrected_date(self) -> str:
+        return self.date_edit.dateTime().toString(SCANS_TSV_DATE_QT_FORMAT)
 
 
 class CandidateExtras:
@@ -736,7 +820,7 @@ class BidsCrosscheckWindow(QMainWindow):
 
         id_item = QTableWidgetItem(f"sub-{subject_id}   {self._status_icons(subject_id)}")
         id_item.setData(SUBJECT_ID_ROLE, subject_id)
-        id_item.setToolTip(STATUS_ICON_TOOLTIP)
+        id_item.setToolTip(self._status_icon_tooltip())
         self.subject_table.setItem(row, 0, id_item)
 
         tag_widget = self._build_subject_tag_widget(subject_id)
@@ -764,7 +848,38 @@ class BidsCrosscheckWindow(QMainWindow):
             if self._has_candidate_warning(subject_id, scan_type):
                 icon += WARNING_ICON
             icons.append(icon)
-        return " ".join(icons)
+        icons_text = " ".join(icons)
+        if self.dataset_config.dates_in_scans_tsv and self._scans_tsv_has_date_issue(subject_id):
+            icons_text += f" {SCANS_TSV_DATE_ISSUE_ICON}"
+        return icons_text
+
+    def _scans_tsv_has_date_issue(self, subject_id: str) -> bool:
+        """True if any of this subject's scans.tsv rows fails the scans.tsv pane's own
+        tick/cross check -- doesn't parse as YYYYMMDDHHMM, or disagrees with the subject's
+        other rows (see `_build_scans_tsv_row`). Powers the master subject list's at-a-glance
+        SCANS_TSV_DATE_ISSUE_ICON, so a date problem is visible without opening the subject.
+        """
+        if self.bids_folder is None:
+            return False
+        rows = list_scans_tsv_rows(self.bids_folder, subject_id)
+        if not rows:
+            return False
+        reference_date = _scans_tsv_reference_date(rows)
+        for row in rows:
+            parsed = _parse_scans_tsv_date(row.get("acq_time"))
+            if parsed is None or (reference_date is not None and parsed != reference_date):
+                return True
+        return False
+
+    def _status_icon_tooltip(self) -> str:
+        tooltip = STATUS_ICON_TOOLTIP
+        if self.dataset_config.dates_in_scans_tsv:
+            tooltip += (
+                f"\n{SCANS_TSV_DATE_ISSUE_ICON} this subject's scans.tsv has a row that "
+                "doesn't parse as YYYYMMDDHHMM, or disagrees with its other rows -- see the "
+                "scans.tsv pane below"
+            )
+        return tooltip
 
     def _has_candidate_warning(self, subject_id: str, scan_type: str) -> bool:
         """True if the file currently in effect for this scan type has a flagged issue.
@@ -1022,6 +1137,11 @@ class BidsCrosscheckWindow(QMainWindow):
                 self.detail_layout.count() - 1,
                 self._build_scan_type_group(subject_id, subject_scan),
             )
+
+        if self.dataset_config.dates_in_scans_tsv:
+            scans_tsv_group = self._build_scans_tsv_group(subject_id)
+            if scans_tsv_group is not None:
+                self.detail_layout.insertWidget(self.detail_layout.count() - 1, scans_tsv_group)
 
         detail_extra_container = QWidget()
         self.detail_extra_layout = QVBoxLayout(detail_extra_container)
@@ -1316,6 +1436,94 @@ class BidsCrosscheckWindow(QMainWindow):
 
         row_layout.addStretch(1)
         return row
+
+    def _build_scans_tsv_group(self, subject_id: str) -> QGroupBox | None:
+        """`scans.tsv` sidecar pane: every row (filename, acq_time) this subject's sidecar
+        currently tracks -- not just the one file "Correct date..." can reach per scan type
+        above, since a scans.tsv can outlive a resolved duplicate or list a file that's since
+        stopped matching any scan type's glob. Each row gets a green tick if its acq_time
+        parses as YYYYMMDDHHMM *and* agrees with the subject's other rows, a red cross
+        otherwise (unparseable, or disagrees) -- see `_build_scans_tsv_row`. None if this
+        subject has no scans.tsv yet (e.g. not converted).
+        """
+        rows = list_scans_tsv_rows(self.bids_folder, subject_id)
+        if rows is None:
+            return None
+
+        row_word = "row" if len(rows) == 1 else "rows"
+        group = QGroupBox(f"scans.tsv ({len(rows)} {row_word})")
+        layout = QVBoxLayout(group)
+
+        reference_date = _scans_tsv_reference_date(rows)
+
+        for row in rows:
+            layout.addWidget(self._build_scans_tsv_row(subject_id, row, reference_date))
+
+        return group
+
+    def _build_scans_tsv_row(
+        self, subject_id: str, row: dict[str, str], reference_date: datetime | None
+    ) -> QWidget:
+        relative_filename = row.get("filename", "")
+        raw_date = row.get("acq_time", "")
+        parsed = _parse_scans_tsv_date(raw_date)
+        if parsed is None:
+            icon, color = "✗", UNCROSSCHECKED_COLOR
+            tooltip = f"{raw_date or '(empty)'!r} doesn't parse as YYYYMMDDHHMM"
+        elif reference_date is not None and parsed != reference_date:
+            icon, color = "✗", UNCROSSCHECKED_COLOR
+            tooltip = (
+                f"{raw_date} doesn't match this subject's other scans.tsv rows "
+                f"({reference_date.strftime(SCANS_TSV_DATE_FORMAT)})"
+            )
+        else:
+            icon, color = "✓", FOUND_EVERYWHERE_COLOR
+            tooltip = "Parses as YYYYMMDDHHMM and matches this subject's other rows"
+
+        row_widget = QWidget()
+        row_layout = QHBoxLayout(row_widget)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+
+        status_label = QLabel(icon)
+        status_label.setStyleSheet(f"color: {color}; font-weight: bold;")
+        status_label.setToolTip(tooltip)
+        row_layout.addWidget(status_label)
+
+        text_label = QLabel(f"{relative_filename}  —  {raw_date or '(empty)'}")
+        text_label.setToolTip(tooltip)
+        row_layout.addWidget(text_label, 1)
+
+        edit_button = QPushButton("Edit date...")
+        edit_button.setToolTip(
+            "Correct this row's acquisition date -- type YYYYMMDDHHMM directly, use the "
+            "calendar button to pick it, or click Today."
+        )
+        edit_button.clicked.connect(
+            lambda: self._on_edit_scans_tsv_date(subject_id, relative_filename, raw_date)
+        )
+        row_layout.addWidget(edit_button)
+
+        return row_widget
+
+    def _on_edit_scans_tsv_date(
+        self, subject_id: str, relative_filename: str, current_date: str
+    ) -> None:
+        if self.bids_folder is None:
+            return
+        dialog = ScansTsvDateCorrectionDialog(relative_filename, current_date, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        corrected_date = dialog.corrected_date()
+        if corrected_date == current_date:
+            return
+        try:
+            record_scans_tsv_row_date_correction(
+                self.bids_folder, subject_id, relative_filename, corrected_date
+            )
+        except BidsCrosscheckError as error:
+            QMessageBox.warning(self, "Could not correct date", str(error))
+            return
+        self._rescan()
 
     def _build_subject_crosscheck_widget(self, subject_id: str) -> QWidget:
         """One "Mark/Un-mark crosschecked" control covering every scan type for one subject

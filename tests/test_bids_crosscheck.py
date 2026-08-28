@@ -12,11 +12,13 @@ from mooi_toolbox.processing.bids_crosscheck import (
     crosschecked_scan_types,
     ensure_bidsignore,
     existing_subject_ids,
+    list_scans_tsv_rows,
     load_decisions,
     load_excluded_subjects,
     load_pending_selections,
     record_date_correction,
     record_id_correction,
+    record_scans_tsv_row_date_correction,
     record_selected_run,
     record_subject_excluded,
     record_task_tag,
@@ -43,6 +45,13 @@ TEST_CONFIG = DatasetConfig(
 def _touch(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("")
+    return path
+
+
+def _write_scans_tsv(path: Path, rows: list[dict[str, str]]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = ["filename\tacq_time"] + [f"{row['filename']}\t{row['acq_time']}" for row in rows]
+    path.write_text("\n".join(lines) + "\n")
     return path
 
 
@@ -162,6 +171,84 @@ class TestRecordDateCorrection(unittest.TestCase):
             record_date_correction(self.bids_folder, "001", "debrief", self.file, "20240110")
 
         self.assertTrue(self.file.exists())  # untouched -- the guard runs before any rename
+
+
+class TestListScansTsvRows(unittest.TestCase):
+    def setUp(self):
+        self.bids_folder = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        shutil.rmtree(self.bids_folder, ignore_errors=True)
+
+    def test_returns_none_when_subject_has_no_scans_tsv(self):
+        _touch(self.bids_folder / "sub-001" / "20240101_sub-001_physiology.acq")
+
+        self.assertIsNone(list_scans_tsv_rows(self.bids_folder, "001"))
+
+    def test_lists_every_row_for_the_subject(self):
+        _write_scans_tsv(
+            self.bids_folder / "sub-001" / "ses-01" / "sub-001_ses-01_scans.tsv",
+            [
+                {"filename": "sub-001_ses-01_physio.mat", "acq_time": "202401081200"},
+                {"filename": "sub-001_ses-01_events.tsv", "acq_time": "202401081200"},
+            ],
+        )
+
+        rows = list_scans_tsv_rows(self.bids_folder, "001")
+
+        self.assertEqual(
+            rows,
+            [
+                {"filename": "sub-001_ses-01_physio.mat", "acq_time": "202401081200"},
+                {"filename": "sub-001_ses-01_events.tsv", "acq_time": "202401081200"},
+            ],
+        )
+
+
+class TestRecordScansTsvRowDateCorrection(unittest.TestCase):
+    def setUp(self):
+        self.bids_folder = Path(tempfile.mkdtemp())
+        self.scans_tsv = _write_scans_tsv(
+            self.bids_folder / "sub-001" / "ses-01" / "sub-001_ses-01_scans.tsv",
+            [{"filename": "sub-001_ses-01_events.tsv", "acq_time": "2024100"}],
+        )
+
+    def tearDown(self):
+        shutil.rmtree(self.bids_folder, ignore_errors=True)
+
+    def test_rewrites_the_matching_row(self):
+        record_scans_tsv_row_date_correction(
+            self.bids_folder, "001", "sub-001_ses-01_events.tsv", "202401081200"
+        )
+
+        rows = list_scans_tsv_rows(self.bids_folder, "001")
+        self.assertEqual(rows[0]["acq_time"], "202401081200")
+
+    def test_decision_records_original_and_corrected_date(self):
+        record_scans_tsv_row_date_correction(
+            self.bids_folder, "001", "sub-001_ses-01_events.tsv", "202401081200"
+        )
+
+        decision = load_decisions(self.bids_folder)["001_scans_tsv:sub-001_ses-01_events.tsv"]
+        self.assertEqual(decision["type"], "scans_tsv_date_correction")
+        self.assertEqual(decision["original_date"], "2024100")
+        self.assertEqual(decision["corrected_date"], "202401081200")
+
+    def test_raises_for_an_unknown_filename(self):
+        with self.assertRaises(BidsCrosscheckError):
+            record_scans_tsv_row_date_correction(
+                self.bids_folder, "001", "no_such_file.tsv", "202401081200"
+            )
+
+    def test_revert_all_decisions_restores_the_original_date(self):
+        record_scans_tsv_row_date_correction(
+            self.bids_folder, "001", "sub-001_ses-01_events.tsv", "202401081200"
+        )
+
+        revert_all_decisions(self.bids_folder)
+
+        rows = list_scans_tsv_rows(self.bids_folder, "001")
+        self.assertEqual(rows[0]["acq_time"], "2024100")
 
 
 class TestRecordIdCorrection(unittest.TestCase):

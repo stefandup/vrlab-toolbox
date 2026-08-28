@@ -520,6 +520,65 @@ def record_scans_tsv_date_correction(
     return file
 
 
+def list_scans_tsv_rows(bids_folder: Path, subject_id: str) -> list[dict[str, str]] | None:
+    """Every row of `subject_id`'s `scans.tsv` sidecar (`filename`, `acq_time`), for the
+    crosscheck GUI's scans.tsv pane -- unlike `read_scans_tsv_date`, which only looks up one
+    file's row, this lists everything the sidecar currently tracks for the subject, including
+    rows for files a duplicate pick has since made ineffective. Returns None if the subject has
+    no scans.tsv at all (e.g. not converted yet, or a dataset that doesn't use one -- see
+    `DatasetConfig.dates_in_scans_tsv`).
+    """
+    subject_folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{subject_id}"
+    matches = sorted(subject_folder.glob("**/*_scans.tsv"))
+    if not matches:
+        return None
+    return _read_scans_tsv_rows(matches[0])
+
+
+def record_scans_tsv_row_date_correction(
+    bids_folder: Path,
+    subject_id: str,
+    relative_filename: str,
+    corrected_date: str,
+) -> None:
+    """Corrects one scans.tsv row's `acq_time` by its `filename` column value directly, for the
+    crosscheck GUI's scans.tsv pane (which edits any row it lists, not just whichever file is
+    currently effective per scan type -- see `record_scans_tsv_date_correction` for that
+    narrower, scan-type-keyed counterpart used by "Correct date..." on the scan-type panes
+    above). Reuses the same `scans_tsv_date_correction` decision type -- keyed by the filename
+    rather than a scan type, since a scans.tsv row doesn't always correspond to one -- so
+    `revert_all_decisions` already knows how to undo this too.
+    """
+    subject_folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{subject_id}"
+    matches = sorted(subject_folder.glob("**/*_scans.tsv"))
+    if not matches:
+        raise BidsCrosscheckError(f"No scans.tsv found for subject {subject_id!r}")
+    scans_tsv = matches[0]
+
+    rows = _read_scans_tsv_rows(scans_tsv)
+    matching_rows = [row for row in rows if row.get("filename") == relative_filename]
+    if not matching_rows:
+        raise BidsCrosscheckError(f"No {relative_filename!r} row found in {scans_tsv}")
+
+    original_date = matching_rows[0].get("acq_time", "")
+
+    decisions = load_decisions(bids_folder)
+    decisions[_decision_key(subject_id, f"scans_tsv:{relative_filename}")] = {
+        "type": "scans_tsv_date_correction",
+        "subject_id": subject_id,
+        "scan_type": f"scans_tsv:{relative_filename}",
+        "scans_tsv": scans_tsv.relative_to(bids_folder).as_posix(),
+        "filename": relative_filename,
+        "original_date": original_date,
+        "corrected_date": corrected_date,
+    }
+    _write_decisions_atomic(bids_folder, decisions)
+
+    for row in matching_rows:
+        row["acq_time"] = corrected_date
+    _write_scans_tsv_rows(scans_tsv, rows)
+
+
 def record_id_correction(bids_folder: Path, original_id: str, corrected_id: str) -> Path:
     """Rename every file for `original_id`, then its `sub-XXX/` folder, to `corrected_id`."""
     original_folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{original_id}"
