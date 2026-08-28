@@ -35,7 +35,6 @@ crane_raw_debrief_file_schema = pa.DataFrameSchema(
         "record_id": pa_default.str_col(),
         "started": pa_default.str_col(),  # Some have a str here others a 1/2
         "height": pa_default.str_col(),
-        "High_at_start_end": pa.Column(str),
         # We generate this as it helps validate our EMOTIONS_TESTED variable
         **{
             f"crane_{emotion}_{barrel_color}": pa_default.likert_col()
@@ -60,7 +59,6 @@ def build_crane_debrief_pipeline_output_schema() -> pa.DataFrameSchema:
         {
             "Debrief_started": pa_default.optional_str_col(),  # Some have a str here others a 1/2
             "Debrief_height": pa_default.optional_str_col(),
-            "Debrief_High_at_start_end": pa_default.optional_str_col(),
             **{
                 f"Debrief_crane_{metric}_{trial_type}": pa_default.optional_float_col()
                 for metric in DEBRIEF_OUTPUT_METRICS

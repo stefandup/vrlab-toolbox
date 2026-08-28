@@ -153,7 +153,8 @@ def _unbalance_trial_conditions(behav_df: pd.DataFrame, rng: np.random.Generator
     """
     non_training = behav_df[~behav_df["Training"]]
     condition_rows = non_training[
-        (non_training["BlockType"] == BLOCK_TYPES[0]) & (non_training["TrialType"] == TRIAL_TYPES[0])
+        (non_training["BlockType"] == BLOCK_TYPES[0])
+        & (non_training["TrialType"] == TRIAL_TYPES[0])
     ]
     if condition_rows.empty:
         raise ValueError(
@@ -359,7 +360,6 @@ def _build_debrief_rows(subject_id: str, rng: np.random.Generator) -> pd.DataFra
         "record_id": subject_id,
         "started": str(rng.choice(["1", "2"])),
         "height": str(rng.integers(150, 195)),
-        "High_at_start_end": str(rng.choice(["High", "Low"])),
     }
     for column_name, column in crane_raw_debrief_file_schema.columns.items():
         if column_name in row:

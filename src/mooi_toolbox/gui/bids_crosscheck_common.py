@@ -129,6 +129,11 @@ BIDS_DATATYPE_NAMES = {
 
 SCANS_TSV_DATE_FORMAT = "%Y%m%d%H%M"
 SCANS_TSV_DATE_QT_FORMAT = "yyyyMMddHHmm"
+# Separators here are purely cosmetic -- they make the HH/mm section visually distinct so a
+# user notices it's editable, rather than reading as one undifferentiated block of 12 digits
+# next to the date. The stored/returned value still uses SCANS_TSV_DATE_QT_FORMAT (no
+# separators), since that's the strict format scans.tsv itself requires.
+SCANS_TSV_DATE_QT_DISPLAY_FORMAT = "yyyy-MM-dd HH:mm"
 
 
 def _parse_scans_tsv_date(value: str | None) -> datetime | None:
@@ -164,13 +169,15 @@ def _scans_tsv_reference_date(rows: list[dict[str, str]]) -> datetime | None:
 
 class ScansTsvDateCorrectionDialog(QDialog):
     """Lets a human pick a corrected `acq_time` for one scans.tsv row. A single QDateTimeEdit
-    gives both a directly-typable YYYYMMDDHHMM field and a calendar popup (its trailing
-    calendar-icon button) for picking the date visually, so there's exactly one value to keep
-    in sync rather than a free-text box plus a separate picker -- and since QDateTimeEdit only
-    ever holds a valid date/time, whatever it returns is guaranteed well-formed. Defaults to
-    today when the row's existing value doesn't parse (see `_parse_scans_tsv_date`), so
-    correcting an unparseable/missing value starts from a sensible point rather than a blank
-    or invalid one.
+    gives both a directly-editable date and HH:mm field (each section clickable/typable/
+    spinnable on its own, per SCANS_TSV_DATE_QT_DISPLAY_FORMAT) and a calendar popup (its
+    trailing calendar-icon button) for picking the date visually, so there's exactly one value
+    to keep in sync rather than a free-text box plus a separate picker -- and since
+    QDateTimeEdit only ever holds a valid date/time, whatever it returns is guaranteed
+    well-formed. The displayed format is cosmetic only; `corrected_date()` still returns the
+    strict YYYYMMDDHHMM scans.tsv requires. Defaults to today when the row's existing value
+    doesn't parse (see `_parse_scans_tsv_date`), so correcting an unparseable/missing value
+    starts from a sensible point rather than a blank or invalid one.
     """
 
     def __init__(self, filename: str, current_date: str, parent: QWidget | None = None):
@@ -181,7 +188,7 @@ class ScansTsvDateCorrectionDialog(QDialog):
         layout.addWidget(QLabel(f"Acquisition date for {filename}:"))
 
         self.date_edit = QDateTimeEdit()
-        self.date_edit.setDisplayFormat(SCANS_TSV_DATE_QT_FORMAT)
+        self.date_edit.setDisplayFormat(SCANS_TSV_DATE_QT_DISPLAY_FORMAT)
         self.date_edit.setCalendarPopup(True)
         parsed = _parse_scans_tsv_date(current_date)
         self.date_edit.setDateTime(parsed or datetime.now())
