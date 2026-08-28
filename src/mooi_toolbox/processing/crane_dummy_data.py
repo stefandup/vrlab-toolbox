@@ -23,7 +23,6 @@ ERROR_TYPES = (
     "missing_physiology",
     "missing_behaviour",
     "missing_debrief",
-    "date_mismatch",
     "bad_trigger_count",
     "short_trigger",
 )
@@ -74,10 +73,6 @@ SCENARIO_DESCRIPTIONS: dict[str, str] = {
     "missing_debrief": (
         "No debrief row added to the group export -- exercises handling of a subject whose "
         "debrief never got exported (e.g. a record_id mismatch)."
-    ),
-    "date_mismatch": (
-        "Behaviour and physiology files carry different date prefixes -- exercises detection "
-        "of an inconsistent acquisition date across a subject's raw files."
     ),
     "bad_trigger_count": (
         "One interior trigger pulse is flattened out of the physiology trigger channel -- "
@@ -175,7 +170,9 @@ def _insert_pulse_after(
     sampling_freq_hz: float,
     burst_seconds: float = 0.1,
 ) -> np.ndarray:
-    """Inserts a brief extra high-voltage burst gap_seconds after the pulse starting at edge_index."""
+    """
+    Inserts a brief extra high-voltage burst gap_seconds after the pulse starting at edge_index.
+    """
     mutated = trigger.copy()
     high_value = mutated[edge_index]
 
@@ -215,7 +212,10 @@ def _remove_last_trigger_pulse(trigger: np.ndarray) -> np.ndarray:
 def _insert_short_trigger_pulse(
     trigger: np.ndarray, rng: np.random.Generator, sampling_freq_hz: float
 ) -> np.ndarray:
-    """Adds a brief extra pulse shortly after a random real one, producing an anomalously short interval."""
+    """
+    Adds a brief extra pulse shortly after a random real one, producing
+    an anomalously short interval.
+    """
     edges = _rising_edge_indices(trigger)
     interior_edges = edges[(edges > len(trigger) * 0.1) & (edges < len(trigger) * 0.8)]
     chosen = int(rng.choice(interior_edges))
@@ -225,7 +225,9 @@ def _insert_short_trigger_pulse(
 def _insert_double_initial_trigger_pulse(
     trigger: np.ndarray, sampling_freq_hz: float, gap_seconds: float
 ) -> np.ndarray:
-    """Duplicates the first pulse shortly after itself, reproducing a double-initial-trigger recording."""
+    """
+    Duplicates the first pulse shortly after itself, reproducing a double-initial-trigger recording.
+    """
     edges = _rising_edge_indices(trigger)
     if len(edges) == 0:
         raise ValueError("Trigger channel has no pulses to duplicate.")
@@ -288,7 +290,9 @@ def _mutate_physiology_dict(
     if error_type == "bad_trigger_count":
         data[:, trigger_idx] = _remove_one_trigger_pulse(data[:, trigger_idx], rng)
     elif error_type == "short_trigger":
-        data[:, trigger_idx] = _insert_short_trigger_pulse(data[:, trigger_idx], rng, sampling_freq_hz)
+        data[:, trigger_idx] = _insert_short_trigger_pulse(
+            data[:, trigger_idx], rng, sampling_freq_hz
+        )
     elif error_type == "missing_initial_trigger":
         data[:, trigger_idx] = _remove_first_trigger_pulse(data[:, trigger_idx])
     elif error_type == "missing_last_trigger":
@@ -374,7 +378,9 @@ def generate_dummy_participant(
     if error_type != "missing_debrief":
         debrief_rows = _build_debrief_rows(subject_id, rng)
 
-    result = DummyParticipantResult(subject_id, error_type or CLEAN_SCENARIO_LABEL, csv_path, mat_path)
+    result = DummyParticipantResult(
+        subject_id, error_type or CLEAN_SCENARIO_LABEL, csv_path, mat_path
+    )
     return result, debrief_rows
 
 
@@ -442,7 +448,7 @@ def generate_dummy_dataset(
         csv_template, mat_template = template_pairs[index % len(template_pairs)]
         subject_id = f"DUMMY{index:03d}"
         csv_date_string = f"2026{100 + index}"
-        mat_date_string = f"2026{900 + index}" if error_type == "date_mismatch" else csv_date_string
+        mat_date_string = csv_date_string
 
         logger.info("Generating dummy participant %s (%s)", subject_id, error_type or "clean")
 

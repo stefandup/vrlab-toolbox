@@ -188,7 +188,7 @@ class ImportCraneBehaviourDataStrategyStep:
 
     def run(self, config_in: ParticipantConfig) -> RawCraneBehaviourData:
 
-        return RawCraneBehaviourData.load_group_data_from_config(config_in)
+        return RawCraneBehaviourData.load_from_behaviour_type(config_in, self.behaviour_output_type)
 
 
 class ProcessCraneBehaviourDataStrategyStep:

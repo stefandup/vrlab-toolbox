@@ -27,13 +27,19 @@ CORRECT_PARTICIPANT = "P00020"
 
 # Real, gitignored data -- every test in this file needs this folder present locally and is
 # expected to fail without it (no dummy/synthetic FOH dataset exists yet, unlike Crane).
-DATA_FOLDER = Path(r"C:\Users\stefan\Participant Data Copy")
+BIDS_FOLDER = Path(r"foh_data_copy\foh_bids_test")
 
 
 class TestFOHPipeline(unittest.TestCase):
+    def test_load_lsl_config_data(self):
+        participant_config = ParticipantConfig.from_lsl_data(
+            CORRECT_PARTICIPANT, BIDS_FOLDER, PhysiologyFileFormat.LSL
+        )
+        self.assertIsInstance(participant_config, ParticipantConfig)
+
     def setUp(self):
         self.participant_config = ParticipantConfig.from_lsl_data(
-            CORRECT_PARTICIPANT, DATA_FOLDER, PhysiologyFileFormat.LSL
+            CORRECT_PARTICIPANT, BIDS_FOLDER, PhysiologyFileFormat.LSL
         )
 
     def test_physiology_data_import_strategy(self):
@@ -69,20 +75,18 @@ class TestFOHPipeline(unittest.TestCase):
         self.assertTrue(trial_intervals)
 
     def test_basic_foh_pipeline(self):
-        pipeline_out = run_pipeline(self.participant_config.subject_id, DATA_FOLDER)
+        pipeline_out = run_pipeline(self.participant_config.subject_id, BIDS_FOLDER)
         self.assertTrue(pipeline_out)
         self.assertTrue(pipeline_out.figure_data_out["eda_qc"])
         self.assertTrue(pipeline_out.figure_data_out["Interval_qc"])
         self.assertEqual(pipeline_out.status.status[RawBioData], ProcessingStatus.OK)
         self.assertEqual(pipeline_out.status.status[RawFohBehaviourData], ProcessingStatus.OK)
-        self.assertEqual(
-            pipeline_out.status.status[FohRawTargetBehaviourData], ProcessingStatus.OK
-        )
+        self.assertEqual(pipeline_out.status.status[FohRawTargetBehaviourData], ProcessingStatus.OK)
         self.assertEqual(pipeline_out.status.status[TrialIntervals], ProcessingStatus.OK)
 
     def test_batch_processing(self):
         with tempfile.TemporaryDirectory() as output_folder:
-            result = CliRunner().invoke(run_batch, [str(DATA_FOLDER), output_folder])
+            result = CliRunner().invoke(run_batch, [str(BIDS_FOLDER), output_folder])
         self.assertEqual(result.exit_code, 0, msg=result.output)
 
 

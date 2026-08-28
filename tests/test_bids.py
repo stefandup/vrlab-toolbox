@@ -25,9 +25,9 @@ class TestBidsEventsDataBasicImport(unittest.TestCase):
             ["onset", "duration", "trial_type", "response_time"],
         )
 
-    def test_import_from_crane_csv_out(self):
-        raw_crane_behav_data = RawCraneBehaviourData.load_group_data_from_config(
-            example_crane_participant_correct
+    def test_import_from_crane_tsv_out(self):
+        raw_crane_behav_data = RawCraneBehaviourData.load_from_behaviour_type(
+            example_crane_participant_correct, RawCraneBehaviourData
         )
         raw_crane_bids_events_data = raw_crane_behav_data.to_bids_events()
         self.assertListEqual(

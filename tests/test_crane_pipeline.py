@@ -24,9 +24,7 @@ from mooi_toolbox.processing.trial_intervals import TrialIntervals
 
 # Real, gitignored data used only by the "real data" tests below -- those fail on any machine
 # without this folder present, by design (no synthetic equivalent exists yet for these PIDs).
-REAL_DATA_FOLDER = Path(
-    r"C:\\Users\\stefan\\OneDrive - Stellenbosch University\\MscFiles_crane_crosschecked"
-)
+REAL_DATA_BIDS_FOLDER = Path(r"crane_data\crane_bids")
 
 # BIDS-shaped output of crane_generate_sample_data + crane_convert_to_bids (see
 # examples/crane_bids_dummy/dummy_data_log.txt) -- sub-XXX/ses-01/beh/... BIDS layout. The
@@ -84,14 +82,20 @@ MISSING_DEBRIEF_STATUS_STR = PipelineStatus(
 
 class TestBasicDataHandling(unittest.TestCase):
     def test_find_crane_participant_strategy(self):
+        good_config = FindCraneParticipantFilesStrategyStep().run(DUMMY_CLEAN_ID, EXAMPLES_FOLDER)
+        no_file_config = FindCraneParticipantFilesStrategyStep().run(
+            CRANE_PARTICIPANT_NO_FILE_ID, EXAMPLES_FOLDER
+        )
+        self.assertIsInstance(good_config, ParticipantConfig)
+        self.assertIsInstance(no_file_config, ParticipantConfig)
+
+    def setUp(self):
         self.good_config = FindCraneParticipantFilesStrategyStep().run(
             DUMMY_CLEAN_ID, EXAMPLES_FOLDER
         )
         self.no_file_config = FindCraneParticipantFilesStrategyStep().run(
             CRANE_PARTICIPANT_NO_FILE_ID, EXAMPLES_FOLDER
         )
-        self.assertIsInstance(self.good_config, ParticipantConfig)
-        self.assertIsInstance(self.no_file_config, ParticipantConfig)
 
     def test_good_raw_data_init_should_return_ok(self):
         raw_biodata = BiopacPhysiologyDataImportStartegy().run(self.good_config)
@@ -106,8 +110,8 @@ class TestCraneBehaviourStrategy(unittest.TestCase):
     def setUp(self):
         self.config = FindCraneParticipantFilesStrategyStep().run(DUMMY_CLEAN_ID, EXAMPLES_FOLDER)
 
-    def test_biopac_behav_import(self):
-        raw_behaviour = RawCraneBehaviourData.load_group_data_from_config(self.config)
+    def test_bids_behav_import(self):
+        raw_behaviour = ImportCraneBehaviourDataStrategyStep().run(self.config)
         build_crane_raw_behav_file_schema().validate(raw_behaviour.raw_behav_df)
 
     def test_crane_process_behaviour(self):
@@ -124,7 +128,7 @@ class TestCraneBehaviourStrategy(unittest.TestCase):
 
 class TestCraneGetIntervalStrategy(unittest.TestCase):
     def _run_interval_strategy_for(
-        self, subject_id: str, folder: Path = REAL_DATA_FOLDER
+        self, subject_id: str, folder: Path = REAL_DATA_BIDS_FOLDER
     ) -> TrialIntervals:
         participant_config = FindCraneParticipantFilesStrategyStep().run(subject_id, folder)
         raw_bio_data = BiopacPhysiologyDataImportStartegy().run(participant_config)
@@ -248,7 +252,7 @@ class TestCranePipelineDummyData(unittest.TestCase):
 class TestCranePipelineRealData(unittest.TestCase):
     def test_crane_handles_long_delay_time(self):
         """Currently no error with excessive delays"""
-        pipeline_out = run_pipeline(EXAMPLE_LONG_DELAY_ID, REAL_DATA_FOLDER)
+        pipeline_out = run_pipeline(EXAMPLE_LONG_DELAY_ID, REAL_DATA_BIDS_FOLDER)
         self.assertEqual(pipeline_out.status.status[TrialIntervals], ProcessingStatus.OK)
         status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
         self.assertEqual(sorted(status_str.split(" ")), sorted(ALL_OK_STATUS_STR.split(" ")))
@@ -265,7 +269,9 @@ class TestCranePipelineRealData(unittest.TestCase):
             }
         ).get_as_text()
 
-        pipeline_out = run_pipeline(EXAMPLE_INCORRECT_MEDIUM_SHORT_TRIGGER_ID, REAL_DATA_FOLDER)
+        pipeline_out = run_pipeline(
+            EXAMPLE_INCORRECT_MEDIUM_SHORT_TRIGGER_ID, REAL_DATA_BIDS_FOLDER
+        )
         self.assertEqual(pipeline_out.status.status[TrialIntervals], ProcessingStatus.ERROR)
         status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
         self.assertEqual(sorted(status_str.split(" ")), sorted(corrected_interval_str.split(" ")))

@@ -29,3 +29,4 @@ dist/
 /site/
 examples/*
 redcap_data/
+foh_data_copy/

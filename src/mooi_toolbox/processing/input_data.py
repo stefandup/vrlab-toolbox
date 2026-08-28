@@ -18,7 +18,7 @@ class PhysiologyFileFormat(Enum):
 # share one source of truth once this function starts reading crosscheck decisions instead of
 # guessing (see docs/bids_crosscheck_plan.md's "TODO (deferred, not scoped now)"), and see
 # docs/pipeline_next_steps.md item 25 -- the tagged filename shape itself changed too.
-PIPELINE_ID = "foh"
+TASK_LABEL = "foh"
 logger = logging.getLogger(__name__)
 
 
@@ -250,23 +250,14 @@ class ParticipantConfig:
         log_folder_in.mkdir(parents=True, exist_ok=True)
 
         selected_stream_fns = []
-        for xdf_path in data_folder_in.rglob(
-            f"*{id_in}*{PIPELINE_ID}{physiology_data_type_in.value}"
-        ):
+        glob_str = f"sub-{id_in}*task-{TASK_LABEL}*_beh{physiology_data_type_in.value}"
+        for xdf_path in data_folder_in.rglob(glob_str):
             print(f"Found {xdf_path}")
-
-            file_to_run_key = str(xdf_path.name).split("_")[-1]
-            if file_to_run_key != f"{PIPELINE_ID}.xdf":
-                logger.warning(
-                    f"{xdf_path} path with key {file_to_run_key} does not match {PIPELINE_ID}.xdf"
-                    f"Skipping..."
-                )
-                continue
             selected_stream_fns.append(xdf_path)
 
         if not selected_stream_fns:
             raise ValueError(
-                f"No physiology files matching *_{PIPELINE_ID}.xdf found for participant {id_in}."
+                f"No physiology files matching {glob_str} found for participant {id_in}."
             )
         # Data needs to be crosschecked to remove multiple competing files.
         else:

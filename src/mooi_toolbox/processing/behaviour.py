@@ -41,9 +41,23 @@ class RawBehaviourData:
         return BidsEventsData()
 
     @classmethod
-    def load_group_data_from_config(cls, config_in: ParticipantConfig) -> Self:
+    def load_from_config(cls, config_in: ParticipantConfig) -> Self:
         behav_df = load_from_participant_config(config_in)
         return cls(config_in, behav_df)
+
+    @classmethod
+    def load_from_behaviour_type(cls, config_in: ParticipantConfig, behaviour_type: type):
+        behav_file_found = config_in._behaviour_file_names[behaviour_type]
+
+        if not behav_file_found:
+            error = f"No files found for {config_in.subject_id}"
+            logger.error(error)
+            raise FileNotFoundError(error)
+
+        logger.info(f"Found {behav_file_found}")
+        df_out = pd.read_csv(behav_file_found, delimiter="\t")
+
+        return cls(config_in, df_out)
 
 
 def load_and_validate_behaviour_csv(

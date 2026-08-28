@@ -82,13 +82,17 @@ class RawDebriefBehaviourData(RawBehaviourData):
     filename_glob = "sub-{participant_id}_*acq-debrief*.tsv"
 
     @classmethod
+    def load_from_bids(cls, config_in: ParticipantConfig):
+        pass
+
+    @classmethod
     def load_group_data_from_config(cls, config_in: ParticipantConfig) -> Self:
 
         debrief_df = get_group_debrief_data(config_in.behav_folder)
 
         return cls(subject_config=config_in, raw_behav_df=debrief_df)
 
-    def get_single_subject_data(self, subject_id_in: str) -> "RawDebriefBehaviourData":
+    def get_single_subject_from_group_data(self, subject_id_in: str) -> "RawDebriefBehaviourData":
 
         matching_subject_df = self.raw_behav_df.loc[self.raw_behav_df["record_id"] == subject_id_in]
 
@@ -107,8 +111,10 @@ class ImportCraneDebriefDataProcessStrategyStep:
     behaviour_output_type = RawDebriefBehaviourData
 
     def run(self, config_in: ParticipantConfig) -> RawDebriefBehaviourData:
-        raw_group_behav_data = RawDebriefBehaviourData.load_group_data_from_config(config_in)
-        single_subject_data = raw_group_behav_data.get_single_subject_data(config_in.subject_id)
+        single_subject_data = RawDebriefBehaviourData.load_from_behaviour_type(
+            config_in, self.behaviour_output_type
+        )
+
         return single_subject_data
 
 
