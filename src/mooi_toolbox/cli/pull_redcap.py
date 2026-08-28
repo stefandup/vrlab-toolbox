@@ -29,6 +29,13 @@ response.raise_for_status()
 
 df = pd.read_csv(StringIO(response.text))
 
+# Rename misspelled REDCap variables: crane_dissastifaction_gb
+df = df.rename(
+    columns={
+        "crane_dissastifaction_gb": "crane_dissatisfaction_gb",
+    }
+)
+
 print(df.head())
 print()
 print(f"Rows downloaded: {len(df)}")
