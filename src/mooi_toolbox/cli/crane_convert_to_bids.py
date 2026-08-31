@@ -80,17 +80,22 @@ RUN_TOKEN = "run-001"
 TASK_TOKEN = "task-crane"
 SCANS_TSV_COLUMNS = ("filename", "acq_time")
 # Real filenames are `{date}_{subject_id}_CraneOut.{ext}`, but: the date prefix isn't always
-# there; it's sometimes joined with "-" instead of "_" (e.g. "20267291154-PID5562_CraneOut");
-# and a subject id can carry a Windows duplicate-copy marker (" (1)", " (2)", ...) from a file
-# accidentally copied twice within the same folder. `biopac.get_subject_id_from_mat`'s naive
-# `split("_")[1]` breaks on all three: a 2-token filename with no date puts "CraneOut" itself
-# (the suffix) at index 1 instead of the id; a "-"-joined date never gets split off at all; and
-# a "(1)"/"(2)" marker gets kept as part of the "id" -- turning one real subject into two
-# different (wrong) ones. This regex handles all three, without touching biopac.py (still
-# correct for the plain-date-prefixed filenames the real pipeline mostly sees).
+# there; it's sometimes joined with "-" instead of "_" (e.g. "20267291154-PID5562_CraneOut").
+# `biopac.get_subject_id_from_mat`'s naive `split("_")[1]` breaks on both: a 2-token filename
+# with no date puts "CraneOut" itself (the suffix) at index 1 instead of the id, and a
+# "-"-joined date never gets split off at all. This regex handles both, without touching
+# biopac.py (still correct for the plain-date-prefixed filenames the real pipeline mostly
+# sees).
 _SUBJECT_ID_PATTERN = re.compile(
-    r"^(?:(?P<date>\d+)[_-])?(?P<subject_id>.+?)(?:\s*\(\d+\))?_CraneOut$", re.IGNORECASE
+    r"^(?:(?P<date>\d+)[_-])?(?P<subject_id>.+?)_CraneOut$", re.IGNORECASE
 )
+# A subject id can carry a trailing " (N)" marker -- sometimes a harmless Windows
+# duplicate-copy artifact of the very same file, but just as often two genuinely different
+# subjects that happen to share the same base id, disambiguated only by this suffix. There's
+# no reliable way to tell which from the filename alone, so it's never auto-resolved either
+# way -- a filename carrying this marker is treated as unparseable, routing it through the
+# crosscheck GUI's "Fix raw filenames..." dialog for an explicit human decision.
+_DUPLICATE_COPY_MARKER_PATTERN = re.compile(r"\(\d+\)\s*$")
 # Confirmed (by whoever actually enters these IDs) the same real subject gets written
 # inconsistently as "PID-1234" and "PID1234" -- consistent about the "PID" prefix and the
 # digits, just not about the dash in between. Canonicalized to the no-dash form (arbitrary
@@ -130,15 +135,19 @@ def parse_crane_filename(file: Path) -> ParsedCraneFilename | None:
     """Subject id + date prefix from a raw crane filename's stem, in one pass -- both need
     the same regex, so deriving date_prefix separately (e.g. a naive
     `file.name.split("_")[0]`) would silently disagree with it whenever the date is "-"-joined
-    or absent. Returns None if the filename doesn't match the expected
-    `[<date>[_-]]<id>[ (N)]_CraneOut` shape at all, rather than guessing -- callers must handle
-    None (skip + log), not treat it as a real id.
+    or absent. Returns None if the filename doesn't match the expected `[<date>[_-]]<id>_
+    CraneOut` shape at all, or if the id carries an ambiguous "(N)" duplicate-copy marker (see
+    `_DUPLICATE_COPY_MARKER_PATTERN`) -- rather than guessing, callers must handle None
+    (skip + log), not treat it as a real id.
     """
     match = _SUBJECT_ID_PATTERN.match(file.stem)
     if match is None:
         return None
+    subject_id = match.group("subject_id")
+    if _DUPLICATE_COPY_MARKER_PATTERN.search(subject_id):
+        return None
     return ParsedCraneFilename(
-        subject_id=canonicalize_subject_id(match.group("subject_id")),
+        subject_id=canonicalize_subject_id(subject_id),
         date_prefix=match.group("date"),
     )
 
@@ -151,10 +160,11 @@ def extract_subject_id(file: Path) -> str | None:
 
 def explain_unparseable_filename(file: Path) -> str:
     """Plain-English reason `parse_crane_filename` returned None for this file's stem --
-    grounded directly in `_SUBJECT_ID_PATTERN` (that regex is the only place this failure
-    is decided, so the explanation is derived from it rather than guessed independently).
-    Used by the crosscheck GUI's unparseable-filename correction dialog; not stored
-    anywhere, recomputed on demand since it's cheap (one regex check on a filename stem).
+    grounded directly in `_SUBJECT_ID_PATTERN`/`_DUPLICATE_COPY_MARKER_PATTERN` (the only
+    place this failure is decided, so the explanation is derived from them rather than
+    guessed independently). Used by the crosscheck GUI's raw-filename correction dialog; not
+    stored anywhere, recomputed on demand since it's cheap (one regex check on a filename
+    stem).
     """
     stem = file.stem
     if not re.search(r"_CraneOut$", stem, re.IGNORECASE):
@@ -162,6 +172,13 @@ def explain_unparseable_filename(file: Path) -> str:
     remainder = re.sub(r"_CraneOut$", "", stem, flags=re.IGNORECASE)
     if not remainder.strip():
         return 'Nothing before "_CraneOut" to use as a subject id.'
+    match = _SUBJECT_ID_PATTERN.match(stem)
+    if match is not None and _DUPLICATE_COPY_MARKER_PATTERN.search(match.group("subject_id")):
+        return (
+            'Ends in a "(N)" marker -- could be a harmless duplicate copy of the same '
+            "recording, or two different subjects that happen to share a base id. Declare "
+            "which below."
+        )
     return 'Ends in "_CraneOut" but the id portion still didn\'t match the expected pattern.'
 
 
@@ -171,10 +188,12 @@ def resolve_crane_filename(
     """Like `parse_crane_filename`, but checks a human-declared correction first (see
     `load_raw_filename_id_corrections`) -- keyed by the file's path relative to
     `input_folder`, not bare filename, so two different files that happen to share a name
-    in different subfolders don't collide. A corrected file has no derivable date (the
-    filename didn't parse at all, so there's nothing to extract it from) -- `date_prefix`
-    is always None for a corrected result, same as `convert_crane_to_bids` already handles
-    for a missing date_prefix (falls back to "nodate").
+    in different subfolders don't collide. Still tries to recover a real date prefix from the
+    filename even when a correction overrides the subject id -- a corrected file's date is
+    only truly unrecoverable when the filename failed to match `_SUBJECT_ID_PATTERN` at all;
+    one that matched but was rejected purely for carrying an ambiguous "(N)" duplicate-copy
+    marker (see `parse_crane_filename`) still has a real date sitting right there.
+    `convert_crane_to_bids` falls back to "nodate" only when this still comes back None.
     """
     try:
         key = file.relative_to(input_folder).as_posix()
@@ -182,8 +201,10 @@ def resolve_crane_filename(
         key = file.name
     corrected_subject_id = corrections.get(key)
     if corrected_subject_id:
+        match = _SUBJECT_ID_PATTERN.match(file.stem)
+        date_prefix = match.group("date") if match is not None else None
         return ParsedCraneFilename(
-            subject_id=canonicalize_subject_id(corrected_subject_id), date_prefix=None
+            subject_id=canonicalize_subject_id(corrected_subject_id), date_prefix=date_prefix
         )
     return parse_crane_filename(file)
 
@@ -203,22 +224,18 @@ def discover_raw_subject_ids(input_folder: Path) -> set[str]:
     return ids
 
 
-def discover_unparseable_raw_files(
-    input_folder: Path, corrections: dict[str, str]
-) -> list[Path]:
-    """Every raw physiology/behaviour filename that still doesn't resolve to a subject id
-    after `corrections` are applied, read-only -- the same files a real
-    `convert_crane_to_bids` run would skip and report via `CraneConversionSummary.
-    unparseable_files`, without requiring a conversion run first. Used by the crosscheck
-    GUI's unparseable-filename correction dialog so it can be opened any time, same as
-    `DebriefRecordIdCorrectionDialog` doesn't require "Refresh BIDS" to have run first.
+def discover_raw_files_for_review(input_folder: Path) -> list[Path]:
+    """Every raw physiology/behaviour file in `input_folder`, read-only, regardless of
+    whether it currently resolves to a subject id. Used by the crosscheck GUI's raw-filename
+    correction dialog so a human can review or override *any* of them, not only ones that
+    fail to parse outright -- a filename can resolve to a wrong id without ever failing to
+    parse (e.g. a "(N)" duplicate-copy marker disambiguating two different subjects, see
+    `parse_crane_filename`), so limiting this list to unparseable files alone would leave
+    those silently uncorrectable. Doesn't require a conversion run first, same as
+    `DebriefRecordIdCorrectionDialog`.
     """
     return sorted(
-        (
-            file
-            for file in (*input_folder.rglob(PHYSIOLOGY_GLOB), *input_folder.rglob(BEHAVIOUR_GLOB))
-            if resolve_crane_filename(file, input_folder, corrections) is None
-        ),
+        (*input_folder.rglob(PHYSIOLOGY_GLOB), *input_folder.rglob(BEHAVIOUR_GLOB)),
         key=lambda file: file.relative_to(input_folder).as_posix(),
     )
 
@@ -249,6 +266,40 @@ def save_debrief_id_corrections(bids_folder: Path, corrections: dict[str, str]) 
     with tmp_path.open("w", encoding="utf-8") as tmp_file:
         json.dump(corrections, tmp_file, indent=2, sort_keys=True)
     os.replace(tmp_path, path)
+
+
+def debrief_correction_key(record_id: str, occurrence_index: int) -> str:
+    """Key into `debrief_id_corrections.json` for one *row* of the debrief export -- plain
+    `record_id` for its first occurrence (so the overwhelming majority of ids, which appear
+    exactly once, keep the exact key format corrections have always used), `"{record_id}#{n}"`
+    for its 2nd/3rd/... occurrence. Needed because two genuinely different subjects can submit
+    the exact same literal `record_id` (e.g. both typing "0001"), which a plain value-keyed
+    correction can't tell apart -- same shape of ambiguity as a raw filename's "(N)"
+    duplicate-copy marker (see `_DUPLICATE_COPY_MARKER_PATTERN`), just one layer up: at the
+    debrief row level instead of the raw file level.
+    """
+    return record_id if occurrence_index == 0 else f"{record_id}#{occurrence_index}"
+
+
+def apply_debrief_id_corrections(
+    record_id_column: pd.Series, corrections: dict[str, str]
+) -> pd.Series:
+    """Corrects each row of `record_id_column` individually, keyed by `debrief_correction_key`
+    -- unlike a plain `record_id_column.replace(corrections)`, this can assign two *different*
+    corrected subject ids to two rows that happen to share the exact same literal record_id,
+    since it keys off each row's occurrence among same-valued rows, not the value alone. Row
+    order must match whatever `DebriefRecordIdCorrectionDialog` saw when it computed the same
+    occurrence indices -- both read the same `load_debrief_export` result, so that holds as
+    long as the underlying export file hasn't changed shape in between.
+    """
+    occurrence_counters: dict[str, int] = {}
+    corrected: list[str] = []
+    for record_id in record_id_column.astype(str):
+        occurrence_index = occurrence_counters.get(record_id, 0)
+        occurrence_counters[record_id] = occurrence_index + 1
+        key = debrief_correction_key(record_id, occurrence_index)
+        corrected.append(corrections.get(key, record_id))
+    return pd.Series(corrected, index=record_id_column.index)
 
 
 RAW_FILENAME_ID_CORRECTIONS_FILENAME = "raw_filename_id_corrections.json"
@@ -491,13 +542,16 @@ def convert_crane_to_bids(
     physiology_files = sorted(input_folder.rglob(PHYSIOLOGY_GLOB))
     behaviour_files = sorted(input_folder.rglob(BEHAVIOUR_GLOB))
     debrief_df = load_debrief_export(input_folder, debrief_export)
+    debrief_id_corrections: dict[str, str] = {}
     if debrief_df is not None:
         # Human-declared record_id -> subject_id fixes from the crosscheck GUI's debrief
         # correction dialog (see load_debrief_id_corrections) -- applied here, not in
         # load_debrief_export, so that function stays a pure read of the raw export.
-        corrections = load_debrief_id_corrections(output_folder)
-        if corrections:
-            debrief_df["record_id"] = debrief_df["record_id"].replace(corrections)
+        debrief_id_corrections = load_debrief_id_corrections(output_folder)
+        if debrief_id_corrections:
+            debrief_df["record_id"] = apply_debrief_id_corrections(
+                debrief_df["record_id"], debrief_id_corrections
+            )
 
     # Human-declared filename -> subject_id fixes from the crosscheck GUI's unparseable-
     # filename correction dialog (see load_raw_filename_id_corrections) -- checked by
@@ -550,6 +604,33 @@ def convert_crane_to_bids(
         )
 
     new_subject_ids = sorted(set(subject_physiology) | set(subject_behaviour))
+
+    if debrief_id_corrections:
+        # A corrected record_id that doesn't match *any* known subject -- not even one that
+        # already has a debrief file -- would otherwise vanish without a trace: the
+        # `unmatched_debrief` check further down only scans `debrief_candidate_ids`, which is
+        # itself derived from subjects that already exist on disk, so a correction whose
+        # target was never a candidate at all (a typo, or a mismatch against the literal
+        # sub-XXX folder name -- e.g. a dash `canonicalize_subject_id` strips but an old
+        # folder name still carries) is invisible to it. Checked against the same known-id
+        # set used everywhere else in this function, so a mismatch here is exactly what a
+        # human would need to retype to fix.
+        known_subject_ids = already_converted | set(new_subject_ids)
+        corrected_but_unknown = sorted(
+            {
+                corrected_id
+                for corrected_id in debrief_id_corrections.values()
+                if corrected_id not in known_subject_ids
+            }
+        )
+        if corrected_but_unknown:
+            logger.warning(
+                "%d debrief record id correction(s) point at a subject id that doesn't match "
+                "any known subject folder, so they won't be attached this run -- double-check "
+                "spelling/casing against the real sub-XXX folder name: %s",
+                len(corrected_but_unknown),
+                ", ".join(corrected_but_unknown),
+            )
 
     # Debrief backfill: an already-converted subject (physiology/behaviour skipped above,
     # untouched by design) still gets reconsidered for debrief specifically if they don't

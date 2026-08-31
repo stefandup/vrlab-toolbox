@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 @click.command()
+@click.version_option(package_name="mooi-toolbox")
 @click.argument(
     "input_folder", type=click.Path(exists=True, dir_okay=True, path_type=Path), required=True
 )

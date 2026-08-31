@@ -42,6 +42,7 @@ from PySide6.QtWidgets import (
 )
 from rich.progress import Progress
 
+from mooi_toolbox import __version__
 from mooi_toolbox.processing.bids_crosscheck import (
     SUBJECT_FOLDER_PREFIX,
     BidsCrosscheckError,
@@ -302,7 +303,7 @@ class BidsCrosscheckWindow(QMainWindow):
         `extra_raw_actions`, if given (only meaningful alongside `raw_converter`), adds one
         more button per entry next to "Refresh BIDS" -- each `(button_label, tooltip,
         callback)`, called as `callback(raw_folder, bids_folder, self)` once both are set.
-        e.g. crane's "Fix debrief record IDs..." and "Fix unparseable filenames..." dialogs.
+        e.g. crane's "Fix debrief record IDs..." and "Fix raw filenames..." dialogs.
         Same "this window doesn't know what the callback does" contract as `raw_converter`.
         """
         super().__init__()
@@ -331,7 +332,7 @@ class BidsCrosscheckWindow(QMainWindow):
             settings_app_name or f"BidsCrosscheck-{dataset_config.dataset_name}",
         )
 
-        self.setWindowTitle(window_title)
+        self.setWindowTitle(f"{window_title} (v{__version__})")
         self.resize(1100, 650)
         self._build_ui()
         self._restore_last_bids_folder()

@@ -21,11 +21,13 @@ Every buildable command gets its own PyInstaller "spec file" — a small
 Python script that says exactly what to bundle — under `specs/` in the
 workspace root, named after its console-script command
 (`specs/vrlab_crane_process.spec`, `specs/vrlab_check_xdf.spec`, …), covering
-both CLI tools and the two PySide6 crosscheck GUIs. Two of the twelve
-commands registered in `pyproject.toml`'s `[project.scripts]`
-(`vrlab_foh_process`, `vrlab_crane_summary_data`) point at modules that don't
-exist yet and have no spec — they're skipped until the underlying scripts
-are written.
+both CLI tools and the two PySide6 crosscheck GUIs. Every command currently
+registered in `pyproject.toml`'s `[project.scripts]` has one. (Two entries
+were removed 2026-08-31: `vrlab_foh_process` and `vrlab_crane_summary_data`
+pointed at `mobi_FOH_process.py`/`vrlab_crane_qc.py`, both real files
+deleted in earlier commits (2026-08-14 and 2026-07-22 respectively) without
+ever cleaning up the matching script registration -- see
+`docs/pipeline_next_steps.md` if either capability is ever rebuilt.)
 
 ```python
 a = Analysis(
@@ -150,10 +152,13 @@ software as an administrator often isn't an option:
   terminals cached their environment at launch.
 - Puts a desktop shortcut to `vrlab_toolbox_launcher.exe` (the launcher
   above) on the current user's desktop.
-- Sets `DiskSpanning=yes` and `DiskSliceSize=max`: if the combined toolbox
-  ever grows past Inno's maximum single-file slice size (~2 GB), Inno splits
-  the installer into multiple parts automatically — nothing in `build.ps1`
-  needs to check the output size itself.
+
+`toolbox_installer.iss` produces a single `MooiToolboxSetup.exe` — no disk
+spanning, so there's no separate `.bin` payload file to keep track of or
+lose. If the combined toolbox ever grows past Inno's ~2 GB single-file
+limit, `DiskSpanning=yes` (with `DiskSliceSize=max`) would need to come
+back, splitting the installer into a small `.exe` stub plus one or more
+`.bin` parts users would have to download alongside it.
 
 If `ISCC.exe` isn't found at its default install path, `build.ps1` falls
 back to checking `PATH`, and errors out clearly if Inno Setup isn't

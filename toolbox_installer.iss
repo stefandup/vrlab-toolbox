@@ -24,8 +24,6 @@ OutputBaseFilename=MooiToolboxSetup
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
-DiskSpanning=yes
-DiskSliceSize=max
 SetupIconFile=assets\vrlab_icon.ico
 
 [Languages]

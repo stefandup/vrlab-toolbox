@@ -22,6 +22,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from mooi_toolbox import __version__
+
 GUI_TOOLS = (
     ("FOH BIDS Crosscheck", "vrlab_foh_bids_crosscheck.exe"),
     ("Crane BIDS Crosscheck", "vrlab_crane_bids_crosscheck.exe"),
@@ -48,7 +50,7 @@ def _toolbox_dir() -> Path:
 class ToolboxLauncher(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("Mooi Toolbox")
+        self.setWindowTitle(f"Mooi Toolbox (v{__version__})")
 
         layout = QVBoxLayout()
         layout.addWidget(QLabel("<b>GUI tools</b>"))

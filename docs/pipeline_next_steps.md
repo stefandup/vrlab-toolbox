@@ -1055,37 +1055,70 @@ change to read from a `sub-XXX/` BIDS folder instead of a shared flat
 `data_folder_in`. Not started — deliberately deferred until the BIDS folder
 side (converter + crosscheck) is settled, so this isn't designed twice.
 
-### 23. Manually test the crane unparseable-filename correction dialog
+### 23. Manually test the crane raw-filename correction dialog
 
 Not yet run by a human. `crane_convert_to_bids.py` (corrections JSON, `resolve_crane_filename`,
-`discover_unparseable_raw_files`, `explain_unparseable_filename`), `bids_crosscheck_common.py`
-(`extra_raw_action` generalized to `extra_raw_actions`, a list), and `crane_bids_crosscheck_gui.py`
-(`UnparseableFilenameCorrectionDialog`, new "Fix unparseable filenames..." button) were all
-written and read back for consistency, but never actually launched.
+`discover_raw_files_for_review`, `explain_unparseable_filename`, and the `_SUBJECT_ID_PATTERN`/
+`_DUPLICATE_COPY_MARKER_PATTERN` split that stopped silently stripping a trailing `" (N)"`
+marker — that used to assume it was always a harmless Windows duplicate-copy artifact of the
+same file, which in practice merged two genuinely different subjects that happened to share a
+base id; now any `(N)`-suffixed filename is unparseable and needs an explicit human decision),
+`bids_crosscheck_common.py` (`extra_raw_action` generalized to `extra_raw_actions`, a list), and
+`crane_bids_crosscheck_gui.py` (`RawFilenameCorrectionDialog`, "Fix raw filenames..." button —
+lists *every* raw physiology/behaviour file with its currently-resolved id, not only ones that
+fail to parse, since a `(N)`-marked file resolves to nothing until corrected either way) were all
+written and read back for consistency, but never actually launched. Also added: a
+`convert_crane_to_bids` warning when a saved debrief-id correction's target doesn't match any
+known subject id at all (previously silent — see the "debrief re-attachment" bug this was meant
+to surface); and `debrief_correction_key`/`apply_debrief_id_corrections`, so
+`DebriefRecordIdCorrectionDialog` and the converter key a correction by *row* (record_id +
+occurrence index), not just by record_id value — two rows that share the exact same literal
+record_id (the debrief-side counterpart of a `(N)`-marked filename pair) previously could never
+both be corrected: fixing one silently resolved *both* via `Series.replace`, so the second
+vanished from the dialog with no way to address it. Confirmed against real data as fixing that
+exact symptom, but the dialog's new occurrence-aware row listing hasn't been separately
+walked through step by step.
 
 Needed — launch the GUI (`python -m mooi_toolbox.gui.crane_bids_crosscheck_gui`, or however this
-is normally invoked) against a raw folder containing a deliberately mis-named file, and check:
+is normally invoked) against a raw folder containing a deliberately mis-named file and a pair of
+`(1)`/`(2)`-suffixed files, and check:
 
-- both "Raw folder" and "BIDS folder" need to be selected before "Fix unparseable filenames..."
-  (and "Fix debrief record IDs...") enable at all;
-- the dialog lists the mis-named file(s) with the correct relative-to-raw-folder path;
-- selecting a row updates the "Why this failed" bottom pane with a sensible plain-English reason;
+- both "Raw folder" and "BIDS folder" need to be selected before "Fix raw filenames..." (and
+  "Fix debrief record IDs...") enable at all;
+- the dialog lists every raw physiology/behaviour file, not just mis-named ones — each row shows
+  its correct relative-to-raw-folder path and its "Currently resolves to" value;
+- a `(1)`/`(2)`-suffixed pair both show "(unparseable)" in the "Currently resolves to" column
+  (in the CROSS/red color), not a silently-collapsed shared id;
+- selecting a row updates the "Details" bottom pane with either a plain-English parse-failure
+  reason or, for a file that resolves fine, the id it resolves to;
 - before ever clicking "Refresh BIDS" in this session, the bottom pane's log-excerpt line reads
   the "no matching line yet" placeholder rather than erroring;
 - after clicking "Refresh BIDS" once, reselecting the same row shows the matching captured log
   line instead;
 - typing a subject id and clicking Save writes `raw_filename_id_corrections.json` into the BIDS
-  folder, keyed by the file's relative path;
-- leaving the box blank and saving does *not* add an entry (or removes one if it existed) — the
-  file should still be skipped and still show up next time the dialog is opened;
+  folder, keyed by the file's relative path — for *any* row, not only unparseable ones;
+- leaving the box blank and saving does *not* add an entry (or removes one if it existed);
 - after saving a real correction and clicking "Refresh BIDS" again, the file is copied into the
-  corrected subject's `sub-XXX/ses-01/beh/` folder, with `acq_time` recorded as `"nodate"` in
-  `scans.tsv` (corrected entries have no derivable date prefix);
-- reopening the dialog afterward no longer lists that now-resolved file;
+  corrected subject's `sub-XXX/ses-01/beh/` folder; `acq_time` in `scans.tsv` is `"nodate"` for a
+  filename that never matched `_SUBJECT_ID_PATTERN` at all, but the *real* date prefix for a
+  `(N)`-marked filename that matched fine and was only rejected for the marker
+  (`resolve_crane_filename` still recovers it even though the subject id itself is overridden);
+- reopening the dialog afterward still lists that file (the list is no longer filtered down as
+  entries resolve), now showing the corrected id under "Currently resolves to";
 - two unparseable files that happen to share a bare filename in different raw subfolders can be
   corrected independently, without one overwriting the other's entry;
-- the existing "Fix debrief record IDs..." button/dialog still works unchanged — regression
-  check on the `extra_raw_action` → `extra_raw_actions` list generalization;
+- saving a debrief-id correction whose target id matches no known subject at all (typo, or a
+  dash/case mismatch against the literal `sub-XXX` folder name) produces the new "doesn't match
+  any known subject folder" warning in the "Refresh BIDS" status panel, instead of silently
+  doing nothing;
+- two debrief rows sharing the exact same literal `record_id` both show up in "Fix debrief
+  record IDs...", labelled "(1 of 2)"/"(2 of 2)", neither pre-filled with a guess; correcting
+  one leaves the other listed (not silently resolved) until it's corrected too;
+- after correcting both occurrences and clicking "Refresh BIDS", each ends up in its own
+  corrected subject's debrief file, not merged into one;
+- the "Fix debrief record IDs..." dialog otherwise still works for the ordinary
+  one-row-per-record_id case — regression check on the `extra_raw_action` →
+  `extra_raw_actions` list generalization and the row-vs-value-keyed correction change;
 - the FOH crosscheck GUI (`gui/foh_bids_crosscheck_gui.py`, which passes no `extra_raw_actions`
   at all) still launches and behaves normally — same shared-code regression concern, FOH side.
 
@@ -1219,17 +1252,18 @@ doc turned out to be stale (see the `run_lsl_pipeline` entry below).
   (both `@deprecated`) — zero real callers anywhere in `src/`. **This means several passages
   earlier in this doc (items 21/24's "Needed" list, e.g. "still wired into ... `mobi_FOH_process.py`")
   are themselves stale**: `mobi_FOH_process.py` (the single-file CLI these passages describe as
-  the last caller of the deprecated path) no longer exists in this checkout at all — see the
-  `pyproject.toml` entry below, which still points at it. Once that's confirmed intentional
-  (not an accidental past deletion), the deprecated `run_lsl_pipeline`/`create_lsl_trial_intervals`
-  chain and this doc's own now-inaccurate references to `mobi_FOH_process.py` can both be cleaned
-  up together.
-- `pyproject.toml`'s `[project.scripts]` — two entries point at files that no longer exist in
-  the tree: `mobi_foh_process = "mooi_toolbox.cli.mobi_FOH_process:main"` and
-  `vrlab_crane_summary_data = "mooi_toolbox.cli.vrlab_crane_qc:main"`. Not files to delete, but
-  the config itself is broken (running either console script after a fresh `pip install -e .`
-  would fail with an import error) and needs fixing or removing alongside whichever of the above
-  gets cleaned up.
+  the last caller of the deprecated path) was a real file, deleted 2026-08-14 in "WIP: foh batch
+  and crosschecking..." — confirmed via `git log --diff-filter=D`, not an accidental loss. That
+  confirms this is a real cleanup opportunity, still open: the deprecated
+  `run_lsl_pipeline`/`create_lsl_trial_intervals` chain and this doc's own now-inaccurate
+  references to `mobi_FOH_process.py` can be cleaned up together whenever someone gets to it.
+- ~~`pyproject.toml`'s `[project.scripts]` — two entries point at files that no longer exist in
+  the tree~~ **Fixed 2026-08-31**: the `vrlab_foh_process` (→ `mobi_FOH_process.py`, deleted
+  2026-08-14) and `vrlab_crane_summary_data` (→ `vrlab_crane_qc.py`, deleted 2026-07-22) entries
+  were removed from `pyproject.toml` -- confirmed with the user that no rebuild of either script
+  was intended right now, rather than the registration being an oversight. If a generic
+  single-file FOH processor or a crane summary-stats command gets built later, re-add the entry
+  then, matching an actual file.
 
 **Medium confidence — worth a human check before acting:**
 
@@ -1337,10 +1371,11 @@ noted here so they aren't lost, not expanded on for now.
   another physiology-only candidate for this same fix once it's built.
 - `processing/input_data.py:3` — dataclass could look for variables and
   generate errors.
-- `cli/vrlab_crane_qc.py:19` — add summary data processing. **Stale as of 2026-08-28:**
-  `vrlab_crane_qc.py` no longer exists under `src/mooi_toolbox/cli/` — confirms item 26's
-  finding that `pyproject.toml`'s `vrlab_crane_summary_data` entry points at a missing file.
-  This TODO can't be actioned until that's resolved (file restored, or entry/TODO dropped).
+- ~~`cli/vrlab_crane_qc.py:19` — add summary data processing.~~ **Dropped 2026-08-31:**
+  `vrlab_crane_qc.py` was deleted 2026-07-22 ("Trying to revamp intervals...") and never
+  restored; the matching `pyproject.toml` `vrlab_crane_summary_data` entry (item 26, above) has
+  now been removed too rather than backfilled. Re-add both together if crane summary-stats
+  processing gets built later.
 - `cli/check_mobi_xdf.py:24` — show missing streams.
 - `cli/vrlab_crane_process.py:109` — data labels for SPSS output.
   (The str-to-path handling previously tracked here is resolved:

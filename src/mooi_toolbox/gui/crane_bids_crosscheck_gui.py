@@ -29,7 +29,7 @@ from pathlib import Path
 import pandas as pd
 import scipy.io as sio
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QBrush, QColor, QFont
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -46,14 +46,16 @@ from PySide6.QtWidgets import (
 from mooi_toolbox.cli.crane_convert_to_bids import (
     CraneConversionSummary,
     convert_crane_to_bids,
+    debrief_correction_key,
+    discover_raw_files_for_review,
     discover_raw_subject_ids,
-    discover_unparseable_raw_files,
     existing_subject_ids,
     explain_unparseable_filename,
     guess_corrected_subject_id,
     load_debrief_export,
     load_debrief_id_corrections,
     load_raw_filename_id_corrections,
+    resolve_crane_filename,
     save_debrief_id_corrections,
     save_raw_filename_id_corrections,
 )
@@ -491,20 +493,29 @@ class DebriefRecordIdCorrectionDialog(QDialog):
     """Lets a human declare "this messy debrief record_id really means this subject",
     without ever touching the raw REDCAP export -- corrections are saved to their own JSON
     (`crane_convert_to_bids.save_debrief_id_corrections`, in the BIDS folder) and applied the
-    next time "Refresh BIDS" runs (`crane_convert_to_bids.convert_crane_to_bids`). A plain
-    editable table with freeform text, not a dropdown-matched picker -- same correction style
-    as `bids_crosscheck_common.py`'s existing "Correct date..."/"Rename subject ID..."
+    next time "Refresh BIDS" runs (`crane_convert_to_bids.apply_debrief_id_corrections`). A
+    plain editable table with freeform text, not a dropdown-matched picker -- same correction
+    style as `bids_crosscheck_common.py`'s existing "Correct date..."/"Rename subject ID..."
     `QInputDialog.getText` dialogs, just extended to handle more than one row at a time.
+
+    Listed *per row*, not per unique record_id value: two different rows can legitimately
+    share the exact same literal record_id (e.g. two subjects who both typed "0001" into
+    REDCap -- the debrief-side counterpart of a raw filename's "(N)" duplicate-copy marker,
+    see `RawFilenameCorrectionDialog`). A value-keyed correction can't tell those apart, so
+    each row gets its own key (`debrief_correction_key`) and every row in a duplicated group
+    is always listed for explicit review, whether or not its current value happens to already
+    match a known subject -- and never auto-guessed, since guessing the same subject for two
+    different rows would just recreate the ambiguity it's meant to resolve.
     """
 
     def __init__(self, raw_folder: Path, bids_folder: Path, parent: QWidget | None = None):
         super().__init__(parent)
         self.bids_folder = bids_folder
         self.setWindowTitle("Fix debrief record IDs")
-        self.resize(640, 420)
+        self.resize(680, 420)
 
         layout = QVBoxLayout(self)
-        self._unmatched_record_ids: list[str] = []
+        self._rows: list[tuple[str, str]] = []  # (record_id, correction_key) per listed row
         self._unmatched_subject_ids: list[str] = []
 
         existing_corrections = load_debrief_id_corrections(bids_folder)
@@ -517,25 +528,42 @@ class DebriefRecordIdCorrectionDialog(QDialog):
             return
 
         known_ids = discover_raw_subject_ids(raw_folder) | existing_subject_ids(bids_folder)
-        record_ids = debrief_df["record_id"].astype(str)
-        corrected_ids = record_ids.replace(existing_corrections)
-        self._unmatched_record_ids = sorted(record_ids[~corrected_ids.isin(known_ids)].unique())
+        record_id_column = debrief_df["record_id"].astype(str)
+        value_counts = record_id_column.value_counts()
+
+        occurrence_counters: dict[str, int] = {}
+        corrected_ids_seen: set[str] = set()
+        self._duplicate_counts: dict[str, int] = {}
+        occurrence_by_key: dict[str, int] = {}
+        for record_id in record_id_column:
+            occurrence_index = occurrence_counters.get(record_id, 0)
+            occurrence_counters[record_id] = occurrence_index + 1
+            key = debrief_correction_key(record_id, occurrence_index)
+            occurrence_by_key[key] = occurrence_index
+            corrected_id = existing_corrections.get(key, record_id)
+            corrected_ids_seen.add(corrected_id)
+            if value_counts[record_id] > 1 or corrected_id not in known_ids:
+                self._rows.append((record_id, key))
+                self._duplicate_counts[key] = int(value_counts[record_id])
+        self._rows.sort(key=lambda pair: pair[1])
         # What a guess is actually checked against: subjects still missing a debrief, not
         # every known id -- a guess landing on a subject that already has one would just
         # create a second, wrong debrief for them, not fix anything.
-        self._unmatched_subject_ids = sorted(known_ids - set(corrected_ids))
+        self._unmatched_subject_ids = sorted(known_ids - corrected_ids_seen)
 
         layout.addWidget(
             QLabel(
-                "These record_id values in the debrief export don't match any known subject "
-                "id. Each row is pre-filled with a best-effort guess (stray whitespace/PID-dash "
-                "fixes) -- edit any that are still wrong, or clear the box to skip. This never "
-                'changes the raw export; corrections are saved separately and applied the next '
-                'time you click "Refresh BIDS".'
+                "These debrief rows don't match any known subject id, or share their "
+                "record_id with another row (ambiguous -- could be two different subjects who "
+                "both entered the same id). Each non-ambiguous row is pre-filled with a "
+                "best-effort guess (stray whitespace/PID-dash fixes); ambiguous rows are left "
+                "blank for you to assign individually. Clear a box to skip that row. This "
+                'never changes the raw export; corrections are saved separately and applied '
+                'the next time you click "Refresh BIDS".'
             )
         )
 
-        self.table = QTableWidget(len(self._unmatched_record_ids), 3)
+        self.table = QTableWidget(len(self._rows), 3)
         self.table.setHorizontalHeaderLabels(
             ["record_id (from export)", "Matched", "Corrected subject id"]
         )
@@ -549,14 +577,32 @@ class DebriefRecordIdCorrectionDialog(QDialog):
             "it, or this subject may genuinely have no debrief data (e.g. never completed it)"
         )
         self.table.verticalHeader().setVisible(False)
-        for row, record_id in enumerate(self._unmatched_record_ids):
-            record_item = QTableWidgetItem(record_id)
+        for row, (record_id, key) in enumerate(self._rows):
+            duplicate_count = self._duplicate_counts[key]
+            label = (
+                f"{record_id}  ({occurrence_by_key[key] + 1} of {duplicate_count})"
+                if duplicate_count > 1
+                else record_id
+            )
+            record_item = QTableWidgetItem(label)
             record_item.setFlags(record_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            if duplicate_count > 1:
+                record_item.setToolTip(
+                    "Ambiguous: another row in the export shares this exact record_id -- "
+                    "assign each occurrence to its own subject below."
+                )
             self.table.setItem(row, 0, record_item)
             match_item = QTableWidgetItem("")
             match_item.setFlags(match_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.table.setItem(row, 1, match_item)
-            guess = existing_corrections.get(record_id) or guess_corrected_subject_id(record_id)
+            if key in existing_corrections:
+                guess = existing_corrections[key]
+            elif duplicate_count > 1:
+                # Ambiguous -- guessing the same subject for more than one occurrence would
+                # just recreate the collision this dialog exists to resolve.
+                guess = ""
+            else:
+                guess = guess_corrected_subject_id(record_id)
             self.table.setItem(row, 2, QTableWidgetItem(guess))
             self._update_match_icon(row)
         self.table.itemChanged.connect(self._on_item_changed)
@@ -601,13 +647,13 @@ class DebriefRecordIdCorrectionDialog(QDialog):
 
     def _on_save(self) -> None:
         corrections = load_debrief_id_corrections(self.bids_folder)
-        for row, record_id in enumerate(self._unmatched_record_ids):
+        for row, (_record_id, key) in enumerate(self._rows):
             item = self.table.item(row, 2)
             corrected_id = item.text().strip() if item is not None else ""
             if corrected_id:
-                corrections[record_id] = corrected_id
+                corrections[key] = corrected_id
             else:
-                corrections.pop(record_id, None)
+                corrections.pop(key, None)
         save_debrief_id_corrections(self.bids_folder, corrections)
         self.accept()
 
@@ -619,20 +665,25 @@ def _on_fix_debrief_record_ids(raw_folder: Path, bids_folder: Path, parent: QWid
     DebriefRecordIdCorrectionDialog(raw_folder, bids_folder, parent).exec()
 
 
-class UnparseableFilenameCorrectionDialog(QDialog):
-    """Lets a human declare "this raw filename really belongs to this subject" for a raw
-    physiology/behaviour filename `parse_crane_filename` couldn't extract a subject id from
-    at all -- corrections are saved to their own JSON
+class RawFilenameCorrectionDialog(QDialog):
+    """Lets a human declare "this raw filename really belongs to this subject" for *any* raw
+    physiology/behaviour file, not just ones `parse_crane_filename` couldn't extract a
+    subject id from at all -- a filename can just as easily resolve to a *wrong* id without
+    ever failing to parse (e.g. a "(N)" duplicate-copy marker that could mean either a
+    harmless double-copy of the same recording or two different subjects sharing a base id;
+    see `parse_crane_filename`'s own docstring). Corrections are saved to their own JSON
     (`crane_convert_to_bids.save_raw_filename_id_corrections`, in the BIDS folder) and
     applied the next time "Refresh BIDS" runs (`crane_convert_to_bids.resolve_crane_filename`).
     Same shape as `DebriefRecordIdCorrectionDialog`: self-contained (works without a prior
-    conversion run), plain editable table, corrections keyed so a fixed filename drops off
-    the list next time this dialog is opened.
+    conversion run), plain editable table -- deliberately *not* pre-filled with a guess the
+    way the debrief dialog's "Corrected subject id" column is, so nothing here is auto-
+    corrected without a human explicitly typing it (see the "Currently resolves to" column
+    below).
 
-    The bottom pane explains why the selected filename failed to parse
-    (`explain_unparseable_filename`, grounded in the same regex that decided it did) and
-    shows any matching line from the last "Refresh BIDS" run's captured log output
-    (`parent.last_conversion_log_lines`) -- both reuse existing machinery rather than
+    The bottom pane explains why the selected filename failed to parse, or what it currently
+    resolves to if it didn't (`explain_unparseable_filename`, grounded in the same regex that
+    decides both), and shows any matching line from the last "Refresh BIDS" run's captured log
+    output (`parent.last_conversion_log_lines`) -- both reuse existing machinery rather than
     building a new diagnostic path.
     """
 
@@ -641,55 +692,67 @@ class UnparseableFilenameCorrectionDialog(QDialog):
         self.raw_folder = raw_folder
         self.bids_folder = bids_folder
         self._log_lines: list[str] = getattr(parent, "last_conversion_log_lines", [])
-        self.setWindowTitle("Fix unparseable filenames")
-        self.resize(720, 560)
+        self.setWindowTitle("Fix raw filenames")
+        self.resize(760, 560)
 
         layout = QVBoxLayout(self)
-        existing_corrections = load_raw_filename_id_corrections(bids_folder)
-        self._files = discover_unparseable_raw_files(raw_folder, existing_corrections)
+        self._existing_corrections = load_raw_filename_id_corrections(bids_folder)
+        self._files = discover_raw_files_for_review(raw_folder)
 
         if not self._files:
-            layout.addWidget(QLabel("No unparseable raw filenames found in the raw folder."))
+            layout.addWidget(QLabel("No physiology/behaviour raw files found in the raw folder."))
             buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
             buttons.rejected.connect(self.reject)
             layout.addWidget(buttons)
             return
 
         info_label = QLabel(
-            'These raw filenames don\'t match crane\'s expected "[date_]<id>_CraneOut" '
-            "shape, so no subject id could be extracted -- they're skipped entirely, not "
-            "copied. Type the correct subject id for any you recognize, or leave blank to "
-            "keep skipping it. This never renames the raw file; corrections are saved "
-            'separately and applied the next time you click "Refresh BIDS".'
+            "Every raw physiology/behaviour file, with the subject id it currently resolves "
+            "to. Type a corrected subject id for any row that's wrong -- whether the filename "
+            'didn\'t parse at all, or parsed fine but to the wrong id (e.g. two subjects '
+            'sharing a "(N)" marker). Leave blank to make no change. This never renames the '
+            'raw file; corrections are saved separately and applied the next time you click '
+            '"Refresh BIDS".'
         )
         info_label.setWordWrap(True)
         layout.addWidget(info_label)
 
-        self.table = QTableWidget(len(self._files), 2)
-        self.table.setHorizontalHeaderLabels(["Filename", "Corrected subject id"])
+        self.table = QTableWidget(len(self._files), 3)
+        self.table.setHorizontalHeaderLabels(
+            ["Filename", "Currently resolves to", "Corrected subject id"]
+        )
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.table.setColumnWidth(1, 220)
+        self.table.setColumnWidth(1, 160)
+        self.table.setColumnWidth(2, 180)
         self.table.verticalHeader().setVisible(False)
         for row, file in enumerate(self._files):
             key = self._key(file)
             name_item = QTableWidgetItem(key)
             name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.table.setItem(row, 0, name_item)
-            self.table.setItem(row, 1, QTableWidgetItem(existing_corrections.get(key, "")))
+
+            resolved = resolve_crane_filename(file, raw_folder, self._existing_corrections)
+            resolved_item = QTableWidgetItem(resolved.subject_id if resolved else "(unparseable)")
+            resolved_item.setFlags(resolved_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            if resolved is None:
+                resolved_item.setForeground(QBrush(QColor(CROSS_COLOR)))
+            self.table.setItem(row, 1, resolved_item)
+
+            self.table.setItem(row, 2, QTableWidgetItem(self._existing_corrections.get(key, "")))
         self.table.itemSelectionChanged.connect(self._on_selection_changed)
         layout.addWidget(self.table, 1)
 
         # Persistent bottom pane -- always visible below the table, updated for whichever
         # row is currently selected, same spirit as bids_crosscheck_common.py's "Last
         # conversion" status panel (fixed-height QTextEdit, not a popup).
-        reason_group = QGroupBox("Why this failed")
+        reason_group = QGroupBox("Details")
         reason_layout = QVBoxLayout(reason_group)
         self.reason_text = QTextEdit()
         self.reason_text.setReadOnly(True)
         self.reason_text.setFont(QFont("Courier New"))
         self.reason_text.setMaximumHeight(140)
-        self.reason_text.setPlainText("Select a row above to see why it couldn't be parsed.")
+        self.reason_text.setPlainText("Select a row above to see details.")
         reason_layout.addWidget(self.reason_text)
         layout.addWidget(reason_group)
 
@@ -709,10 +772,14 @@ class UnparseableFilenameCorrectionDialog(QDialog):
     def _on_selection_changed(self) -> None:
         rows = {index.row() for index in self.table.selectedIndexes()}
         if not rows:
-            self.reason_text.setPlainText("Select a row above to see why it couldn't be parsed.")
+            self.reason_text.setPlainText("Select a row above to see details.")
             return
         file = self._files[min(rows)]
-        reason = explain_unparseable_filename(file)
+        resolved = resolve_crane_filename(file, self.raw_folder, self._existing_corrections)
+        if resolved is None:
+            detail = explain_unparseable_filename(file)
+        else:
+            detail = f"Currently resolves to subject id {resolved.subject_id!r} from the filename."
         relevant_lines = [line for line in self._log_lines if file.name in line]
         if relevant_lines:
             log_text = "\n".join(relevant_lines)
@@ -721,13 +788,13 @@ class UnparseableFilenameCorrectionDialog(QDialog):
                 '(no matching line from the last "Refresh BIDS" run in this session -- run '
                 "it again to see one)"
             )
-        self.reason_text.setPlainText(f"{reason}\n\nFrom the last conversion run:\n{log_text}")
+        self.reason_text.setPlainText(f"{detail}\n\nFrom the last conversion run:\n{log_text}")
 
     def _on_save(self) -> None:
         corrections = load_raw_filename_id_corrections(self.bids_folder)
         for row, file in enumerate(self._files):
             key = self._key(file)
-            item = self.table.item(row, 1)
+            item = self.table.item(row, 2)
             corrected_id = item.text().strip() if item is not None else ""
             if corrected_id:
                 corrections[key] = corrected_id
@@ -737,11 +804,11 @@ class UnparseableFilenameCorrectionDialog(QDialog):
         self.accept()
 
 
-def _on_fix_unparseable_filenames(raw_folder: Path, bids_folder: Path, parent: QWidget) -> None:
-    """The crane-specific `extra_raw_actions` callback for the "Fix unparseable
-    filenames..." button -- see `UnparseableFilenameCorrectionDialog`.
+def _on_fix_raw_filenames(raw_folder: Path, bids_folder: Path, parent: QWidget) -> None:
+    """The crane-specific `extra_raw_actions` callback for the "Fix raw filenames..." button
+    -- see `RawFilenameCorrectionDialog`.
     """
-    UnparseableFilenameCorrectionDialog(raw_folder, bids_folder, parent).exec()
+    RawFilenameCorrectionDialog(raw_folder, bids_folder, parent).exec()
 
 
 def _run_crane_conversion(
@@ -783,11 +850,12 @@ def main() -> None:
                 _on_fix_debrief_record_ids,
             ),
             (
-                "Fix unparseable filenames...",
-                "Declare corrected subject ids for raw physiology/behaviour filenames that "
-                "don't match the expected pattern at all, so they're skipped entirely. Saved "
-                "separately -- never renames the raw file.",
-                _on_fix_unparseable_filenames,
+                "Fix raw filenames...",
+                "Review every raw physiology/behaviour filename and, if needed, declare its "
+                "correct subject id -- for filenames that don't parse at all, or ones that "
+                'parse fine but to the wrong id (e.g. two subjects sharing a "(N)" '
+                "duplicate-copy marker). Saved separately -- never renames the raw file.",
+                _on_fix_raw_filenames,
             ),
         ],
         convert_button_tooltip=(
