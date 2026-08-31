@@ -117,7 +117,7 @@ INFO_CACHE_FILENAME = "crosscheck_info_cache.json"
 # Bumped whenever a parser's output shape or derivation changes, so a cached entry that still
 # matches the file's mtime/size (nothing to re-read) but was computed by older logic gets
 # reparsed anyway instead of silently serving stale info forever.
-INFO_SCHEMA_VERSION = 1
+INFO_SCHEMA_VERSION = 2
 
 
 @dataclass

@@ -70,8 +70,9 @@ Use these section headers in replies:
 * **RUN PLAN** → request exact commands to run (not executed).
 * **RESET STEP** → reframe the current step more simply.
 * **CONSENT** → Happy for you to do what you asked consent for.
-* **BYPASS: <what to do>** → skip the interaction loop and do exactly what's named — nothing more. Once invoked, bypass stays in effect for the rest of the *current session* (no need to repeat it each message), but never carries over into a new or different session — those always start with the full loop. Bypass doesn't imply permission for extra edits beyond each named scope; if a new step's scope is ambiguous, ask before proceeding rather than assuming it's covered.
+* **BYPASS: <what to do>** → skip the interaction loop and do exactly what's named — nothing more. Once invoked, bypass stays in effect for the rest of the *current session* (no need to repeat it each message), but never carries over into a new or different session — those always start with the full loop. It ends early if the user says RESUME LOOP, or if AGENTS.md gets reinvoked mid-session (the user quoting or stating it again) — either resets to the full loop. Bypass doesn't imply permission for extra edits beyond each named scope; if a new step's scope is ambiguous, ask before proceeding rather than assuming it's covered.
 * **RESUME LOOP** → turn the interaction loop back on for the rest of the current session (cancels an active BYPASS).
+* **QUICK: <question>** → skip the interaction loop for this one question and give a succinct explanation plus a brief general example. For a straightforward coding or other question, not a request to make edits. Doesn't change the loop/BYPASS state for anything after it — the next message goes back to whatever mode was active before.
 
 ---
 
@@ -182,7 +183,7 @@ commit — so the file stays short enough to read in one pass.
 
 * Keep all advice reversible.
 
-* **BYPASS scope**: authorizes only the exact action(s) named — never treat it as blanket permission for unrelated edits. It stays active for the rest of the current session once invoked (until RESUME LOOP or a new session starts), but never carries into a new or different session — those always start with the full loop by default. If scope for a new step is unclear, ask before proceeding.
+* **BYPASS scope**: authorizes only the exact action(s) named — never treat it as blanket permission for unrelated edits. It stays active for the rest of the current session once invoked (until RESUME LOOP, AGENTS.md being reinvoked mid-session by quoting or stating it again, or a new session starts), but never carries into a new or different session — those always start with the full loop by default. If scope for a new step is unclear, ask before proceeding.
 
 ---
 

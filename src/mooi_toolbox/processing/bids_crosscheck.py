@@ -167,10 +167,14 @@ def save_excluded_subjects(bids_folder: Path, excluded: dict[str, str | None]) -
 
 def existing_subject_ids(bids_folder: Path) -> set[str]:
     """Every subject id that should be treated as already handled: either it still has a
-    `sub-XXX/` folder in `bids_folder`, or it's been removed from BIDS via
-    `record_subject_excluded` (whose folder is deleted, not kept) -- without the latter half,
-    an excluded subject would look brand new to a raw-to-BIDS importer and get silently
-    re-copied back in on the very next refresh.
+    `sub-XXX/` folder in `bids_folder`, it's been removed from BIDS via
+    `record_subject_excluded` (whose folder is deleted, not kept), or it's been renamed away
+    via `record_id_correction` (whose folder is renamed, not kept under the original id) --
+    without either of the latter two, that original id would look brand new to a raw-to-BIDS
+    importer (raw filenames still parse to it -- renaming only touches `bids_folder`, never
+    the raw source) and get silently re-copied back in on the very next refresh, sitting
+    alongside the renamed subject as a duplicate. A reverted rename naturally drops back out
+    of this set, since `revert_all_decisions` clears `decisions.json` entirely.
 
     Shared by every raw-to-BIDS importer (`cli/crane_convert_to_bids.py`,
     `cli/foh_import_to_bids.py`) to decide which subjects to skip -- copy-only,
@@ -178,10 +182,15 @@ def existing_subject_ids(bids_folder: Path) -> set[str]:
     docs/bids_converter_plan.md), even though what counts as "a subject's data" differs
     per dataset.
     """
+    renamed_away = {
+        entry["original_id"]
+        for entry in load_decisions(bids_folder).values()
+        if entry.get("type") == "id_correction"
+    }
     if not bids_folder.is_dir():
-        return set(load_excluded_subjects(bids_folder))
+        return set(load_excluded_subjects(bids_folder)) | renamed_away
     present = {subject_id for subject_id, _ in iter_subject_folders(bids_folder)}
-    return present | set(load_excluded_subjects(bids_folder))
+    return present | set(load_excluded_subjects(bids_folder)) | renamed_away
 
 
 def scan_bids_folder(bids_folder: Path, config: DatasetConfig) -> BidsFolderScan:

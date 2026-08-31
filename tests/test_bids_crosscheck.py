@@ -381,6 +381,26 @@ class TestExistingSubjectIds(unittest.TestCase):
 
         self.assertEqual(existing_subject_ids(missing), set())
 
+    def test_still_includes_a_renamed_away_original_id(self):
+        # Critical: record_id_correction renames sub-001/ to sub-014/ on disk -- the raw
+        # source data still parses to "001" (renaming never touches the raw folder), so
+        # without this, "001" would look brand new to the next raw-to-BIDS refresh and get
+        # copied back in as a duplicate sitting alongside the renamed sub-014/.
+        _touch(self.bids_folder / "sub-001" / "a.acq")
+        record_id_correction(self.bids_folder, "001", "014")
+
+        ids = existing_subject_ids(self.bids_folder)
+        self.assertIn("001", ids)
+        self.assertIn("014", ids)
+
+    def test_drops_a_renamed_away_id_once_reverted(self):
+        _touch(self.bids_folder / "sub-001" / "a.acq")
+        record_id_correction(self.bids_folder, "001", "014")
+
+        revert_all_decisions(self.bids_folder)
+
+        self.assertEqual(existing_subject_ids(self.bids_folder), {"001"})
+
 
 class TestRestoreAllFromBids(unittest.TestCase):
     def setUp(self):
