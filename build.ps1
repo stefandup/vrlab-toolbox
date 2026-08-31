@@ -31,7 +31,12 @@ No option given: prints this help and exits without building anything.
 
 function Build-Exes {
     pip install -e . --no-deps
-    pyinstaller (Join-Path $PSScriptRoot "specs\toolbox.spec")
+    # --noconfirm: skip PyInstaller's interactive "output directory ... will be REMOVED!
+    # Continue? (y/N)" prompt when dist/mooi_toolbox already exists from a previous build --
+    # this script has no stdin to answer it with, so without this flag it just blocks.
+    # Safe here: dist/mooi_toolbox is build output this script owns, never a place a human
+    # would have unsaved work.
+    pyinstaller --noconfirm (Join-Path $PSScriptRoot "specs\toolbox.spec")
 }
 
 function Build-Installer {

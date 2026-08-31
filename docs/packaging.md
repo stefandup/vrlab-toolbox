@@ -152,6 +152,17 @@ software as an administrator often isn't an option:
   terminals cached their environment at launch.
 - Puts a desktop shortcut to `vrlab_toolbox_launcher.exe` (the launcher
   above) on the current user's desktop.
+- `CloseApplications=yes` (Inno 6's own default, stated explicitly so it can't be silently
+  turned off later) means Setup checks every file it's about to write for a process holding it
+  open and prompts to close it before touching anything -- so a toolbox window left running
+  during an upgrade gets caught here, not partway through file copying.
+- On top of that, `[Code]`'s `IsUpgrade`/`UninstallOldVersion` detect a previous install of the
+  same product (matched by `AppId`, via its own `HKCU` uninstall registry entry) and run its
+  uninstaller fully silently (`/VERYSILENT /NORESTART /SUPPRESSMSGBOXES`) before the new
+  version's files are copied. Inno's default behavior on an upgrade is an in-place file
+  overwrite, which never removes a file the *old* version shipped that the *new* version
+  doesn't (e.g. a renamed or dropped tool's stale `.exe`) -- the explicit uninstall-first step
+  avoids that buildup instead.
 
 `toolbox_installer.iss` produces a single `MooiToolboxSetup.exe` — no disk
 spanning, so there's no separate `.bin` payload file to keep track of or
