@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import shutil
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -303,32 +304,30 @@ def record_subject_excluded(bids_folder: Path, subject_id: str, reason: str | No
     return original_folder
 
 
-def restore_all_from_bids(bids_folder: Path) -> tuple[list[str], list[str]]:
-    """Undo every subject exclusion and every committed duplicate pick, so the next
-    raw-to-BIDS refresh re-derives all of it fresh from the never-touched raw folder.
-
-    There's no per-file restore any more: neither an excluded subject's folder
-    (`record_subject_excluded`) nor a non-selected duplicate candidate (`record_selected_run`)
-    is kept anywhere inside `bids_folder` once removed -- both are deleted outright, on the
-    guarantee that the raw folder still has the original. Restoring therefore can't just move
-    something back; for an excluded subject it clears the exclusion record, and for a
-    committed pick it deletes what's left of that subject's folder too, so the next refresh
-    re-derives the WHOLE subject (every scan type, not just the one that had a duplicate) --
-    any other decision already made for that subject (date corrections, crosschecked marks,
-    other scan types' picks) goes with it. Bulk only, same as before: it's everything, or
-    nothing. Resilient at the subject level: one failure doesn't block the rest. Returns
-    (restored_subject_ids, error_messages).
+def _restore_subjects(bids_folder: Path, subject_ids: set[str] | None) -> tuple[list[str], list[str]]:
+    """Shared implementation behind `restore_all_from_bids` (`subject_ids=None`) and
+    `restore_subjects_from_bids` (a specific set) -- see either for why this can't just move
+    something back. Resilient at the subject level: one failure doesn't block the rest.
+    Returns (restored_subject_ids, error_messages).
     """
     restored: set[str] = set()
     errors: list[str] = []
 
     excluded = load_excluded_subjects(bids_folder)
-    if excluded:
-        restored.update(excluded)
-        save_excluded_subjects(bids_folder, {})
+    to_clear = {sid for sid in excluded if subject_ids is None or sid in subject_ids}
+    if to_clear:
+        restored.update(to_clear)
+        save_excluded_subjects(
+            bids_folder, {sid: reason for sid, reason in excluded.items() if sid not in to_clear}
+        )
 
     decisions = load_decisions(bids_folder)
-    selected_run_keys = [key for key, entry in decisions.items() if entry.get("type") == "selected_run"]
+    selected_run_keys = [
+        key
+        for key, entry in decisions.items()
+        if entry.get("type") == "selected_run"
+        and (subject_ids is None or entry.get("subject_id") in subject_ids)
+    ]
     changed = False
     for key in selected_run_keys:
         subject_id = decisions[key]["subject_id"]
@@ -345,6 +344,35 @@ def restore_all_from_bids(bids_folder: Path) -> tuple[list[str], list[str]]:
         _write_decisions_atomic(bids_folder, decisions)
 
     return sorted(restored), errors
+
+
+def restore_all_from_bids(bids_folder: Path) -> tuple[list[str], list[str]]:
+    """Undo every subject exclusion and every committed duplicate pick, so the next
+    raw-to-BIDS refresh re-derives all of it fresh from the never-touched raw folder.
+
+    There's no per-file restore: neither an excluded subject's folder
+    (`record_subject_excluded`) nor a non-selected duplicate candidate (`record_selected_run`)
+    is kept anywhere inside `bids_folder` once removed -- both are deleted outright, on the
+    guarantee that the raw folder still has the original. Restoring therefore can't just move
+    something back; for an excluded subject it clears the exclusion record, and for a
+    committed pick it deletes what's left of that subject's folder too, so the next refresh
+    re-derives the WHOLE subject (every scan type, not just the one that had a duplicate) --
+    any other decision already made for that subject (date corrections, crosschecked marks,
+    other scan types' picks) goes with it. Bulk: every removed/deduped subject in the folder,
+    at once. See `restore_subjects_from_bids` for the same thing scoped to specific subjects.
+    """
+    return _restore_subjects(bids_folder, None)
+
+
+def restore_subjects_from_bids(bids_folder: Path, subject_ids: Iterable[str]) -> tuple[list[str], list[str]]:
+    """Same as `restore_all_from_bids`, scoped to just `subject_ids` -- every other subject's
+    exclusion/duplicate-pick decisions are left untouched. Only reaches a subject that's still
+    visible in the crosscheck GUI's subject table (i.e. it currently has a committed duplicate
+    pick to undo) -- a fully excluded subject has no folder left to select a row for, so it
+    isn't reachable this way yet; `restore_all_from_bids` remains the only way to bring one of
+    those back.
+    """
+    return _restore_subjects(bids_folder, set(subject_ids))
 
 
 def record_selected_run(
@@ -376,6 +404,7 @@ def record_selected_run(
 
     for file in candidate_files:
         if file != selected_file:
+            _remove_scans_tsv_row(bids_folder, file)
             file.unlink()
 
 
@@ -415,6 +444,42 @@ def record_date_correction(
     _write_decisions_atomic(bids_folder, decisions)
 
     file.rename(destination)
+    return destination
+
+
+def record_filename_correction(
+    bids_folder: Path,
+    subject_id: str,
+    scan_type: str,
+    file: Path,
+    corrected_name: str,
+) -> Path:
+    """Rename `file` to `corrected_name` verbatim, within the same folder -- a general escape
+    hatch for fixing any part of a BIDS filename a human spots as wrong (a stray "-dupN"
+    collision marker left over from a naming clash, a wrong `task-`/`acq-` entity, ...), not
+    just the specific pieces `record_date_correction`/`record_task_tag` already cover.
+    Revertible the same way as those (see `_REVERTIBLE_RENAME_TYPES`).
+    """
+    if corrected_name == file.name:
+        raise BidsCrosscheckError("New filename is the same as the current one")
+    destination = file.with_name(corrected_name)
+    if _is_real_collision(destination, file):
+        raise BidsCrosscheckError(f"{destination} already exists -- resolve manually")
+
+    decisions = load_decisions(bids_folder)
+    decisions[_decision_key(subject_id, scan_type)] = {
+        "type": "filename_correction",
+        "subject_id": subject_id,
+        "scan_type": scan_type,
+        "original_filename": file.name,
+        "corrected_filename": corrected_name,
+        "original_parent_folder": file.parent.name,
+        "corrected_parent_folder": file.parent.name,
+    }
+    _write_decisions_atomic(bids_folder, decisions)
+
+    file.rename(destination)
+    _sync_scans_tsv_filename(bids_folder, file, destination)
     return destination
 
 
@@ -468,6 +533,22 @@ def _sync_scans_tsv_filename(bids_folder: Path, old_file: Path, new_file: Path) 
             changed = True
     if changed:
         _write_scans_tsv_rows(scans_tsv, rows)
+
+
+def _remove_scans_tsv_row(bids_folder: Path, file: Path) -> None:
+    """Drop `file`'s own row from its `scans.tsv` sidecar, if it has one -- used when a
+    non-selected duplicate candidate is deleted outright (`record_selected_run`) so the
+    sidecar doesn't keep listing a file that no longer exists. No-op for datasets without one
+    (e.g. FOH).
+    """
+    scans_tsv = _find_scans_tsv(bids_folder, file)
+    if scans_tsv is None:
+        return
+    relative_name = file.relative_to(scans_tsv.parent).as_posix()
+    rows = _read_scans_tsv_rows(scans_tsv)
+    remaining = [row for row in rows if row.get("filename") != relative_name]
+    if len(remaining) != len(rows):
+        _write_scans_tsv_rows(scans_tsv, remaining)
 
 
 def read_scans_tsv_date(bids_folder: Path, file: Path) -> str | None:
@@ -863,7 +944,12 @@ def remove_task_tag(
     return destination
 
 
-_REVERTIBLE_RENAME_TYPES = ("date_correction", "task_tag", "task_tag_removed")
+_REVERTIBLE_RENAME_TYPES = (
+    "date_correction",
+    "task_tag",
+    "task_tag_removed",
+    "filename_correction",
+)
 
 
 def revert_all_decisions(bids_folder: Path) -> tuple[list[Path], list[str]]:

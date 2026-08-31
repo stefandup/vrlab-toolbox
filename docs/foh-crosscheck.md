@@ -101,11 +101,17 @@ there and skipped.
 Safe to click any time, including repeatedly (e.g. once more recordings
 have come in) — there's no harm in clicking it and finding nothing new.
 
+Once a raw folder is picked, **Reveal Raw Folder** next to it opens that
+folder in your system's file browser (Explorer on Windows, Finder on
+macOS) — handy if you want to look at what's actually in there yourself.
+
 ### 3. Point it at your BIDS folder
 
 If nothing loads automatically, click **Browse...** at the top and select
 your FOH BIDS folder — the destination folder from step 2 above, not the
 raw one. This is the folder every step from here on actually works with.
+**Reveal BIDS Folder** next to it opens that folder in your system's file
+browser, the same as **Reveal Raw Folder** does for the raw one.
 
 The tool also makes sure a `.bidsignore` file at the top of that folder
 lists its own files — `crosscheck.json`, `crosscheck_pending.json`,
@@ -258,11 +264,14 @@ doesn't, since it's already a deliberate one-at-a-time click.
 Above the recording detail, the **Subject actions** panel holds actions
 that apply to the whole subject rather than one specific recording:
 marking it reviewed, renaming its ID, re-reading its info from disk if a
-recording has changed since the tool last looked (**Refresh**), and
-removing it from BIDS entirely (see [step
-13](#13-remove-a-subject-from-bids) below). It
+recording has changed since the tool last looked (**Refresh**), undoing a
+duplicate pick already committed (**Restore from raw...**, see [step
+14](#14-restore-or-revert-everything)), and removing it from BIDS
+entirely (see [step 13](#13-remove-a-subject-from-bids) below). It
 stays visible at a fixed spot regardless of what's selected — blank when
-nothing is, so there's no jumping around as you click between subjects.
+nothing is selected, and titled with the subject's ID when exactly one
+is, so there's no jumping around or losing track of who it applies to as
+you click between subjects.
 
 Click **"Mark crosschecked"** there to record that you've personally
 looked at this subject and approved it — shown afterwards as a ☑ next to
@@ -351,40 +360,50 @@ same behaviour, just scoped to your selection.
 
 Sometimes a whole subject doesn't belong in the folder at all — a test
 recording that got saved alongside real data, or someone who was never
-really a participant. Click **"Remove from BIDS..."** in the **Subject
-actions** panel — this deletes the subject's entire folder from BIDS
-(their raw recording is untouched, and still sitting in the raw folder
-from step 2) and asks you for an optional reason first, so it's clear
-later why they were removed. Leave the reason blank and click OK if you
-don't need to record one, or Cancel to back out without removing anything.
+really a participant. Click **"Remove Subject Folder from BIDS..."** in
+the **Subject actions** panel — this deletes the subject's entire folder
+from BIDS (their raw recording is untouched, and still sitting in the raw
+folder from step 2) and asks you for an optional reason first, so it's
+clear later why they were removed. Leave the reason blank and click OK if
+you don't need to record one, or Cancel to back out without removing
+anything.
 
 If you removed the wrong subject, see [step
 14](#14-restore-or-revert-everything) to bring them back.
 
 ### 14. Restore or revert everything
 
-Made a mistake and want to start over? Two buttons near the top of the
-window, next to "Remove non selected files from BIDS," cover the whole
-folder at once:
+Made a mistake? How you undo it depends on what you're trying to take back:
 
-- **"Restore all from raw folder..."** brings back every subject removed from
-  BIDS — whether removed whole (step 13) or with a duplicate resolved
-  (step 8). Nothing is moved back, since nothing was kept anywhere inside
-  BIDS to move — this just clears the bookkeeping that told **Refresh
-  BIDS** to skip them, so click **Refresh BIDS** (step 2) afterward to
-  actually bring the data back in. For a subject that had a duplicate
-  resolved, this brings back their *whole* folder, not just the one file
-  that was removed — any other decision already made for them (a
-  corrected date, a crosschecked mark, another scan type's pick) goes
-  with it and needs redoing.
+- **Undoing just one subject's duplicate pick** — select that subject (or
+  a few, with Ctrl-click) and click **"Restore from raw..."** (or
+  **"Restore selected from raw..."** for more than one) in the **Subject
+  actions** panel. This only works for a subject who's still visible in
+  the list with a duplicate already resolved (step 8) — it clears the
+  bookkeeping for just them, leaving every other subject's decisions
+  untouched, so click **Refresh BIDS** (step 2) afterward to bring their
+  full record back in fresh. Because it re-derives their *whole* folder,
+  not just the one file that was removed, any other decision already made
+  for them (a corrected date, a crosschecked mark, another scan type's
+  pick) goes with it and needs redoing too.
+- **Bringing back a subject removed entirely** (step 13) — a subject
+  removed whole has no row left in the list to select, so there's no
+  scoped way to reach just them yet. Use **"Restore all from raw
+  folder..."** near the top of the window instead — it brings back
+  *every* subject removed from BIDS, whole-subject removals and
+  duplicate picks alike, the same way described above. Click **Refresh
+  BIDS** afterward to actually bring the data back in.
 - **"Revert all changes..."** reverses every recorded rename — corrected
   dates, corrected IDs, foh tags — and clears every recorded decision,
   including crosschecked marks.
 
-!!! warning "Bulk only, for this version at least"
-    Neither button lets you pick and choose. **"Restore all from raw folder"**
-    brings back every removed subject, not just one. **"Revert all
-    changes"** reverses everything recorded, not just one decision — and
+!!! warning "Bulk only for whole-subject removals and renames, for this version at least"
+    **"Restore all from raw folder"** and **"Restore selected from
+    raw..."** cover the same kind of undo — bringing a subject's whole
+    record back so it can be re-derived from raw — just at different
+    scopes: everything removed, or a specific selection you can actually
+    still see and click on. **"Revert all changes"** is bulk only,
+    though: it reverses everything recorded, not just one decision — and
     only the *most recent* recorded decision for each subject/scan-type
     can be reversed, since each new correction overwrites the previous
     record rather than keeping a history. A recording that was, say,
@@ -395,15 +414,37 @@ folder at once:
     Subjects removed from BIDS aren't touched by "Revert all changes" —
     if you want everything back, restore those first.
 
+!!! note "Want a completely fresh start instead?"
+    There's no single "clear everything and start over" button in this
+    tool, on purpose. Restoring and reverting (above) only ever undo
+    *decisions* — they always leave your raw folder as the source of
+    truth and re-derive from it, which is safe by design. A full wipe is
+    a different, much blunter kind of action: it would throw away
+    perfectly good, already-checked work for subjects who were never a
+    problem in the first place, just to fix a handful that were. Building
+    that safely (so a room full of people can't wipe real results with
+    one stray click) is more machinery than it's worth for something you
+    can already do yourself, just as safely, outside the tool: **point it
+    at a brand-new, empty BIDS folder** (create one anywhere and click
+    **Browse...** to it), or **delete the old BIDS folder yourself** and
+    let **Refresh BIDS** rebuild it from scratch. Either way, your raw
+    folder is never touched, so nothing is actually at risk — you're just
+    choosing to throw away the BIDS-side bookkeeping and start over. This
+    is especially handy for a test/practice BIDS folder while you're
+    still learning the tool — delete it and start fresh as often as you
+    like.
+
 ## Working with several subjects at once
 
 Click a subject to select it, or Ctrl-click (or Shift-click for a range)
-to select several at once. With more than one selected, the detail panel
-switches to a **"Subject actions — N subjects selected"** panel with bulk
-versions of the actions above: **Remove non-selected files from BIDS for
-selected**, **Refresh**, **Tag selected with foh BIDS tags**, **Mark
-selected crosschecked** / **Un-mark selected crosschecked**, and **Remove
-selected from BIDS...**.
+to select several at once. With one subject selected, the panel's title
+shows their ID, so you always know who the buttons below it apply to;
+with more than one, it switches to a **"Subject actions — N subjects
+selected"** panel with bulk versions of the actions above: **Remove
+non-selected files from BIDS for selected**, **Refresh**, **Tag selected
+with foh BIDS tags**, **Mark selected crosschecked** / **Un-mark selected
+crosschecked**, **Restore selected from raw...**, and **Remove selected
+from BIDS...**.
 
 Two things stay single-subject only, on purpose:
 
@@ -423,7 +464,16 @@ The Crane experiment has its own equivalent tool, `vrlab_crane_bids_crosscheck`
 step), just checking `physiology`/`behaviour`/`debrief` files instead of a
 single FOH recording, and its raw-to-BIDS step does real reshaping rather
 than a plain copy (see [BIDS Converter Plan](bids_converter_plan.md) for
-what differs). Everything else on this page applies there too.
+what differs). Everything else on this page applies there too, with one
+difference: Crane's raw-to-BIDS step already writes real BIDS filenames
+itself, so there's no "Tag with ... BIDS tags" step to do by hand (step
+12) — instead, next to whichever recording currently counts as "the one,"
+you'll see **"Correct filename..."**. Use it if something in the name
+still looks wrong: a stray `-dup2` (or `-dup3`, ...) left over from two raw
+files landing on the same name, a wrong `task-`/`acq-` entity, or anything
+else you spot — type the corrected filename directly (keeping the same
+file extension) and it's renamed, with any `scans.tsv` reference to it kept
+in sync automatically.
 
 ---
 

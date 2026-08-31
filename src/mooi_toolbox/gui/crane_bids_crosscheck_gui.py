@@ -363,6 +363,16 @@ class CraneCandidateExtras(CandidateExtras):
     # junk left to clean up, and tagging would instead destroy that distinction (it replaces
     # everything after run-<NNN> with a single generic label, same for all three scan types).
     # See docs/bids_converter_plan.md.
+    #
+    # filename_correction_available IS overridden below though -- crane's converter can still
+    # produce a filename that needs a human fix, just not the kind task-tagging addresses:
+    # a "-dupN" collision marker (see _resolve_destination in crane_convert_to_bids.py) left
+    # on whichever duplicate turns out to be the real recording, or any other entity a human
+    # spots as wrong (task-/acq-/...). The free-text "Correct filename..." button covers all
+    # of those without a dataset-specific dialog for each.
+
+    def filename_correction_available(self, scan_type: str) -> bool:
+        return True
 
     def refreshable(self, scan_type: str) -> bool:
         return scan_type in (PHYSIOLOGY_SCAN_TYPE, BEHAVIOUR_SCAN_TYPE, DEBRIEF_SCAN_TYPE)

@@ -1,7 +1,8 @@
-import requests
-import pandas as pd
 from io import StringIO
 from pathlib import Path
+
+import pandas as pd
+import requests
 
 REDCAP_URL = "https://redcap.sun.ac.za/api/"
 API_TOKEN = ""
@@ -41,7 +42,6 @@ print()
 print(f"Rows downloaded: {len(df)}")
 print(f"Columns downloaded: {len(df.columns)}")
 
-from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 OUTPUT_DIR = PROJECT_ROOT / "redcap_data"

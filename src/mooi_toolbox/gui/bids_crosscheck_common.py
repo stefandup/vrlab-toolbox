@@ -55,6 +55,7 @@ from mooi_toolbox.processing.bids_crosscheck import (
     load_pending_selections,
     read_scans_tsv_date,
     record_date_correction,
+    record_filename_correction,
     record_id_correction,
     record_scans_tsv_date_correction,
     record_scans_tsv_row_date_correction,
@@ -63,6 +64,7 @@ from mooi_toolbox.processing.bids_crosscheck import (
     record_task_tag,
     remove_task_tag,
     restore_all_from_bids,
+    restore_subjects_from_bids,
     revert_all_decisions,
     save_pending_selections,
     scan_bids_folder,
@@ -227,6 +229,14 @@ class CandidateExtras:
     def task_tag_available(self, scan_type: str) -> bool:
         return False
 
+    def filename_correction_available(self, scan_type: str) -> bool:
+        """True to show a free-text "Correct filename..." action for this scan type's
+        effective candidate -- a general escape hatch for fixing any part of a filename a
+        human spots as wrong (a wrong entity, a stray "-dupN" collision marker, ...), for
+        datasets without a narrower, structured correction for that kind of mistake.
+        """
+        return False
+
     def has_warning(self, scan_type: str, file: Path) -> bool:
         """True if this candidate has a dataset-specific issue worth flagging at a glance."""
         return False
@@ -381,6 +391,14 @@ class BidsCrosscheckWindow(QMainWindow):
             )
             raw_browse_button.clicked.connect(self._on_browse_raw_folder)
             raw_bar.addWidget(raw_browse_button)
+            self.reveal_raw_button = QPushButton("Reveal Raw Folder")
+            self.reveal_raw_button.setToolTip(
+                "Open the raw folder in the system file browser, so you can look at the raw "
+                "files yourself."
+            )
+            self.reveal_raw_button.setEnabled(False)
+            self.reveal_raw_button.clicked.connect(self._on_reveal_raw_folder)
+            raw_bar.addWidget(self.reveal_raw_button)
             self.convert_button = QPushButton("Refresh BIDS")
             self.convert_button.setToolTip(self.convert_button_tooltip)
             self.convert_button.setEnabled(False)
@@ -426,6 +444,14 @@ class BidsCrosscheckWindow(QMainWindow):
         self.browse_button.setToolTip("Pick the top-level BIDS folder to scan for subjects.")
         self.browse_button.clicked.connect(self._on_browse)
         top_bar.addWidget(self.browse_button)
+        self.reveal_bids_button = QPushButton("Reveal BIDS Folder")
+        self.reveal_bids_button.setToolTip(
+            "Open the BIDS folder in the system file browser, so you can look at what's "
+            "actually on disk yourself."
+        )
+        self.reveal_bids_button.setEnabled(False)
+        self.reveal_bids_button.clicked.connect(self._on_reveal_bids_folder)
+        top_bar.addWidget(self.reveal_bids_button)
         root_layout.addLayout(top_bar)
 
         summary_bar = QHBoxLayout()
@@ -565,6 +591,7 @@ class BidsCrosscheckWindow(QMainWindow):
     def load_bids_folder(self, bids_folder: Path) -> None:
         self.bids_folder = bids_folder
         self.folder_label.setText(str(bids_folder))
+        self.reveal_bids_button.setEnabled(True)
         self._settings.setValue(LAST_BIDS_FOLDER_SETTINGS_KEY, str(bids_folder))
         ensure_bidsignore(bids_folder, self.extras.bidsignore_patterns())
         self.extras.on_bids_folder_changed(bids_folder)
@@ -598,6 +625,23 @@ class BidsCrosscheckWindow(QMainWindow):
         self.convert_button.setEnabled(both_selected)
         for button in self.extra_raw_action_buttons:
             button.setEnabled(both_selected)
+        self.reveal_raw_button.setEnabled(self.raw_folder is not None)
+
+    def _on_reveal_raw_folder(self) -> None:
+        if self.raw_folder is None:
+            return
+        if not self.raw_folder.is_dir():
+            QMessageBox.warning(self, "Folder not found", f"{self.raw_folder} doesn't exist.")
+            return
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.raw_folder)))
+
+    def _on_reveal_bids_folder(self) -> None:
+        if self.bids_folder is None:
+            return
+        if not self.bids_folder.is_dir():
+            QMessageBox.warning(self, "Folder not found", f"{self.bids_folder} doesn't exist.")
+            return
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.bids_folder)))
 
     def _on_extra_raw_action(
         self, callback: Callable[[Path, Path, QWidget], None]
@@ -1294,8 +1338,9 @@ class BidsCrosscheckWindow(QMainWindow):
             "This will bring back every subject removed from BIDS (whole-subject removals "
             "and committed duplicate picks alike). Nothing is moved back -- this clears the "
             "bookkeeping so the next Refresh BIDS/Import re-derives them fresh from the raw "
-            "folder; run that afterward to actually get the data back. There's no selective "
-            "restore in this version -- it's everything removed, or nothing. Continue?",
+            "folder; run that afterward to actually get the data back. This is everything "
+            "removed, or nothing -- to undo just one subject's duplicate pick, select them "
+            "below instead and use \"Restore from raw...\" there. Continue?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -1306,6 +1351,37 @@ class BidsCrosscheckWindow(QMainWindow):
             QMessageBox.warning(self, "Some subjects could not be restored", "\n".join(errors))
         elif not restored:
             QMessageBox.information(self, "Nothing to restore", "No subjects are removed from BIDS.")
+        self._rescan(reload_pending=True)
+
+    def _on_restore_subjects_from_bids(self, subject_ids: list[str]) -> None:
+        """Undo a committed duplicate pick for just `subject_ids`, leaving every other
+        subject's decisions untouched -- see `restore_subjects_from_bids`."""
+        if self.bids_folder is None or not subject_ids:
+            return
+        title = "Restore from raw" if len(subject_ids) == 1 else "Restore selected from raw"
+        confirm = QMessageBox.question(
+            self,
+            title,
+            "This will undo the committed duplicate pick for: "
+            f"{', '.join(f'sub-{s}' for s in subject_ids)}. Nothing is moved back -- this "
+            "clears the bookkeeping so the next Refresh BIDS re-derives their whole record "
+            "fresh from the raw folder; run that afterward to actually get the data back. "
+            "Any other correction already made for them (date fixes, crosschecked marks) "
+            "goes with it too. Continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        restored, errors = restore_subjects_from_bids(self.bids_folder, subject_ids)
+        if errors:
+            QMessageBox.warning(self, "Some subjects could not be restored", "\n".join(errors))
+        elif not restored:
+            QMessageBox.information(
+                self,
+                "Nothing to restore",
+                "None of the selected subject(s) have a committed duplicate pick to undo.",
+            )
         self._rescan(reload_pending=True)
 
     def _on_revert_all_decisions(self) -> None:
@@ -1440,6 +1516,18 @@ class BidsCrosscheckWindow(QMainWindow):
                     lambda: self._on_task_tag(subject_id, scan_type, file, tagged)
                 )
                 row_layout.addWidget(task_button)
+
+            if self.extras.filename_correction_available(scan_type):
+                filename_button = QPushButton("Correct filename...")
+                filename_button.setToolTip(
+                    "Rename this file directly -- fixes any part of it (a wrong task-/acq- "
+                    "entity, a stray \"-dupN\" collision marker, ...) that the more specific "
+                    "correction buttons here don't cover."
+                )
+                filename_button.clicked.connect(
+                    lambda: self._on_correct_filename(subject_id, scan_type, file)
+                )
+                row_layout.addWidget(filename_button)
 
         row_layout.addStretch(1)
         return row
@@ -1598,7 +1686,7 @@ class BidsCrosscheckWindow(QMainWindow):
             self.subject_actions_group.setTitle("Subject actions")
             return
         if len(subject_ids) == 1:
-            self.subject_actions_group.setTitle("Subject actions")
+            self.subject_actions_group.setTitle(f"Subject actions -- {subject_ids[0]}")
         else:
             self.subject_actions_group.setTitle(
                 f"Subject actions -- {len(subject_ids)} subjects selected"
@@ -1681,7 +1769,26 @@ class BidsCrosscheckWindow(QMainWindow):
             )
             layout.addWidget(bulk_uncrosscheck_button)
 
-        remove_label = "Remove from BIDS..." if len(subject_ids) == 1 else "Remove selected from BIDS..."
+        restore_label = (
+            "Restore from raw..." if len(subject_ids) == 1 else "Restore selected from raw..."
+        )
+        restore_button = QPushButton(restore_label)
+        restore_button.setToolTip(
+            "Undoes a committed duplicate pick for just this subject (or each selected "
+            "subject), so the next Refresh BIDS re-derives their whole record fresh from the "
+            "raw folder -- any other correction already made for them (date fixes, "
+            "crosschecked marks) goes with it. Nothing to do here for a subject that was "
+            "never deduped -- only \"Restore all from raw folder\" below can bring back a "
+            "subject removed entirely, since it no longer has a row here to select."
+        )
+        restore_button.clicked.connect(lambda: self._on_restore_subjects_from_bids(subject_ids))
+        layout.addWidget(restore_button)
+
+        remove_label = (
+            "Remove Subject Folder from BIDS..."
+            if len(subject_ids) == 1
+            else "Remove selected from BIDS..."
+        )
         remove_button = QPushButton(remove_label)
         remove_button.setToolTip(
             "Deletes the whole subject folder from BIDS -- e.g. a pilot run, a "
@@ -1915,6 +2022,31 @@ class BidsCrosscheckWindow(QMainWindow):
             self._follow_rename_in_pending(subject_id, scan_type, file, destination)
         except (BidsCrosscheckError, OSError) as error:
             QMessageBox.warning(self, "Could not correct date", str(error))
+        # reload_pending=True -- see _on_rename_all_selected for why.
+        self._rescan(reload_pending=True)
+
+    def _on_correct_filename(self, subject_id: str, scan_type: str, file: Path) -> None:
+        if self.bids_folder is None:
+            return
+        corrected_name, confirmed = QInputDialog.getText(
+            self, "Correct filename", f"Corrected filename for {file.name}:", text=file.name
+        )
+        if not confirmed or not corrected_name or corrected_name == file.name:
+            return
+        if Path(corrected_name).suffix != file.suffix:
+            QMessageBox.warning(
+                self,
+                "Could not correct filename",
+                f"The corrected filename must keep the same extension ({file.suffix!r}).",
+            )
+            return
+        try:
+            destination = record_filename_correction(
+                self.bids_folder, subject_id, scan_type, file, corrected_name
+            )
+            self._follow_rename_in_pending(subject_id, scan_type, file, destination)
+        except (BidsCrosscheckError, OSError) as error:
+            QMessageBox.warning(self, "Could not correct filename", str(error))
         # reload_pending=True -- see _on_rename_all_selected for why.
         self._rescan(reload_pending=True)
 
