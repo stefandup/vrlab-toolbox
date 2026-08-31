@@ -68,9 +68,12 @@ Separately, `task_correction`/`record_task_correction`/`remove_task_correction`
 were renamed to `task_tag`/`record_task_tag`/`remove_task_tag`, and FOH's
 tag itself changed from a bare non-BIDS `_foh` suffix to real BIDS entities
 (`task-foh`, `acq-lsl`, a real `beh` suffix) -- see
-`gui/foh_bids_crosscheck_gui.py`'s `FOH_DATASET_CONFIG` and
-`docs/pipeline_next_steps.md` item 25 for the pipeline-side follow-up this
-still needs. The rest of this document (below) still describes the
+`gui/foh_bids_crosscheck_gui.py`'s `FOH_DATASET_CONFIG`. The pipeline-side
+physiology lookup (`processing/input_data.py`'s `ParticipantConfig.from_lsl_data`) was
+updated to match this new filename shape in commit `8f917fc` (2026-08-28) --
+`TASK_LABEL`'s manual sync with `FOH_DATASET_CONFIG.task_tag_task` (two independent
+hardcoded strings) is still an open loose end, tracked by the `TODO` at
+`processing/input_data.py:14`. The rest of this document (below) still describes the
 mechanics in their *previous* shape -- read it for the reasoning, not as a
 literal description of current filenames/folders.
 

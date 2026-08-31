@@ -43,9 +43,11 @@ become strategy steps too, or stay outside the template.
 spot-checked several items below against current code (file existence, `grep -rn TODO src/`,
 current line numbers). Result: 121 passed, 3 skipped (unchanged — items 15's double-trigger
 tests and the still-empty `test_long_walk_pipeline.py`, per item 26), **1 new failure** —
-`test_foh_pipeline.py::TestFOHPipeline::test_batch_processing`, root-caused and folded into
-item 25's update below. Everything else checked (items 18, 19, 26) is still accurate as
-written — no other drift found this pass.
+`test_foh_pipeline.py::TestFOHPipeline::test_batch_processing`, root-caused as the FOH
+physiology lookup not matching the new real-BIDS task-tag filename shape (a double `sub-`
+prefix from `lsl.get_subject_id`). Fixed the same day in commit `8f917fc` ("Both Crane and FOH
+batches working again. Tests passed.") — no longer an open item. Everything else checked
+(items 18, 19, 26) is still accurate as written — no other drift found this pass.
 
 ### 1. Decide: mutate-in-place vs. return-new-object
 
@@ -1164,50 +1166,6 @@ for the rule and why it matters. This applies to new code the same way it
 applies to item 22's BIDS direction above: a timepoint input folder should
 be handled as a `Path` end to end, not a string that gets converted back and
 forth.
-
-### 25. `input_data.py`'s FOH physiology lookup needs updating for the new real-BIDS task tag
-
-Not done yet — flagged 2026-08-27 for the project owner to pick up themselves; out of
-scope for the crosscheck/converter rework that prompted it (see
-[bids_converter_plan.md](bids_converter_plan.md)'s TODO section for the FOH+crane
-re-implementation reminder this is part of).
-
-The FOH crosscheck GUI's "Tag as..." action (`gui/foh_bids_crosscheck_gui.py`'s
-`FOH_DATASET_CONFIG`, via `processing/bids_crosscheck.record_task_tag`) now writes real BIDS
-entities instead of a bare non-BIDS label: a tagged recording used to end in `..._foh.xdf`
-and now ends in `..._task-foh_acq-lsl_run-<NNN>_beh.xdf` (task-foh entity, acq-lsl entity,
-real `beh` suffix, same `.xdf` extension).
-
-`processing/input_data.py:167-183` (`ParticipantConfig.from_lsl_data`'s physiology lookup)
-still expects the *old* shape: it globs `*{id}*{PIPELINE_ID}{extension}` (`PIPELINE_ID =
-"foh"`, hardcoded at `input_data.py:20`) and then requires the filename's last
-underscore-delimited token to be exactly `"foh.xdf"`
-(`str(xdf_path.name).split("_")[-1] != f"{PIPELINE_ID}.xdf"`). Once real FOH data actually
-gets tagged with the new scheme, that check's last token will be `"beh.xdf"`, not `"foh.xdf"`
-— every real recording would raise `ValueError("No physiology files matching *_foh.xdf found
-for participant ...")` instead of being found. This is real pipeline/processing code
-(`processing/`, not `cli/`/`gui/`), so it was deliberately left untouched by the
-crosscheck/converter rework — needs its own pass to match the new filename shape (and decide
-whether `PIPELINE_ID`'s manual sync with `FOH_DATASET_CONFIG.task_tag_task`, already flagged
-as a loose end, gets addressed at the same time).
-
-**Update (2026-08-28, found while refreshing this doc — file has moved on since the
-paragraph above was written):** the code no longer has a single `from_lsl_data` physiology
-lookup at those line numbers — `ParticipantConfig` now has a separate `from_bids_data`
-classmethod (`input_data.py:41-`), and *its* physiology glob is the one actually exercised by
-`vrlab_foh_batch_process` today: `search_root.rglob(f"sub-{id_in}_*{physiology_data_type_in.value}")`
-(`input_data.py:62`). Running the full test suite during this refresh reproduced a live failure
-from exactly this line: `tests/test_foh_pipeline.py::TestFOHPipeline::test_batch_processing`
-fails, with every subject logging `No physiology files matching sub-sub-PID17374*task-foh*_beh.xdf
-found for participant sub-PID17374` (real log line, real ID). `mobi_FOH_process_batch.py:41` passes
-`lsl.get_subject_id(xdf_fn)` — which already returns a `sub-`-prefixed BIDS ID — straight through
-as `id_in`, so `from_bids_data`'s own `f"sub-{id_in}_*"` glob prepends a second `sub-`, and nothing
-ever matches. Distinct bug from the "beh.xdf vs foh.xdf" suffix mismatch predicted above (that one
-may or may not still apply separately — not verified this pass), but same root cause this item
-already named: the physiology lookup hasn't been updated to match the current BIDS-tagged filename
-shape. Fix is either strip a leading `sub-` from `id_in` before formatting the glob, or stop
-double-adding it. The test failure is new evidence, not previously recorded in this doc; it's a
-real regression against `tests/`, not a hypothetical.
 
 ### 26. Dead/stale tracked files — candidates for removal
 

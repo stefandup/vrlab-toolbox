@@ -283,12 +283,13 @@ toolbox command — CLI and GUI — as a standalone executable, plus a launcher
 GUI and an Inno Setup script that bundles all of them into one
 `MooiToolboxSetup.exe` installer.
 
-The useful part is portability: the built executables in `dist/` can be
-copied to another folder, including a folder on your `PATH`, without copying
-the rest of this project's source code. See the docs site's Building &
-Releasing page for *why* PyInstaller specifically, what each `.spec` file
-bundles, how the installer works, how version tags flow through it, and how
-this build runs automatically on a tag push.
+The useful part is portability: the built executables in
+`build_output/dist/mooi_toolbox/` can be copied to another folder, including
+a folder on your `PATH`, without copying the rest of this project's source
+code. See the docs site's Building & Releasing page for *why* PyInstaller
+specifically, what the spec file bundles, how the installer works, how
+version tags flow through it, and how this build runs automatically on a tag
+push.
 
 Install PyInstaller in your active virtual environment first:
 
@@ -296,14 +297,17 @@ Install PyInstaller in your active virtual environment first:
 python -m pip install pyinstaller
 ```
 
-On Windows, run `.\build.ps1 -Full` (in PowerShell). It builds every `.spec`
-file under `specs/`, gathers the resulting exes into a `toolbox/` folder, and
-— if [Inno Setup 6](https://jrsoftware.org/isinfo.php) is installed —
-compiles `toolbox_installer.iss` into `Output\MooiToolboxSetup.exe`. Running `.\build.ps1` with no flag just prints usage and builds nothing.
-`.\build.ps1 -Exe` builds just the exes (no Inno Setup needed at all); once
-that's succeeded, `.\build.ps1 -Inno` recompiles just the installer (e.g.
-after editing `toolbox_installer.iss`) without rerunning the slow
-PyInstaller step.
+On Windows, run `.\build.ps1 -Full` (in PowerShell). It builds
+`specs/toolbox.spec`, gathers the resulting exes into a
+`build_output/toolbox/` folder, and — if [Inno Setup 6](https://jrsoftware.org/isinfo.php)
+is installed — compiles `toolbox_installer.iss` into
+`build_output\installer\MooiToolboxSetup.exe`. Running `.\build.ps1` with no
+flag just prints usage and builds nothing. `.\build.ps1 -Exe` builds just the
+exes (no Inno Setup needed at all); once that's succeeded, `.\build.ps1
+-Inno` recompiles just the installer (e.g. after editing
+`toolbox_installer.iss`) without rerunning the slow PyInstaller step. Every
+artifact from any of these lands under the single gitignored
+`build_output/` folder, not scattered across the workspace root.
 
 On macOS or Linux:
 
@@ -316,9 +320,10 @@ This only builds two of the toolbox's tools (`vrlab_crane_process`,
 equivalent of the full toolbox build or the installer yet, since Inno Setup
 is Windows-only.
 
-PyInstaller writes temporary build files to `build/` and the executables to
-`dist/`. If PyInstaller reports that the obsolete `pathlib` backport is
-installed in the virtual environment, uninstall that package:
+PyInstaller writes temporary build files to `build_output/work/` and the
+executables to `build_output/dist/`. If PyInstaller reports that the
+obsolete `pathlib` backport is installed in the virtual environment,
+uninstall that package:
 
 ```bash
 python -m pip uninstall pathlib

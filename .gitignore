@@ -24,11 +24,7 @@ __pycache__/
 logs/
 temp/
 spss_scripts/
-build/
-dist/
-toolbox/
-Output/
-/site/
+/build_output/
 examples/*
 redcap_data/
 foh_data_copy/

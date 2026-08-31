@@ -17,57 +17,64 @@ install` on the machine that runs it.
 
 ## The current setup
 
-Every buildable command gets its own PyInstaller "spec file" — a small
-Python script that says exactly what to bundle — under `specs/` in the
-workspace root, named after its console-script command
-(`specs/vrlab_crane_process.spec`, `specs/vrlab_check_xdf.spec`, …), covering
-both CLI tools and the two PySide6 crosscheck GUIs. Every command currently
-registered in `pyproject.toml`'s `[project.scripts]` has one. (Two entries
-were removed 2026-08-31: `vrlab_foh_process` and `vrlab_crane_summary_data`
-pointed at `mobi_FOH_process.py`/`vrlab_crane_qc.py`, both real files
-deleted in earlier commits (2026-08-14 and 2026-07-22 respectively) without
-ever cleaning up the matching script registration -- see
-`docs/pipeline_next_steps.md` if either capability is ever rebuilt.)
+Every buildable command is bundled by one single PyInstaller "spec file" —
+`specs/toolbox.spec` — rather than one spec per tool. It loops over a plain
+`TOOLS` list (`(exe_name, script path relative to src/mooi_toolbox, console
+window?, extra datas)` per tool, covering both CLI tools and the two
+PySide6 crosscheck GUIs plus the launcher below) and runs one `Analysis` +
+`EXE` per entry, but feeds every tool's outputs into a single shared
+`COLLECT` at the end:
 
 ```python
-a = Analysis(
-    [os.path.join(REPO_ROOT, "src", "mooi_toolbox", "cli", "vrlab_crane_process.py")],
-    datas=[
-        (os.path.join(REPO_ROOT, "references", "matched_debug_df_testa.parquet"), "references"),
-        *copy_metadata("mooi-toolbox"),
-    ],
-    ...
-)
+TOOLS = [
+    ("vrlab_check_xdf", os.path.join("cli", "check_mobi_xdf.py"), True, []),
+    ("vrlab_crane_bids_crosscheck", os.path.join("gui", "crane_bids_crosscheck_gui.py"), False, []),
+    (
+        "vrlab_crane_process",
+        os.path.join("cli", "vrlab_crane_process.py"),
+        True,
+        [(os.path.join(REPO_ROOT, "references", "matched_debug_df_testa.parquet"), "references")],
+    ),
+    # ... one entry per console-script command in pyproject.toml's [project.scripts]
+]
 
-exe = EXE(
-    pyz, a.scripts, a.binaries, a.datas, [],
-    name='vrlab_crane_process',
-    ...
-)
+for name, script, console, extra_datas in TOOLS:
+    a = Analysis([os.path.join(SRC_ROOT, script)], datas=[*extra_datas, *copy_metadata("mooi-toolbox")], ...)
+    pyz = PYZ(a.pure)
+    exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name=name, console=console, ...)
+    collect_args.extend([exe, a.binaries, a.zipfiles, a.datas])
+
+COLLECT(*collect_args, name="mooi_toolbox")
 ```
 
 A few things worth knowing:
 
+- **One `COLLECT`, not one per tool.** Every tool used to be its own
+  `--onedir` build (or its own spec file, before 2026-08-28), each carrying
+  a full copy of the shared scientific-Python stack (numpy, scipy, mne,
+  PySide6, …). Feeding all eleven tools' `EXE`/`binaries`/`datas` into one
+  `COLLECT` instead means identical dependency files are only written to
+  disk once, under a single `build_output/dist/mooi_toolbox/` folder — see
+  [The installer](#the-installer) below.
 - **`REPO_ROOT = os.path.join(SPECPATH, "..")`** — `SPECPATH` is a variable
   PyInstaller injects automatically, set to the spec file's own directory.
-  Since every spec now lives in `specs/`, one level below the workspace
-  root, entry-point and data paths are built from `REPO_ROOT` rather than
-  hardcoded relative paths — this is what makes it safe for the specs to
-  live in their own folder instead of cluttering the workspace root,
-  regardless of what directory `pyinstaller` is actually invoked from.
-- **`matched_debug_df_testa.parquet`** (Crane's spec only) — a reference
-  data file some processing code reads at runtime; without listing it here
-  explicitly, PyInstaller wouldn't know to bundle it (only actual Python
-  imports are detected automatically).
+  Since the spec lives in `specs/`, one level below the workspace root,
+  entry-point and data paths are built from `REPO_ROOT` rather than
+  hardcoded relative paths, regardless of what directory `pyinstaller` is
+  actually invoked from.
+- **`matched_debug_df_testa.parquet`** (`vrlab_crane_process`'s entry only)
+  — a reference data file some processing code reads at runtime; without
+  listing it here explicitly, PyInstaller wouldn't know to bundle it (only
+  actual Python imports are detected automatically).
 - **`copy_metadata("mooi-toolbox")`** — bundles this package's installed
-  metadata (version, name, …) into the exe. This is specifically because
+  metadata (version, name, …) into every tool. This is specifically because
   `@click.version_option(package_name="mooi-toolbox")` looks up the
   installed package's version via `importlib.metadata` at runtime — and a
   frozen exe doesn't have a normal `site-packages/` layout unless you tell
   PyInstaller to keep this piece of it.
-- The two GUI specs (`vrlab_foh_bids_crosscheck.spec`,
-  `vrlab_crane_bids_crosscheck.spec`) and the launcher's spec
-  (`vrlab_toolbox_launcher.spec`, see below) set `console=False` — a normal
+- The two GUI entries (`vrlab_crane_bids_crosscheck`,
+  `vrlab_foh_bids_crosscheck`) and the launcher's entry
+  (`vrlab_toolbox_launcher`, see below) pass `console=False` — a normal
   windowed app, no console window popping up behind it.
 
 ## The toolbox launcher
@@ -88,10 +95,19 @@ python -m pip install pyinstaller   # not in requirements-dev.txt — rarely nee
 ```
 
 ```powershell
-# Windows — build.ps1 -Full  (equivalent to what it runs internally)
+# Windows — build.ps1 -Full  (equivalent to what it runs internally, from an activated .venv)
 pip install -e . --no-deps
-Get-ChildItem -Path specs -Filter *.spec | ForEach-Object { pyinstaller $_.FullName }
+pyinstaller --workpath build_output/work --distpath build_output/dist specs/toolbox.spec
 ```
+
+`build.ps1` itself doesn't call bare `pip`/`pyinstaller` like the snippet above -- it resolves
+`.venv\Scripts\python.exe` once up front and runs both steps through `python -m pip ...`/
+`python -m PyInstaller ...`. On a machine with more than one Python on `PATH` (a global
+install, a scoop/pyenv shim, ...), calling bare `pip`/`pyinstaller` risks `pip install -e .`
+writing fresh `setuptools_scm` version metadata into a *different* site-packages than the one
+`pyinstaller` reads it back from via `copy_metadata` -- silently baking a stale version into
+the exe, with no error. Pinning both to the same interpreter closes that gap; this only
+matters when running the raw commands above by hand outside of `build.ps1`.
 
 `build.ps1` itself takes a flag rather than always doing a full rebuild:
 
@@ -99,15 +115,23 @@ Get-ChildItem -Path specs -Filter *.spec | ForEach-Object { pyinstaller $_.FullN
 - `.\build.ps1 -Full` — the full pipeline above: rebuild every exe, then
   assemble and compile the installer (see below). Slow, since PyInstaller
   re-bundles every tool from scratch.
-- `.\build.ps1 -Exe` — only the PyInstaller step, into `dist/`. Skips
-  assembling `toolbox/` and compiling the installer, so it doesn't need
-  Inno Setup installed at all — useful when you're iterating on a tool's
-  code and just want to check the exe builds.
+- `.\build.ps1 -Exe` — only the PyInstaller step, into `build_output/dist/`.
+  Skips assembling `build_output/toolbox/` and compiling the installer, so
+  it doesn't need Inno Setup installed at all — useful when you're
+  iterating on a tool's code and just want to check the exe builds.
 - `.\build.ps1 -Inno` — skips the PyInstaller step entirely and reuses
-  whatever's already in `dist/`; just reassembles `toolbox/` and recompiles
-  `toolbox_installer.iss`. Use this after a `-Full` or `-Exe` build already
-  succeeded and you're only iterating on the Inno Setup script itself —
-  recompiling just the installer takes seconds instead of minutes.
+  whatever's already in `build_output/dist/`; just reassembles
+  `build_output/toolbox/` and recompiles `toolbox_installer.iss`. Use this
+  after a `-Full` or `-Exe` build already succeeded and you're only
+  iterating on the Inno Setup script itself — recompiling just the
+  installer takes seconds instead of minutes.
+
+Every artifact from any of the above — PyInstaller's intermediate work
+files, its exe output, the assembled installer payload, and the compiled
+installer — lands under one gitignored `build_output/` folder
+(`build_output/work/`, `build_output/dist/`, `build_output/toolbox/`,
+`build_output/installer/` respectively) instead of four separate top-level
+folders.
 
 ```bash
 # macOS/Linux — build_mac.sh
@@ -115,9 +139,10 @@ pyinstaller --onefile src/mooi_toolbox/cli/vrlab_crane_process.py
 pyinstaller --onefile src/mooi_toolbox/cli/mobi_FOH_assess_data.py
 ```
 
-The output lands in `dist/`. If PyInstaller complains about an obsolete
-`pathlib` backport package being installed, `pip uninstall pathlib` — modern
-Python already includes `pathlib` in the standard library.
+The output lands in `build_output/dist/`. If PyInstaller complains about an
+obsolete `pathlib` backport package being installed, `pip uninstall
+pathlib` — modern Python already includes `pathlib` in the standard
+library.
 
 !!! note "Going further"
     `build_mac.sh` only builds two of the toolbox's tools, as plain
@@ -129,14 +154,16 @@ Python already includes `pathlib` in the standard library.
 
 ## The installer
 
-`build.ps1` doesn't stop at building exes — after every `specs/*.spec` file
+`build.ps1` doesn't stop at building exes — after `specs/toolbox.spec`
 builds, it also:
 
 1. Resolves a version string via `git describe --tags --always`.
-2. Copies every resulting `dist/*.exe` into a fresh `toolbox/` folder.
+2. Copies `build_output/dist/mooi_toolbox/*` into a fresh
+   `build_output/toolbox/` folder.
 3. Compiles `toolbox_installer.iss` (an [Inno Setup](https://jrsoftware.org/isinfo.php)
    script, in the workspace root) with `ISCC.exe`, producing
-   `Output\MooiToolboxSetup.exe`.
+   `build_output\installer\MooiToolboxSetup.exe` (`OutputDir` in
+   `toolbox_installer.iss`'s `[Setup]` section).
 
 `toolbox_installer.iss` is deliberately a **current-user, no-admin** install
 (`PrivilegesRequired=lowest`) — appropriate for lab machines where installing
@@ -215,38 +242,27 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements.txt
       - run: pip install -e . --no-deps
+      - run: pyinstaller --workpath build_output/work --distpath build_output/dist specs/toolbox.spec
       - run: |
-          pyinstaller specs/vrlab_crane_process.spec
-          pyinstaller specs/vrlab_foh_assess_data.spec
-      - run: |
-          $built = @('vrlab_crane_process.spec', 'vrlab_foh_assess_data.spec')
-          Get-ChildItem -Path specs -Filter *.spec |
-            Where-Object { $built -notcontains $_.Name } |
-            ForEach-Object { pyinstaller $_.FullName }
-      - run: |
-          New-Item -ItemType Directory -Path toolbox | Out-Null
-          Copy-Item dist\*.exe toolbox
+          New-Item -ItemType Directory -Path build_output/toolbox | Out-Null
+          Copy-Item build_output\dist\mooi_toolbox\* build_output\toolbox -Recurse
       - run: choco install innosetup -y
       - run: |
           $version = "${{ github.ref_name }}" -replace '^v',''
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" toolbox_installer.iss "/DMyAppVersion=$version"
       - uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/vrlab_crane_process.exe
-            dist/vrlab_foh_assess_data.exe
-            Output/*.exe
-            Output/*.bin
+          files: build_output/installer/*.exe
 ```
 
 Pushing any tag matching `v*` (e.g. `v1.2.0`) makes GitHub check out the
-repo on a fresh Windows machine, install everything, build every tool's exe,
-install Inno Setup via [Chocolatey](https://chocolatey.org/) (not present on
-the runner by default), compile the installer — using the pushed tag itself
-as the installer's version, rather than `git describe` — and attach both the
-two original raw exes and the compiled installer (`Output/*.exe`, plus any
-`Output/*.bin` slice files Inno produces if the installer crosses its
-size-splitting threshold) to a GitHub Release. All of it automatic, with no
+repo on a fresh Windows machine, install everything, build every tool's exe
+from the single `specs/toolbox.spec`, install Inno Setup via
+[Chocolatey](https://chocolatey.org/) (not present on the runner by
+default), compile the installer — using the pushed tag itself as the
+installer's version, rather than `git describe` — and attach the compiled
+installer (`build_output/installer/*.exe`, resolved via `OutputDir` in
+`toolbox_installer.iss`) to a GitHub Release. All of it automatic, with no
 one needing to run the build script by hand.
 
 `pyproject.toml` itself doesn't trigger the build — that's this workflow

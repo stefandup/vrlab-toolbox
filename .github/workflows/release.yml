@@ -25,12 +25,12 @@ jobs:
         run: pip install -e . --no-deps
 
       - name: Build toolbox exes
-        run: pyinstaller specs/toolbox.spec
+        run: pyinstaller --workpath build_output/work --distpath build_output/dist specs/toolbox.spec
 
       - name: Assemble toolbox folder
         run: |
-          New-Item -ItemType Directory -Path toolbox | Out-Null
-          Copy-Item dist\mooi_toolbox\* toolbox -Recurse
+          New-Item -ItemType Directory -Path build_output/toolbox | Out-Null
+          Copy-Item build_output\dist\mooi_toolbox\* build_output\toolbox -Recurse
 
       - name: Install Inno Setup
         run: choco install innosetup -y
@@ -43,4 +43,4 @@ jobs:
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
-          files: Output/*.exe
+          files: build_output/installer/*.exe

@@ -1,5 +1,6 @@
 site_name: Mobi Mooi Toolbox
 docs_dir: docs
+site_dir: build_output/docs_site
 theme:
   name: material
   features:

@@ -27,6 +27,9 @@ DefaultDirName={localappdata}\Programs\MooiToolbox
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputBaseFilename=MooiToolboxSetup
+; Relative to this script's own directory (the repo root) -- keeps every build artifact
+; under one gitignored build_output/ tree instead of a top-level Output/ folder.
+OutputDir=build_output\installer
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -44,7 +47,7 @@ RestartApplications=no
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "toolbox\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "build_output\toolbox\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "assets\vrlab_icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Tasks]

@@ -16,8 +16,7 @@ class PhysiologyFileFormat(Enum):
 # gui/foh_bids_crosscheck_gui.py (the tag the crosscheck tool writes into filenames), but
 # nothing keeps them in sync -- they're two independent hardcoded strings. Find a nice way to
 # share one source of truth once this function starts reading crosscheck decisions instead of
-# guessing (see docs/bids_crosscheck_plan.md's "TODO (deferred, not scoped now)"), and see
-# docs/pipeline_next_steps.md item 25 -- the tagged filename shape itself changed too.
+# guessing (see docs/bids_crosscheck_plan.md's "TODO (deferred, not scoped now)").
 TASK_LABEL = "foh"
 logger = logging.getLogger(__name__)
 
