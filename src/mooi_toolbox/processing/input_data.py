@@ -82,13 +82,11 @@ class ParticipantConfig:
         output_folder_in.mkdir(parents=True, exist_ok=True)
 
         if log_folder_in is None:
-            log_folder_in = output_folder_in.parent / "logs"
+            log_folder_in = output_folder_in / "logs"
 
         log_folder_in.mkdir(parents=True, exist_ok=True)
 
         behaviour_fn_dict = {}
-        # TODO: implement cross checking for this toolbox.
-
         for behav_data_type in behaviour_data_types_in:
             glob_pattern = behav_data_type.filename_glob.format(participant_id=id_in)
 

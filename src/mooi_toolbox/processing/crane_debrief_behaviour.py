@@ -75,13 +75,12 @@ class CraneDebriefPipelineOutput(PipelineOutputData):
     )
 
 
+@dataclass
 class RawDebriefBehaviourData(RawBehaviourData):
-    validation_schema = crane_raw_debrief_file_schema
+    validation_schema: pa.DataFrameSchema = field(
+        default_factory=lambda: crane_raw_debrief_file_schema
+    )
     filename_glob = "sub-{participant_id}_*acq-debrief*.tsv"
-
-    @classmethod
-    def load_from_bids(cls, config_in: ParticipantConfig):
-        pass
 
     @classmethod
     def load_group_data_from_config(cls, config_in: ParticipantConfig) -> Self:
@@ -164,7 +163,13 @@ def get_group_debrief_data(group_data_fn: Path) -> pd.DataFrame:
 
     crane_debrief_df = df.filter(items=debrief_cols_filter)
 
-    return crane_debrief_df
+    try:
+        crane_debrief_df_validated = crane_raw_debrief_file_schema.validate(crane_debrief_df)
+    except pa.errors.SchemaErrors as e:
+        logger.error("Error loading %s: %s", debrief_fn, e.failure_cases.to_string(index=False))
+        raise
+
+    return crane_debrief_df_validated
 
 
 @deprecated("Older style data import")
