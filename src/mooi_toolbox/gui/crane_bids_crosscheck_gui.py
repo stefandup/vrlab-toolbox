@@ -44,6 +44,8 @@ from PySide6.QtWidgets import (
 )
 
 from mooi_toolbox.cli.crane_convert_to_bids import (
+    DEBRIEF_ID_CORRECTIONS_FILENAME,
+    RAW_FILENAME_ID_CORRECTIONS_FILENAME,
     CraneConversionSummary,
     convert_crane_to_bids,
     debrief_correction_key,
@@ -861,6 +863,10 @@ def main() -> None:
         convert_button_tooltip=(
             f"{DEFAULT_CONVERT_BUTTON_TOOLTIP} Also backfills a missing debrief file for an "
             "already-converted subject, if one wasn't matched on an earlier run."
+        ),
+        extra_backup_filenames=(
+            DEBRIEF_ID_CORRECTIONS_FILENAME,
+            RAW_FILENAME_ID_CORRECTIONS_FILENAME,
         ),
     )
 

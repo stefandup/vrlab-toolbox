@@ -69,6 +69,7 @@ from mooi_toolbox.processing.bids_crosscheck import (
     record_task_tag,
     remove_task_tag,
     restore_all_from_bids,
+    restore_backup_files,
     restore_subjects_from_bids,
     revert_all_decisions,
     save_pending_selections,
@@ -282,6 +283,7 @@ class BidsCrosscheckWindow(QMainWindow):
         extra_raw_actions: list[tuple[str, str, Callable[[Path, Path, QWidget], None]]]
         | None = None,
         convert_button_tooltip: str = DEFAULT_CONVERT_BUTTON_TOOLTIP,
+        extra_backup_filenames: tuple[str, ...] = (),
     ):
         """`raw_converter`, if given, adds a "Raw folder" selector and "Refresh BIDS" button
         above the BIDS folder one -- optional, dataset-specific (crane and FOH both supply
@@ -309,6 +311,14 @@ class BidsCrosscheckWindow(QMainWindow):
         callback)`, called as `callback(raw_folder, bids_folder, self)` once both are set.
         e.g. crane's "Fix debrief record IDs..." and "Fix raw filenames..." dialogs.
         Same "this window doesn't know what the callback does" contract as `raw_converter`.
+
+        `extra_backup_filenames`, if given, names dataset-specific files living alongside
+        `crosscheck.json` that "Backup crosscheck data..."/"Rebuild from backup..." should
+        also cover -- e.g. crane's `debrief_id_corrections.json`/
+        `raw_filename_id_corrections.json`, which an `extra_raw_actions` dialog writes and
+        `raw_converter` itself reads as input on the next conversion. This window doesn't
+        know what these files mean, only that they need to travel with a backup the same way
+        `crosscheck.json` does.
         """
         super().__init__()
         self.dataset_config = dataset_config
@@ -318,6 +328,7 @@ class BidsCrosscheckWindow(QMainWindow):
         self.override_file_filter = override_file_filter
         self.extra_raw_actions = extra_raw_actions or []
         self.convert_button_tooltip = convert_button_tooltip
+        self.extra_backup_filenames = extra_backup_filenames
         self.bids_folder: Path | None = None
         self.raw_folder: Path | None = None
         self.override_file: Path | None = None
@@ -518,20 +529,22 @@ class BidsCrosscheckWindow(QMainWindow):
         self.backup_button = QPushButton("Backup crosscheck data...")
         self.backup_button.setToolTip(
             "Copy this BIDS folder's recorded decisions (crosscheck.json, "
-            "excluded_subjects.json, and pending picks) to a folder of your choice. Keep this "
-            "alongside a backup of your raw folder: together they're enough to recreate a "
-            "fully crosschecked BIDS folder with \"Rebuild from backup...\" if this BIDS "
-            "folder is ever lost or corrupted -- everything else in it is either raw data "
-            "(already safe in the raw folder) or re-derivable by re-running this tool."
+            "excluded_subjects.json, and pending picks -- plus any other correction files "
+            "this dataset's tool uses) to a folder of your choice. Keep this alongside a "
+            "backup of your raw folder: together they're enough to recreate a fully "
+            "crosschecked BIDS folder with \"Rebuild from backup...\" if this BIDS folder is "
+            "ever lost or corrupted -- everything else in it is either raw data (already "
+            "safe in the raw folder) or re-derivable by re-running this tool."
         )
         self.backup_button.clicked.connect(self._on_backup_decisions)
         summary_bar.addWidget(self.backup_button)
 
         self.rebuild_button = QPushButton("Rebuild from backup...")
         self.rebuild_button.setToolTip(
-            "Disaster recovery: re-imports this BIDS folder from raw, then automatically "
-            "replays a backed-up crosscheck.json/excluded_subjects.json (see \"Backup "
-            "crosscheck data...\") so every past pick, tag, and correction is reapplied "
+            "Disaster recovery: puts back any dataset-specific correction files from a "
+            "backup (see \"Backup crosscheck data...\"), re-imports this BIDS folder from "
+            "raw, then automatically replays the backed-up crosscheck.json/"
+            "excluded_subjects.json so every past pick, tag, and correction is reapplied "
             "without redoing it by hand. Only for a BIDS folder that's empty or was just "
             "freshly (re-)created -- not for merging a backup into one that already has its "
             "own, different state."
@@ -1443,7 +1456,7 @@ class BidsCrosscheckWindow(QMainWindow):
         folder = QFileDialog.getExistingDirectory(self, "Select backup destination folder")
         if not folder:
             return
-        copied = backup_decisions(self.bids_folder, Path(folder))
+        copied = backup_decisions(self.bids_folder, Path(folder), self.extra_backup_filenames)
         if not copied:
             QMessageBox.information(
                 self,
@@ -1491,6 +1504,11 @@ class BidsCrosscheckWindow(QMainWindow):
 
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
+            # Dataset-specific pre-conversion correction files (e.g. crane's debrief/raw-
+            # filename id corrections) must already be in place *before* the converter runs,
+            # so the next conversion resolves ids the same way it originally did -- unlike
+            # crosscheck.json's decisions, which are replayed afterward.
+            restore_backup_files(backup_folder, self.bids_folder, self.extra_backup_filenames)
             self.raw_converter(self.raw_folder, self.bids_folder, self.override_file)
             resolved, unresolved = rebuild_from_raw(self.bids_folder, decisions, excluded)
         except Exception as error_raised:  # noqa: BLE001 -- arbitrary converter, shown not swallowed
@@ -2216,6 +2234,7 @@ def run_bids_crosscheck_app(
     extra_raw_actions: list[tuple[str, str, Callable[[Path, Path, QWidget], None]]]
     | None = None,
     convert_button_tooltip: str = DEFAULT_CONVERT_BUTTON_TOOLTIP,
+    extra_backup_filenames: tuple[str, ...] = (),
 ) -> None:
     app = QApplication.instance() or QApplication([])
     # Consistent tooltip look regardless of OS/theme default -- black text on white, matching
@@ -2236,6 +2255,7 @@ def run_bids_crosscheck_app(
         override_file_filter,
         extra_raw_actions,
         convert_button_tooltip,
+        extra_backup_filenames,
     )
     window.show()
     app.exec()

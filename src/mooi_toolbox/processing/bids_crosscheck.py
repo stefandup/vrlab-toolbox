@@ -1076,20 +1076,52 @@ def revert_all_decisions(bids_folder: Path) -> tuple[list[Path], list[str]]:
 BACKUP_FILENAMES = (DECISIONS_FILENAME, EXCLUDED_SUBJECTS_FILENAME, PENDING_SELECTIONS_FILENAME)
 
 
-def backup_decisions(bids_folder: Path, backup_folder: Path) -> list[Path]:
+def backup_decisions(
+    bids_folder: Path, backup_folder: Path, extra_filenames: tuple[str, ...] = ()
+) -> list[Path]:
     """Copy this BIDS folder's crosscheck record files -- decisions, exclusions, and
     uncommitted pending picks -- into `backup_folder`, so they survive the BIDS folder itself
-    being lost or corrupted. Nothing else in a BIDS folder needs backing up this way: the raw
-    data is already safe in the raw folder (never touched by this tool), and everything else
-    the crosscheck tool writes -- `crosscheck_info_cache.json` included -- is a re-derivable
-    cache, not a decision record. See `rebuild_from_raw` to restore from a backup made here.
+    being lost or corrupted. Nothing else in a BIDS folder needs backing up this way by
+    default: the raw data is already safe in the raw folder (never touched by this tool), and
+    everything else the crosscheck tool writes -- `crosscheck_info_cache.json` included -- is
+    a re-derivable cache, not a decision record.
+
+    `extra_filenames`, if given, adds dataset-specific files living alongside these (also
+    resolved relative to `bids_folder`) -- e.g. crane's `debrief_id_corrections.json`/
+    `raw_filename_id_corrections.json` (`cli/crane_convert_to_bids.py`), which aren't
+    `record_*`-style decisions but are still human-entered input a from-raw rebuild would
+    otherwise lose. See `restore_backup_files`/`rebuild_from_raw` to restore from a backup
+    made here.
     """
     backup_folder.mkdir(parents=True, exist_ok=True)
     copied: list[Path] = []
-    for filename in BACKUP_FILENAMES:
+    for filename in (*BACKUP_FILENAMES, *extra_filenames):
         source = bids_folder / filename
         if source.exists():
             destination = backup_folder / filename
+            shutil.copy2(source, destination)
+            copied.append(destination)
+    return copied
+
+
+def restore_backup_files(
+    backup_folder: Path, bids_folder: Path, filenames: tuple[str, ...]
+) -> list[Path]:
+    """Copy each of `filenames` from `backup_folder` into `bids_folder` verbatim, if present.
+
+    For dataset-specific files that a raw-to-BIDS *converter* itself reads as input (e.g.
+    crane's debrief/raw-filename id corrections) rather than files `rebuild_from_raw` replays
+    after the fact -- these need to already be sitting in `bids_folder` *before* the converter
+    runs, so the next conversion resolves ids exactly as it originally would have, not only
+    being recoverable for the decisions made afterward. Called ahead of the `raw_converter`
+    hook, before `rebuild_from_raw`.
+    """
+    bids_folder.mkdir(parents=True, exist_ok=True)
+    copied: list[Path] = []
+    for filename in filenames:
+        source = backup_folder / filename
+        if source.exists():
+            destination = bids_folder / filename
             shutil.copy2(source, destination)
             copied.append(destination)
     return copied

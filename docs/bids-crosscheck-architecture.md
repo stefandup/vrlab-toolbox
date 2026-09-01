@@ -171,6 +171,21 @@ handle this:
   `load_decisions`/`load_excluded_subjects` already used for the live BIDS
   folder — both take a bare folder path) before calling this.
 
+Not every dataset-specific correction fits `crosscheck.json`'s "decision
+about an already-converted file" shape, though — crane's
+`debrief_id_corrections.json`/`raw_filename_id_corrections.json`
+(`cli/crane_convert_to_bids.py`, surfaced via its own `extra_raw_actions`
+dialogs) are *inputs* the converter itself reads on the next "Refresh BIDS"
+run, not something to replay afterward. `BidsCrosscheckWindow`'s
+`extra_backup_filenames` constructor parameter (set by
+`crane_bids_crosscheck_gui.py`, empty for FOH) names these so
+`backup_decisions` includes them too, and a new `restore_backup_files`
+function puts them back into `bids_folder` *before* `raw_converter` runs
+during a rebuild — the window itself doesn't know what these files mean,
+only that they need to travel with a backup the same way `crosscheck.json`
+does (the same "this window doesn't know what the callback does" contract
+`extra_raw_actions` already uses).
+
 ## Extending: adding a new dataset
 
 A new dataset needs exactly two things: a `DatasetConfig`, and a `main()`

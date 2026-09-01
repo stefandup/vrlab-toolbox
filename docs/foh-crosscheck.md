@@ -493,6 +493,14 @@ else you spot — type the corrected filename directly (keeping the same
 file extension) and it's renamed, with any `scans.tsv` reference to it kept
 in sync automatically.
 
+Crane also has two extra raw-side correction dialogs near the top of the
+window — **"Fix debrief record IDs..."** and **"Fix raw filenames..."** —
+for declaring a corrected subject id where the raw data itself is
+ambiguous. **"Backup crosscheck data..."**/**"Rebuild from backup..."**
+(see [above](#backing-up-and-rebuilding-after-a-lost-bids-folder)) include
+these automatically for Crane, since a rebuild needs them in place *before*
+Refresh BIDS runs, not just the decisions made afterward.
+
 ---
 
 **Also see:** [BIDS Crosscheck Plan](bids_crosscheck_plan.md) for the

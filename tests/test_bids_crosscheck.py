@@ -26,6 +26,7 @@ from mooi_toolbox.processing.bids_crosscheck import (
     record_task_tag,
     remove_task_tag,
     restore_all_from_bids,
+    restore_backup_files,
     revert_all_decisions,
     save_pending_selections,
     scan_bids_folder,
@@ -1007,6 +1008,61 @@ class TestBackupDecisions(unittest.TestCase):
         copied = backup_decisions(self.bids_folder, self.backup_folder)
 
         self.assertEqual(copied, [])
+
+    def test_includes_extra_dataset_specific_files_when_given(self):
+        # e.g. crane's debrief_id_corrections.json/raw_filename_id_corrections.json -- not a
+        # record_* decision, but still human-entered input a rebuild would otherwise lose.
+        _touch(self.bids_folder / "debrief_id_corrections.json").write_text("{}")
+
+        copied = backup_decisions(
+            self.bids_folder, self.backup_folder, extra_filenames=("debrief_id_corrections.json",)
+        )
+
+        self.assertTrue((self.backup_folder / "debrief_id_corrections.json").exists())
+        self.assertIn(self.backup_folder / "debrief_id_corrections.json", copied)
+
+    def test_ignores_an_extra_filename_that_does_not_exist(self):
+        copied = backup_decisions(
+            self.bids_folder, self.backup_folder, extra_filenames=("does_not_exist.json",)
+        )
+
+        self.assertEqual(copied, [])
+
+
+class TestRestoreBackupFiles(unittest.TestCase):
+    def setUp(self):
+        self.backup_folder = Path(tempfile.mkdtemp())
+        self.bids_folder = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        shutil.rmtree(self.backup_folder, ignore_errors=True)
+        shutil.rmtree(self.bids_folder, ignore_errors=True)
+
+    def test_copies_named_files_into_a_fresh_bids_folder(self):
+        (self.backup_folder / "debrief_id_corrections.json").write_text('{"0001": "PID1"}')
+
+        copied = restore_backup_files(
+            self.backup_folder, self.bids_folder, ("debrief_id_corrections.json",)
+        )
+
+        destination = self.bids_folder / "debrief_id_corrections.json"
+        self.assertEqual(copied, [destination])
+        self.assertEqual(destination.read_text(), '{"0001": "PID1"}')
+
+    def test_ignores_a_named_file_missing_from_the_backup(self):
+        copied = restore_backup_files(
+            self.backup_folder, self.bids_folder, ("does_not_exist.json",)
+        )
+
+        self.assertEqual(copied, [])
+
+    def test_creates_the_bids_folder_if_it_does_not_exist_yet(self):
+        missing = self.bids_folder / "not-created-yet"
+        (self.backup_folder / "debrief_id_corrections.json").write_text("{}")
+
+        restore_backup_files(self.backup_folder, missing, ("debrief_id_corrections.json",))
+
+        self.assertTrue((missing / "debrief_id_corrections.json").exists())
 
 
 class TestRebuildFromRaw(unittest.TestCase):
