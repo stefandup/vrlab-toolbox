@@ -32,7 +32,12 @@ logger = logging.getLogger(__name__)
 @click.option("--subject_id", required=False, default="", help="Process a single participant")
 @click.option("--verbose", is_flag=True, help="Give verbose output")
 def main(input_folder: Path, output_folder: Path, verbose: bool, subject_id: str):
-    """CLI tool for batch processing VRLab crane behaviour and physiology data."""
+    """CLI tool for batch processing VRLab crane behaviour and physiology data.
+
+    `input_folder` must be a BIDS-formatted folder. This assumes the data has
+    already been through the crosscheck tool (i.e. vrlab_crane_bids_crosscheck.exe)
+    so duplicate runs and id/date corrections are resolved before processing.
+    """
     log_folder = Path.joinpath(output_folder, "logs")
     log_folder.mkdir(parents=True, exist_ok=True)
     mobi_logging.init(__file__, log_dir_in=log_folder)

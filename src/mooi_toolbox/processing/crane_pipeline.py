@@ -121,6 +121,12 @@ class CranePipelineOutputData(PipelineOutputData):
 def run_pipeline(
     participant_id_in: str, data_folder_in: Path, output_folder_in: Path | None = None
 ) -> CranePipelineOutputData:
+    """Run the crane behaviour/physiology pipeline for a single participant.
+
+    `data_folder_in` must be a BIDS-formatted folder. This assumes the data has
+    already been through the crosscheck tool (`gui/crane_bids_crosscheck_gui.py`)
+    so duplicate runs and id/date corrections are resolved before processing.
+    """
 
     import_behav_steps = pipeline.SequentialBehaviourImportSteps(
         steps=[ImportCraneBehaviourDataStrategyStep(), ImportCraneDebriefDataProcessStrategyStep()]
