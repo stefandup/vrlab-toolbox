@@ -27,7 +27,9 @@ logger = logging.getLogger(__name__)
 @click.option("--verbose", is_flag=True, help="Give verbose output")
 def main(input_folder: Path, output_folder: Path, verbose: bool):
     """CLI tool for processing and plotting MOBI LSL data for FOH VR task"""
-
+    log_folder = Path.joinpath(output_folder, "logs")
+    log_folder.mkdir(parents=True, exist_ok=True)
+    mobi_logging.init(__file__, log_dir_in=log_folder)
     logger.info(f"Looking into input folder: {input_folder}. Output folder: {output_folder}")
 
     out_fn = os.path.join(output_folder, "FOH_process_batch_out")
@@ -99,5 +101,4 @@ def main(input_folder: Path, output_folder: Path, verbose: bool):
 
 
 if __name__ == "__main__":
-    mobi_logging.init(__file__)
     main()

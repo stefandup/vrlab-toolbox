@@ -209,11 +209,31 @@ directory -- only a filename suffix within another datatype's folder), `motion`
 not EDA/ECG), and `foh` itself (not real BIDS vocabulary at all -- same problem
 already avoided in filenames by not tacking `_foh` onto more than the run token).
 
+**Update (2026-09-01): decisions are now a history, not a single record per key,
+and a decisions backup can be replayed onto a fresh raw import.** `crosscheck.json`
+used to store exactly one entry per `{subject_id}_{scan_type}` key, overwritten by
+whichever decision was recorded most recently — so a file corrected twice (e.g.
+date-fixed, then tagged) only had the second correction on record, and "Revert all
+changes" could only undo that latest step. `load_decisions`/`_append_decision`/
+`_latest_decision` (`processing/bids_crosscheck.py`) changed this to an append-only
+list per key (oldest first), transparently upgrading an old single-entry file to
+`[entry]` on load — no manual migration needed for a `crosscheck.json` already in
+use. `revert_all_decisions` now walks each key's history newest-to-oldest, so a
+file corrected more than once reverts all the way back to its true original name.
+This also made a real disaster-recovery story possible: `backup_decisions` copies
+`crosscheck.json`/`excluded_subjects.json`/`crosscheck_pending.json` to a folder of
+your choice (deliberately not `crosscheck_info_cache.json` — that's a re-derivable
+performance cache, not a decision record), and `rebuild_from_raw` replays a backed-up
+history's filesystem effects onto a BIDS folder that's just been freshly re-imported
+from raw, resolving out-of-order entries via a retry loop rather than requiring them
+in exact chronological order (JSON's `sort_keys=True` write means on-disk key order
+was never chronological anyway). Anything that can't be matched against what's
+actually on disk is reported unresolved rather than guessed at, in keeping with this
+tool's "never guess" philosophy (see the FOH stream-indicators section above). See
+[BIDS Crosscheck: Architecture](bids-crosscheck-architecture.md) for the code map.
+
 ## Deliberately out of scope for now
 
-- **No rule-based replay** against re-converted raw data — the converter's naming
-  is deterministic, so a flat filename-keyed JSON is enough; no need to store a
-  replay rule.
 - **No automatic collision resolution** — see above.
 - **No signal/trigger-level QC** (trial intervals, EDA/ECG processing) — that's the
   separately-planned `gui/crane_interval_qc_gui.py` tool's job (see

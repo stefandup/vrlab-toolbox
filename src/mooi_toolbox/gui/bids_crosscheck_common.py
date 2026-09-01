@@ -49,12 +49,16 @@ from mooi_toolbox.processing.bids_crosscheck import (
     BidsFolderScan,
     DatasetConfig,
     SubjectScan,
+    backup_decisions,
     completeness_summary,
     crosschecked_scan_types,
     ensure_bidsignore,
     list_scans_tsv_rows,
+    load_decisions,
+    load_excluded_subjects,
     load_pending_selections,
     read_scans_tsv_date,
+    rebuild_from_raw,
     record_date_correction,
     record_filename_correction,
     record_id_correction,
@@ -503,14 +507,39 @@ class BidsCrosscheckWindow(QMainWindow):
         self.revert_all_button = QPushButton("Revert all changes...")
         self.revert_all_button.setToolTip(
             "Reverse every recorded rename (date/ID/tag corrections) and clear all recorded "
-            "decisions, including crosschecked marks. Bulk only in this version -- there's "
-            "no way to revert just one decision; it's everything recorded, or nothing. Only "
-            "reverts the LATEST recorded decision per subject/scan-type -- a file corrected "
-            "more than once can't be reverted past its first correction. Removed subjects "
-            "are untouched -- use \"Restore all from raw folder\" for those."
+            "decisions, including crosschecked marks -- all the way back through a file's full "
+            "correction history, not just its latest change. Bulk only in this version -- "
+            "there's no way to revert just one decision; it's everything recorded, or nothing. "
+            "Removed subjects are untouched -- use \"Restore all from raw folder\" for those."
         )
         self.revert_all_button.clicked.connect(self._on_revert_all_decisions)
         summary_bar.addWidget(self.revert_all_button)
+
+        self.backup_button = QPushButton("Backup crosscheck data...")
+        self.backup_button.setToolTip(
+            "Copy this BIDS folder's recorded decisions (crosscheck.json, "
+            "excluded_subjects.json, and pending picks) to a folder of your choice. Keep this "
+            "alongside a backup of your raw folder: together they're enough to recreate a "
+            "fully crosschecked BIDS folder with \"Rebuild from backup...\" if this BIDS "
+            "folder is ever lost or corrupted -- everything else in it is either raw data "
+            "(already safe in the raw folder) or re-derivable by re-running this tool."
+        )
+        self.backup_button.clicked.connect(self._on_backup_decisions)
+        summary_bar.addWidget(self.backup_button)
+
+        self.rebuild_button = QPushButton("Rebuild from backup...")
+        self.rebuild_button.setToolTip(
+            "Disaster recovery: re-imports this BIDS folder from raw, then automatically "
+            "replays a backed-up crosscheck.json/excluded_subjects.json (see \"Backup "
+            "crosscheck data...\") so every past pick, tag, and correction is reapplied "
+            "without redoing it by hand. Only for a BIDS folder that's empty or was just "
+            "freshly (re-)created -- not for merging a backup into one that already has its "
+            "own, different state."
+        )
+        self.rebuild_button.setVisible(self.raw_converter is not None)
+        self.rebuild_button.setEnabled(False)
+        self.rebuild_button.clicked.connect(self._on_rebuild_from_backup)
+        summary_bar.addWidget(self.rebuild_button)
 
         root_layout.addLayout(summary_bar)
         self._update_commit_all_button()
@@ -624,6 +653,7 @@ class BidsCrosscheckWindow(QMainWindow):
             return
         both_selected = self.raw_folder is not None and self.bids_folder is not None
         self.convert_button.setEnabled(both_selected)
+        self.rebuild_button.setEnabled(both_selected)
         for button in self.extra_raw_action_buttons:
             button.setEnabled(both_selected)
         self.reveal_raw_button.setEnabled(self.raw_folder is not None)
@@ -1392,12 +1422,11 @@ class BidsCrosscheckWindow(QMainWindow):
             self,
             "Revert all changes",
             "This will reverse every recorded rename (date/ID/tag corrections) and clear "
-            "every recorded decision, including crosschecked marks. There's no selective "
-            "revert in this version -- it's everything recorded, or nothing. Only the "
-            "LATEST recorded decision per subject/scan-type can be reverted -- a file "
-            "corrected more than once can't be reverted past its first correction. Removed "
-            "subjects are untouched -- use \"Restore all from raw folder\" first if you want "
-            "those back too. Continue?",
+            "every recorded decision, including crosschecked marks -- all the way back "
+            "through a file's full correction history, not just its latest change. There's "
+            "no selective revert in this version -- it's everything recorded, or nothing. "
+            "Removed subjects are untouched -- use \"Restore all from raw folder\" first if "
+            "you want those back too. Continue?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -1407,6 +1436,82 @@ class BidsCrosscheckWindow(QMainWindow):
         if errors:
             QMessageBox.warning(self, "Some decisions could not be reverted", "\n".join(errors))
         self._rescan(reload_pending=True)
+
+    def _on_backup_decisions(self) -> None:
+        if self.bids_folder is None:
+            return
+        folder = QFileDialog.getExistingDirectory(self, "Select backup destination folder")
+        if not folder:
+            return
+        copied = backup_decisions(self.bids_folder, Path(folder))
+        if not copied:
+            QMessageBox.information(
+                self,
+                "Nothing to back up",
+                "No crosscheck records exist yet for this BIDS folder.",
+            )
+            return
+        QMessageBox.information(self, "Backup complete", f"Copied {len(copied)} file(s) to {folder}.")
+
+    def _on_rebuild_from_backup(self) -> None:
+        """Disaster recovery: re-import from raw, then replay a backed-up crosscheck.json/
+        excluded_subjects.json (see `_on_backup_decisions`) onto the fresh import -- see
+        `rebuild_from_raw`. Requires the same raw_converter hook "Refresh BIDS" already uses,
+        so it's only offered when that's configured.
+        """
+        if self.raw_converter is None or self.raw_folder is None or self.bids_folder is None:
+            return
+        folder = QFileDialog.getExistingDirectory(self, "Select backup folder to rebuild from")
+        if not folder:
+            return
+        backup_folder = Path(folder)
+        decisions = load_decisions(backup_folder)
+        excluded = load_excluded_subjects(backup_folder)
+        if not decisions and not excluded:
+            QMessageBox.warning(
+                self,
+                "No backup found",
+                f"No crosscheck.json or excluded_subjects.json found in {backup_folder}.",
+            )
+            return
+
+        confirm = QMessageBox.question(
+            self,
+            "Rebuild from backup",
+            "This re-imports this BIDS folder from raw, then replays every recorded decision "
+            f"from the backup at {backup_folder} -- picks, tags, and corrections alike -- to "
+            "reconstruct the same crosschecked state, without redoing it by hand. Only use "
+            "this on a BIDS folder that's empty or was just freshly created -- it isn't a "
+            "merge into one that already has its own, different state. Continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            self.raw_converter(self.raw_folder, self.bids_folder, self.override_file)
+            resolved, unresolved = rebuild_from_raw(self.bids_folder, decisions, excluded)
+        except Exception as error_raised:  # noqa: BLE001 -- arbitrary converter, shown not swallowed
+            logger.exception("Rebuild from backup failed")
+            QApplication.restoreOverrideCursor()
+            QMessageBox.warning(self, "Rebuild failed", str(error_raised))
+            return
+        QApplication.restoreOverrideCursor()
+
+        if unresolved:
+            QMessageBox.warning(
+                self,
+                "Rebuild finished with some items unresolved",
+                f"Reapplied {len(resolved)} decision(s). {len(unresolved)} could not be "
+                "auto-replayed and need a manual look:\n\n" + "\n".join(unresolved),
+            )
+        else:
+            QMessageBox.information(
+                self, "Rebuild complete", f"Reapplied {len(resolved)} decision(s) from backup."
+            )
+        self.load_bids_folder(self.bids_folder)
 
     def _build_scan_type_group(self, subject_id: str, subject_scan: SubjectScan) -> QGroupBox:
         file_word = "file" if len(subject_scan.files) == 1 else "files"

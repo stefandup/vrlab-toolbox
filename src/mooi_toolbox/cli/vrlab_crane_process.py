@@ -33,7 +33,9 @@ logger = logging.getLogger(__name__)
 @click.option("--verbose", is_flag=True, help="Give verbose output")
 def main(input_folder: Path, output_folder: Path, verbose: bool, subject_id: str):
     """CLI tool for batch processing VRLab crane behaviour and physiology data."""
-
+    log_folder = Path.joinpath(output_folder, "logs")
+    log_folder.mkdir(parents=True, exist_ok=True)
+    mobi_logging.init(__file__, log_dir_in=log_folder)
     participant_data_out = None
 
     logger.info("Looking into input folder: %s. Output folder: %s", input_folder, output_folder)
@@ -124,5 +126,4 @@ def main(input_folder: Path, output_folder: Path, verbose: bool, subject_id: str
 
 
 if __name__ == "__main__":
-    mobi_logging.init(__file__)
     main()

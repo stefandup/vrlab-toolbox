@@ -8,13 +8,17 @@ LOG_DATE_FORMAT = "%Y-%m-%d %H:%M"
 
 
 # Configure logging
-def init(caller_file):
-    if getattr(sys, "frozen", False):
-        PROJECT_ROOT = Path(sys.executable).resolve().parent
-    else:
-        PROJECT_ROOT = Path(caller_file).resolve().parents[3]
+def init(caller_file, log_dir_in: Path | None = None):
 
-    LOG_DIR = PROJECT_ROOT / "logs"
+    if log_dir_in is None:
+        if getattr(sys, "frozen", False):
+            PROJECT_ROOT = Path(sys.executable).resolve().parent
+        else:
+            PROJECT_ROOT = Path(caller_file).resolve().parents[3]
+
+        LOG_DIR = PROJECT_ROOT / "logs"
+    else:
+        LOG_DIR = log_dir_in
 
     if not os.path.exists(LOG_DIR):
         os.mkdir(LOG_DIR)

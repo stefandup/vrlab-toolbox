@@ -92,6 +92,14 @@ you use the tool:
   except `crosschecked` uses a *different* key (`_crosschecked_key`, same
   base plus `_crosschecked`) so marking something crosschecked can never
   overwrite an existing `selected_run` entry for that same subject/scan-type.
+  **Update (2026-09-01):** each key's value is a *list* of decisions, oldest
+  first (`_append_decision`/`_latest_decision`), not one dict — a later
+  correction on the same key no longer erases an earlier one. An old
+  single-entry `crosscheck.json` is transparently upgraded to `[entry]` on
+  load, so nothing already on disk needs migrating by hand. Most callers
+  (`crosschecked_scan_types`, `existing_subject_ids`) only need
+  `_latest_decision`, i.e. current state; `revert_all_decisions` and
+  `rebuild_from_raw` (below) are the two that walk the full history.
 - **`crosscheck_pending.json`** — radio picks made but not yet committed
   (`load_pending_selections`/`save_pending_selections`). Kept in a
   *separate* file from `crosscheck.json` on purpose: these aren't decisions
@@ -121,6 +129,47 @@ you use the tool:
 
 Both JSON writes go through `_write_json_atomic` — write to a `.tmp` file,
 then `os.replace()` — so a crash mid-write can't corrupt either file.
+
+## Backup and disaster recovery
+
+Everything in a BIDS folder is either raw data (already safe — the raw folder
+is never touched, see "BIDS folder only" in the plan) or one of the JSON
+files above; only `crosscheck.json`/`excluded_subjects.json`/
+`crosscheck_pending.json` actually need backing up (`crosscheck_info_cache.json`
+is a re-derivable performance cache, not a decision record). Two functions
+handle this:
+
+- **`backup_decisions(bids_folder, backup_folder)`** — copies those three
+  files to `backup_folder`. Wired to the GUI's "Backup crosscheck data..."
+  button.
+- **`rebuild_from_raw(bids_folder, decisions, excluded)`** — the recovery
+  side. Assumes `bids_folder` has *just* been freshly re-imported from raw
+  (the GUI runs the existing `raw_converter`/"Refresh BIDS" hook first,
+  unchanged), then replays every decision's filesystem effect against it —
+  the same rename/delete each `record_*` function performs, but computed
+  directly from what the entry already recorded (`original_filename` →
+  `corrected_filename`, etc.) rather than recomputed from scratch, so there's
+  one definition of what each decision type means, not two. The one
+  exception is `id_correction`, which re-applies the same original/corrected
+  id token-replacement rule `record_id_correction` uses, since its entry
+  stores the original relative paths rather than each file's new name.
+
+  Every entry (across every key) is retried pass after pass until a pass
+  makes no further progress, rather than walked once in a fixed order — two
+  things can make an entry temporarily unresolvable: it isn't the oldest
+  step in its own key's chain yet (its `original_filename` doesn't exist
+  until an earlier entry in the same list produces it), or it depends on an
+  `id_correction` recorded under a *different* key finishing first. Both
+  resolve themselves once whatever they were waiting on succeeds on an
+  earlier pass — no explicit ordering/timestamp needed, and notably not
+  derivable from `crosscheck.json`'s on-disk key order anyway, since
+  `_write_json_atomic` writes with `sort_keys=True`. Whatever still can't
+  resolve once no pass makes progress is reported unresolved rather than
+  guessed at (see "no automatic collision resolution" in the plan for why).
+  Wired to the GUI's "Rebuild from backup..." button, which loads
+  `decisions`/`excluded` from a chosen backup folder (via the same
+  `load_decisions`/`load_excluded_subjects` already used for the live BIDS
+  folder — both take a bare folder path) before calling this.
 
 ## Extending: adding a new dataset
 

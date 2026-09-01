@@ -26,7 +26,7 @@ AppUpdatesURL={#MyAppURL}
 DefaultDirName={localappdata}\Programs\MooiToolbox
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
-OutputBaseFilename=MooiToolboxSetup
+OutputBaseFilename=MooiToolboxSetup-{#MyAppVersion}
 ; Relative to this script's own directory (the repo root) -- keeps every build artifact
 ; under one gitignored build_output/ tree instead of a top-level Output/ folder.
 OutputDir=build_output\installer
@@ -115,7 +115,10 @@ var
   UninstallKey: String;
   UninstallString: String;
 begin
-  UninstallKey := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#MyAppId}_is1';
+  // {#MyAppId} preprocesses to the bare GUID text with no braces (see the AppId= comment
+  // in [Setup]) -- but the registry key Inno actually creates has the braces. They're added
+  // here as their own literal string segments so nothing collapses them the way "{{" would.
+  UninstallKey := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{' + '{#MyAppId}' + '}_is1';
   if not RegQueryStringValue(HKCU, UninstallKey, 'QuietUninstallString', UninstallString) then
     RegQueryStringValue(HKCU, UninstallKey, 'UninstallString', UninstallString);
   Result := UninstallString;
@@ -124,6 +127,28 @@ end;
 function IsUpgrade(): Boolean;
 begin
   Result := (GetUninstallString() <> '');
+end;
+
+// QuietUninstallString (preferred by GetUninstallString above) is a full command line --
+// '"<path>" /SILENT' -- not a bare path. RemoveQuotes only strips a leading/trailing quote
+// *character*, so fed a string that doesn't end on a quote (because arguments follow it) it
+// only strips the leading one, leaving the trailing '" /SILENT' stuck onto the path. This pulls
+// out just the quoted (or, lacking quotes, whole) path and drops any trailing arguments --
+// UninstallOldVersion supplies its own switches regardless of what was baked into this value.
+function ExtractExePath(const CommandLine: String): String;
+var
+  ClosingQuote: Integer;
+begin
+  if (Length(CommandLine) > 0) and (CommandLine[1] = '"') then
+  begin
+    ClosingQuote := Pos('"', Copy(CommandLine, 2, Length(CommandLine) - 1));
+    if ClosingQuote > 0 then
+    begin
+      Result := Copy(CommandLine, 2, ClosingQuote - 1);
+      exit;
+    end;
+  end;
+  Result := CommandLine;
 end;
 
 // Runs the previous version's own uninstaller fully silently and waits for it to finish, so
@@ -136,30 +161,20 @@ end;
 procedure UninstallOldVersion();
 var
   UninstallString: String;
-  ExecOk: Boolean;
   ResultCode: Integer;
 begin
   UninstallString := GetUninstallString();
   if UninstallString = '' then
     exit;
-  UninstallString := RemoveQuotes(UninstallString);
-  // TEMP DEBUG -- remove once the overwrite-on-upgrade issue is diagnosed.
-  MsgBox('DEBUG: about to run old uninstaller:' #13#10 + UninstallString, mbInformation, MB_OK);
-  ExecOk := Exec(UninstallString, '/VERYSILENT /NORESTART /SUPPRESSMSGBOXES', '', SW_HIDE,
+  UninstallString := ExtractExePath(UninstallString);
+  Exec(UninstallString, '/VERYSILENT /NORESTART /SUPPRESSMSGBOXES', '', SW_HIDE,
     ewWaitUntilTerminated, ResultCode);
-  // TEMP DEBUG -- remove once the overwrite-on-upgrade issue is diagnosed.
-  MsgBox('DEBUG: old uninstaller finished.' #13#10
-    + 'Exec launched OK: ' + IntToStr(Ord(ExecOk)) + #13#10
-    + 'ResultCode: ' + IntToStr(ResultCode), mbInformation, MB_OK);
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssInstall then
   begin
-    // TEMP DEBUG -- remove once the overwrite-on-upgrade issue is diagnosed.
-    MsgBox('DEBUG: IsUpgrade = ' + IntToStr(Ord(IsUpgrade()))
-      + #13#10 'GetUninstallString = "' + GetUninstallString() + '"', mbInformation, MB_OK);
     if IsUpgrade() then
       UninstallOldVersion();
   end

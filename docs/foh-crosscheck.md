@@ -414,6 +414,24 @@ Made a mistake? How you undo it depends on what you're trying to take back:
     Subjects removed from BIDS aren't touched by "Revert all changes" —
     if you want everything back, restore those first.
 
+### Backing up, and rebuilding after a lost BIDS folder
+
+Everything in your BIDS folder is either raw data (already safe — your raw
+folder is never touched by this tool) or bookkeeping this tool writes as you
+work. Only the bookkeeping is worth backing up on its own: click **"Backup
+crosscheck data..."** near the top of the window and pick a folder — it
+copies the small set of files that record every decision you've made.
+
+If the BIDS folder itself is ever lost or corrupted, click **"Rebuild from
+backup..."**, pick the backup folder you made earlier, and confirm. This
+re-imports fresh from your raw folder, then automatically replays every past
+pick, tag, and correction from the backup — you don't redo any of it by
+hand. It's only meant for a BIDS folder that's empty or was just freshly
+created, not for merging a backup into one that already has its own,
+different state. If anything couldn't be automatically matched back up (rare
+— it means the raw data itself changed since the backup was made), you'll
+get a summary of exactly what needs a manual look, rather than a silent gap.
+
 !!! note "Want a completely fresh start instead?"
     There's no single "clear everything and start over" button in this
     tool, on purpose. Restoring and reverting (above) only ever undo

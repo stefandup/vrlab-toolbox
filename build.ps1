@@ -15,10 +15,12 @@ $BuildOutput = Join-Path $PSScriptRoot "build_output"
 $WorkPath = Join-Path $BuildOutput "work"
 $DistPath = Join-Path $BuildOutput "dist"
 $ToolboxPath = Join-Path $BuildOutput "toolbox"
-# The compiled installer's own output path (build_output/installer) is set via
-# toolbox_installer.iss's OutputDir, not here -- ISCC is always invoked with that script's
-# directory as the repo root, so a relative OutputDir there resolves the same way regardless
-# of who invokes it (this script or release.yml).
+# toolbox_installer.iss's OutputDir also points here (relative to that script's own directory,
+# which is always the repo root regardless of who invokes ISCC -- this script or release.yml).
+# Tracked here too so Build-Installer can clear it before each compile -- installer filenames
+# now carry the version (MooiToolboxSetup-<version>.exe), so unlike ignoreversion file copies,
+# stale exes from older versions won't just get overwritten in place; they'd otherwise pile up.
+$InstallerPath = Join-Path $BuildOutput "installer"
 
 # Resolved once, up front, rather than calling bare `pip`/`pyinstaller` and hoping PATH
 # resolves both to the same interpreter -- a machine with more than one Python on PATH (a
@@ -77,6 +79,8 @@ function Build-Installer {
     if (Test-Path $ToolboxPath) { Remove-Item $ToolboxPath -Recurse -Force }
     New-Item -ItemType Directory -Path $ToolboxPath | Out-Null
     Copy-Item (Join-Path $bundleDir "*") $ToolboxPath -Recurse
+
+    if (Test-Path $InstallerPath) { Remove-Item $InstallerPath -Recurse -Force }
 
     $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
     if (-not (Test-Path $iscc)) {

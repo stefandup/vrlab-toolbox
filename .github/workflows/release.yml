@@ -37,7 +37,10 @@ jobs:
 
       - name: Compile installer
         run: |
-          $version = "${{ github.ref_name }}" -replace '^v',''
+          # Keeps the "v" prefix (github.ref_name is the raw tag, e.g. "v0.7.2") so the
+          # installer filename matches build.ps1's local `git describe --tags` naming, which
+          # also keeps it -- e.g. MooiToolboxSetup-v0.7.2.exe either way.
+          $version = "${{ github.ref_name }}"
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" toolbox_installer.iss "/DMyAppVersion=$version"
 
       - name: Upload release asset

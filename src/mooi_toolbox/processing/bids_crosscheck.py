@@ -184,9 +184,9 @@ def existing_subject_ids(bids_folder: Path) -> set[str]:
     per dataset.
     """
     renamed_away = {
-        entry["original_id"]
-        for entry in load_decisions(bids_folder).values()
-        if entry.get("type") == "id_correction"
+        latest["original_id"]
+        for entries in load_decisions(bids_folder).values()
+        if (latest := entries[-1]).get("type") == "id_correction"
     }
     if not bids_folder.is_dir():
         return set(load_excluded_subjects(bids_folder)) | renamed_away
@@ -233,12 +233,20 @@ def completeness_summary(scan: BidsFolderScan, config: DatasetConfig) -> dict[st
     }
 
 
-def load_decisions(bids_folder: Path) -> dict:
+def load_decisions(bids_folder: Path) -> dict[str, list[dict]]:
+    """`{key: [entry, ...]}`, oldest first per key -- see `_append_decision`.
+
+    Transparently upgrades a key still in the older on-disk shape (`{key: entry}`, from before
+    history was tracked) to `[entry]` in memory. Non-destructive: the file itself isn't rewritten
+    until something else records a new decision for that key, so a `crosscheck.json` already in
+    real use keeps working without a separate migration step.
+    """
     path = decisions_path(bids_folder)
     if not path.exists():
         return {}
     with path.open("r", encoding="utf-8") as decisions_file:
-        return json.load(decisions_file)
+        decisions = json.load(decisions_file)
+    return {key: value if isinstance(value, list) else [value] for key, value in decisions.items()}
 
 
 def _write_json_atomic(path: Path, data: dict) -> None:
@@ -282,6 +290,25 @@ def _crosschecked_key(subject_id: str, scan_type: str) -> str:
     return f"{_decision_key(subject_id, scan_type)}_crosschecked"
 
 
+def _append_decision(decisions: dict, key: str, entry: dict) -> None:
+    """Add `entry` to `key`'s history, oldest first -- never overwrites a previous entry, so a
+    chain of corrections on the same subject/scan-type (e.g. date-corrected, then later tagged)
+    is fully preserved instead of only the latest step surviving. See `_latest_decision` for the
+    common case of only caring about the current state.
+    """
+    decisions.setdefault(key, []).append(entry)
+
+
+def _latest_decision(decisions: dict, key: str) -> dict | None:
+    """The most recent entry in `key`'s history, or None if it has none -- the read-side
+    counterpart to `_append_decision` for callers that only care about current state, not the
+    full chain (most callers; `revert_all_decisions` and `rebuild_from_raw` are the exceptions
+    that need the whole history).
+    """
+    entries = decisions.get(key)
+    return entries[-1] if entries else None
+
+
 def record_subject_excluded(bids_folder: Path, subject_id: str, reason: str | None = None) -> Path:
     """Remove a whole subject's `sub-<id>/` folder from BIDS -- e.g. a test recording, or
     someone who was never really a participant.
@@ -322,15 +349,23 @@ def _restore_subjects(bids_folder: Path, subject_ids: set[str] | None) -> tuple[
         )
 
     decisions = load_decisions(bids_folder)
-    selected_run_keys = [
-        key
-        for key, entry in decisions.items()
-        if entry.get("type") == "selected_run"
-        and (subject_ids is None or entry.get("subject_id") in subject_ids)
-    ]
+    # A committed duplicate pick can be followed later by a further correction on the same
+    # key (e.g. the surviving file gets date-corrected or tagged afterward) -- searching the
+    # whole history, not just the latest entry, so a subject with a selected_run buried earlier
+    # in its key's chain still gets found and restored. Deduped by key (a dict, not a list of
+    # pairs): a key could in principle carry more than one selected_run over time (a rename
+    # creating a fresh collision, resolved again), and each key is only deleted once below.
+    selected_run_keys: dict[str, dict] = {}
+    for key, entries in decisions.items():
+        for entry in entries:
+            if entry.get("type") == "selected_run" and (
+                subject_ids is None or entry.get("subject_id") in subject_ids
+            ):
+                selected_run_keys[key] = entry
+                break
     changed = False
-    for key in selected_run_keys:
-        subject_id = decisions[key]["subject_id"]
+    for key, selected_run_entry in selected_run_keys.items():
+        subject_id = selected_run_entry["subject_id"]
         folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{subject_id}"
         try:
             if folder.is_dir():
@@ -393,13 +428,13 @@ def record_selected_run(
         raise BidsCrosscheckError(f"{selected_file} is not among the candidate files")
 
     decisions = load_decisions(bids_folder)
-    decisions[_decision_key(subject_id, scan_type)] = {
+    _append_decision(decisions, _decision_key(subject_id, scan_type), {
         "type": "selected_run",
         "subject_id": subject_id,
         "scan_type": scan_type,
         "selected_file": selected_file.name,
         "non_selected_files": [f.name for f in candidate_files if f != selected_file],
-    }
+    })
     _write_decisions_atomic(bids_folder, decisions)
 
     for file in candidate_files:
@@ -432,7 +467,7 @@ def record_date_correction(
         raise BidsCrosscheckError(f"{destination} already exists -- resolve manually")
 
     decisions = load_decisions(bids_folder)
-    decisions[_decision_key(subject_id, scan_type)] = {
+    _append_decision(decisions, _decision_key(subject_id, scan_type), {
         "type": "date_correction",
         "subject_id": subject_id,
         "scan_type": scan_type,
@@ -440,7 +475,7 @@ def record_date_correction(
         "original_date": original_date,
         "corrected_date": corrected_date,
         "corrected_filename": corrected_name,
-    }
+    })
     _write_decisions_atomic(bids_folder, decisions)
 
     file.rename(destination)
@@ -467,7 +502,7 @@ def record_filename_correction(
         raise BidsCrosscheckError(f"{destination} already exists -- resolve manually")
 
     decisions = load_decisions(bids_folder)
-    decisions[_decision_key(subject_id, scan_type)] = {
+    _append_decision(decisions, _decision_key(subject_id, scan_type), {
         "type": "filename_correction",
         "subject_id": subject_id,
         "scan_type": scan_type,
@@ -475,7 +510,7 @@ def record_filename_correction(
         "corrected_filename": corrected_name,
         "original_parent_folder": file.parent.name,
         "corrected_parent_folder": file.parent.name,
-    }
+    })
     _write_decisions_atomic(bids_folder, decisions)
 
     file.rename(destination)
@@ -593,7 +628,7 @@ def record_scans_tsv_date_correction(
     original_date = matching_rows[0].get("acq_time", "")
 
     decisions = load_decisions(bids_folder)
-    decisions[_decision_key(subject_id, scan_type)] = {
+    _append_decision(decisions, _decision_key(subject_id, scan_type), {
         "type": "scans_tsv_date_correction",
         "subject_id": subject_id,
         "scan_type": scan_type,
@@ -601,7 +636,7 @@ def record_scans_tsv_date_correction(
         "filename": relative_name,
         "original_date": original_date,
         "corrected_date": corrected_date,
-    }
+    })
     _write_decisions_atomic(bids_folder, decisions)
 
     for row in matching_rows:
@@ -653,7 +688,7 @@ def record_scans_tsv_row_date_correction(
     original_date = matching_rows[0].get("acq_time", "")
 
     decisions = load_decisions(bids_folder)
-    decisions[_decision_key(subject_id, f"scans_tsv:{relative_filename}")] = {
+    _append_decision(decisions, _decision_key(subject_id, f"scans_tsv:{relative_filename}"), {
         "type": "scans_tsv_date_correction",
         "subject_id": subject_id,
         "scan_type": f"scans_tsv:{relative_filename}",
@@ -661,7 +696,7 @@ def record_scans_tsv_row_date_correction(
         "filename": relative_filename,
         "original_date": original_date,
         "corrected_date": corrected_date,
-    }
+    })
     _write_decisions_atomic(bids_folder, decisions)
 
     for row in matching_rows:
@@ -703,7 +738,7 @@ def record_id_correction(bids_folder: Path, original_id: str, corrected_id: str)
     ]
 
     decisions = load_decisions(bids_folder)
-    decisions[_decision_key(original_id)] = {
+    _append_decision(decisions, _decision_key(original_id), {
         "type": "id_correction",
         "original_id": original_id,
         "corrected_id": corrected_id,
@@ -712,7 +747,7 @@ def record_id_correction(bids_folder: Path, original_id: str, corrected_id: str)
         "renamed_files": [
             file.relative_to(bids_folder).as_posix() for file, _new_name in renames
         ],
-    }
+    })
     _write_decisions_atomic(bids_folder, decisions)
 
     for file, new_name in renames:
@@ -741,9 +776,9 @@ def crosschecked_scan_types(bids_folder: Path) -> set[tuple[str, str]]:
     """
     decisions = load_decisions(bids_folder)
     return {
-        (entry["subject_id"], entry["scan_type"])
-        for entry in decisions.values()
-        if entry.get("type") == "crosschecked" and entry.get("crosschecked")
+        (latest["subject_id"], latest["scan_type"])
+        for entries in decisions.values()
+        if (latest := entries[-1]).get("type") == "crosschecked" and latest.get("crosschecked")
     }
 
 
@@ -758,12 +793,12 @@ def set_crosschecked(
     removes the mark.
     """
     decisions = load_decisions(bids_folder)
-    decisions[_crosschecked_key(subject_id, scan_type)] = {
+    _append_decision(decisions, _crosschecked_key(subject_id, scan_type), {
         "type": "crosschecked",
         "subject_id": subject_id,
         "scan_type": scan_type,
         "crosschecked": crosschecked,
-    }
+    })
     _write_decisions_atomic(bids_folder, decisions)
 
 
@@ -841,7 +876,7 @@ def record_task_tag(
             raise BidsCrosscheckError(f"{new_parent} already exists -- resolve manually")
 
     decisions = load_decisions(bids_folder)
-    decisions[_decision_key(subject_id, scan_type)] = {
+    _append_decision(decisions, _decision_key(subject_id, scan_type), {
         "type": "task_tag",
         "subject_id": subject_id,
         "scan_type": scan_type,
@@ -852,7 +887,7 @@ def record_task_tag(
         "suffix": suffix,
         "original_parent_folder": original_parent_name,
         "corrected_parent_folder": new_parent.name if new_parent else original_parent_name,
-    }
+    })
     _write_decisions_atomic(bids_folder, decisions)
 
     file.rename(destination)
@@ -879,23 +914,32 @@ def remove_task_tag(
     record_task_tag inserts the task-/acq- entity and replaces everything after the run-<NNN>
     token, so the original free text (e.g. `_eeg_philani`) isn't recoverable from the tagged
     name by itself. Falls back to a best-effort structural strip (losing the original free
-    text) only if no matching recorded decision exists -- e.g. the file was tagged outside
-    this tool, or a later, different decision overwrote the record at that key. The same
-    fallback applies to the parent folder: it's only renamed back if the matching decision
-    recorded what it was renamed from (see `record_task_tag`).
+    text) only if no matching recorded decision exists -- e.g. the file was tagged outside this
+    tool entirely. The same fallback applies to the parent folder: it's only renamed back if the
+    matching decision recorded what it was renamed from (see `record_task_tag`).
     """
     marker = _task_tag_marker(task)
     if marker.lower() not in file.stem.lower():
         raise BidsCrosscheckError(f"{file.name} does not carry a {marker!r} tag")
 
     decisions = load_decisions(bids_folder)
-    recorded = decisions.get(_decision_key(subject_id, scan_type))
+    key = _decision_key(subject_id, scan_type)
+    # Searches the whole history, not just the latest entry: a later decision on the same key
+    # that doesn't rename the file further (e.g. a fresh duplicate turning up and getting
+    # resolved in this file's favor via selected_run) can still sit on top of the task_tag
+    # entry. There's at most one match -- record_task_tag refuses to double-tag a file that
+    # already carries the marker.
+    recorded = next(
+        (
+            entry
+            for entry in reversed(decisions.get(key, []))
+            if entry.get("type") == "task_tag"
+            and entry.get("corrected_filename", "").lower() == file.name.lower()
+        ),
+        None,
+    )
     original_parent_folder = None
-    if (
-        recorded is not None
-        and recorded.get("type") == "task_tag"
-        and recorded.get("corrected_filename", "").lower() == file.name.lower()
-    ):
+    if recorded is not None:
         corrected_name = recorded["original_filename"]
         original_parent_folder = recorded.get("original_parent_folder")
     else:
@@ -921,7 +965,7 @@ def remove_task_tag(
         if _is_real_collision(new_parent, file.parent):
             raise BidsCrosscheckError(f"{new_parent} already exists -- resolve manually")
 
-    decisions[_decision_key(subject_id, scan_type)] = {
+    _append_decision(decisions, _decision_key(subject_id, scan_type), {
         "type": "task_tag_removed",
         "subject_id": subject_id,
         "scan_type": scan_type,
@@ -932,7 +976,7 @@ def remove_task_tag(
         "suffix": suffix,
         "original_parent_folder": original_parent_name,
         "corrected_parent_folder": new_parent.name if new_parent else original_parent_name,
-    }
+    })
     _write_decisions_atomic(bids_folder, decisions)
 
     file.rename(destination)
@@ -956,13 +1000,12 @@ def revert_all_decisions(bids_folder: Path) -> tuple[list[Path], list[str]]:
     """Reverse every recorded rename-type decision's effect, best-effort, then clear the
     decisions record (`crosscheck.json`) and any pending, uncommitted picks.
 
-    Only reverses the *latest* recorded decision for each subject/scan-type key: each new
-    decision overwrites the previous entry at that key (see `_decision_key`), so
-    `crosscheck.json` never holds more than one step of history per key. A file corrected
-    twice (e.g. its date fixed, then later tagged FOH) can only be reverted back to its
-    *first-corrected* state, not all the way to its original name -- the earlier correction's
-    record is already gone by the time this runs. There's no selective, per-decision revert in
-    this version (see docs/foh-crosscheck.md) -- it's everything recorded, or nothing.
+    Walks each key's full history newest-to-oldest, reversing every step -- not just the
+    latest. Each rename-type reversal restores the file to its *previous* name, so undoing a
+    `task_tag` first exposes the date-corrected name underneath, and the next (older)
+    `date_correction` reversal then finds that name and restores the true original -- a file
+    corrected more than once now reverts all the way back, not just to its first-corrected
+    state.
 
     Excluded subjects and committed duplicate picks are untouched here -- see
     `restore_all_from_bids` for those; run that first if you want renames reverted *and*
@@ -972,53 +1015,221 @@ def revert_all_decisions(bids_folder: Path) -> tuple[list[Path], list[str]]:
     reverted: list[Path] = []
     errors: list[str] = []
 
-    for key, entry in decisions.items():
-        entry_type = entry.get("type")
-        try:
-            if entry_type in _REVERTIBLE_RENAME_TYPES:
-                subject_folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{entry['subject_id']}"
-                corrected_file = next(subject_folder.rglob(entry["corrected_filename"]), None)
-                if corrected_file is None:
-                    continue
-                destination = corrected_file.with_name(entry["original_filename"])
-                if destination.exists():
-                    errors.append(f"{key}: {destination} already exists -- skipped")
-                    continue
-                corrected_file.rename(destination)
-                # date_correction entries never set this field, so this is a no-op for them --
-                # only task_tag/task_tag_removed can carry a parent-folder rename.
-                original_parent_folder = entry.get("original_parent_folder")
-                if original_parent_folder and destination.parent.name != original_parent_folder:
-                    new_parent = destination.parent.with_name(original_parent_folder)
-                    if not new_parent.exists():
-                        destination.parent.rename(new_parent)
-                        destination = new_parent / destination.name
-                _sync_scans_tsv_filename(bids_folder, corrected_file, destination)
-                reverted.append(destination)
-            elif entry_type == "scans_tsv_date_correction":
-                scans_tsv = bids_folder / entry["scans_tsv"]
-                if not scans_tsv.is_file():
-                    continue
-                rows = _read_scans_tsv_rows(scans_tsv)
-                matching_rows = [
-                    row for row in rows if row.get("filename") == entry["filename"]
-                ]
-                if not matching_rows:
-                    continue
-                for row in matching_rows:
-                    row["acq_time"] = entry["original_date"]
-                _write_scans_tsv_rows(scans_tsv, rows)
-                reverted.append(scans_tsv)
-            elif entry_type == "id_correction":
-                corrected_folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{entry['corrected_id']}"
-                if not corrected_folder.is_dir():
-                    continue
-                reverted.append(
-                    record_id_correction(bids_folder, entry["corrected_id"], entry["original_id"])
-                )
-        except (BidsCrosscheckError, OSError) as error:
-            errors.append(f"{key}: {error}")
+    for key, entries in decisions.items():
+        for entry in reversed(entries):
+            entry_type = entry.get("type")
+            try:
+                if entry_type in _REVERTIBLE_RENAME_TYPES:
+                    subject_folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{entry['subject_id']}"
+                    corrected_file = next(subject_folder.rglob(entry["corrected_filename"]), None)
+                    if corrected_file is None:
+                        continue
+                    destination = corrected_file.with_name(entry["original_filename"])
+                    if destination.exists():
+                        errors.append(f"{key}: {destination} already exists -- skipped")
+                        continue
+                    corrected_file.rename(destination)
+                    # date_correction entries never set this field, so this is a no-op for
+                    # them -- only task_tag/task_tag_removed can carry a parent-folder rename.
+                    original_parent_folder = entry.get("original_parent_folder")
+                    if (
+                        original_parent_folder
+                        and destination.parent.name != original_parent_folder
+                    ):
+                        new_parent = destination.parent.with_name(original_parent_folder)
+                        if not new_parent.exists():
+                            destination.parent.rename(new_parent)
+                            destination = new_parent / destination.name
+                    _sync_scans_tsv_filename(bids_folder, corrected_file, destination)
+                    reverted.append(destination)
+                elif entry_type == "scans_tsv_date_correction":
+                    scans_tsv = bids_folder / entry["scans_tsv"]
+                    if not scans_tsv.is_file():
+                        continue
+                    rows = _read_scans_tsv_rows(scans_tsv)
+                    matching_rows = [
+                        row for row in rows if row.get("filename") == entry["filename"]
+                    ]
+                    if not matching_rows:
+                        continue
+                    for row in matching_rows:
+                        row["acq_time"] = entry["original_date"]
+                    _write_scans_tsv_rows(scans_tsv, rows)
+                    reverted.append(scans_tsv)
+                elif entry_type == "id_correction":
+                    corrected_folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{entry['corrected_id']}"
+                    if not corrected_folder.is_dir():
+                        continue
+                    reverted.append(
+                        record_id_correction(
+                            bids_folder, entry["corrected_id"], entry["original_id"]
+                        )
+                    )
+            except (BidsCrosscheckError, OSError) as error:
+                errors.append(f"{key}: {error}")
 
     _write_json_atomic(decisions_path(bids_folder), {})
     _write_json_atomic(pending_selections_path(bids_folder), {})
     return reverted, errors
+
+
+BACKUP_FILENAMES = (DECISIONS_FILENAME, EXCLUDED_SUBJECTS_FILENAME, PENDING_SELECTIONS_FILENAME)
+
+
+def backup_decisions(bids_folder: Path, backup_folder: Path) -> list[Path]:
+    """Copy this BIDS folder's crosscheck record files -- decisions, exclusions, and
+    uncommitted pending picks -- into `backup_folder`, so they survive the BIDS folder itself
+    being lost or corrupted. Nothing else in a BIDS folder needs backing up this way: the raw
+    data is already safe in the raw folder (never touched by this tool), and everything else
+    the crosscheck tool writes -- `crosscheck_info_cache.json` included -- is a re-derivable
+    cache, not a decision record. See `rebuild_from_raw` to restore from a backup made here.
+    """
+    backup_folder.mkdir(parents=True, exist_ok=True)
+    copied: list[Path] = []
+    for filename in BACKUP_FILENAMES:
+        source = bids_folder / filename
+        if source.exists():
+            destination = backup_folder / filename
+            shutil.copy2(source, destination)
+            copied.append(destination)
+    return copied
+
+
+def _replay_decision(bids_folder: Path, entry: dict) -> str | None:
+    """Reapply one decision entry's filesystem effect against `bids_folder`, as if it were
+    being made fresh right now. Returns None on success, or a short description of what's
+    missing on failure -- used by `rebuild_from_raw`'s retry loop, since a failure here often
+    just means some *other* entry (this key's own earlier step, or an unrelated `id_correction`
+    another key depends on) hasn't been replayed yet and will resolve this one on a later pass.
+
+    Deliberately doesn't call the matching `record_*` function: those recompute names from
+    scratch and would each append a fresh decision entry, neither of which is wanted here -- the
+    entry is already correct; this only needs to make the filesystem match it. The one
+    exception is `id_correction`: its entry stores the *original* relative paths plus the
+    original/corrected id strings, not each file's new name, so the same token-replacement rule
+    `record_id_correction` uses is reapplied here too -- not a guess, just the one recorded rule.
+    """
+    entry_type = entry.get("type")
+    try:
+        if entry_type in _REVERTIBLE_RENAME_TYPES:
+            subject_folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{entry['subject_id']}"
+            if not subject_folder.is_dir():
+                return f"sub-{entry['subject_id']} not found"
+            original_file = next(subject_folder.rglob(entry["original_filename"]), None)
+            if original_file is None:
+                return f"{entry['original_filename']} not found"
+            destination = original_file.with_name(entry["corrected_filename"])
+            if _is_real_collision(destination, original_file):
+                return f"{destination.name} already exists -- resolve manually"
+            original_file.rename(destination)
+            corrected_parent_folder = entry.get("corrected_parent_folder")
+            if corrected_parent_folder and destination.parent.name != corrected_parent_folder:
+                new_parent = destination.parent.with_name(corrected_parent_folder)
+                if not _is_real_collision(new_parent, destination.parent):
+                    destination.parent.rename(new_parent)
+                    destination = new_parent / destination.name
+            _sync_scans_tsv_filename(bids_folder, original_file, destination)
+            return None
+        if entry_type == "selected_run":
+            subject_folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{entry['subject_id']}"
+            if not subject_folder.is_dir():
+                return f"sub-{entry['subject_id']} not found"
+            for filename in entry["non_selected_files"]:
+                candidate = next(subject_folder.rglob(filename), None)
+                if candidate is not None:
+                    _remove_scans_tsv_row(bids_folder, candidate)
+                    candidate.unlink()
+            return None
+        if entry_type == "id_correction":
+            original_folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{entry['original_id']}"
+            if not original_folder.is_dir():
+                return f"sub-{entry['original_id']} not found"
+            original_token = f"{SUBJECT_FOLDER_PREFIX}{entry['original_id']}"
+            corrected_token = f"{SUBJECT_FOLDER_PREFIX}{entry['corrected_id']}"
+            corrected_folder = bids_folder / corrected_token
+            if _is_real_collision(corrected_folder, original_folder):
+                return f"{corrected_token} already exists -- resolve manually"
+            for relative_name in entry["renamed_files"]:
+                file = bids_folder / relative_name
+                if file.exists():
+                    file.rename(file.with_name(file.name.replace(original_token, corrected_token)))
+            original_folder.rename(corrected_folder)
+            return None
+        if entry_type == "scans_tsv_date_correction":
+            scans_tsv = bids_folder / entry["scans_tsv"]
+            if not scans_tsv.is_file():
+                return f"{entry['scans_tsv']} not found"
+            rows = _read_scans_tsv_rows(scans_tsv)
+            matching_rows = [row for row in rows if row.get("filename") == entry["filename"]]
+            if not matching_rows:
+                return f"{entry['filename']!r} row not found in {entry['scans_tsv']}"
+            for row in matching_rows:
+                row["acq_time"] = entry["corrected_date"]
+            _write_scans_tsv_rows(scans_tsv, rows)
+            return None
+        # "crosschecked" is a marker with no filesystem effect -- nothing to replay.
+        return None
+    except OSError as error:
+        return str(error)
+
+
+def rebuild_from_raw(
+    bids_folder: Path,
+    decisions: dict[str, list[dict]],
+    excluded: dict[str, str | None],
+) -> tuple[list[str], list[str]]:
+    """Reapply every recorded decision's filesystem effect onto `bids_folder`, assuming it has
+    just been freshly (re-)populated straight from raw -- e.g. via the same `raw_converter`
+    hook "Refresh BIDS" already uses, pointed at an empty destination. Meant for disaster
+    recovery: if the BIDS folder itself is lost or corrupted but the raw folder and a backed-up
+    `crosscheck.json`/`excluded_subjects.json` (see `backup_decisions`) survive, this rebuilds
+    an equivalent BIDS folder without a human re-clicking every pick/tag/correction by hand.
+
+    `decisions`/`excluded` are passed in explicitly (typically loaded from a backup copy via
+    `load_decisions`/`load_excluded_subjects` pointed at the backup folder) rather than read
+    from `bids_folder` itself, since the whole point is `bids_folder` may not have its own
+    copies anymore. Only fit for a freshly-imported, otherwise-untouched `bids_folder` -- not a
+    tool for merging recorded decisions into a folder that already has its own, different state.
+
+    Every entry across every key is retried, pass after pass, until a pass makes no further
+    progress -- not a single ordered walk. Two things can make one entry temporarily unable to
+    resolve on an earlier pass: it's not the oldest step in its own key's chain yet (e.g. a
+    `task_tag` recorded after a `date_correction` needs that correction applied first so its
+    `original_filename` exists to find), or it depends on an `id_correction` recorded under a
+    *different* key finishing first (e.g. a later decision for the same subject was recorded
+    under their corrected id). Both resolve themselves naturally once the entry they were
+    waiting on succeeds in an earlier pass. Whatever still can't resolve once no pass makes
+    progress is reported unresolved rather than guessed at, matching this tool's existing
+    "never guess, surface it to a human" philosophy.
+
+    Returns (resolved_keys, unresolved_descriptions).
+    """
+    for subject_id in excluded:
+        folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{subject_id}"
+        if folder.is_dir():
+            shutil.rmtree(folder)
+
+    pending = [(key, entry) for key, entries in decisions.items() for entry in entries]
+    resolved: list[str] = []
+    unresolved: list[str] = []
+
+    while pending:
+        progressed = False
+        still_pending: list[tuple[str, dict]] = []
+        pass_errors: list[str] = []
+        for key, entry in pending:
+            error = _replay_decision(bids_folder, entry)
+            if error is None:
+                resolved.append(key)
+                progressed = True
+            else:
+                still_pending.append((key, entry))
+                pass_errors.append(f"{key}: {error}")
+        pending = still_pending
+        unresolved = pass_errors
+        if not progressed:
+            break
+
+    _write_decisions_atomic(bids_folder, decisions)
+    save_excluded_subjects(bids_folder, excluded)
+    return resolved, unresolved
