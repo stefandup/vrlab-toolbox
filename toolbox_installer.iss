@@ -136,20 +136,30 @@ end;
 procedure UninstallOldVersion();
 var
   UninstallString: String;
+  ExecOk: Boolean;
   ResultCode: Integer;
 begin
   UninstallString := GetUninstallString();
   if UninstallString = '' then
     exit;
   UninstallString := RemoveQuotes(UninstallString);
-  Exec(UninstallString, '/VERYSILENT /NORESTART /SUPPRESSMSGBOXES', '', SW_HIDE,
+  // TEMP DEBUG -- remove once the overwrite-on-upgrade issue is diagnosed.
+  MsgBox('DEBUG: about to run old uninstaller:' #13#10 + UninstallString, mbInformation, MB_OK);
+  ExecOk := Exec(UninstallString, '/VERYSILENT /NORESTART /SUPPRESSMSGBOXES', '', SW_HIDE,
     ewWaitUntilTerminated, ResultCode);
+  // TEMP DEBUG -- remove once the overwrite-on-upgrade issue is diagnosed.
+  MsgBox('DEBUG: old uninstaller finished.' #13#10
+    + 'Exec launched OK: ' + IntToStr(Ord(ExecOk)) + #13#10
+    + 'ResultCode: ' + IntToStr(ResultCode), mbInformation, MB_OK);
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssInstall then
   begin
+    // TEMP DEBUG -- remove once the overwrite-on-upgrade issue is diagnosed.
+    MsgBox('DEBUG: IsUpgrade = ' + IntToStr(Ord(IsUpgrade()))
+      + #13#10 'GetUninstallString = "' + GetUninstallString() + '"', mbInformation, MB_OK);
     if IsUpgrade() then
       UninstallOldVersion();
   end
