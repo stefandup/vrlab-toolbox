@@ -16,11 +16,35 @@ leaving the decision to a person.
 **Crosschecking is that person's job**: going through each subject's folder
 and confirming — or fixing — which file is the right one, so everything
 downstream can trust it without re-checking. It's a filing and bookkeeping
-step, not a data-quality step (more on that distinction below). The FOH
-Crosscheck tool is a small program built specifically to make that job fast:
-it shows you exactly which subjects need a decision, gives you the
-information you need to make it, and remembers every decision so it never
-has to be redone.
+step, not a data-quality step (more on that distinction below). Critically,
+it is a *bookkeeping* step in a very literal sense: the point of this tool
+is never to change your raw data — it's to build up a written record of
+every decision made about it, a record kept entirely separate from the raw
+files themselves, so that record can always be checked, corrected, or
+replayed from scratch. The FOH Crosscheck tool is a small program built
+specifically to make that job fast: it shows you exactly which subjects
+need a decision, gives you the information you need to make it, and
+remembers every decision so it never has to be redone.
+
+!!! info "The raw folder is never changed — not once, not ever"
+    Everything this tool does — picking a recording, tagging it, correcting
+    a date or filename, even removing a subject from BIDS — happens only in
+    the **BIDS folder** and its own bookkeeping files. Your **raw folder**
+    is opened for reading only: nothing on this page ever writes to it,
+    renames anything in it, or deletes anything from it. That's true of
+    every button on this page, however it's worded — something like
+    **"Correct filename..."** or **"Fix raw filenames..."** only corrects
+    how a name gets *read* when building BIDS from raw, never edits
+    anything on disk in the raw folder itself.
+
+    That one rule is what makes everything else on this page safe. Because
+    every decision is *recorded* — never irreversibly baked into a renamed
+    or deleted raw file — the entire BIDS folder, crosscheck decisions and
+    all, can always be rebuilt from nothing but the raw folder plus those
+    records. If the BIDS folder is ever lost, corrupted, or deleted by
+    accident, nothing about your actual work is lost with it: see [Backing
+    up, and rebuilding after a lost BIDS
+    folder](#backing-up-and-rebuilding-after-a-lost-bids-folder).
 
 ## Why this matters for FOH data specifically
 
@@ -416,11 +440,14 @@ Made a mistake? How you undo it depends on what you're trying to take back:
 
 ### Backing up, and rebuilding after a lost BIDS folder
 
-Everything in your BIDS folder is either raw data (already safe — your raw
-folder is never touched by this tool) or bookkeeping this tool writes as you
-work. Only the bookkeeping is worth backing up on its own: click **"Backup
-crosscheck data..."** near the top of the window and pick a folder — it
-copies the small set of files that record every decision you've made.
+This is the payoff of the rule at the top of this page — **the raw folder
+is never touched** — spelled out concretely: everything in your BIDS
+folder is either raw data (already safe, and reproducible any time by
+re-running "Refresh BIDS") or bookkeeping this tool writes as you work.
+Only that bookkeeping is unique and worth backing up on its own: click
+**"Backup crosscheck data..."** near the top of the window and pick a
+folder — it copies the small set of files that record every decision
+you've made, nothing more.
 
 If the BIDS folder itself is ever lost or corrupted, click **"Rebuild from
 backup..."**, pick the backup folder you made earlier, and confirm. This
@@ -496,10 +523,69 @@ in sync automatically.
 Crane also has two extra raw-side correction dialogs near the top of the
 window — **"Fix debrief record IDs..."** and **"Fix raw filenames..."** —
 for declaring a corrected subject id where the raw data itself is
-ambiguous. **"Backup crosscheck data..."**/**"Rebuild from backup..."**
-(see [above](#backing-up-and-rebuilding-after-a-lost-bids-folder)) include
-these automatically for Crane, since a rebuild needs them in place *before*
-Refresh BIDS runs, not just the decisions made afterward.
+ambiguous. Both work the same basic way: a table of anything that looks
+off, a box to type the correct subject id into, and nothing actually
+changes until you click **Save** — leaving a box blank makes no change at
+all for that row. Neither one ever edits your raw data; each saves its
+corrections to its own file in the BIDS folder, applied the next time you
+click **Refresh BIDS**.
+
+### Fixing debrief record IDs
+
+Crane's debrief (questionnaire) data comes from a REDCap export with a
+`record_id` column that's supposed to be the subject's id — but since
+it's typed in by hand, it sometimes doesn't quite match: stray spaces, a
+spurious `.0` on the end, a missing dash, or two different subjects who
+both happened to type the same id.
+
+Click **"Fix debrief record IDs..."** to see every `record_id` that
+doesn't cleanly match a known subject, or that's shared by more than one
+row (each occurrence gets its own row here, labelled "1 of 2", "2 of 2",
+etc., so you can tell them apart). For each row:
+
+- **record_id (from export)** — the value as it actually appears in the
+  export, unchanged.
+- **Matched** — a quick ✓/✗ showing whether the id currently typed in the
+  next column matches a subject who's still missing a debrief file.
+- **Corrected subject id** — type the real subject id here. Rows that
+  aren't shared with another row are pre-filled with a best-effort guess
+  (whitespace trimmed, that spurious `.0` removed); rows sharing a
+  `record_id` with another are left blank on purpose, since guessing the
+  same subject for both would just recreate the ambiguity — you need to
+  assign each one individually. A list of subject ids still without a
+  debrief match is shown below the table as a reference while you do.
+
+Leave a box blank to skip that row — it's fine for a subject to genuinely
+have no debrief data (e.g. they never completed the questionnaire).
+Click **Save** once every row you care about is filled in.
+
+### Fixing incorrect raw filenames
+
+Every raw physiology/behaviour file's subject id is normally read
+straight from its filename. Occasionally that fails outright (the
+filename doesn't match the expected pattern at all), or it succeeds but
+lands on the wrong id — most often because of a `(N)` marker at the end
+of the id, which is ambiguous on its own: it could mean a harmless second
+copy of the same recording, or two genuinely different subjects who
+happen to share a base id.
+
+Click **"Fix raw filenames..."** to see every raw file, with a
+**"Currently resolves to"** column showing the subject id it currently
+maps to (or **"(unparseable)"**, in red, if it doesn't resolve at all).
+Click a row to see, in the details pane below the table, plain-English
+reasoning for why it failed (or what it resolves to if it didn't), plus
+any matching line from the last time you ran **Refresh BIDS**. Type the
+correct subject id into **"Corrected subject id"** for any row that's
+wrong, then click **Save**.
+
+This never renames the file itself on disk — only what the *next*
+Refresh BIDS run resolves that filename to.
+
+**"Backup crosscheck data..."**/**"Rebuild from backup..."** (see
+[above](#backing-up-and-rebuilding-after-a-lost-bids-folder)) include
+both of these correction files automatically for Crane, since a rebuild
+needs them in place *before* Refresh BIDS runs, not just the decisions
+made afterward.
 
 ---
 

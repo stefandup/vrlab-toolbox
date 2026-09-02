@@ -94,9 +94,11 @@ one proposed change.
 
 If an assistant is asked for example code to explain a concept rather than
 to solve the actual task, keep examples in a clearly separate, obviously
-fictional domain (this repo's `AGENTS.md`, at the workspace root, uses a
-restaurant-order-system domain for exactly this reason) — so an example
-never gets mistaken for, or pasted in as, real production code.
+fictional domain unrelated to this project's own work (this repo's
+`AGENTS.md`, at the workspace root, illustrates this with an everyday
+domain like library checkouts, bus schedules, or a small inventory — pick
+whatever fits the concept, but stay in one domain per explanation) — so an
+example never gets mistaken for, or pasted in as, real production code.
 
 ## Using this page
 
