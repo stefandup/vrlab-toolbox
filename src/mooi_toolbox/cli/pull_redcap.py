@@ -1,54 +1,37 @@
-import requests
-import pandas as pd
-from io import StringIO
+import logging
 from pathlib import Path
 
-REDCAP_URL = "https://redcap.sun.ac.za/api/"
-API_TOKEN = ""
-REPORT_ID = 14932
+import click
 
-payload = {
-    "token": API_TOKEN,
-    "content": "report",
-    "report_id": REPORT_ID,
-    "format": "csv",
-    "rawOrLabel": "raw",
-    "rawOrLabelHeaders": "raw",
-    "exportCheckboxLabel": "false",
-    "returnFormat": "json",
-}
+from mooi_toolbox import mobi_logging
+from mooi_toolbox.processing.crane_redcap import clean_crane_redcap_data
+from mooi_toolbox.processing.redcap import get_token, pull_report
 
-response = requests.post(REDCAP_URL, data=payload)
+logger = logging.getLogger(__name__)
 
-print("Status code:", response.status_code)
-print("Content type:", response.headers.get("Content-Type"))
-print("Response:")
-print(response.text[:2000])
 
-response.raise_for_status()
-
-df = pd.read_csv(StringIO(response.text))
-
-# Rename misspelled REDCap variables: crane_dissastifaction_gb
-df = df.rename(
-    columns={
-        "crane_dissastifaction_gb": "crane_dissatisfaction_gb",
-    }
+@click.command()
+@click.argument(
+    "output_folder",
+    type=click.Path(exists=True, dir_okay=True, path_type=Path),
+    required=True,
 )
+def main(output_folder: Path):
+    """Pull the REDCap report and save it locally."""
+    logger.info("Pulling REDCap report")
 
-print(df.head())
-print()
-print(f"Rows downloaded: {len(df)}")
-print(f"Columns downloaded: {len(df.columns)}")
+    token = get_token()
+    df = pull_report(token)
 
-from pathlib import Path
+    df = clean_crane_redcap_data(df)
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-OUTPUT_DIR = PROJECT_ROOT / "redcap_data"
-OUTPUT_DIR.mkdir(exist_ok=True)
+    out_file = output_folder / "Get_all_data.csv"
+    df.to_csv(out_file, index=False)
 
-out_file = OUTPUT_DIR / "Get_all_data.csv"
+    logger.info("Downloaded %s rows and %s columns", len(df), len(df.columns))
+    logger.info("Saved REDCap data to %s", out_file)
 
-df.to_csv(out_file, index=False)
 
-print(f"Saved: {out_file}")
+if __name__ == "__main__":
+    mobi_logging.init(__file__)
+    main()
