@@ -7,7 +7,9 @@ from rich.progress import Progress
 from rich.table import Table
 
 from mooi_toolbox import mobi_logging
+from mooi_toolbox.cli.crane_convert_to_bids import convert_crane_to_bids, print_conversion_summary
 from mooi_toolbox.processing.crane_dummy_data import (
+    DUMMY_DATA_LOG_FILENAME,
     ERROR_TYPES,
     REFERENCE_ERROR_TYPES,
     generate_dummy_dataset,
@@ -25,7 +27,9 @@ Examples:
 
 \b
   Also add one participant per known error scenario (missing files, bad
-  triggers, ...):
+  triggers, ...) -- each including a synthetic debrief row generated straight
+  from crane_raw_debrief_file_schema (see crane_debrief_behaviour.py), so the
+  group debrief export is never missing a column the real pipeline expects:
   crane_generate_sample_data examples/crane_templates examples --with-errors --seed 42
 
 \b
@@ -46,6 +50,21 @@ Examples:
     --reference-subject-id PID16186 \\
     --reference-error-type missing_initial_trigger \\
     --reference-output-subject-id DUMMY011
+
+\b
+  Generate straight into a BIDS-shaped folder in the same call, via
+  crane_convert_to_bids.convert_crane_to_bids -- output_folder still ends up
+  holding the plain raw CraneOut files either way, this just also converts
+  them into --bids-folder for you:
+  crane_generate_sample_data examples/crane_templates examples \\
+    --with-errors --seed 42 --bids-folder examples_bids
+
+\b
+  Every run writes/updates "{DUMMY_DATA_LOG_FILENAME}" inside output_folder --
+  a plain-text, one-line-per-participant explanation of what each generated
+  participant's scenario is for (e.g. that one has no physiology file *on
+  purpose*, to exercise the missing-physiology error path). Open it any time
+  to see what's in a given dummy folder without reading this tool's source.
 """
 
 
@@ -89,6 +108,14 @@ Examples:
     default=None,
     help="Subject ID for the generated participant (default: REF<reference-subject-id>).",
 )
+@click.option(
+    "--bids-folder",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="If given, also runs the freshly-generated raw data in output_folder through "
+    "crane_convert_to_bids into this BIDS folder -- generate and convert in one call instead "
+    "of two. output_folder still ends up holding the plain raw CraneOut files either way.",
+)
 def main(
     template_folder: Path,
     output_folder: Path,
@@ -100,8 +127,16 @@ def main(
     reference_subject_id: str | None,
     reference_error_type: str | None,
     reference_output_subject_id: str | None,
+    bids_folder: Path | None,
 ) -> None:
-    """Generate synthetic crane participant data by cloning and perturbing template files."""
+    """Generate synthetic crane participant data by cloning and perturbing template files.
+
+    Also generates a matching debrief row per participant (shaped by
+    crane_raw_debrief_file_schema, so it stays valid if that schema ever changes) into a
+    dummy group debrief export in output_folder, and writes/updates output_folder's
+    DUMMY_DATA_LOG_FILENAME -- a plain-text log explaining what each participant's scenario
+    is for.
+    """
 
     output_folder.mkdir(parents=True, exist_ok=True)
 
@@ -156,6 +191,11 @@ def main(
 
     Console().print(table)
     logger.info("Generated %d dummy participants in %s", len(results), output_folder)
+
+    if bids_folder is not None:
+        logger.info("Converting %s into BIDS folder %s", output_folder, bids_folder)
+        summary = convert_crane_to_bids(output_folder, bids_folder)
+        print_conversion_summary(summary)
 
 
 if __name__ == "__main__":

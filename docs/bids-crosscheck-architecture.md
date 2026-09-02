@@ -15,7 +15,7 @@ Crosscheck](foh-crosscheck.md).
   if the app crashes mid-operation.
 - **One tool per dataset**, not one app with a dataset switcher — matches
   this repo's existing pattern of one CLI/entry point per pipeline
-  (`vrlab_crane_process`, `mobi_foh_assess_data`, …).
+  (`vrlab_crane_process`, `vrlab_foh_assess_data`, …).
 - **No automatic collision resolution.** If a rename ever leaves two files
   looking like duplicates again, that's treated as an ordinary duplicate,
   routed through the same review — deliberately one mechanism, not two.
@@ -41,7 +41,7 @@ principle reusable from a future non-GUI entry point.
 
 | Type | Lives in | What it is |
 | --- | --- | --- |
-| `DatasetConfig` | `processing/bids_crosscheck.py` | One dataset's scan types, glob patterns, and whether/how task-correction (FOH's "Tag as foh") applies -- including an optional `task_correction_folder_name`, which also renames a tagged file's parent folder (e.g. FOH's `eeg/` -> `beh/`), carrying along anything else still in it. |
+| `DatasetConfig` | `processing/bids_crosscheck.py` | One dataset's scan types, glob patterns, and whether/how task-tagging (FOH's "Tag with foh BIDS tags") applies -- `task_tag_task`/`task_tag_acq`/`task_tag_suffix` (the BIDS entities/suffix a tag writes) plus an optional `task_tag_folder_name`, which also renames a tagged file's parent folder (e.g. FOH's `eeg/` -> `beh/`), carrying along anything else still in it. |
 | `ScanTypeConfig` | same | One scan type's name + the glob patterns that find its candidate files. |
 | `SubjectScan` | same | One subject/scan-type's candidate files, with a `status` property (`"ok"` / `"missing"` / `"duplicate"`, derived purely from file count). |
 | `BidsFolderScan` | same | The result of scanning a whole folder — every subject × scan-type, plus `has_issues()`. |
@@ -56,19 +56,19 @@ few dozen lines each.
 ## The subject table's Tag and Datatype columns
 
 `_build_subject_tag_widget` shows, per tag-eligible scan type (i.e.
-`extras.task_correction_available(scan_type)` is true), whether the
-currently-effective candidate carries `task_correction_label` yet -- the
-label itself if tagged, `"not tagged"` in `PLEASE_SELECT_COLOR` if not.
+`extras.task_tag_available(scan_type)` is true), whether the
+currently-effective candidate carries the `task-<task>` marker yet -- the
+task value itself if tagged, `"not tagged"` in `PLEASE_SELECT_COLOR` if not.
 Blank for a scan type that doesn't support tagging at all (e.g. every one of
 Crane's), or with nothing effective yet. Same underlying check as
-`_needs_task_correction`, just surfaced as its own column instead of only
+`_needs_task_tag`, just surfaced as its own column instead of only
 the 🏷 icon.
 
 `_build_subject_datatype_widget` shows, per scan type, the BIDS datatype
 folder (`file.parent.name`) the currently-effective candidate lives in right
 now -- blank if there's nothing effective yet (missing, or an unresolved
 duplicate). `_datatype_tooltip` explains the value on hover: what the current
-folder is, and -- if `task_correction_folder_name` is configured and differs
+folder is, and -- if `task_tag_folder_name` is configured and differs
 from the current folder -- what it becomes once tagged. `BIDS_DATATYPE_NAMES`
 (a small, dataset-agnostic dict of BIDS's own datatype abbreviations, e.g.
 `"beh": "behavioural"`) glosses both in plain English wherever it recognizes
@@ -87,11 +87,19 @@ The tool never touches anything outside the BIDS folder it's pointed at
 you use the tool:
 
 - **`crosscheck.json`** — finalized decisions: `selected_run`,
-  `date_correction`, `id_correction`, `task_correction`, `crosschecked`.
-  Keyed by `{subject_id}_{scan_type}` (`_decision_key`), except
-  `crosschecked` uses a *different* key (`_crosschecked_key`, same base
-  plus `_crosschecked`) so marking something crosschecked can never
+  `date_correction`, `id_correction`, `task_tag`/`task_tag_removed`,
+  `crosschecked`. Keyed by `{subject_id}_{scan_type}` (`_decision_key`),
+  except `crosschecked` uses a *different* key (`_crosschecked_key`, same
+  base plus `_crosschecked`) so marking something crosschecked can never
   overwrite an existing `selected_run` entry for that same subject/scan-type.
+  **Update (2026-09-01):** each key's value is a *list* of decisions, oldest
+  first (`_append_decision`/`_latest_decision`), not one dict — a later
+  correction on the same key no longer erases an earlier one. An old
+  single-entry `crosscheck.json` is transparently upgraded to `[entry]` on
+  load, so nothing already on disk needs migrating by hand. Most callers
+  (`crosschecked_scan_types`, `existing_subject_ids`) only need
+  `_latest_decision`, i.e. current state; `revert_all_decisions` and
+  `rebuild_from_raw` (below) are the two that walk the full history.
 - **`crosscheck_pending.json`** — radio picks made but not yet committed
   (`load_pending_selections`/`save_pending_selections`). Kept in a
   *separate* file from `crosscheck.json` on purpose: these aren't decisions
@@ -100,23 +108,83 @@ you use the tool:
   paths — re-resolved against a fresh scan's actual candidates on load, so
   a stale entry (file renamed/deleted outside the tool) is silently
   dropped rather than crashing.
-- **`crosscheck_junk/`** — where `record_subject_junked` moves a whole
-  subject that's genuinely disposable (a pilot run, a non-participant, a
-  test recording), mirroring the subject-folder structure it came from.
-  Nothing is ever deleted. `record_selected_run` never uses this folder --
-  see the plan's "junk means a whole subject" decision for why.
-- **`crosscheck_review/`** — where `record_selected_run` always moves a
-  duplicate's non-selected candidate(s) instead: not necessarily wrong,
-  just not this pick, kept separate and findable for a second crosschecker.
-  Same move-and-mirror mechanism as junk (`_move_to` / `_restore_all_from`).
-  Has its own restore function (`restore_all_from_review`, mirroring
-  `restore_all_from_junk` exactly) and one operation nothing else in this
-  module has: `delete_all_in_review` permanently deletes its contents --
-  the only genuinely irreversible action in the tool, gated behind its own
-  strongly-worded confirmation in the GUI (`_on_delete_all_in_review`).
+- **`excluded_subjects.json`** — `{subject_id: reason}` for every subject
+  `record_subject_excluded` has removed from BIDS. Unlike the earlier
+  `crosscheck_junk/`/`crosscheck_review/` folders (removed 2026-08-27), a
+  removed subject's `sub-XXX/` folder is deleted outright, not moved
+  anywhere -- safe only because neither importer/converter ever touches
+  the raw folder (see "BIDS folder only" in the plan), so it's always the
+  real recoverable copy. `existing_subject_ids` unions this file's keys
+  with the folders actually on disk, so an excluded subject doesn't look
+  "new" again to the next raw-to-BIDS refresh. `record_selected_run` (a
+  duplicate's non-selected candidate) deletes the file directly instead
+  and does *not* write here -- it's still recorded in `crosscheck.json`'s
+  `selected_run` entry, which is enough for restore (below) to find it.
+  `restore_all_from_bids` reverses both: it clears this file entirely, and
+  for every `selected_run` decision it finds, deletes that subject's whole
+  `sub-XXX/` folder and the decision itself, so the next raw-to-BIDS
+  refresh re-derives them fresh. There's no more permanent-delete
+  operation in this module -- deleting *was* already the only operation,
+  so a separate "confirm forever" action on top of it would be redundant.
 
 Both JSON writes go through `_write_json_atomic` — write to a `.tmp` file,
 then `os.replace()` — so a crash mid-write can't corrupt either file.
+
+## Backup and disaster recovery
+
+Everything in a BIDS folder is either raw data (already safe — the raw folder
+is never touched, see "BIDS folder only" in the plan) or one of the JSON
+files above; only `crosscheck.json`/`excluded_subjects.json`/
+`crosscheck_pending.json` actually need backing up (`crosscheck_info_cache.json`
+is a re-derivable performance cache, not a decision record). Two functions
+handle this:
+
+- **`backup_decisions(bids_folder, backup_folder)`** — copies those three
+  files to `backup_folder`. Wired to the GUI's "Backup crosscheck data..."
+  button.
+- **`rebuild_from_raw(bids_folder, decisions, excluded)`** — the recovery
+  side. Assumes `bids_folder` has *just* been freshly re-imported from raw
+  (the GUI runs the existing `raw_converter`/"Refresh BIDS" hook first,
+  unchanged), then replays every decision's filesystem effect against it —
+  the same rename/delete each `record_*` function performs, but computed
+  directly from what the entry already recorded (`original_filename` →
+  `corrected_filename`, etc.) rather than recomputed from scratch, so there's
+  one definition of what each decision type means, not two. The one
+  exception is `id_correction`, which re-applies the same original/corrected
+  id token-replacement rule `record_id_correction` uses, since its entry
+  stores the original relative paths rather than each file's new name.
+
+  Every entry (across every key) is retried pass after pass until a pass
+  makes no further progress, rather than walked once in a fixed order — two
+  things can make an entry temporarily unresolvable: it isn't the oldest
+  step in its own key's chain yet (its `original_filename` doesn't exist
+  until an earlier entry in the same list produces it), or it depends on an
+  `id_correction` recorded under a *different* key finishing first. Both
+  resolve themselves once whatever they were waiting on succeeds on an
+  earlier pass — no explicit ordering/timestamp needed, and notably not
+  derivable from `crosscheck.json`'s on-disk key order anyway, since
+  `_write_json_atomic` writes with `sort_keys=True`. Whatever still can't
+  resolve once no pass makes progress is reported unresolved rather than
+  guessed at (see "no automatic collision resolution" in the plan for why).
+  Wired to the GUI's "Rebuild from backup..." button, which loads
+  `decisions`/`excluded` from a chosen backup folder (via the same
+  `load_decisions`/`load_excluded_subjects` already used for the live BIDS
+  folder — both take a bare folder path) before calling this.
+
+Not every dataset-specific correction fits `crosscheck.json`'s "decision
+about an already-converted file" shape, though — crane's
+`debrief_id_corrections.json`/`raw_filename_id_corrections.json`
+(`cli/crane_convert_to_bids.py`, surfaced via its own `extra_raw_actions`
+dialogs) are *inputs* the converter itself reads on the next "Refresh BIDS"
+run, not something to replay afterward. `BidsCrosscheckWindow`'s
+`extra_backup_filenames` constructor parameter (set by
+`crane_bids_crosscheck_gui.py`, empty for FOH) names these so
+`backup_decisions` includes them too, and a new `restore_backup_files`
+function puts them back into `bids_folder` *before* `raw_converter` runs
+during a rebuild — the window itself doesn't know what these files mean,
+only that they need to travel with a backup the same way `crosscheck.json`
+does (the same "this window doesn't know what the callback does" contract
+`extra_raw_actions` already uses).
 
 ## Extending: adding a new dataset
 
@@ -148,15 +216,15 @@ def main() -> None:
 subclass (`FohCandidateExtras`) that overrides `describe()` to show a
 recording's date/duration/stream-presence (colored HTML, parsed via
 `pyxdf` + `processing/lsl.gather_xdf_data_streams`/`get_start_time`), and
-`task_correction_available()` to enable the "Tag as foh" button. Every
-parse result is cached per-file in `self._info_cache` for the life of the
-window — see the caching TODO below for the next step (persisting that
-across restarts too).
+`task_tag_available()` to enable the "Tag with foh BIDS tags" button.
+Every parse result is cached per-file in `self._info_cache` for the life
+of the window — see the caching TODO below for the next step (persisting
+that across restarts too).
 
 Add `settings_app_name` (used as the `QSettings` application name — see
 below) unique per dataset, and register a console-script entry in
 `pyproject.toml`'s `[project.scripts]`, matching the existing
-`vrlab_crane_bids_crosscheck` / `mobi_foh_bids_crosscheck` pattern.
+`vrlab_crane_bids_crosscheck` / `vrlab_foh_bids_crosscheck` pattern.
 
 ## Libraries used
 
@@ -184,7 +252,7 @@ below) unique per dataset, and register a console-script entry in
   when a subject is skipped because no recording had been picked yet. See
   [BIDS Crosscheck Plan](bids_crosscheck_plan.md#todo-deferred-not-scoped-now).
 - **Crane parity with FOH's `CandidateExtras`** — FOH is ahead (rich
-  `describe()` info, `task_correction`); crane still uses the no-op base.
+  `describe()` info, `task_tag`); crane still uses the no-op base.
   Deliberately one dataset at a time — bring crane's GUI up to match FOH's
   once a good crane-specific info source is identified, not scoped yet.
 - **Crane's glob patterns are still placeholders** — see the note at the

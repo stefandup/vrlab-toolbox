@@ -8,23 +8,26 @@ from mooi_toolbox.processing.bids_crosscheck import (
     BidsCrosscheckError,
     DatasetConfig,
     ScanTypeConfig,
+    backup_decisions,
     completeness_summary,
     crosschecked_scan_types,
-    delete_all_in_review,
     ensure_bidsignore,
-    junk_folder,
+    existing_subject_ids,
+    list_scans_tsv_rows,
     load_decisions,
+    load_excluded_subjects,
     load_pending_selections,
+    rebuild_from_raw,
     record_date_correction,
     record_id_correction,
+    record_scans_tsv_row_date_correction,
     record_selected_run,
-    record_subject_junked,
-    record_task_correction,
-    remove_task_correction,
-    restore_all_from_junk,
-    restore_all_from_review,
+    record_subject_excluded,
+    record_task_tag,
+    remove_task_tag,
+    restore_all_from_bids,
+    restore_backup_files,
     revert_all_decisions,
-    review_folder,
     save_pending_selections,
     scan_bids_folder,
     set_crosschecked,
@@ -36,14 +39,22 @@ TEST_CONFIG = DatasetConfig(
         ScanTypeConfig(name="physiology", glob_patterns=("*_physiology.*",)),
         ScanTypeConfig(name="debrief", glob_patterns=("*_redcap*.csv",)),
     ),
-    task_correction_scan_type="physiology",
-    task_correction_label="FOH",
+    task_tag_scan_type="physiology",
+    task_tag_task="foh",
+    task_tag_suffix="beh",
 )
 
 
 def _touch(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("")
+    return path
+
+
+def _write_scans_tsv(path: Path, rows: list[dict[str, str]]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = ["filename\tacq_time"] + [f"{row['filename']}\t{row['acq_time']}" for row in rows]
+    path.write_text("\n".join(lines) + "\n")
     return path
 
 
@@ -78,14 +89,6 @@ class TestScanBidsFolder(unittest.TestCase):
         self.assertEqual(scan.scans["001"]["physiology"].status, "duplicate")
         self.assertEqual(len(scan.scans["001"]["physiology"].files), 2)
 
-    def test_junk_folder_is_excluded_from_scanning(self):
-        _touch(self.bids_folder / "sub-001" / "20240101_sub-001_physiology.acq")
-        _touch(junk_folder(self.bids_folder) / "sub-001" / "old_physiology.acq")
-
-        scan = scan_bids_folder(self.bids_folder, TEST_CONFIG)
-
-        self.assertNotIn("crosscheck_junk", scan.subject_ids())
-
     def test_completeness_summary_counts_ok_subjects_per_scan_type(self):
         _touch(self.bids_folder / "sub-001" / "20240101_sub-001_physiology.acq")
         _touch(self.bids_folder / "sub-002" / "20240101_sub-002_physiology.acq")
@@ -107,24 +110,22 @@ class TestRecordSelectedRun(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.bids_folder, ignore_errors=True)
 
-    def test_non_selected_files_move_to_review(self):
-        # Always review, never junk -- see record_selected_run's docstring. Junk is reserved
-        # for whole subjects via record_subject_junked.
+    def test_non_selected_files_are_removed_from_bids(self):
+        # Deleted outright, not moved anywhere -- see record_selected_run's docstring. The raw
+        # folder (never touched by any importer/converter) is the only recoverable copy now.
         record_selected_run(
             self.bids_folder, "001", "physiology", self.file_a, (self.file_a, self.file_b)
         )
 
         self.assertTrue(self.file_a.exists())
         self.assertFalse(self.file_b.exists())
-        self.assertTrue((review_folder(self.bids_folder) / "sub-001" / self.file_b.name).exists())
-        self.assertFalse((junk_folder(self.bids_folder) / "sub-001" / self.file_b.name).exists())
 
     def test_decision_is_recorded(self):
         record_selected_run(
             self.bids_folder, "001", "physiology", self.file_a, (self.file_a, self.file_b)
         )
 
-        decision = load_decisions(self.bids_folder)["001_physiology"]
+        decision = load_decisions(self.bids_folder)["001_physiology"][-1]
         self.assertEqual(decision["type"], "selected_run")
         self.assertEqual(decision["selected_file"], self.file_a.name)
         self.assertEqual(decision["non_selected_files"], [self.file_b.name])
@@ -158,7 +159,7 @@ class TestRecordDateCorrection(unittest.TestCase):
     def test_decision_records_original_filename_and_date(self):
         record_date_correction(self.bids_folder, "001", "debrief", self.file, "20240110")
 
-        decision = load_decisions(self.bids_folder)["001_debrief"]
+        decision = load_decisions(self.bids_folder)["001_debrief"][-1]
         self.assertEqual(decision["original_filename"], "20240108_sub-001_redcap_v1.csv")
         self.assertEqual(decision["original_date"], "20240108")
         self.assertEqual(decision["corrected_date"], "20240110")
@@ -173,6 +174,84 @@ class TestRecordDateCorrection(unittest.TestCase):
             record_date_correction(self.bids_folder, "001", "debrief", self.file, "20240110")
 
         self.assertTrue(self.file.exists())  # untouched -- the guard runs before any rename
+
+
+class TestListScansTsvRows(unittest.TestCase):
+    def setUp(self):
+        self.bids_folder = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        shutil.rmtree(self.bids_folder, ignore_errors=True)
+
+    def test_returns_none_when_subject_has_no_scans_tsv(self):
+        _touch(self.bids_folder / "sub-001" / "20240101_sub-001_physiology.acq")
+
+        self.assertIsNone(list_scans_tsv_rows(self.bids_folder, "001"))
+
+    def test_lists_every_row_for_the_subject(self):
+        _write_scans_tsv(
+            self.bids_folder / "sub-001" / "ses-01" / "sub-001_ses-01_scans.tsv",
+            [
+                {"filename": "sub-001_ses-01_physio.mat", "acq_time": "202401081200"},
+                {"filename": "sub-001_ses-01_events.tsv", "acq_time": "202401081200"},
+            ],
+        )
+
+        rows = list_scans_tsv_rows(self.bids_folder, "001")
+
+        self.assertEqual(
+            rows,
+            [
+                {"filename": "sub-001_ses-01_physio.mat", "acq_time": "202401081200"},
+                {"filename": "sub-001_ses-01_events.tsv", "acq_time": "202401081200"},
+            ],
+        )
+
+
+class TestRecordScansTsvRowDateCorrection(unittest.TestCase):
+    def setUp(self):
+        self.bids_folder = Path(tempfile.mkdtemp())
+        self.scans_tsv = _write_scans_tsv(
+            self.bids_folder / "sub-001" / "ses-01" / "sub-001_ses-01_scans.tsv",
+            [{"filename": "sub-001_ses-01_events.tsv", "acq_time": "2024100"}],
+        )
+
+    def tearDown(self):
+        shutil.rmtree(self.bids_folder, ignore_errors=True)
+
+    def test_rewrites_the_matching_row(self):
+        record_scans_tsv_row_date_correction(
+            self.bids_folder, "001", "sub-001_ses-01_events.tsv", "202401081200"
+        )
+
+        rows = list_scans_tsv_rows(self.bids_folder, "001")
+        self.assertEqual(rows[0]["acq_time"], "202401081200")
+
+    def test_decision_records_original_and_corrected_date(self):
+        record_scans_tsv_row_date_correction(
+            self.bids_folder, "001", "sub-001_ses-01_events.tsv", "202401081200"
+        )
+
+        decision = load_decisions(self.bids_folder)["001_scans_tsv:sub-001_ses-01_events.tsv"][-1]
+        self.assertEqual(decision["type"], "scans_tsv_date_correction")
+        self.assertEqual(decision["original_date"], "2024100")
+        self.assertEqual(decision["corrected_date"], "202401081200")
+
+    def test_raises_for_an_unknown_filename(self):
+        with self.assertRaises(BidsCrosscheckError):
+            record_scans_tsv_row_date_correction(
+                self.bids_folder, "001", "no_such_file.tsv", "202401081200"
+            )
+
+    def test_revert_all_decisions_restores_the_original_date(self):
+        record_scans_tsv_row_date_correction(
+            self.bids_folder, "001", "sub-001_ses-01_events.tsv", "202401081200"
+        )
+
+        revert_all_decisions(self.bids_folder)
+
+        rows = list_scans_tsv_rows(self.bids_folder, "001")
+        self.assertEqual(rows[0]["acq_time"], "2024100")
 
 
 class TestRecordIdCorrection(unittest.TestCase):
@@ -195,7 +274,7 @@ class TestRecordIdCorrection(unittest.TestCase):
     def test_decision_lists_every_renamed_file(self):
         record_id_correction(self.bids_folder, "001", "014")
 
-        decision = load_decisions(self.bids_folder)["001"]
+        decision = load_decisions(self.bids_folder)["001"][-1]
         self.assertEqual(decision["type"], "id_correction")
         self.assertEqual(decision["corrected_id"], "014")
         self.assertEqual(len(decision["renamed_files"]), 2)
@@ -205,7 +284,7 @@ class TestRecordIdCorrection(unittest.TestCase):
         # decision-before-action ordering every other record_* function uses.
         record_id_correction(self.bids_folder, "001", "014")
 
-        decision = load_decisions(self.bids_folder)["001"]
+        decision = load_decisions(self.bids_folder)["001"][-1]
         self.assertIn(
             "sub-001/20240101_sub-001_physiology.acq", decision["renamed_files"]
         )
@@ -247,7 +326,7 @@ class TestRecordIdCorrection(unittest.TestCase):
         self.assertTrue((corrected_folder / "20240101_sub-ABC_physiology.acq").exists())
 
 
-class TestRecordSubjectJunked(unittest.TestCase):
+class TestRecordSubjectExcluded(unittest.TestCase):
     def setUp(self):
         self.bids_folder = Path(tempfile.mkdtemp())
         _touch(self.bids_folder / "sub-001" / "20240101_sub-001_physiology.acq")
@@ -256,175 +335,134 @@ class TestRecordSubjectJunked(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.bids_folder, ignore_errors=True)
 
-    def test_moves_the_whole_subject_folder(self):
-        destination = record_subject_junked(self.bids_folder, "001")
+    def test_deletes_the_whole_subject_folder(self):
+        destination = record_subject_excluded(self.bids_folder, "001")
 
-        self.assertEqual(destination, junk_folder(self.bids_folder) / "sub-001")
+        self.assertEqual(destination, self.bids_folder / "sub-001")
         self.assertFalse((self.bids_folder / "sub-001").exists())
-        self.assertTrue((destination / "20240101_sub-001_physiology.acq").exists())
-        self.assertTrue((destination / "20240101_sub-001_redcap_v1.csv").exists())
 
-    def test_decision_records_reason(self):
-        record_subject_junked(self.bids_folder, "001", reason="non_participant")
+    def test_records_reason(self):
+        record_subject_excluded(self.bids_folder, "001", reason="non_participant")
 
-        decision = load_decisions(self.bids_folder)["001_junked"]
-        self.assertEqual(decision["type"], "subject_junked")
-        self.assertEqual(decision["junked_reason"], "non_participant")
+        excluded = load_excluded_subjects(self.bids_folder)
+        self.assertEqual(excluded["001"], "non_participant")
 
     def test_reason_defaults_to_none(self):
-        record_subject_junked(self.bids_folder, "001")
+        record_subject_excluded(self.bids_folder, "001")
 
-        decision = load_decisions(self.bids_folder)["001_junked"]
-        self.assertIsNone(decision["junked_reason"])
-
-    def test_does_not_collide_with_a_stale_id_correction_entry(self):
-        # record_id_correction keys its decision by the *original* id (bare _decision_key),
-        # so a subject renamed away from "001" leaves a bare "001" entry behind. If a
-        # different, later subject also ends up with id "001" and gets junked, that must not
-        # overwrite the older id_correction record still sitting under the same bare key.
-        record_id_correction(self.bids_folder, "001", "099")
-        _touch(self.bids_folder / "sub-001" / "20240201_sub-001_physiology.acq")
-
-        record_subject_junked(self.bids_folder, "001")
-
-        decisions = load_decisions(self.bids_folder)
-        self.assertEqual(decisions["001"]["type"], "id_correction")
-        self.assertEqual(decisions["001"]["corrected_id"], "099")
-        self.assertEqual(decisions["001_junked"]["type"], "subject_junked")
+        excluded = load_excluded_subjects(self.bids_folder)
+        self.assertIsNone(excluded["001"])
 
     def test_raises_for_unknown_subject(self):
         with self.assertRaises(BidsCrosscheckError):
-            record_subject_junked(self.bids_folder, "999")
-
-    def test_raises_if_destination_already_exists(self):
-        _touch(junk_folder(self.bids_folder) / "sub-001" / "stray.txt")
-
-        with self.assertRaises(BidsCrosscheckError):
-            record_subject_junked(self.bids_folder, "001")
+            record_subject_excluded(self.bids_folder, "999")
 
 
-class TestRestoreAllFromJunk(unittest.TestCase):
+class TestExistingSubjectIds(unittest.TestCase):
     def setUp(self):
         self.bids_folder = Path(tempfile.mkdtemp())
 
     def tearDown(self):
         shutil.rmtree(self.bids_folder, ignore_errors=True)
 
-    def test_restores_a_whole_junked_subject(self):
+    def test_includes_a_subject_present_on_disk(self):
+        _touch(self.bids_folder / "sub-001" / "a.acq")
+
+        self.assertEqual(existing_subject_ids(self.bids_folder), {"001"})
+
+    def test_still_includes_an_excluded_subject(self):
+        # Critical: an excluded subject's folder is deleted, not moved -- if it dropped out of
+        # this set, the next raw-to-BIDS refresh would treat it as brand new and silently
+        # re-copy it back in.
+        _touch(self.bids_folder / "sub-001" / "a.acq")
+        record_subject_excluded(self.bids_folder, "001")
+
+        self.assertEqual(existing_subject_ids(self.bids_folder), {"001"})
+
+    def test_empty_for_a_folder_that_does_not_exist_yet(self):
+        missing = self.bids_folder / "does-not-exist"
+
+        self.assertEqual(existing_subject_ids(missing), set())
+
+    def test_still_includes_a_renamed_away_original_id(self):
+        # Critical: record_id_correction renames sub-001/ to sub-014/ on disk -- the raw
+        # source data still parses to "001" (renaming never touches the raw folder), so
+        # without this, "001" would look brand new to the next raw-to-BIDS refresh and get
+        # copied back in as a duplicate sitting alongside the renamed sub-014/.
+        _touch(self.bids_folder / "sub-001" / "a.acq")
+        record_id_correction(self.bids_folder, "001", "014")
+
+        ids = existing_subject_ids(self.bids_folder)
+        self.assertIn("001", ids)
+        self.assertIn("014", ids)
+
+    def test_drops_a_renamed_away_id_once_reverted(self):
+        _touch(self.bids_folder / "sub-001" / "a.acq")
+        record_id_correction(self.bids_folder, "001", "014")
+
+        revert_all_decisions(self.bids_folder)
+
+        self.assertEqual(existing_subject_ids(self.bids_folder), {"001"})
+
+
+class TestRestoreAllFromBids(unittest.TestCase):
+    def setUp(self):
+        self.bids_folder = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        shutil.rmtree(self.bids_folder, ignore_errors=True)
+
+    def test_restores_an_excluded_subject(self):
         _touch(self.bids_folder / "sub-001" / "a_physiology.acq")
-        record_subject_junked(self.bids_folder, "001")
-        self.assertFalse((self.bids_folder / "sub-001").exists())
+        record_subject_excluded(self.bids_folder, "001")
+        self.assertIn("001", existing_subject_ids(self.bids_folder))
 
-        restored, errors = restore_all_from_junk(self.bids_folder)
-
-        self.assertEqual(errors, [])
-        self.assertTrue((self.bids_folder / "sub-001" / "a_physiology.acq").exists())
-        self.assertEqual(list(junk_folder(self.bids_folder).iterdir()), [])
-
-    def test_reports_a_conflict_instead_of_overwriting(self):
-        _touch(self.bids_folder / "sub-001" / "a.acq")
-        record_subject_junked(self.bids_folder, "001")
-        # Recreate a subject with the same id/file after it was junked -- restoring must not
-        # silently clobber it.
-        _touch(self.bids_folder / "sub-001" / "a.acq")
-
-        restored, errors = restore_all_from_junk(self.bids_folder)
-
-        self.assertEqual(restored, [])
-        self.assertEqual(len(errors), 1)
-
-    def test_no_op_on_a_folder_with_no_junk(self):
-        restored, errors = restore_all_from_junk(self.bids_folder)
-
-        self.assertEqual((restored, errors), ([], []))
-
-
-class TestRestoreAllFromReview(unittest.TestCase):
-    def setUp(self):
-        self.bids_folder = Path(tempfile.mkdtemp())
-
-    def tearDown(self):
-        shutil.rmtree(self.bids_folder, ignore_errors=True)
-
-    def test_restores_files_sent_to_review(self):
-        file_a = _touch(self.bids_folder / "sub-001" / "a_physiology.acq")
-        file_b = _touch(self.bids_folder / "sub-001" / "b_physiology.acq")
-        record_selected_run(self.bids_folder, "001", "physiology", file_a, (file_a, file_b))
-        self.assertFalse(file_b.exists())
-
-        restored, errors = restore_all_from_review(self.bids_folder)
+        restored, errors = restore_all_from_bids(self.bids_folder)
 
         self.assertEqual(errors, [])
-        self.assertTrue(file_a.exists())
-        self.assertTrue(file_b.exists())
+        self.assertEqual(restored, ["001"])
+        self.assertNotIn("001", existing_subject_ids(self.bids_folder))
+        self.assertEqual(load_excluded_subjects(self.bids_folder), {})
 
-    def test_merges_back_into_an_existing_subject_folder(self):
-        # record_selected_run only sends the *non-selected* duplicate(s) to review -- the
-        # subject folder itself, and the winning file, stay right where they are, so
-        # restoring has to merge back into a folder that already exists.
+    def test_restores_a_subject_with_a_committed_duplicate_pick(self):
         file_a = _touch(self.bids_folder / "sub-001" / "a_physiology.acq")
         file_b = _touch(self.bids_folder / "sub-001" / "b_physiology.acq")
         record_selected_run(self.bids_folder, "001", "physiology", file_a, (file_a, file_b))
         self.assertTrue((self.bids_folder / "sub-001").is_dir())
 
-        restored, errors = restore_all_from_review(self.bids_folder)
+        restored, errors = restore_all_from_bids(self.bids_folder)
 
         self.assertEqual(errors, [])
-        self.assertTrue(file_a.exists())
-        self.assertTrue(file_b.exists())
+        self.assertEqual(restored, ["001"])
+        # The WHOLE subject is re-derived on the next refresh, not just the removed file --
+        # see restore_all_from_bids's docstring for why.
+        self.assertFalse((self.bids_folder / "sub-001").exists())
+        decision_types = {
+            entry.get("type")
+            for entries in load_decisions(self.bids_folder).values()
+            for entry in entries
+        }
+        self.assertNotIn("selected_run", decision_types)
 
-    def test_does_not_touch_junked_subjects(self):
-        # The two are separate folders/buttons on purpose -- restoring one must not
-        # accidentally sweep up the other. Junk only ever holds whole subjects (via
-        # record_subject_junked), never individual candidate files.
-        _touch(self.bids_folder / "sub-002" / "a_physiology.acq")
-        record_subject_junked(self.bids_folder, "002")
-        self.assertFalse((self.bids_folder / "sub-002").exists())
-
-        restored, errors = restore_all_from_review(self.bids_folder)
-
-        self.assertEqual((restored, errors), ([], []))
-        self.assertFalse((self.bids_folder / "sub-002").exists())  # still junked, not restored
-
-    def test_no_op_on_a_folder_with_no_review(self):
-        restored, errors = restore_all_from_review(self.bids_folder)
-
-        self.assertEqual((restored, errors), ([], []))
-
-
-class TestDeleteAllInReview(unittest.TestCase):
-    def setUp(self):
-        self.bids_folder = Path(tempfile.mkdtemp())
-
-    def tearDown(self):
-        shutil.rmtree(self.bids_folder, ignore_errors=True)
-
-    def test_permanently_deletes_everything_in_review(self):
-        file_a = _touch(self.bids_folder / "sub-001" / "a_physiology.acq")
-        file_b = _touch(self.bids_folder / "sub-001" / "b_physiology.acq")
+    def test_restores_a_subject_whose_selected_run_is_buried_earlier_in_its_key_s_history(self):
+        # A committed duplicate pick can be followed later by a further correction on the same
+        # key (e.g. the surviving file gets date-corrected afterward) -- restoring must still
+        # find the selected_run even though it's no longer the latest entry.
+        file_a = _touch(self.bids_folder / "sub-001" / "20240101_sub-001_physiology.acq")
+        file_b = _touch(self.bids_folder / "sub-001" / "20240102_sub-001_physiology.acq")
         record_selected_run(self.bids_folder, "001", "physiology", file_a, (file_a, file_b))
+        record_date_correction(self.bids_folder, "001", "physiology", file_a, "20240103")
 
-        deleted, errors = delete_all_in_review(self.bids_folder)
+        restored, errors = restore_all_from_bids(self.bids_folder)
 
         self.assertEqual(errors, [])
-        self.assertEqual(deleted, 1)  # one top-level entry: sub-001/
-        self.assertFalse((review_folder(self.bids_folder) / "sub-001").exists())
-        # Restoring afterwards must not resurrect what was already deleted.
-        restored, restore_errors = restore_all_from_review(self.bids_folder)
-        self.assertEqual((restored, restore_errors), ([], []))
+        self.assertEqual(restored, ["001"])
+        self.assertFalse((self.bids_folder / "sub-001").exists())
 
-    def test_does_not_touch_junk(self):
-        _touch(self.bids_folder / "sub-002" / "a_physiology.acq")
-        record_subject_junked(self.bids_folder, "002")
+    def test_no_op_on_a_folder_with_nothing_removed(self):
+        restored, errors = restore_all_from_bids(self.bids_folder)
 
-        delete_all_in_review(self.bids_folder)
-
-        self.assertTrue((junk_folder(self.bids_folder) / "sub-002" / "a_physiology.acq").exists())
-
-    def test_no_op_on_a_folder_with_no_review(self):
-        deleted, errors = delete_all_in_review(self.bids_folder)
-
-        self.assertEqual((deleted, errors), (0, []))
+        self.assertEqual((restored, errors), ([], []))
 
 
 class TestRevertAllDecisions(unittest.TestCase):
@@ -444,9 +482,9 @@ class TestRevertAllDecisions(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertTrue(file.exists())
 
-    def test_reverts_a_task_correction(self):
+    def test_reverts_a_task_tag(self):
         file = _touch(self.bids_folder / "sub-001" / "sub-001_run-2_eeg.xdf")
-        record_task_correction(self.bids_folder, "001", "physiology", file)
+        record_task_tag(self.bids_folder, "001", "physiology", file, task="foh", suffix="beh")
         self.assertFalse(file.exists())
 
         reverted, errors = revert_all_decisions(self.bids_folder)
@@ -475,36 +513,43 @@ class TestRevertAllDecisions(unittest.TestCase):
         self.assertEqual(load_decisions(self.bids_folder), {})
         self.assertEqual(load_pending_selections(self.bids_folder), {})
 
-    def test_only_reverts_the_latest_decision_for_a_given_key(self):
-        # date_correction and task_correction share the same _decision_key(subject_id,
-        # scan_type) -- the second overwrites the first's record, so only the second is
-        # revertible. This is the documented limitation, not a bug.
+    def test_reverts_a_full_chain_of_decisions_on_the_same_key(self):
+        # date_correction and task_tag share the same _decision_key(subject_id, scan_type) --
+        # both are preserved in that key's history now (not overwritten), so reverting should
+        # walk the chain newest-to-oldest and land back on the true original filename, not just
+        # the first-corrected one.
         file = _touch(self.bids_folder / "sub-001" / "20240108_sub-001_run-2_physiology.acq")
         corrected = record_date_correction(self.bids_folder, "001", "physiology", file, "20240110")
-        record_task_correction(self.bids_folder, "001", "physiology", corrected)
+        record_task_tag(self.bids_folder, "001", "physiology", corrected, task="foh", suffix="beh")
 
         reverted, errors = revert_all_decisions(self.bids_folder)
 
-        # The task_correction reverts (strips the FOH tag) leaving the *date-corrected* name,
-        # not the true original -- the date_correction record was already overwritten.
-        self.assertTrue(
+        self.assertEqual(errors, [])
+        self.assertTrue(file.exists())
+        self.assertFalse(
             (self.bids_folder / "sub-001" / "20240110_sub-001_run-2_physiology.acq").exists()
         )
 
     def test_does_not_error_on_an_already_reverted_file(self):
         file = _touch(self.bids_folder / "sub-001" / "sub-001_run-2_eeg.xdf")
-        record_task_correction(self.bids_folder, "001", "physiology", file)
+        record_task_tag(self.bids_folder, "001", "physiology", file, task="foh", suffix="beh")
         # Simulate the file having already been restored/renamed some other way.
-        (self.bids_folder / "sub-001" / "sub-001_run-2_FOH.xdf").rename(file)
+        (self.bids_folder / "sub-001" / "sub-001_task-foh_run-2_beh.xdf").rename(file)
 
         reverted, errors = revert_all_decisions(self.bids_folder)
 
         self.assertEqual(errors, [])
 
-    def test_reverts_a_task_correction_that_also_renamed_the_parent_folder(self):
+    def test_reverts_a_task_tag_that_also_renamed_the_parent_folder(self):
         file = _touch(self.bids_folder / "sub-001" / "eeg" / "sub-001_run-2_eeg_philani.xdf")
-        record_task_correction(
-            self.bids_folder, "001", "physiology", file, datatype_folder_name="beh"
+        record_task_tag(
+            self.bids_folder,
+            "001",
+            "physiology",
+            file,
+            task="foh",
+            suffix="beh",
+            datatype_folder_name="beh",
         )
 
         reverted, errors = revert_all_decisions(self.bids_folder)
@@ -527,8 +572,7 @@ class TestEnsureBidsignore(unittest.TestCase):
         content = (self.bids_folder / ".bidsignore").read_text(encoding="utf-8")
         self.assertIn("crosscheck.json", content)
         self.assertIn("crosscheck_pending.json", content)
-        self.assertIn("crosscheck_junk/", content)
-        self.assertIn("crosscheck_review/", content)
+        self.assertIn("excluded_subjects.json", content)
 
     def test_includes_extra_patterns(self):
         ensure_bidsignore(self.bids_folder, ("crosscheck_info_cache.json",))
@@ -556,7 +600,7 @@ class TestEnsureBidsignore(unittest.TestCase):
         self.assertEqual(first, second)
 
 
-class TestRecordTaskCorrection(unittest.TestCase):
+class TestRecordTaskTag(unittest.TestCase):
     def setUp(self):
         self.bids_folder = Path(tempfile.mkdtemp())
         self.file = _touch(self.bids_folder / "sub-001" / "sub-001_run-2_eeg.xdf")
@@ -564,50 +608,89 @@ class TestRecordTaskCorrection(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.bids_folder, ignore_errors=True)
 
-    def test_replaces_everything_after_the_run_token(self):
-        destination = record_task_correction(self.bids_folder, "001", "physiology", self.file)
+    def test_inserts_task_entity_and_renames_the_suffix(self):
+        destination = record_task_tag(
+            self.bids_folder, "001", "physiology", self.file, task="foh", suffix="beh"
+        )
 
-        self.assertEqual(destination.name, "sub-001_run-2_FOH.xdf")
+        self.assertEqual(destination.name, "sub-001_task-foh_run-2_beh.xdf")
+
+    def test_inserts_acq_entity_when_given(self):
+        destination = record_task_tag(
+            self.bids_folder, "001", "physiology", self.file, task="foh", suffix="beh", acq="lsl"
+        )
+
+        self.assertEqual(destination.name, "sub-001_task-foh_acq-lsl_run-2_beh.xdf")
+
+    def test_replaces_an_existing_task_entity_instead_of_duplicating_it(self):
+        # Real FOH raw recordings can already carry their own task- entity (e.g. the
+        # collection software's own "task-Default") -- must be replaced in place, not left
+        # sitting next to a second, colliding task-foh token.
+        file = _touch(
+            self.bids_folder / "sub-002" / "sub-002_ses-S001_task-Default_run-1_eeg.xdf"
+        )
+
+        destination = record_task_tag(
+            self.bids_folder, "002", "physiology", file, task="foh", suffix="beh", acq="lsl"
+        )
+
+        self.assertEqual(
+            destination.name, "sub-002_ses-S001_task-foh_acq-lsl_run-1_beh.xdf"
+        )
 
     def test_rejects_a_filename_with_no_run_token(self):
         file = _touch(self.bids_folder / "sub-002" / "sub-002_physiology.xdf")
 
         with self.assertRaises(BidsCrosscheckError):
-            record_task_correction(self.bids_folder, "002", "physiology", file)
+            record_task_tag(self.bids_folder, "002", "physiology", file, task="foh", suffix="beh")
 
     def test_rejects_file_already_labelled(self):
-        labelled = record_task_correction(self.bids_folder, "001", "physiology", self.file)
+        labelled = record_task_tag(
+            self.bids_folder, "001", "physiology", self.file, task="foh", suffix="beh"
+        )
 
         with self.assertRaises(BidsCrosscheckError):
-            record_task_correction(self.bids_folder, "001", "physiology", labelled)
+            record_task_tag(
+                self.bids_folder, "001", "physiology", labelled, task="foh", suffix="beh"
+            )
 
     def test_rejects_a_file_already_labelled_under_different_casing(self):
-        # Legacy data tagged before the label's casing changed (e.g. "_FOH" when the label is
-        # now "foh") must still count as already tagged -- see _is_real_collision's docstring
-        # for why a case-insensitive filesystem makes re-tagging it actively dangerous too.
-        legacy = _touch(self.bids_folder / "sub-003" / "sub-003_run-1_FOH.xdf")
+        # A file that already carries the task- marker under a different casing must still
+        # count as tagged -- see _is_real_collision's docstring for why a case-insensitive
+        # filesystem makes re-tagging it actively dangerous too.
+        legacy = _touch(self.bids_folder / "sub-003" / "sub-003_TASK-FOH_run-1_eeg.xdf")
 
         with self.assertRaises(BidsCrosscheckError):
-            record_task_correction(self.bids_folder, "003", "physiology", legacy, label="foh")
+            record_task_tag(
+                self.bids_folder, "003", "physiology", legacy, task="foh", suffix="beh"
+            )
 
         self.assertTrue(legacy.exists())  # untouched
 
     def test_raises_if_destination_already_exists(self):
-        _touch(self.bids_folder / "sub-001" / "sub-001_run-2_FOH.xdf")
+        _touch(self.bids_folder / "sub-001" / "sub-001_task-foh_run-2_beh.xdf")
 
         with self.assertRaises(BidsCrosscheckError):
-            record_task_correction(self.bids_folder, "001", "physiology", self.file)
+            record_task_tag(
+                self.bids_folder, "001", "physiology", self.file, task="foh", suffix="beh"
+            )
 
         self.assertTrue(self.file.exists())  # untouched -- the guard runs before any rename
 
     def test_renames_the_parent_folder_when_a_datatype_folder_name_is_given(self):
         file = _touch(self.bids_folder / "sub-002" / "eeg" / "sub-002_run-1_eeg_philani.xdf")
 
-        destination = record_task_correction(
-            self.bids_folder, "002", "physiology", file, datatype_folder_name="beh"
+        destination = record_task_tag(
+            self.bids_folder,
+            "002",
+            "physiology",
+            file,
+            task="foh",
+            suffix="beh",
+            datatype_folder_name="beh",
         )
 
-        expected = self.bids_folder / "sub-002" / "beh" / "sub-002_run-1_FOH.xdf"
+        expected = self.bids_folder / "sub-002" / "beh" / "sub-002_task-foh_run-1_beh.xdf"
         self.assertEqual(destination, expected)
         self.assertTrue(destination.exists())
         self.assertFalse((self.bids_folder / "sub-002" / "eeg").exists())
@@ -616,8 +699,14 @@ class TestRecordTaskCorrection(unittest.TestCase):
         file = _touch(self.bids_folder / "sub-002" / "eeg" / "sub-002_run-1_eeg_philani.xdf")
         sibling = _touch(self.bids_folder / "sub-002" / "eeg" / "sub-002_run-1_eeg_other.xdf")
 
-        record_task_correction(
-            self.bids_folder, "002", "physiology", file, datatype_folder_name="beh"
+        record_task_tag(
+            self.bids_folder,
+            "002",
+            "physiology",
+            file,
+            task="foh",
+            suffix="beh",
+            datatype_folder_name="beh",
         )
 
         self.assertTrue((self.bids_folder / "sub-002" / "beh" / sibling.name).exists())
@@ -625,8 +714,14 @@ class TestRecordTaskCorrection(unittest.TestCase):
     def test_does_not_rename_the_parent_folder_when_it_already_matches(self):
         file = _touch(self.bids_folder / "sub-002" / "beh" / "sub-002_run-1_eeg_philani.xdf")
 
-        destination = record_task_correction(
-            self.bids_folder, "002", "physiology", file, datatype_folder_name="beh"
+        destination = record_task_tag(
+            self.bids_folder,
+            "002",
+            "physiology",
+            file,
+            task="foh",
+            suffix="beh",
+            datatype_folder_name="beh",
         )
 
         self.assertEqual(destination.parent, self.bids_folder / "sub-002" / "beh")
@@ -636,14 +731,20 @@ class TestRecordTaskCorrection(unittest.TestCase):
         _touch(self.bids_folder / "sub-002" / "beh" / "unrelated.txt")
 
         with self.assertRaises(BidsCrosscheckError):
-            record_task_correction(
-                self.bids_folder, "002", "physiology", file, datatype_folder_name="beh"
+            record_task_tag(
+                self.bids_folder,
+                "002",
+                "physiology",
+                file,
+                task="foh",
+                suffix="beh",
+                datatype_folder_name="beh",
             )
 
         self.assertTrue(file.exists())  # untouched -- the guard runs before any rename
 
 
-class TestRemoveTaskCorrection(unittest.TestCase):
+class TestRemoveTaskTag(unittest.TestCase):
     def setUp(self):
         self.bids_folder = Path(tempfile.mkdtemp())
         self.file = _touch(self.bids_folder / "sub-001" / "sub-001_run-2_eeg.xdf")
@@ -651,65 +752,115 @@ class TestRemoveTaskCorrection(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.bids_folder, ignore_errors=True)
 
-    def test_reverses_a_label_insertion(self):
-        labelled = record_task_correction(self.bids_folder, "001", "physiology", self.file)
+    def test_reverses_a_tag_insertion(self):
+        labelled = record_task_tag(
+            self.bids_folder, "001", "physiology", self.file, task="foh", suffix="beh"
+        )
 
-        restored = remove_task_correction(self.bids_folder, "001", "physiology", labelled)
+        restored = remove_task_tag(
+            self.bids_folder, "001", "physiology", labelled, task="foh", suffix="beh"
+        )
 
         self.assertEqual(restored.name, "sub-001_run-2_eeg.xdf")
         self.assertTrue(restored.exists())
 
+    def test_reverses_a_tag_insertion_with_acq(self):
+        labelled = record_task_tag(
+            self.bids_folder, "001", "physiology", self.file, task="foh", suffix="beh", acq="lsl"
+        )
+
+        restored = remove_task_tag(
+            self.bids_folder, "001", "physiology", labelled, task="foh", suffix="beh", acq="lsl"
+        )
+
+        self.assertEqual(restored.name, "sub-001_run-2_eeg.xdf")
+
     def test_rejects_file_without_the_label(self):
         with self.assertRaises(BidsCrosscheckError):
-            remove_task_correction(self.bids_folder, "001", "physiology", self.file)
+            remove_task_tag(
+                self.bids_folder, "001", "physiology", self.file, task="foh", suffix="beh"
+            )
 
     def test_accepts_a_tag_under_different_casing(self):
-        # Legacy data tagged before the label's casing changed -- e.g. "_FOH" from when the
-        # label used to be "FOH", now that it's "foh" -- must still be recognized as tagged.
-        legacy = _touch(self.bids_folder / "sub-003" / "sub-003_run-1_FOH.xdf")
+        # Not backed by a recorded decision -- exercises the best-effort structural fallback
+        # under a different casing of the task- marker.
+        legacy = _touch(self.bids_folder / "sub-003" / "sub-003_TASK-FOH_run-1_eeg.xdf")
 
-        restored = remove_task_correction(
-            self.bids_folder, "003", "physiology", legacy, label="foh"
+        restored = remove_task_tag(
+            self.bids_folder, "003", "physiology", legacy, task="foh", suffix="beh"
         )
 
         self.assertEqual(restored.name, "sub-003_run-1.xdf")
 
     def test_falls_back_to_stripping_the_tag_when_no_matching_decision_is_recorded(self):
-        # Simulate a file tagged outside this tool -- no task_correction decision exists for
-        # it, so the original suffix (e.g. "_eeg") can't be recovered, only the tag stripped.
-        tagged = _touch(self.bids_folder / "sub-002" / "sub-002_run-1_FOH.xdf")
+        # Simulate a file tagged outside this tool -- no task_tag decision exists for it, so
+        # the original free text (e.g. "_eeg") can't be recovered, only the tag stripped.
+        tagged = _touch(self.bids_folder / "sub-002" / "sub-002_task-foh_run-1_beh.xdf")
 
-        restored = remove_task_correction(self.bids_folder, "002", "physiology", tagged)
+        restored = remove_task_tag(
+            self.bids_folder, "002", "physiology", tagged, task="foh", suffix="beh"
+        )
 
         self.assertEqual(restored.name, "sub-002_run-1.xdf")
 
     def test_raises_if_destination_already_exists(self):
-        labelled = record_task_correction(self.bids_folder, "001", "physiology", self.file)
+        labelled = record_task_tag(
+            self.bids_folder, "001", "physiology", self.file, task="foh", suffix="beh"
+        )
         # Recreate a file at the name removal would restore to.
         _touch(self.bids_folder / "sub-001" / "sub-001_run-2_eeg.xdf")
 
         with self.assertRaises(BidsCrosscheckError):
-            remove_task_correction(self.bids_folder, "001", "physiology", labelled)
+            remove_task_tag(
+                self.bids_folder, "001", "physiology", labelled, task="foh", suffix="beh"
+            )
 
         self.assertTrue(labelled.exists())  # untouched -- the guard runs before any rename
 
     def test_decision_records_the_removal(self):
-        labelled = record_task_correction(self.bids_folder, "001", "physiology", self.file)
+        labelled = record_task_tag(
+            self.bids_folder, "001", "physiology", self.file, task="foh", suffix="beh"
+        )
 
-        remove_task_correction(self.bids_folder, "001", "physiology", labelled)
+        remove_task_tag(self.bids_folder, "001", "physiology", labelled, task="foh", suffix="beh")
 
         decisions = load_decisions(self.bids_folder)
-        entry = decisions["001_physiology"]
-        self.assertEqual(entry["type"], "task_correction_removed")
+        entry = decisions["001_physiology"][-1]
+        self.assertEqual(entry["type"], "task_tag_removed")
         self.assertEqual(entry["corrected_filename"], "sub-001_run-2_eeg.xdf")
+
+    def test_finds_a_non_latest_task_tag_entry_in_history(self):
+        # A later decision that doesn't rename the file (e.g. a fresh duplicate turning up and
+        # getting resolved in the tagged file's favor) can land on top of the task_tag entry in
+        # the same key's history -- remove_task_tag must still find the tag entry by searching
+        # the whole history, not just the latest entry.
+        labelled = record_task_tag(
+            self.bids_folder, "001", "physiology", self.file, task="foh", suffix="beh"
+        )
+        other = _touch(self.bids_folder / "sub-001" / "sub-001_run-3_eeg.xdf")
+        record_selected_run(self.bids_folder, "001", "physiology", labelled, (labelled, other))
+
+        restored = remove_task_tag(
+            self.bids_folder, "001", "physiology", labelled, task="foh", suffix="beh"
+        )
+
+        self.assertEqual(restored.name, "sub-001_run-2_eeg.xdf")
 
     def test_reverses_a_parent_folder_rename(self):
         file = _touch(self.bids_folder / "sub-002" / "eeg" / "sub-002_run-1_eeg_philani.xdf")
-        labelled = record_task_correction(
-            self.bids_folder, "002", "physiology", file, datatype_folder_name="beh"
+        labelled = record_task_tag(
+            self.bids_folder,
+            "002",
+            "physiology",
+            file,
+            task="foh",
+            suffix="beh",
+            datatype_folder_name="beh",
         )
 
-        restored = remove_task_correction(self.bids_folder, "002", "physiology", labelled)
+        restored = remove_task_tag(
+            self.bids_folder, "002", "physiology", labelled, task="foh", suffix="beh"
+        )
 
         expected = self.bids_folder / "sub-002" / "eeg" / "sub-002_run-1_eeg_philani.xdf"
         self.assertEqual(restored, expected)
@@ -719,9 +870,11 @@ class TestRemoveTaskCorrection(unittest.TestCase):
     def test_does_not_move_the_folder_back_when_no_matching_decision_is_recorded(self):
         # Same "tagged outside this tool" scenario as the filename fallback above -- there's no
         # original_parent_folder to restore to, so the folder is left exactly where it is.
-        tagged = _touch(self.bids_folder / "sub-002" / "beh" / "sub-002_run-1_FOH.xdf")
+        tagged = _touch(self.bids_folder / "sub-002" / "beh" / "sub-002_task-foh_run-1_beh.xdf")
 
-        restored = remove_task_correction(self.bids_folder, "002", "physiology", tagged)
+        restored = remove_task_tag(
+            self.bids_folder, "002", "physiology", tagged, task="foh", suffix="beh"
+        )
 
         self.assertEqual(restored.parent, self.bids_folder / "sub-002" / "beh")
 
@@ -752,9 +905,20 @@ class TestCrosschecked(unittest.TestCase):
         record_selected_run(self.bids_folder, "001", "physiology", self.file, (self.file,))
         set_crosschecked(self.bids_folder, "001", "physiology", True)
 
-        decision = load_decisions(self.bids_folder)["001_physiology"]
+        decision = load_decisions(self.bids_folder)["001_physiology"][-1]
         self.assertEqual(decision["type"], "selected_run")
         self.assertEqual(crosschecked_scan_types(self.bids_folder), {("001", "physiology")})
+
+    def test_history_accumulates_across_mixed_decision_types_on_one_key(self):
+        # Marking crosschecked uses a distinct key (_crosschecked_key), but every decision type
+        # sharing the plain _decision_key(subject_id, scan_type) key should still append, not
+        # overwrite -- both the selected_run and the later date_correction stay in history.
+        record_selected_run(self.bids_folder, "001", "physiology", self.file, (self.file,))
+        record_date_correction(self.bids_folder, "001", "physiology", self.file, "20240102")
+
+        entries = load_decisions(self.bids_folder)["001_physiology"]
+
+        self.assertEqual([entry["type"] for entry in entries], ["selected_run", "date_correction"])
 
 
 class TestPendingSelections(unittest.TestCase):
@@ -804,6 +968,214 @@ class TestDecisionsJsonIsValidJson(unittest.TestCase):
                 json.load(decisions_file)
         finally:
             shutil.rmtree(bids_folder, ignore_errors=True)
+
+
+class TestBackupDecisions(unittest.TestCase):
+    def setUp(self):
+        self.bids_folder = Path(tempfile.mkdtemp())
+        self.backup_folder = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        shutil.rmtree(self.bids_folder, ignore_errors=True)
+        shutil.rmtree(self.backup_folder, ignore_errors=True)
+
+    def test_copies_decisions_excluded_and_pending_files(self):
+        file = _touch(self.bids_folder / "sub-001" / "a_physiology.acq")
+        record_selected_run(self.bids_folder, "001", "physiology", file, (file,))
+        record_subject_excluded(self.bids_folder, "002", reason="pilot")
+        save_pending_selections(self.bids_folder, {"003": {"physiology": "b.acq"}})
+
+        copied = backup_decisions(self.bids_folder, self.backup_folder)
+
+        self.assertEqual(len(copied), 3)
+        self.assertEqual(load_decisions(self.backup_folder), load_decisions(self.bids_folder))
+        self.assertEqual(
+            load_excluded_subjects(self.backup_folder), load_excluded_subjects(self.bids_folder)
+        )
+        self.assertEqual(
+            load_pending_selections(self.backup_folder),
+            load_pending_selections(self.bids_folder),
+        )
+
+    def test_skips_the_info_cache_file(self):
+        _touch(self.bids_folder / "crosscheck_info_cache.json")
+
+        backup_decisions(self.bids_folder, self.backup_folder)
+
+        self.assertFalse((self.backup_folder / "crosscheck_info_cache.json").exists())
+
+    def test_returns_empty_list_when_nothing_to_back_up(self):
+        copied = backup_decisions(self.bids_folder, self.backup_folder)
+
+        self.assertEqual(copied, [])
+
+    def test_includes_extra_dataset_specific_files_when_given(self):
+        # e.g. crane's debrief_id_corrections.json/raw_filename_id_corrections.json -- not a
+        # record_* decision, but still human-entered input a rebuild would otherwise lose.
+        _touch(self.bids_folder / "debrief_id_corrections.json").write_text("{}")
+
+        copied = backup_decisions(
+            self.bids_folder, self.backup_folder, extra_filenames=("debrief_id_corrections.json",)
+        )
+
+        self.assertTrue((self.backup_folder / "debrief_id_corrections.json").exists())
+        self.assertIn(self.backup_folder / "debrief_id_corrections.json", copied)
+
+    def test_ignores_an_extra_filename_that_does_not_exist(self):
+        copied = backup_decisions(
+            self.bids_folder, self.backup_folder, extra_filenames=("does_not_exist.json",)
+        )
+
+        self.assertEqual(copied, [])
+
+
+class TestRestoreBackupFiles(unittest.TestCase):
+    def setUp(self):
+        self.backup_folder = Path(tempfile.mkdtemp())
+        self.bids_folder = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        shutil.rmtree(self.backup_folder, ignore_errors=True)
+        shutil.rmtree(self.bids_folder, ignore_errors=True)
+
+    def test_copies_named_files_into_a_fresh_bids_folder(self):
+        (self.backup_folder / "debrief_id_corrections.json").write_text('{"0001": "PID1"}')
+
+        copied = restore_backup_files(
+            self.backup_folder, self.bids_folder, ("debrief_id_corrections.json",)
+        )
+
+        destination = self.bids_folder / "debrief_id_corrections.json"
+        self.assertEqual(copied, [destination])
+        self.assertEqual(destination.read_text(), '{"0001": "PID1"}')
+
+    def test_ignores_a_named_file_missing_from_the_backup(self):
+        copied = restore_backup_files(
+            self.backup_folder, self.bids_folder, ("does_not_exist.json",)
+        )
+
+        self.assertEqual(copied, [])
+
+    def test_creates_the_bids_folder_if_it_does_not_exist_yet(self):
+        missing = self.bids_folder / "not-created-yet"
+        (self.backup_folder / "debrief_id_corrections.json").write_text("{}")
+
+        restore_backup_files(self.backup_folder, missing, ("debrief_id_corrections.json",))
+
+        self.assertTrue((missing / "debrief_id_corrections.json").exists())
+
+
+class TestRebuildFromRaw(unittest.TestCase):
+    def setUp(self):
+        self.original_bids_folder = Path(tempfile.mkdtemp())
+        self.fresh_bids_folder = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        shutil.rmtree(self.original_bids_folder, ignore_errors=True)
+        shutil.rmtree(self.fresh_bids_folder, ignore_errors=True)
+
+    def test_replays_a_selected_run_and_task_tag_chain(self):
+        # Build a realistic decision history against the "original" BIDS folder (the one
+        # that's since been lost) -- a duplicate resolved, then the survivor tagged.
+        file_a = _touch(self.original_bids_folder / "sub-001" / "sub-001_run-2_eeg.xdf")
+        file_b = _touch(self.original_bids_folder / "sub-001" / "sub-001_run-3_eeg.xdf")
+        record_selected_run(
+            self.original_bids_folder, "001", "physiology", file_a, (file_a, file_b)
+        )
+        record_task_tag(
+            self.original_bids_folder, "001", "physiology", file_a, task="foh", suffix="beh"
+        )
+        decisions = load_decisions(self.original_bids_folder)
+        excluded = load_excluded_subjects(self.original_bids_folder)
+
+        # A fresh raw import recreates the *pre-decision* raw files -- duplicates included.
+        _touch(self.fresh_bids_folder / "sub-001" / "sub-001_run-2_eeg.xdf")
+        _touch(self.fresh_bids_folder / "sub-001" / "sub-001_run-3_eeg.xdf")
+
+        resolved, unresolved = rebuild_from_raw(self.fresh_bids_folder, decisions, excluded)
+
+        self.assertEqual(unresolved, [])
+        self.assertEqual(len(resolved), 2)
+        self.assertTrue(
+            (self.fresh_bids_folder / "sub-001" / "sub-001_task-foh_run-2_beh.xdf").exists()
+        )
+        self.assertFalse((self.fresh_bids_folder / "sub-001" / "sub-001_run-3_eeg.xdf").exists())
+        self.assertEqual(load_decisions(self.fresh_bids_folder), decisions)
+
+    def test_applies_exclusions(self):
+        _touch(self.original_bids_folder / "sub-002" / "a.xdf")
+        record_subject_excluded(self.original_bids_folder, "002", reason="pilot")
+        decisions = load_decisions(self.original_bids_folder)
+        excluded = load_excluded_subjects(self.original_bids_folder)
+        _touch(self.fresh_bids_folder / "sub-002" / "a.xdf")
+
+        rebuild_from_raw(self.fresh_bids_folder, decisions, excluded)
+
+        self.assertFalse((self.fresh_bids_folder / "sub-002").exists())
+        self.assertEqual(load_excluded_subjects(self.fresh_bids_folder), {"002": "pilot"})
+
+    def test_reports_unresolved_when_the_recorded_file_is_missing(self):
+        # Simulates raw data having genuinely changed since the backup was made.
+        decisions = {
+            "001_physiology": [
+                {
+                    "type": "date_correction",
+                    "subject_id": "001",
+                    "scan_type": "physiology",
+                    "original_filename": "does_not_exist.xdf",
+                    "corrected_filename": "20240101_does_not_exist.xdf",
+                }
+            ]
+        }
+        _touch(self.fresh_bids_folder / "sub-001" / "unrelated.xdf")
+
+        resolved, unresolved = rebuild_from_raw(self.fresh_bids_folder, decisions, {})
+
+        self.assertEqual(resolved, [])
+        self.assertEqual(len(unresolved), 1)
+        self.assertIn("does_not_exist.xdf", unresolved[0])
+
+    def test_resolves_entries_recorded_out_of_the_order_they_must_apply_in(self):
+        # crosscheck.json is written with sort_keys=True and a list's own element order is
+        # otherwise trusted as chronological -- but nothing stops two entries needing a second
+        # pass to line up (e.g. this task_tag entry appears before its own key's earlier
+        # date_correction here). The retry loop must resolve it anyway once the correction
+        # produces the filename this tag entry expects to find.
+        decisions = {
+            "001_physiology": [
+                {
+                    "type": "task_tag",
+                    "subject_id": "001",
+                    "scan_type": "physiology",
+                    "original_filename": "20240110_sub-001_run-2_physiology.acq",
+                    "corrected_filename": "20240110_sub-001_task-foh_run-2_beh.acq",
+                    "task": "foh",
+                    "acq": None,
+                    "suffix": "beh",
+                    "original_parent_folder": "sub-001",
+                    "corrected_parent_folder": "sub-001",
+                },
+                {
+                    "type": "date_correction",
+                    "subject_id": "001",
+                    "scan_type": "physiology",
+                    "original_filename": "20240108_sub-001_run-2_physiology.acq",
+                    "original_date": "20240108",
+                    "corrected_date": "20240110",
+                    "corrected_filename": "20240110_sub-001_run-2_physiology.acq",
+                },
+            ]
+        }
+        _touch(self.fresh_bids_folder / "sub-001" / "20240108_sub-001_run-2_physiology.acq")
+
+        resolved, unresolved = rebuild_from_raw(self.fresh_bids_folder, decisions, {})
+
+        self.assertEqual(unresolved, [])
+        self.assertTrue(
+            (
+                self.fresh_bids_folder / "sub-001" / "20240110_sub-001_task-foh_run-2_beh.acq"
+            ).exists()
+        )
 
 
 if __name__ == "__main__":

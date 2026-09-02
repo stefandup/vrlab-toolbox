@@ -32,8 +32,15 @@ logger = logging.getLogger(__name__)
 @click.option("--subject_id", required=False, default="", help="Process a single participant")
 @click.option("--verbose", is_flag=True, help="Give verbose output")
 def main(input_folder: Path, output_folder: Path, verbose: bool, subject_id: str):
-    """CLI tool for batch processing VRLab crane behaviour and physiology data."""
+    """CLI tool for batch processing VRLab crane behaviour and physiology data.
 
+    `input_folder` must be a BIDS-formatted folder. This assumes the data has
+    already been through the crosscheck tool (i.e. vrlab_crane_bids_crosscheck.exe)
+    so duplicate runs and id/date corrections are resolved before processing.
+    """
+    log_folder = Path.joinpath(output_folder, "logs")
+    log_folder.mkdir(parents=True, exist_ok=True)
+    mobi_logging.init(__file__, log_dir_in=log_folder)
     participant_data_out = None
 
     logger.info("Looking into input folder: %s. Output folder: %s", input_folder, output_folder)
@@ -42,8 +49,8 @@ def main(input_folder: Path, output_folder: Path, verbose: bool, subject_id: str
 
     root = Path(input_folder)
     out_file_parts = []
-
-    subject_mat_files = list(root.rglob(f"*{subject_id}_CraneOut.mat"))
+    physio_glob_str = "sub-*_task-crane_acq-physiology*_physio.mat"
+    subject_mat_files = list(root.rglob(physio_glob_str))
 
     with Progress() as progress:
         task = progress.add_task("Processing subjects", total=len(subject_mat_files))
@@ -92,6 +99,9 @@ def main(input_folder: Path, output_folder: Path, verbose: bool, subject_id: str
                     "Skipping subject %s because processing failed: %s", subject_id, error
                 )
                 continue
+    if out_file_parts is None:
+        logger.warning(f"No files found searching for {physio_glob_str}.")
+        raise FileNotFoundError
 
     participant_df_out = pd.concat(out_file_parts, axis=0)
 
@@ -121,5 +131,4 @@ def main(input_folder: Path, output_folder: Path, verbose: bool, subject_id: str
 
 
 if __name__ == "__main__":
-    mobi_logging.init(__file__)
     main()

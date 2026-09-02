@@ -2,9 +2,9 @@
 
 ## Overview
 
-Raw-to-BIDS conversion for crane and FOH (crane: not yet converted; FOH: partially,
-via an external converter) dumps every matching file into the BIDS folder, duplicates
-included, since the converter doesn't decide between them. `ParticipantConfig` (in
+Raw-to-BIDS conversion for crane and FOH dumps every matching file into the BIDS
+folder, duplicates included, since the converter doesn't decide between them.
+`ParticipantConfig` (in
 `processing/input_data.py`) already detects this today: `from_physiology_data` and
 `from_lsl_data` both log a warning when zero or multiple files match a subject's
 scan type, then silently pick one (`[0]` for crane, `[-1]` for FOH) and move on.
@@ -17,18 +17,20 @@ recorded so it doesn't have to be re-made every run.
 
 Two separate tools, one per dataset (crane, FOH), rather than one app with a
 dataset switcher — this matches the existing pattern of one standalone `.exe` per
-pipeline (`vrlab_crane_process.exe`, `mobi_foh_assess_data.exe`).
+pipeline (`vrlab_crane_process.exe`, `vrlab_foh_assess_data.exe`).
 
 This tool assumes a populated BIDS folder already exists. Producing one is a
-separate, earlier step this plan doesn't cover — see `bids_converter_plan.md`
-for that gap (not yet started for crane; FOH's converter is external to this
-repo).
+separate, earlier step this plan doesn't cover in detail — see
+`bids_converter_plan.md` for how that's actually done for each dataset today
+(`cli/crane_convert_to_bids.py`, `cli/foh_import_to_bids.py`).
 
 ## Current status (as of 2026-08-13)
 
 Both tools exist and are usable — `vrlab_crane_bids_crosscheck` and
-`mobi_foh_bids_crosscheck` (console-script commands via `pip install -e .`;
-no packaged `.exe` yet, packaging was deliberately deferred). Implementation
+`vrlab_foh_bids_crosscheck` (console-script commands via `pip install -e .`,
+and packaged as `vrlab_crane_bids_crosscheck.exe`/`vrlab_foh_bids_crosscheck.exe`
+via the toolbox installer — see [Building & Releasing](packaging.md)).
+Implementation
 went beyond this document's original mockup in a few ways worth knowing
 about before reading the layout section below as gospel:
 
@@ -53,12 +55,39 @@ Crosscheck](foh-crosscheck.md). The decisions below (scan types, JSON
 recording, no-auto-merge, code layering) are all still accurate — it's
 mainly the UI layout that moved on from the original sketch.
 
-## Decision: BIDS folder only, never the raw folder
+**Update (2026-08-27): junk/review became a single delete-and-restore
+mechanism, and FOH tagging now writes real BIDS entities.** `crosscheck_junk/`
+and `crosscheck_review/` (mentioned throughout this doc below) no longer
+exist — `record_subject_junked`/`restore_all_from_junk`/`restore_all_from_review`/
+`delete_all_in_review` were replaced by `record_subject_excluded` and
+`restore_all_from_bids` (`processing/bids_crosscheck.py`), which delete a
+removed subject/candidate outright instead of moving it into a special
+folder inside BIDS -- safe only because the raw folder (see "BIDS folder
+only" below) is never touched, so it was always the real recoverable copy.
+Separately, `task_correction`/`record_task_correction`/`remove_task_correction`
+were renamed to `task_tag`/`record_task_tag`/`remove_task_tag`, and FOH's
+tag itself changed from a bare non-BIDS `_foh` suffix to real BIDS entities
+(`task-foh`, `acq-lsl`, a real `beh` suffix) -- see
+`gui/foh_bids_crosscheck_gui.py`'s `FOH_DATASET_CONFIG`. The pipeline-side
+physiology lookup (`processing/input_data.py`'s `ParticipantConfig.from_lsl_data`) was
+updated to match this new filename shape in commit `8f917fc` (2026-08-28) --
+`TASK_LABEL`'s manual sync with `FOH_DATASET_CONFIG.task_tag_task` (two independent
+hardcoded strings) is still an open loose end, tracked by the `TODO` at
+`processing/input_data.py:14`. The rest of this document (below) still describes the
+mechanics in their *previous* shape -- read it for the reasoning, not as a
+literal description of current filenames/folders.
 
-The crosscheck tool only ever reads/writes inside the BIDS output folder (including
-its own junk folder). It never touches the raw data folder. Raw-to-BIDS conversion
-is a separate, earlier step, outside this tool's responsibility — "start over" means
-re-running the converter, not anything this tool does.
+## Decision: BIDS folder only, never *writes to* the raw folder
+
+The crosscheck tool's own scanning/renaming logic (`scan_bids_folder`, every
+`record_*` decision function) only ever reads/writes inside the BIDS output folder
+(including its own junk folder) — it never touches the raw data folder. The one
+carve-out is the optional `raw_converter` hook (`gui/bids_crosscheck_common.py`):
+both crane's and FOH's crosscheck windows now offer a "Refresh BIDS"/import step
+that *reads* the raw folder to copy new subjects across, but that logic lives in
+its own separate module (`cli/crane_convert_to_bids.py`, `cli/foh_import_to_bids.py`)
+and never writes back into it — "start over" still means re-pointing this tool at a
+fresh BIDS folder, not anything that touches raw data.
 
 ## Decision: scan types per dataset
 
@@ -180,11 +209,31 @@ directory -- only a filename suffix within another datatype's folder), `motion`
 not EDA/ECG), and `foh` itself (not real BIDS vocabulary at all -- same problem
 already avoided in filenames by not tacking `_foh` onto more than the run token).
 
+**Update (2026-09-01): decisions are now a history, not a single record per key,
+and a decisions backup can be replayed onto a fresh raw import.** `crosscheck.json`
+used to store exactly one entry per `{subject_id}_{scan_type}` key, overwritten by
+whichever decision was recorded most recently — so a file corrected twice (e.g.
+date-fixed, then tagged) only had the second correction on record, and "Revert all
+changes" could only undo that latest step. `load_decisions`/`_append_decision`/
+`_latest_decision` (`processing/bids_crosscheck.py`) changed this to an append-only
+list per key (oldest first), transparently upgrading an old single-entry file to
+`[entry]` on load — no manual migration needed for a `crosscheck.json` already in
+use. `revert_all_decisions` now walks each key's history newest-to-oldest, so a
+file corrected more than once reverts all the way back to its true original name.
+This also made a real disaster-recovery story possible: `backup_decisions` copies
+`crosscheck.json`/`excluded_subjects.json`/`crosscheck_pending.json` to a folder of
+your choice (deliberately not `crosscheck_info_cache.json` — that's a re-derivable
+performance cache, not a decision record), and `rebuild_from_raw` replays a backed-up
+history's filesystem effects onto a BIDS folder that's just been freshly re-imported
+from raw, resolving out-of-order entries via a retry loop rather than requiring them
+in exact chronological order (JSON's `sort_keys=True` write means on-disk key order
+was never chronological anyway). Anything that can't be matched against what's
+actually on disk is reported unresolved rather than guessed at, in keeping with this
+tool's "never guess" philosophy (see the FOH stream-indicators section above). See
+[BIDS Crosscheck: Architecture](bids-crosscheck-architecture.md) for the code map.
+
 ## Deliberately out of scope for now
 
-- **No rule-based replay** against re-converted raw data — the converter's naming
-  is deterministic, so a flat filename-keyed JSON is enough; no need to store a
-  replay rule.
 - **No automatic collision resolution** — see above.
 - **No signal/trigger-level QC** (trial intervals, EDA/ECG processing) — that's the
   separately-planned `gui/crane_interval_qc_gui.py` tool's job (see

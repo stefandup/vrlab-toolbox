@@ -1,10 +1,15 @@
+import tempfile
 import unittest
 from pathlib import Path
 
 import matplotlib
+import numpy as np
+from click.testing import CliRunner
+
+from mooi_toolbox.cli.vrlab_crane_process import main as run_batch
 
 matplotlib.use("Agg")
-
+from mooi_toolbox.cli.crane_convert_to_bids import convert_crane_to_bids
 from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.biopac import BiopacPhysiologyDataImportStartegy
 from mooi_toolbox.processing.crane_behaviour import (
@@ -14,18 +19,31 @@ from mooi_toolbox.processing.crane_behaviour import (
     build_crane_raw_behav_file_schema,
 )
 from mooi_toolbox.processing.crane_debrief_behaviour import RawDebriefBehaviourData
+from mooi_toolbox.processing.crane_dummy_data import (
+    discover_template_pairs,
+    generate_dummy_debrief_workbook,
+    generate_dummy_participant,
+)
 from mooi_toolbox.processing.crane_pipeline import (
     FindCraneParticipantFilesStrategyStep,
     run_pipeline,
 )
 from mooi_toolbox.processing.crane_trial_intervals import CraneGetTrialIntervalStrategyStep
+from mooi_toolbox.processing.input_data import ParticipantConfig
 from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
 from mooi_toolbox.processing.trial_intervals import TrialIntervals
 
-data_folder = Path(r"crane_data\\")
-examples_folder = Path(r"examples\\")
+# Real, gitignored data used only by the "real data" tests below -- those fail on any machine
+# without this folder present, by design (no synthetic equivalent exists yet for these PIDs).
+REAL_DATA_BIDS_FOLDER = Path(r"crane_data\crane_bids")
 
-EXAMPLE_CRANE_PARTICIPANT_CORRECT_ID = "00020"
+# BIDS-shaped output of crane_generate_sample_data + crane_convert_to_bids (see
+# examples/crane_bids_dummy/dummy_data_log.txt) -- sub-XXX/ses-01/beh/... BIDS layout. The
+# pipeline's own file-discovery (ParticipantConfig.from_physiology_data) doesn't understand this
+# layout yet, so every test below that resolves through EXAMPLES_FOLDER is expected to fail until
+# that's refactored -- these fixtures exist to give that refactor something real to target.
+EXAMPLES_FOLDER = Path(r"examples\\crane_bids_dummy")
+
 CRANE_PARTICIPANT_NO_FILE_ID = "NOFILES"
 EXAMPLE_LONG_DELAY_ID = "00011"
 EXAMPLE_INCORRECT_MEDIUM_SHORT_TRIGGER_ID = "PID16407"
@@ -40,7 +58,7 @@ DUMMY_DATE_MISMATCH_ID = "DUMMY008"
 DUMMY_BAD_TRIGGER_COUNT_ID = "DUMMY009"
 DUMMY_SHORT_TRIGGER_ID = "DUMMY010"
 
-all_ok_status_str = PipelineStatus(
+ALL_OK_STATUS_STR = PipelineStatus(
     status={
         RawCraneBehaviourData: ProcessingStatus.OK,
         RawDebriefBehaviourData: ProcessingStatus.OK,
@@ -49,7 +67,7 @@ all_ok_status_str = PipelineStatus(
     }
 ).get_as_text()
 
-corrected_interval_str = PipelineStatus(
+CORRECTED_INTERVAL_STATUS_STR = PipelineStatus(
     status={
         RawCraneBehaviourData: ProcessingStatus.OK,
         RawDebriefBehaviourData: ProcessingStatus.OK,
@@ -58,7 +76,7 @@ corrected_interval_str = PipelineStatus(
     }
 ).get_as_text()
 
-missing_debrief = PipelineStatus(
+MISSING_DEBRIEF_STATUS_STR = PipelineStatus(
     status={
         RawCraneBehaviourData: ProcessingStatus.OK,
         RawDebriefBehaviourData: ProcessingStatus.ERROR,
@@ -68,32 +86,72 @@ missing_debrief = PipelineStatus(
 ).get_as_text()
 
 
-class TestCraneIntervalQC(unittest.TestCase):
-    def test_graph_output(self):
-        # plot_biopac_interval_qc(example_crane_participant_correct)
-        pass
+# ---------------------------------------------------------------------------
+# Individual strategy steps (import, behaviour processing)
+# ---------------------------------------------------------------------------
+
+
+class TestBasicDataHandling(unittest.TestCase):
+    def test_find_crane_participant_strategy(self):
+        good_config = FindCraneParticipantFilesStrategyStep().run(DUMMY_CLEAN_ID, EXAMPLES_FOLDER)
+        no_file_config = FindCraneParticipantFilesStrategyStep().run(
+            CRANE_PARTICIPANT_NO_FILE_ID, EXAMPLES_FOLDER
+        )
+        self.assertIsInstance(good_config, ParticipantConfig)
+        self.assertIsInstance(no_file_config, ParticipantConfig)
+
+    def setUp(self):
+        self.good_config = FindCraneParticipantFilesStrategyStep().run(
+            DUMMY_CLEAN_ID, EXAMPLES_FOLDER
+        )
+        self.no_file_config = FindCraneParticipantFilesStrategyStep().run(
+            CRANE_PARTICIPANT_NO_FILE_ID, EXAMPLES_FOLDER
+        )
+
+    def test_good_raw_data_init_should_return_ok(self):
+        raw_biodata = BiopacPhysiologyDataImportStartegy().run(self.good_config)
+        self.assertIsInstance(raw_biodata, RawBioData)
+
+    def test_no_data_should_return_error(self):
+        with self.assertRaises(FileNotFoundError):
+            BiopacPhysiologyDataImportStartegy().run(self.no_file_config)
+
+
+class TestCraneBehaviourStrategy(unittest.TestCase):
+    def setUp(self):
+        self.config = FindCraneParticipantFilesStrategyStep().run(DUMMY_CLEAN_ID, EXAMPLES_FOLDER)
+
+    def test_bids_behav_import(self):
+        raw_behaviour = ImportCraneBehaviourDataStrategyStep().run(self.config)
+        build_crane_raw_behav_file_schema().validate(raw_behaviour.raw_behav_df)
+
+    def test_crane_process_behaviour(self):
+        raw_behaviour = ImportCraneBehaviourDataStrategyStep().run(config_in=self.config)
+        processed = ProcessCraneBehaviourDataStrategyStep().run(self.config, raw_behaviour)
+        self.assertEqual(processed.subject_df_out["Subject_ID"].iloc[0], DUMMY_CLEAN_ID)
+
+
+# ---------------------------------------------------------------------------
+# Interval correction -- one test per real, recorded trigger anomaly (no dummy
+# equivalent exists for these yet, so they need REAL_DATA_FOLDER on disk)
+# ---------------------------------------------------------------------------
 
 
 class TestCraneGetIntervalStrategy(unittest.TestCase):
-    def setUp(self):
-        self.example_crane_participant_correct = FindCraneParticipantFilesStrategyStep().run(
-            EXAMPLE_CRANE_PARTICIPANT_CORRECT_ID, data_folder
-        )
-
-    def _run_interval_strategy_for(self, subject_id: str) -> TrialIntervals:
-        participant_config = FindCraneParticipantFilesStrategyStep().run(subject_id, data_folder)
+    def _run_interval_strategy_for(
+        self, subject_id: str, folder: Path = REAL_DATA_BIDS_FOLDER
+    ) -> TrialIntervals:
+        participant_config = FindCraneParticipantFilesStrategyStep().run(subject_id, folder)
         raw_bio_data = BiopacPhysiologyDataImportStartegy().run(participant_config)
         raw_behav_data = ImportCraneBehaviourDataStrategyStep().run(participant_config)
-        trial_intervals, interval_figure_out, interval_pipeline_status = (
-            CraneGetTrialIntervalStrategyStep().run(raw_bio_data, raw_behav_data)
+        trial_intervals, _, status = CraneGetTrialIntervalStrategyStep().run(
+            raw_bio_data, raw_behav_data
         )
-        print(subject_id, interval_pipeline_status)
+        print(subject_id, status)
         return trial_intervals
 
     def test_interval_correction_with_correct_intervals(self):
-        self.assertTrue(
-            self._run_interval_strategy_for(EXAMPLE_CRANE_PARTICIPANT_CORRECT_ID).intervals
-        )
+        self.assertTrue(self._run_interval_strategy_for(DUMMY_CLEAN_ID, EXAMPLES_FOLDER).intervals)
 
     def test_interval_correction_with_missing_initial_trigger_tp(self):
         MISSING_INITIAL_TRIGGER = "PID16186"
@@ -105,7 +163,6 @@ class TestCraneGetIntervalStrategy(unittest.TestCase):
 
     def test_interval_correction_with_double_trigger_and_missing_init_tp_nr1(self):
         MISSING_TRIGGER_AND_INIT_TP_1 = "PID5753"
-
         self.assertTrue(self._run_interval_strategy_for(MISSING_TRIGGER_AND_INIT_TP_1).intervals)
 
     def test_shifting_algorithm_for_missing_first_last_tp(self):
@@ -113,9 +170,7 @@ class TestCraneGetIntervalStrategy(unittest.TestCase):
         self.assertTrue(self._run_interval_strategy_for(MISSING_INIT_AND_LAST_TP).intervals)
 
     def test_interval_correction_with_double_trigger_and_missing_init_tp_nr2(self):
-
         MISSING_TRIGGER_AND_INIT_TP_2 = "PID4572"
-
         self.assertTrue(self._run_interval_strategy_for(MISSING_TRIGGER_AND_INIT_TP_2).intervals)
 
     def test_interval_correction_with_missing_last_and_initial_triggers(self):
@@ -135,126 +190,52 @@ class TestCraneGetIntervalStrategy(unittest.TestCase):
         self.assertTrue(self._run_interval_strategy_for(MULTIPLE_DOUBLE_TRIGGERS_2).intervals)
 
 
-class TestBehaviourClassWithBiopacData(unittest.TestCase):
-    def setUp(self):
-        self.example_crane_participant_correct = FindCraneParticipantFilesStrategyStep().run(
-            DUMMY_CLEAN_ID, examples_folder
-        )
-
-    def test_biopac_behav_import(self):
-        correct_behaviour = RawCraneBehaviourData.load_from_config(
-            self.example_crane_participant_correct
-        )
-        build_crane_raw_behav_file_schema().validate(correct_behaviour.raw_behav_df)
-
-    def test_behaviour_processing_strategy(self):
-        pass
+# ---------------------------------------------------------------------------
+# Full pipeline -- dummy data (self-contained, run anywhere)
+# ---------------------------------------------------------------------------
 
 
-class TestParticipantConfigFileHandling(unittest.TestCase):
-    def test_detection_of_missing_behav_file(self):
-        pass
-
-    def test_finds_and_populates_config_file_correctly(self):
-        pass
-
-
-class TestBasicDataHandling(unittest.TestCase):
-    def setUp(self):
-        self.example_crane_participant_correct = FindCraneParticipantFilesStrategyStep().run(
-            DUMMY_CLEAN_ID, examples_folder
-        )
-        self.crane_participant_no_FILE = FindCraneParticipantFilesStrategyStep().run(
-            CRANE_PARTICIPANT_NO_FILE_ID, examples_folder
-        )
-
-    def test_good_raw_data_init_should_return_ok(self):
-        raw_biodata_good: RawBioData = BiopacPhysiologyDataImportStartegy().run(
-            self.example_crane_participant_correct
-        )
-        self.assertIsInstance(raw_biodata_good, RawBioData)
-
-    def test_no_data_should_return_error(self):
-        with self.assertRaises(FileNotFoundError):
-            BiopacPhysiologyDataImportStartegy().run(self.crane_participant_no_FILE)
-
-
-class TestCraneBehaviourStrategy(unittest.TestCase):
-    def setUp(self):
-        self.example_crane_participant_correct = FindCraneParticipantFilesStrategyStep().run(
-            DUMMY_CLEAN_ID, examples_folder
-        )
-
-    def test_crane_process_behaviour(self):
-        import_strategy = ImportCraneBehaviourDataStrategyStep()
-        process_strategy = ProcessCraneBehaviourDataStrategyStep()
-        raw_behaviour_data = import_strategy.run(config_in=self.example_crane_participant_correct)
-        crane_behav_output_data = process_strategy.run(
-            self.example_crane_participant_correct, raw_behaviour_data
-        )
-        self.assertEqual(
-            crane_behav_output_data.subject_df_out["Subject_ID"].iloc[0], DUMMY_CLEAN_ID
-        )
-
-
-class TestCranePipeline(unittest.TestCase):
+class TestCranePipelineDummyData(unittest.TestCase):
     def test_crane_pipeline_has_expected_output(self):
-        pipeline_out = run_pipeline(
-            DUMMY_CLEAN_ID,
-            examples_folder,
-        )
-        # Order not NB
-        pipeline_status_str: str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
+        pipeline_out = run_pipeline(DUMMY_CLEAN_ID, EXAMPLES_FOLDER)
         pipeline_out.validate_participant_output()
-        self.assertEqual(
-            sorted(pipeline_status_str.split(" ")), sorted(all_ok_status_str.split(" "))
-        )
+        status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
+        self.assertEqual(sorted(status_str.split(" ")), sorted(ALL_OK_STATUS_STR.split(" ")))
 
     def test_crane_pipeline_labels_missing_physiology_correctly(self):
-        pipeline_out = run_pipeline(DUMMY_MISSING_PHYSIOLOGY_ID, examples_folder)
+        pipeline_out = run_pipeline(DUMMY_MISSING_PHYSIOLOGY_ID, EXAMPLES_FOLDER)
         self.assertEqual(pipeline_out.status.status[RawBioData], ProcessingStatus.ERROR)
 
     def test_crane_pipeline_labels_missing_behav_correctly(self):
-        pipeline_out = run_pipeline(DUMMY_MISSING_BEHAVIOUR_ID, examples_folder)
+        pipeline_out = run_pipeline(DUMMY_MISSING_BEHAVIOUR_ID, EXAMPLES_FOLDER)
         self.assertEqual(pipeline_out.status.status[RawCraneBehaviourData], ProcessingStatus.ERROR)
 
     def test_crane_missing_debrief_correct_label(self):
-
-        pipeline_out = run_pipeline(DUMMY_MISSING_DEBRIEF_ID, examples_folder)
+        pipeline_out = run_pipeline(DUMMY_MISSING_DEBRIEF_ID, EXAMPLES_FOLDER)
         self.assertEqual(
             pipeline_out.status.status[RawDebriefBehaviourData], ProcessingStatus.ERROR
         )
-        pipeline_status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
-        self.assertEqual(sorted(pipeline_status_str.split(" ")), sorted(missing_debrief.split(" ")))
+        status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
+        self.assertEqual(
+            sorted(status_str.split(" ")), sorted(MISSING_DEBRIEF_STATUS_STR.split(" "))
+        )
 
     def test_crane_corrects_error_for_incorrect_interval_nr(self):
-
-        pipeline_out = run_pipeline(DUMMY_BAD_TRIGGER_COUNT_ID, examples_folder)
+        pipeline_out = run_pipeline(DUMMY_BAD_TRIGGER_COUNT_ID, EXAMPLES_FOLDER)
         self.assertEqual(pipeline_out.status.status[TrialIntervals], ProcessingStatus.ERROR)
-        pipeline_status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
+        status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
         self.assertEqual(
-            sorted(pipeline_status_str.split(" ")), sorted(corrected_interval_str.split(" "))
+            sorted(status_str.split(" ")), sorted(CORRECTED_INTERVAL_STATUS_STR.split(" "))
         )
 
     def test_crane_spots_errors_when_behav_physiology_no_match(self):
-        run_pipeline(DUMMY_DATE_MISMATCH_ID, examples_folder)
+        run_pipeline(DUMMY_DATE_MISMATCH_ID, EXAMPLES_FOLDER)
 
     def test_crane_returns_ok_for_correct_interval_nr(self):
-        pipeline_out = run_pipeline(DUMMY_CLEAN_ID, examples_folder)
+        pipeline_out = run_pipeline(DUMMY_CLEAN_ID, EXAMPLES_FOLDER)
         self.assertEqual(pipeline_out.status.status[TrialIntervals], ProcessingStatus.OK)
-        pipeline_status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
-        self.assertEqual(
-            sorted(pipeline_status_str.split(" ")), sorted(all_ok_status_str.split(" "))
-        )
-
-    def test_crane_handles_long_delay_time(self):
-        """Currently no error with excessive delays"""
-        pipeline_out = run_pipeline(EXAMPLE_LONG_DELAY_ID, data_folder)
-        self.assertEqual(pipeline_out.status.status[TrialIntervals], ProcessingStatus.OK)
-        pipeline_status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
-        self.assertEqual(
-            sorted(pipeline_status_str.split(" ")), sorted(all_ok_status_str.split(" "))
-        )
+        status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
+        self.assertEqual(sorted(status_str.split(" ")), sorted(ALL_OK_STATUS_STR.split(" ")))
 
     def test_crane_handles_very_short_triggers(self):
         # The short-trigger interval mismatch leaves no EDA intervals to concatenate, so
@@ -268,16 +249,66 @@ class TestCranePipeline(unittest.TestCase):
             }
         ).get_as_text()
 
-        pipeline_out = run_pipeline(DUMMY_SHORT_TRIGGER_ID, examples_folder)
+        pipeline_out = run_pipeline(DUMMY_SHORT_TRIGGER_ID, EXAMPLES_FOLDER)
         self.assertEqual(pipeline_out.status.status[TrialIntervals], ProcessingStatus.ERROR)
-        pipeline_status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
-        self.assertEqual(
-            sorted(pipeline_status_str.split(" ")), sorted(short_trigger_status_str.split(" "))
-        )
+        status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
+        self.assertEqual(sorted(status_str.split(" ")), sorted(short_trigger_status_str.split(" ")))
+
+    def test_crane_flags_unbalanced_trial_conditions_without_crashing(self):
+        # Regression test: build_crane_raw_behav_file_schema's balanced_block_trial_conditions
+        # check raises pandera.errors.SchemaError, which used to escape
+        # SequentialBehaviourImportSteps.run() untouched and crash the whole batch (see the
+        # except tuples in pipeline.py). Generated fresh via crane_dummy_data rather than added
+        # to EXAMPLES_FOLDER's committed BIDS fixtures.
+        with tempfile.TemporaryDirectory() as raw_dir, tempfile.TemporaryDirectory() as bids_dir:
+            raw_folder = Path(raw_dir)
+            bids_folder = Path(bids_dir)
+            csv_template, mat_template = discover_template_pairs(Path("examples/crane_templates"))[
+                0
+            ]
+            subject_id = "DUMMYUNBAL"
+
+            _, debrief_rows = generate_dummy_participant(
+                csv_template,
+                mat_template,
+                subject_id,
+                "2026900",
+                "2026900",
+                raw_folder,
+                np.random.default_rng(0),
+                error_type="unbalanced_trial_conditions",
+            )
+            generate_dummy_debrief_workbook([debrief_rows], raw_folder)
+            convert_crane_to_bids(raw_folder, bids_folder)
+
+            pipeline_out = run_pipeline(subject_id, bids_folder)
+
+            self.assertEqual(
+                pipeline_out.status.status[RawCraneBehaviourData], ProcessingStatus.ERROR
+            )
+
+    def test_batch_processing(self):
+        with tempfile.TemporaryDirectory() as output_folder:
+            result = CliRunner().invoke(run_batch, [str(EXAMPLES_FOLDER), output_folder])
+        self.assertEqual(result.exit_code, 0, msg=result.output)
+
+
+# ---------------------------------------------------------------------------
+# Full pipeline -- real data (needs REAL_DATA_FOLDER on disk)
+# ---------------------------------------------------------------------------
+
+
+class TestCranePipelineRealData(unittest.TestCase):
+    def test_crane_handles_long_delay_time(self):
+        """Currently no error with excessive delays"""
+        pipeline_out = run_pipeline(EXAMPLE_LONG_DELAY_ID, REAL_DATA_BIDS_FOLDER)
+        self.assertEqual(pipeline_out.status.status[TrialIntervals], ProcessingStatus.OK)
+        status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
+        self.assertEqual(sorted(status_str.split(" ")), sorted(ALL_OK_STATUS_STR.split(" ")))
 
     def test_crane_handles_medium_short_triggers(self):
-        # Also has missing debrief; RawCraneBehaviourData shows ERROR too — see the note on
-        # missing_debrief above re: the SequentialBehaviourImportSteps.run() artifact.
+        # Also has missing debrief; RawCraneBehaviourData shows ERROR too -- see the note on
+        # MISSING_DEBRIEF_STATUS_STR above re: the SequentialBehaviourImportSteps.run() artifact.
         corrected_interval_str = PipelineStatus(
             status={
                 RawCraneBehaviourData: ProcessingStatus.OK,
@@ -287,9 +318,13 @@ class TestCranePipeline(unittest.TestCase):
             }
         ).get_as_text()
 
-        pipeline_out = run_pipeline(EXAMPLE_INCORRECT_MEDIUM_SHORT_TRIGGER_ID, data_folder)
-        self.assertEqual(pipeline_out.status.status[TrialIntervals], ProcessingStatus.ERROR)
-        pipeline_status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
-        self.assertEqual(
-            sorted(pipeline_status_str.split(" ")), sorted(corrected_interval_str.split(" "))
+        pipeline_out = run_pipeline(
+            EXAMPLE_INCORRECT_MEDIUM_SHORT_TRIGGER_ID, REAL_DATA_BIDS_FOLDER
         )
+        self.assertEqual(pipeline_out.status.status[TrialIntervals], ProcessingStatus.ERROR)
+        status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
+        self.assertEqual(sorted(status_str.split(" ")), sorted(corrected_interval_str.split(" ")))
+
+
+if __name__ == "__main__":
+    unittest.main()

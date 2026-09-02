@@ -61,4 +61,11 @@ def load_biopac_data(config_in: ParticipantConfig) -> RawBioData:
 
 
 def get_subject_id_from_mat(biopac_mat_fn: Path) -> str:
-    return os.path.basename(str(biopac_mat_fn)).split(".")[0].strip().replace(" ", "").split("_")[1]
+    return (
+        os.path.basename(str(biopac_mat_fn))
+        .split(".")[0]
+        .strip()
+        .replace(" ", "")
+        .split("_")[0]
+        .replace("sub-", "")
+    )

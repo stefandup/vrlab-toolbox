@@ -48,6 +48,7 @@ def check_mobi_xdf(xdf_fn=None, verbose=False):
 
 
 @click.command()
+@click.version_option(package_name="mooi-toolbox")
 @click.argument("xdf_fn", type=click.Path(exists=True, dir_okay=True), required=False)
 @click.option("--verbose", is_flag=True, help="Give verbose output")
 def main(xdf_fn, verbose):

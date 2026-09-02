@@ -1,8 +1,8 @@
 """Standalone PySide6 tool: human-in-the-loop crosscheck for the FOH BIDS folder.
 
-See docs/bids_crosscheck_plan.md. The `*.xdf` recording pattern is the one glob
-pattern the plan pins down explicitly (crosscheck does its own broad `.xdf` scan
-rather than reusing `from_lsl_data`'s `_eeg.xdf`-only filter).
+See docs/bids_crosscheck_plan.md and docs/bids_converter_plan.md. The `*.xdf` recording
+pattern is the one glob pattern the plan pins down explicitly (crosscheck does its own
+broad `.xdf` scan rather than reusing `from_lsl_data`'s `_eeg.xdf`-only filter).
 """
 
 import json
@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pyxdf
 
+from mooi_toolbox.cli.foh_import_to_bids import FohImportSummary, import_foh_raw_to_bids
 from mooi_toolbox.gui.bids_crosscheck_common import CandidateExtras, run_bids_crosscheck_app
 from mooi_toolbox.processing.bids_crosscheck import DatasetConfig, ScanTypeConfig
 from mooi_toolbox.processing.biodata import ACCEPTED_LABEL_PATTERN, CANONICAL_LABEL_SPELLING
@@ -48,17 +49,21 @@ INFO_SCHEMA_VERSION = 2
 FOH_DATASET_CONFIG = DatasetConfig(
     dataset_name="foh",
     scan_types=(ScanTypeConfig(name="recording", glob_patterns=("*.xdf",)),),
-    task_correction_scan_type="recording",
-    # Lowercase, matching BIDS's own suffix/label convention (e.g. "eeg", "beh") -- "FOH" the
-    # study name stays capitalized everywhere else, this is just the filename tag.
-    task_correction_label="foh",
-    # The raw collection folder is literally named "eeg" regardless of what's actually in it --
-    # this is physiology (and sometimes behaviour) data over LSL, not EEG. "beh" (behavioural
-    # data) is the closest fit in BIDS's own datatype vocabulary, unlike "foh" itself, which
-    # isn't a real BIDS term -- renaming *to* "foh" would just move the same problem down a
-    # level. Only takes effect once a recording's confirmed and tagged (see
-    # record_task_correction).
-    task_correction_folder_name="beh",
+    task_tag_scan_type="recording",
+    # Lowercase, matching BIDS's own entity/suffix convention -- "FOH" the study name stays
+    # capitalized everywhere else, this is just the filename tag. Tagging now writes real BIDS
+    # entities/suffix (see record_task_tag) instead of a bare non-BIDS "_foh" label: a
+    # `task-foh` entity (this recording is FOH's task), an `acq-lsl` entity (collected over
+    # Lab Streaming Layer -- there may eventually be non-LSL FOH files too, so this isn't
+    # redundant), and a real `beh` suffix. "beh" (behavioural data) is the closest fit in
+    # BIDS's own suffix vocabulary for this physiology-plus-sometimes-behaviour-over-LSL
+    # recording, unlike "foh" itself, which isn't a real BIDS term.
+    task_tag_task="foh",
+    task_tag_acq="lsl",
+    task_tag_suffix="beh",
+    # The raw collection folder is literally named "eeg" regardless of what's actually in it.
+    # Only takes effect once a recording's confirmed and tagged (see record_task_tag).
+    task_tag_folder_name="beh",
 )
 
 
@@ -216,7 +221,7 @@ class FohCandidateExtras(CandidateExtras):
         self._dirty = False
 
     def describe(self, scan_type: str, file: Path) -> str | None:
-        if scan_type != FOH_DATASET_CONFIG.task_correction_scan_type:
+        if scan_type != FOH_DATASET_CONFIG.task_tag_scan_type:
             return None
         info = self._candidate_info(file)
         found_streams = sum(info.streams.values())
@@ -236,7 +241,7 @@ class FohCandidateExtras(CandidateExtras):
         return " &nbsp;&nbsp; ".join(parts)
 
     def describe_tooltip(self, scan_type: str, file: Path) -> str | None:
-        if scan_type != FOH_DATASET_CONFIG.task_correction_scan_type:
+        if scan_type != FOH_DATASET_CONFIG.task_tag_scan_type:
             return None
         info = self._candidate_info(file)
         lines = ["Streams found in this recording:"]
@@ -253,7 +258,7 @@ class FohCandidateExtras(CandidateExtras):
         return "\n".join(lines)
 
     def detail(self, scan_type: str, file: Path) -> str | None:
-        if scan_type != FOH_DATASET_CONFIG.task_correction_scan_type:
+        if scan_type != FOH_DATASET_CONFIG.task_tag_scan_type:
             return None
         info = self._candidate_info(file)
         streams_text = " ".join(
@@ -286,21 +291,21 @@ class FohCandidateExtras(CandidateExtras):
             f"&nbsp;&nbsp; {channels_text} &nbsp;&nbsp; {rate_text}"
         )
 
-    def task_correction_available(self, scan_type: str) -> bool:
-        return scan_type == FOH_DATASET_CONFIG.task_correction_scan_type
+    def task_tag_available(self, scan_type: str) -> bool:
+        return scan_type == FOH_DATASET_CONFIG.task_tag_scan_type
 
     def refreshable(self, scan_type: str) -> bool:
-        return scan_type == FOH_DATASET_CONFIG.task_correction_scan_type
+        return scan_type == FOH_DATASET_CONFIG.task_tag_scan_type
 
     def refresh(self, scan_type: str, file: Path) -> None:
         """Force a reparse for one candidate. Caller batches the disk write via `flush()`
         (e.g. once after refreshing every subject in a bulk selection, not once per file)."""
-        if scan_type != FOH_DATASET_CONFIG.task_correction_scan_type:
+        if scan_type != FOH_DATASET_CONFIG.task_tag_scan_type:
             return
         self._candidate_info(file, force=True)
 
     def has_warning(self, scan_type: str, file: Path) -> bool:
-        if scan_type != FOH_DATASET_CONFIG.task_correction_scan_type:
+        if scan_type != FOH_DATASET_CONFIG.task_tag_scan_type:
             return False
         info = self._candidate_info(file)
         if _srate_mismatch(info):
@@ -343,12 +348,52 @@ class FohCandidateExtras(CandidateExtras):
         return info
 
 
+class _ListLogHandler(logging.Handler):
+    """Captures formatted log records into a list instead of printing them -- used to relay
+    `import_foh_raw_to_bids`'s `logger.info` calls into the crosscheck GUI's status dialog,
+    since that function reports progress via the standard logger rather than a GUI-specific
+    callback (see its own docstring)."""
+
+    def __init__(self) -> None:
+        super().__init__(level=logging.INFO)
+        self.lines: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.lines.append(f"[{record.levelname}] {self.format(record)}")
+
+
+def _format_import_summary(summary: FohImportSummary) -> str:
+    if not summary.new_subject_ids:
+        return "No new subjects found -- everything in the raw folder is already imported."
+    return "Added " + str(len(summary.new_subject_ids)) + " new subject(s):\n\n" + "\n".join(
+        f"sub-{subject_id}" for subject_id in summary.new_subject_ids
+    )
+
+
+def _run_foh_import(raw_folder: Path, bids_folder: Path, _override_file: Path | None) -> list[str]:
+    """The FOH-specific `raw_converter` callback `BidsCrosscheckWindow` calls when the
+    "Refresh BIDS" button is clicked. FOH has no override-file concept (unlike crane's
+    debrief-export picker), so the third argument is always None and ignored -- kept only
+    to match the shared `raw_converter` call signature.
+    """
+    handler = _ListLogHandler()
+    importer_logger = logging.getLogger("mooi_toolbox.cli.foh_import_to_bids")
+    importer_logger.addHandler(handler)
+    try:
+        summary = import_foh_raw_to_bids(raw_folder, bids_folder)
+    finally:
+        importer_logger.removeHandler(handler)
+
+    return [*handler.lines, "", _format_import_summary(summary)]
+
+
 def main() -> None:
     run_bids_crosscheck_app(
         FOH_DATASET_CONFIG,
         "FOH BIDS Crosscheck",
         FohCandidateExtras(),
         settings_app_name="FohBidsCrosscheck",
+        raw_converter=_run_foh_import,
     )
 
 

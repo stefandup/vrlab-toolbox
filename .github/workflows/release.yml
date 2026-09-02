@@ -24,14 +24,26 @@ jobs:
       - name: Install package
         run: pip install -e . --no-deps
 
-      - name: Build exe
+      - name: Build toolbox exes
+        run: pyinstaller --workpath build_output/work --distpath build_output/dist specs/toolbox.spec
+
+      - name: Assemble toolbox folder
         run: |
-          pyinstaller vrlab_crane_process.spec
-          pyinstaller mobi_FOH_assess_data.spec
+          New-Item -ItemType Directory -Path build_output/toolbox | Out-Null
+          Copy-Item build_output\dist\mooi_toolbox\* build_output\toolbox -Recurse
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+
+      - name: Compile installer
+        run: |
+          # Keeps the "v" prefix (github.ref_name is the raw tag, e.g. "v0.7.2") so the
+          # installer filename matches build.ps1's local `git describe --tags` naming, which
+          # also keeps it -- e.g. MooiToolboxSetup-v0.7.2.exe either way.
+          $version = "${{ github.ref_name }}"
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" toolbox_installer.iss "/DMyAppVersion=$version"
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/vrlab_crane_process.exe
-            dist/mobi_FOH_assess_data.exe
+          files: build_output/installer/*.exe

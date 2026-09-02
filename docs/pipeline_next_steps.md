@@ -39,6 +39,16 @@ become strategy steps too, or stay outside the template.
 
 ## Open Work
 
+**Refresh pass, 2026-08-28:** ran the full suite (`MPLBACKEND=Agg python -m pytest tests/`) and
+spot-checked several items below against current code (file existence, `grep -rn TODO src/`,
+current line numbers). Result: 121 passed, 3 skipped (unchanged — items 15's double-trigger
+tests and the still-empty `test_long_walk_pipeline.py`, per item 26), **1 new failure** —
+`test_foh_pipeline.py::TestFOHPipeline::test_batch_processing`, root-caused as the FOH
+physiology lookup not matching the new real-BIDS task-tag filename shape (a double `sub-`
+prefix from `lsl.get_subject_id`). Fixed the same day in commit `8f917fc` ("Both Crane and FOH
+batches working again. Tests passed.") — no longer an open item. Everything else checked
+(items 18, 19, 26) is still accurate as written — no other drift found this pass.
+
 ### 1. Decide: mutate-in-place vs. return-new-object
 
 `PipelineOutputData.append_dataframe()` mutates `self` and returns `None`,
@@ -1026,7 +1036,125 @@ timepoint inference, moving the *unit of import* to "one timepoint folder"
 is the direction to head in, so filename matching only ever has to
 disambiguate *within* a timepoint, not across them.
 
-## Working Rule
+**Update:** the BIDS crosscheck GUI (`gui/crane_bids_crosscheck_gui.py`,
+`gui/bids_crosscheck_common.py`) now exists and, as of this session, has a
+crane-specific `CraneCandidateExtras` (physiology channel presence, behaviour/
+debrief column checks) at parity with FOH's — see `docs/bids_crosscheck_plan.md`.
+That tool only ever reads/writes an *already-BIDS-organized* folder; it does
+not produce one. There is still no raw→BIDS converter for crane at all (see
+`docs/bids_converter_plan.md` — "not yet started"), so this item's actual
+direction remains undone at the import-layer end.
+
+**TODO, once a real crane BIDS folder exists and has been validated against
+the crosscheck tool:** come back to this item's target — `ParticipantConfig.
+from_physiology_data` (`input_data.py`) and `FindCraneParticipantFilesStrategyStep`
+(`crane_pipeline.py`) — and identify every place that currently assumes the
+flat, filename-encoded-date raw layout (the `filename_glob` patterns on
+`RawBehaviourData`/`RawCraneBehaviourData`/`RawDebriefBehaviourData`, the
+date-string extraction items 12/13 flag as buggy, `vrlab_crane_process.py`'s
+own subject-file globbing) and point out exactly which of those need to
+change to read from a `sub-XXX/` BIDS folder instead of a shared flat
+`data_folder_in`. Not started — deliberately deferred until the BIDS folder
+side (converter + crosscheck) is settled, so this isn't designed twice.
+
+### 23. Manually test the crane raw-filename correction dialog
+
+Not yet run by a human. `crane_convert_to_bids.py` (corrections JSON, `resolve_crane_filename`,
+`discover_raw_files_for_review`, `explain_unparseable_filename`, and the `_SUBJECT_ID_PATTERN`/
+`_DUPLICATE_COPY_MARKER_PATTERN` split that stopped silently stripping a trailing `" (N)"`
+marker — that used to assume it was always a harmless Windows duplicate-copy artifact of the
+same file, which in practice merged two genuinely different subjects that happened to share a
+base id; now any `(N)`-suffixed filename is unparseable and needs an explicit human decision),
+`bids_crosscheck_common.py` (`extra_raw_action` generalized to `extra_raw_actions`, a list), and
+`crane_bids_crosscheck_gui.py` (`RawFilenameCorrectionDialog`, "Fix raw filenames..." button —
+lists *every* raw physiology/behaviour file with its currently-resolved id, not only ones that
+fail to parse, since a `(N)`-marked file resolves to nothing until corrected either way) were all
+written and read back for consistency, but never actually launched. Also added: a
+`convert_crane_to_bids` warning when a saved debrief-id correction's target doesn't match any
+known subject id at all (previously silent — see the "debrief re-attachment" bug this was meant
+to surface); and `debrief_correction_key`/`apply_debrief_id_corrections`, so
+`DebriefRecordIdCorrectionDialog` and the converter key a correction by *row* (record_id +
+occurrence index), not just by record_id value — two rows that share the exact same literal
+record_id (the debrief-side counterpart of a `(N)`-marked filename pair) previously could never
+both be corrected: fixing one silently resolved *both* via `Series.replace`, so the second
+vanished from the dialog with no way to address it. Confirmed against real data as fixing that
+exact symptom, but the dialog's new occurrence-aware row listing hasn't been separately
+walked through step by step.
+
+Needed — launch the GUI (`python -m mooi_toolbox.gui.crane_bids_crosscheck_gui`, or however this
+is normally invoked) against a raw folder containing a deliberately mis-named file and a pair of
+`(1)`/`(2)`-suffixed files, and check:
+
+- both "Raw folder" and "BIDS folder" need to be selected before "Fix raw filenames..." (and
+  "Fix debrief record IDs...") enable at all;
+- the dialog lists every raw physiology/behaviour file, not just mis-named ones — each row shows
+  its correct relative-to-raw-folder path and its "Currently resolves to" value;
+- a `(1)`/`(2)`-suffixed pair both show "(unparseable)" in the "Currently resolves to" column
+  (in the CROSS/red color), not a silently-collapsed shared id;
+- selecting a row updates the "Details" bottom pane with either a plain-English parse-failure
+  reason or, for a file that resolves fine, the id it resolves to;
+- before ever clicking "Refresh BIDS" in this session, the bottom pane's log-excerpt line reads
+  the "no matching line yet" placeholder rather than erroring;
+- after clicking "Refresh BIDS" once, reselecting the same row shows the matching captured log
+  line instead;
+- typing a subject id and clicking Save writes `raw_filename_id_corrections.json` into the BIDS
+  folder, keyed by the file's relative path — for *any* row, not only unparseable ones;
+- leaving the box blank and saving does *not* add an entry (or removes one if it existed);
+- after saving a real correction and clicking "Refresh BIDS" again, the file is copied into the
+  corrected subject's `sub-XXX/ses-01/beh/` folder; `acq_time` in `scans.tsv` is `"nodate"` for a
+  filename that never matched `_SUBJECT_ID_PATTERN` at all, but the *real* date prefix for a
+  `(N)`-marked filename that matched fine and was only rejected for the marker
+  (`resolve_crane_filename` still recovers it even though the subject id itself is overridden);
+- reopening the dialog afterward still lists that file (the list is no longer filtered down as
+  entries resolve), now showing the corrected id under "Currently resolves to";
+- two unparseable files that happen to share a bare filename in different raw subfolders can be
+  corrected independently, without one overwriting the other's entry;
+- saving a debrief-id correction whose target id matches no known subject at all (typo, or a
+  dash/case mismatch against the literal `sub-XXX` folder name) produces the new "doesn't match
+  any known subject folder" warning in the "Refresh BIDS" status panel, instead of silently
+  doing nothing;
+- two debrief rows sharing the exact same literal `record_id` both show up in "Fix debrief
+  record IDs...", labelled "(1 of 2)"/"(2 of 2)", neither pre-filled with a guess; correcting
+  one leaves the other listed (not silently resolved) until it's corrected too;
+- after correcting both occurrences and clicking "Refresh BIDS", each ends up in its own
+  corrected subject's debrief file, not merged into one;
+- the "Fix debrief record IDs..." dialog otherwise still works for the ordinary
+  one-row-per-record_id case — regression check on the `extra_raw_action` →
+  `extra_raw_actions` list generalization and the row-vs-value-keyed correction change;
+- the FOH crosscheck GUI (`gui/foh_bids_crosscheck_gui.py`, which passes no `extra_raw_actions`
+  at all) still launches and behaves normally — same shared-code regression concern, FOH side.
+
+### 24. Manually test the FOH raw-folder import feature
+
+Not yet run by a human. `cli/foh_import_to_bids.py` (`import_foh_raw_to_bids`,
+`FohImportSummary`), `processing/bids_crosscheck.py` (`existing_subject_ids`, moved out of
+`crane_convert_to_bids.py` so both importers share it; `iter_subject_folders`, de-privatized
+for the same reason), and `gui/foh_bids_crosscheck_gui.py` (`_run_foh_import` wired in as the
+`raw_converter`) were all written, unit-tested (`import_foh_raw_to_bids` against a folder
+shaped like a real `sub-XXX/ses-.../eeg/` layout, `_old1`-style duplicates included), and the
+full `tests/test_bids_crosscheck.py` suite still passes — but the GUI itself has never been
+launched.
+
+Needed — launch `vrlab_foh_bids_crosscheck` and check:
+
+- a **Raw folder** row and **Refresh BIDS** button now appear above the existing **BIDS
+  folder** row, same as crane's;
+- pointing Raw folder at a copy of a real FOH raw folder and clicking **Refresh BIDS** copies
+  every subject across, `_old1`/`_old2`/... duplicates included, and the crosscheck view
+  handles them as ordinary duplicates exactly as before;
+- hovering **Refresh BIDS** shows the generic tooltip with no mention of debrief anything
+  (that clause is crane-only now — see `convert_button_tooltip`);
+- the raw folder is untouched afterward (file count/timestamps unchanged);
+- resolving a duplicate for one subject (pick, commit, mark crosschecked), then clicking
+  **Refresh BIDS** again, leaves that subject completely alone — decision not clobbered, "Last
+  conversion" reports it as already-present rather than re-copied;
+- adding one more subject to the raw copy and clicking **Refresh BIDS** again adds only that
+  subject;
+- `foh_import_to_bids <raw_folder> <bids_folder>` works standalone from a terminal too;
+- crane's own crosscheck GUI still behaves normally afterward (regression check on the shared
+  `bids_crosscheck_common.py`/`existing_subject_ids` changes both features now depend on) —
+  can likely be folded into the same pass as item 23's crane regression checks rather than
+  repeated separately.
 
 Do not rewrite everything at once. Preserve working behaviour and improve
 one structural issue at a time: function-based strategy contracts first,
@@ -1038,6 +1166,125 @@ for the rule and why it matters. This applies to new code the same way it
 applies to item 22's BIDS direction above: a timepoint input folder should
 be handled as a `Path` end to end, not a string that gets converted back and
 forth.
+
+### 26. Dead/stale tracked files — candidates for removal
+
+Found during a REVIEW-style audit of `git ls-files` against actual imports/callers across
+`src/`, `tests/`, `docs/`, and `pyproject.toml` (2026-08-27). Nothing below has been deleted —
+this is a punch list, not an action taken. Each entry was independently verified (grep for
+every plausible import form, or a direct file-existence check), not taken on a prior doc's
+word alone — a couple of these findings are, in fact, *because* an earlier part of this same
+doc turned out to be stale (see the `run_lsl_pipeline` entry below).
+
+**High confidence — no callers/references found anywhere in the tree:**
+
+- `src/mooi_toolbox/processing/__pycache__/__init__.cpython-313.pyc` and
+  `src/mooi_toolbox/processing/__pycache__/check_plux_data.cpython-313.pyc` — compiled bytecode
+  cache files that are tracked in git despite `.gitignore` excluding `__pycache__/`. The second
+  one is doubly stale: it's the cache for `check_plux_data.py`, a source module deleted from
+  `src/` back in the "Refactor check_plux_data into focused processing modules" commit — no
+  `.py` file of that name exists anywhere in the tree today, only its leftover `.pyc`.
+- `src/mooi_toolbox/qc/crane_behav_qc.py` — raises `DeprecationWarning` on import ("This file
+  needs to be incorporated into crane behaviour"), every function body is a bare `pass` stub,
+  and nothing imports it anywhere.
+- `src/mooi_toolbox/processing/opensignals.py` (`calculate_sampling_rate`/`plot_sampling_rate`)
+  — zero callers found under `src/` or `tests/`.
+- `crane_trial_intervals.py`'s two `@deprecated` functions,
+  `align_crane_behav_intervals_with_trigger_intervals` and `get_crane_predicted_trigger_intervals`
+  — zero callers; the file's other contents (e.g. `CraneGetTrialIntervalStrategyStep`) are still
+  actively used, so this is a function-level removal within the file, not the whole file. Matches
+  item 9's own note above flagging these as deletion candidates "once the new path is confirmed
+  stable" — independently reconfirmed here.
+- `references/matched_debug_df_testa.parquet` — its only consumer is
+  `get_crane_predicted_trigger_intervals` above, itself dead code with no callers.
+- `src/mooi_toolbox/window_manager/window_layout copy.json` — filename literally contains
+  " copy"; the real, actively-used file is the sibling `window_layout.json` (see `README.md`'s
+  `auto_arrange_windows` section). Unreferenced by any code.
+- `src/mooi_toolbox/window_manager/Automate/x.txt` and
+  `src/mooi_toolbox/window_manager/Automate/Graphomotor/x.txt` — both tracked, both completely
+  empty, unreferenced anywhere — look like accidental editor/`touch` artifacts.
+- `src/mooi_toolbox/processing/eeg.py`'s `run_spiral_eeg_processing` (`@deprecated`, described
+  as a "Backward-compatible wrapper for older callers") — zero callers; the real implementation
+  it wraps lives in, and is called from, `spiral.py` directly.
+- `foh_pipeline.py`'s `run_lsl_pipeline` and `trial_intervals.py`'s `create_lsl_trial_intervals`
+  (both `@deprecated`) — zero real callers anywhere in `src/`. **This means several passages
+  earlier in this doc (items 21/24's "Needed" list, e.g. "still wired into ... `mobi_FOH_process.py`")
+  are themselves stale**: `mobi_FOH_process.py` (the single-file CLI these passages describe as
+  the last caller of the deprecated path) was a real file, deleted 2026-08-14 in "WIP: foh batch
+  and crosschecking..." — confirmed via `git log --diff-filter=D`, not an accidental loss. That
+  confirms this is a real cleanup opportunity, still open: the deprecated
+  `run_lsl_pipeline`/`create_lsl_trial_intervals` chain and this doc's own now-inaccurate
+  references to `mobi_FOH_process.py` can be cleaned up together whenever someone gets to it.
+- ~~`pyproject.toml`'s `[project.scripts]` — two entries point at files that no longer exist in
+  the tree~~ **Fixed 2026-08-31**: the `vrlab_foh_process` (→ `mobi_FOH_process.py`, deleted
+  2026-08-14) and `vrlab_crane_summary_data` (→ `vrlab_crane_qc.py`, deleted 2026-07-22) entries
+  were removed from `pyproject.toml` -- confirmed with the user that no rebuild of either script
+  was intended right now, rather than the registration being an oversight. If a generic
+  single-file FOH processor or a crane summary-stats command gets built later, re-add the entry
+  then, matching an actual file.
+
+**Medium confidence — worth a human check before acting:**
+
+- `src/mooi_toolbox/window_manager/Automate/TestController.py`, `automation_layer.py`,
+  `session_controller.py`, `signal_checker.py` (the top-level `Automate/` folder, not the
+  `Automate/Graphomotor/` subfolder) — no tracked launcher script invokes any of these, unlike
+  `Automate/Graphomotor/graphomotor_gui.py` (launched by the tracked `Start_Graphomotor.bat`).
+  `signal_checker.py` is byte-for-byte identical to the copy already in `Automate/Graphomotor/`,
+  and `automation_layer.py` shares most function names with that folder's version — reads as an
+  earlier generation of the same automation tooling, superseded by `Graphomotor/`. Needs lab
+  context to confirm nothing outside this repo still launches it directly.
+- `src/mooi_toolbox/cli/pull_redcap.py` — no `main()` (runs top-level code on import), a
+  hardcoded empty `API_TOKEN = ""`, not registered in `pyproject.toml`, not mentioned in
+  `README.md`/`docs/`. Reads as an unfinished/abandoned one-off script.
+- `src/mooi_toolbox/cli/mobi_spiral_process_batch.py` — has a real, working `click`-based
+  `main()` and imports live pipeline code (`spiral.py`), but unlike every other `cli/*.py` file
+  with a `main()`, it isn't registered in `pyproject.toml`'s `[project.scripts]`. Could be
+  intentional WIP rather than dead — confirm with whoever's been working on the Spiral pipeline.
+- `for_mooi_xdf_processing.ipynb` (repo root) — an ad hoc exploratory notebook with a hardcoded
+  absolute local path and imports (`dash`/`plotly`) not listed in `requirements.txt`/
+  `requirements-dev.txt`. Not referenced by `README.md`, `docs/`, or any script.
+
+**Also noted, not a file issue:** `tests/test_long_walk_pipeline.py` is currently empty (no
+content at all) — `docs/testing.md` lists it alongside `test_crane_pipeline.py`/`test_bids.py`
+as an example of "one file roughly per module under test," which overstates what it actually
+has. Either fill it in or flag it explicitly as an intentional stub.
+
+### 27. Cross-platform build: Mac (then Linux), CLI-first distribution
+
+Not started — packaging/distribution, not pipeline architecture, but tracked here as the
+project's running punch list. Discussed 2026-08-28, prompted by "would a Mac build be brain
+surgery or mechanical, like FSL does it?"
+
+**Current state:** `specs/*.spec` (PyInstaller) are already OS-agnostic — paths are built from
+`SPECPATH`/`REPO_ROOT`, not hardcoded Windows paths, and no `.ico`/Windows-only assets are
+referenced. 9 of 11 tools are `console=True` (plain CLI); only the two BIDS crosscheck GUIs and
+`vrlab_toolbox_launcher` (`gui/toolbox_launcher.py`) are `console=False` (windowed, launched by
+double-clicking a Desktop shortcut). `build_mac.sh` exists only as a stub — two tools,
+`--onefile`, no `.parquet`/version-metadata bundling (see [packaging.md](packaging.md#L104-L110),
+which already flags this as a known gap). Windows packaging (`build.ps1`,
+`toolbox_installer.iss`) uses Inno Setup — Windows-only, no equivalent on Mac/Linux — to build a
+desktop-shortcut installer that edits `HKEY_CURRENT_USER\Environment` for `PATH`.
+
+**Direction agreed:** drop the double-click launcher model in favor of FSL's — every tool,
+GUI included, is just a command typed in a terminal, with the toolbox's `bin`-equivalent folder
+added to `PATH` once (shell profile edit, not registry). This removes the need for an Inno-Setup
+equivalent, an `.app`/Dock icon, and (for a CLI-first release) likely the Apple Developer
+account/notarization pipeline that a double-click-distributed `.app` would need to avoid
+Gatekeeper friction.
+
+Needed:
+
+- extend `build_mac.sh` to loop over all `specs/*.spec`, same as `build.ps1` does, instead of the
+  two hardcoded `--onefile` tools;
+- decide the Mac/Linux PATH-setup step (shell rc edit via install script, vs. just documenting
+  "add this folder to PATH");
+- decide whether `vrlab_toolbox_launcher` / the two crosscheck GUIs still ship at all in a
+  CLI-first model, or become plain terminal-launched commands like the other 9 tools;
+- add a `macos-latest` (then `ubuntu-latest`) job to `.github/workflows/release.yml`, alongside
+  the existing Windows-only one;
+- Mac first, Linux second — Linux adds its own wrinkle Mac doesn't (no single standard installer
+  format; PySide6-on-Linux frozen builds have known Qt platform-plugin (`xcb`/Wayland) issues) —
+  better to isolate that from the "new install flow" work by doing Mac's simpler case first.
 
 ## Deferred: FOH & LongWalk
 
@@ -1053,9 +1300,40 @@ noted here so they aren't lost, not expanded on for now.
   a better header check, a possible bug, and dead code to remove.
 - `processing/long_walk_pipeline.py:51` — messy pipeline, same cleanup Crane
   needs.
+- **Widen `GetTrialIntervalsFallbackStartegy` to cover "behaviour data
+  structurally absent," not just "present but failed."** Long walk has no
+  behavioural data at all — its intervals come purely from the Biopac
+  Trigger channel (`get_raw_biopac_trigger_intervals`), so `raw_behav_data_for_intervals`
+  would always be `None` under `PipelineTemplate`. The outer guard at
+  `pipeline.py:406` (`if raw_biodata_for_intervals is not None and
+  raw_behav_data_for_intervals is not None:`) only reaches `fallback_strategy`
+  from inside the `except` block when `get_interval_strategy.run()` raises —
+  never when behaviour data was never attempted in the first place — so
+  today a physiology-only pipeline can't reach the fallback path at all.
+  Relates to items 5 and 17 above (same guard, same `fallback_strategy`
+  mechanism), but is a distinct case: those are about Crane's behaviour data
+  being present-but-degraded; this is about a pipeline that structurally
+  never has behaviour data. If widened (fallback triggers whenever
+  `raw_behav_data_for_intervals is None`, not only on exception), long walk
+  could adopt `PipelineTemplate` with an interval strategy whose
+  `fallback_strategy` wraps `get_raw_biopac_trigger_intervals` +
+  `EXPECTED_INTERVAL_NR` checking, and reuse `ProcessEdaPhysiologyDataStrategyStep`
+  (`eda.py:77-92`) as-is instead of calling `run_eda_intervals` directly —
+  which would also pick up `correct_order()`, currently missing from long
+  walk's own EDA output. Backward compatible: `fallback_strategy` defaults to
+  `None`, so Crane/FOH are unaffected unless they opt in. Worth noting to
+  whoever owns `pipeline.py` that "fallback" would stretch to mean "the
+  primary path" for a physiology-only pipeline, not just a backup — a
+  naming/semantics wrinkle, not a functional risk. `mobi_core_pipeline.py`
+  is currently just a stub (EEG/EDA-ECG comment list, no code) but reads as
+  another physiology-only candidate for this same fix once it's built.
 - `processing/input_data.py:3` — dataclass could look for variables and
   generate errors.
-- `cli/vrlab_crane_qc.py:19` — add summary data processing.
+- ~~`cli/vrlab_crane_qc.py:19` — add summary data processing.~~ **Dropped 2026-08-31:**
+  `vrlab_crane_qc.py` was deleted 2026-07-22 ("Trying to revamp intervals...") and never
+  restored; the matching `pyproject.toml` `vrlab_crane_summary_data` entry (item 26, above) has
+  now been removed too rather than backfilled. Re-add both together if crane summary-stats
+  processing gets built later.
 - `cli/check_mobi_xdf.py:24` — show missing streams.
 - `cli/vrlab_crane_process.py:109` — data labels for SPSS output.
   (The str-to-path handling previously tracked here is resolved:

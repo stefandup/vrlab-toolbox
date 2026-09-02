@@ -234,7 +234,7 @@ overrides the hooks it actually has something to say about:
 ```python
 class FohCandidateExtras(CandidateExtras):
     def describe(self, scan_type: str, file: Path) -> str | None:
-        if scan_type != FOH_DATASET_CONFIG.task_correction_scan_type:
+        if scan_type != FOH_DATASET_CONFIG.task_tag_scan_type:
             return None
         info = self._candidate_info(file)
         # ... build "2026-02-21   13 min   Streams: 4/4 ✓" from `info`
@@ -427,9 +427,10 @@ Crane output row), and `build_eda_physiology_output_schema` (`eda.py`).
 
 ### What this actually looks like
 
-Using the synthetic `DUMMY000` participant in `examples/` (see
-[Testing](testing.md#the-examples-folder) for where that data comes from),
-here's what actually flows through these two contracts.
+Using the synthetic `DUMMY000` participant's raw, pre-BIDS output in
+`examples/` (see [Testing](testing.md#the-examples-folder) for where that
+data comes from, and how it now also gets converted to BIDS), here's what
+actually flows through these two contracts.
 
 `RawCraneBehaviourData.raw_behav_df` — straight from
 `examples/2026100_DUMMY000_CraneOut.csv`, one row per trial:

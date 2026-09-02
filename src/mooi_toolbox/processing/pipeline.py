@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol, TypeVar, cast
 
+import pandera.pandas as pa
 from matplotlib.figure import Figure
 
 from mooi_toolbox.mobi_logging import LOG_DATE_FORMAT, LOG_FORMAT
@@ -167,12 +168,18 @@ class SequentialBehaviourImportSteps:
 
     def run(self, config_in: ParticipantConfig) -> tuple[RawBehaviourDataStore, PipelineStatus]:
         pipeline_status = PipelineStatus()
+        # TODO: use e.failure_cases.to_string(index=False) when it's a SchemaError/SchemaErrors
         for step in self.steps:
             try:
                 pipeline_raw_behav_data = step.run(config_in=config_in)
                 self.raw_behaviour_data_Store.add(pipeline_raw_behav_data)
                 pipeline_status.set(step.behaviour_output_type, ProcessingStatus.OK)
-            except (ValueError, FileNotFoundError) as e:
+            except (
+                ValueError,
+                FileNotFoundError,
+                pa.errors.SchemaError,
+                pa.errors.SchemaErrors,
+            ) as e:
                 logger.warning(
                     "Error importing behaviour data for participant %s. %s", config_in.subject_id, e
                 )
@@ -197,6 +204,7 @@ class SequentialBehaviourProcessingSteps:
         behavioural_output_data = PipelineOutputData(config_in.subject_id)
         pipeline_status = PipelineStatus()
         for step in self.steps:
+            # TODO: use e.failure_cases.to_string(index=False) when it's a SchemaError/SchemaErrors
             try:
                 in_data_type = step.input_data_type
                 raw_behav_data = data_store_in.get(in_data_type)
@@ -206,7 +214,12 @@ class SequentialBehaviourProcessingSteps:
                 behavioural_output_data = behavioural_output_data.merge(step_output)
                 pipeline_status.set(step.input_data_type, ProcessingStatus.OK)
 
-            except (ValueError, FileNotFoundError) as e:
+            except (
+                ValueError,
+                FileNotFoundError,
+                pa.errors.SchemaError,
+                pa.errors.SchemaErrors,
+            ) as e:
                 logger.warning(
                     "Error processing %s for participant %s. %s",
                     step.input_data_type,

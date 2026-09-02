@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from mooi_toolbox import __version__
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_INPUT_CSV = PROJECT_ROOT / "local_lsl_data" / "_out" / "FOH_process_batch_out.csv"
@@ -42,6 +43,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "(Short/Medium/Long) vs SCR-per-min across Baseline, Stress, Recovery."
         )
     )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument(
         "--input-csv",
         type=Path,

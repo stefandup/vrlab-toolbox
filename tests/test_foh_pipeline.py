@@ -24,109 +24,71 @@ from mooi_toolbox.processing.processing_status import ProcessingStatus
 from mooi_toolbox.processing.trial_intervals import TrialIntervals
 
 CORRECT_PARTICIPANT = "P00020"
-DATA_FOLDER = Path(r"C:\Users\stefan\Participant Data Copy")
+
+# Real, gitignored data -- every test in this file needs this folder present locally and is
+# expected to fail without it (no dummy/synthetic FOH dataset exists yet, unlike Crane).
+BIDS_FOLDER = Path(r"foh_data_copy\foh_bids_test")
 
 
-# @unittest.skip("Busy")
 class TestFOHPipeline(unittest.TestCase):
-    def test_biodata_import_strategy(self):
-        data_folder = DATA_FOLDER
-
+    def test_load_lsl_config_data(self):
         participant_config = ParticipantConfig.from_lsl_data(
-            CORRECT_PARTICIPANT,
-            data_folder,
-            PhysiologyFileFormat.LSL,
+            CORRECT_PARTICIPANT, BIDS_FOLDER, PhysiologyFileFormat.LSL
         )
-        raw_bio_data_out = FohLslPhysiologyDataImportStrategy().run(participant_config)
+        self.assertIsInstance(participant_config, ParticipantConfig)
 
-        self.assertTrue(raw_bio_data_out)
+    def setUp(self):
+        self.participant_config = ParticipantConfig.from_lsl_data(
+            CORRECT_PARTICIPANT, BIDS_FOLDER, PhysiologyFileFormat.LSL
+        )
+
+    def test_physiology_data_import_strategy(self):
+        raw_bio_data = FohLslPhysiologyDataImportStrategy().run(self.participant_config)
+        self.assertIsInstance(raw_bio_data, RawBioData)
 
     def test_foh_target_behav_import_strategy(self):
-
-        data_folder = DATA_FOLDER
-        participant_config = ParticipantConfig.from_lsl_data(
-            CORRECT_PARTICIPANT,
-            data_folder,
-            PhysiologyFileFormat.LSL,
+        raw_target_behav_data = ImportFohTargetBehaviourDataStrategyStep().run(
+            self.participant_config
         )
-
-        raw_target_behav_data = ImportFohTargetBehaviourDataStrategyStep().run(participant_config)
         self.assertIsInstance(raw_target_behav_data, FohRawTargetBehaviourData)
 
     def test_foh_target_behav_processing_strategy(self):
-        data_folder = DATA_FOLDER
-
-        participant_config = ParticipantConfig.from_lsl_data(
-            CORRECT_PARTICIPANT,
-            data_folder,
-            PhysiologyFileFormat.LSL,
-        )
-
-        raw_bio_data = FohLslPhysiologyDataImportStrategy().run(participant_config)
-        raw_behav_data = ImportFohBehaviourDataStrategyStep().run(participant_config)
+        raw_bio_data = FohLslPhysiologyDataImportStrategy().run(self.participant_config)
+        raw_behav_data = ImportFohBehaviourDataStrategyStep().run(self.participant_config)
         trial_intervals, _, _ = FohGetTrialIntervalStrategyStep().run(raw_bio_data, raw_behav_data)
 
-        raw_target_behav_data = ImportFohTargetBehaviourDataStrategyStep().run(participant_config)
-        self.assertIsInstance(raw_target_behav_data, FohRawTargetBehaviourData)
-
+        raw_target_behav_data = ImportFohTargetBehaviourDataStrategyStep().run(
+            self.participant_config
+        )
         target_output = ProcessFohTargetDataWithIntervalsStrategyStep().run(
-            participant_config, raw_target_behav_data, trial_intervals
+            self.participant_config, raw_target_behav_data, trial_intervals
         )
         self.assertIsInstance(target_output, PipelineOutputData)
 
-    def test_physiology_data_import_strategy(self):
-        data_folder = DATA_FOLDER
-
-        participant_config = ParticipantConfig.from_lsl_data(
-            CORRECT_PARTICIPANT,
-            data_folder,
-            PhysiologyFileFormat.LSL,
-        )
-        raw_bio_data = FohLslPhysiologyDataImportStrategy().run(participant_config)
-
-        self.assertIsInstance(raw_bio_data, RawBioData)
-
     def test_interval_get_strategy(self):
-        data_folder = DATA_FOLDER
-
-        participant_config = ParticipantConfig.from_lsl_data(
-            CORRECT_PARTICIPANT,
-            data_folder,
-            PhysiologyFileFormat.LSL,
-        )
-
-        raw_bio_data = FohLslPhysiologyDataImportStrategy().run(participant_config)
-        raw_behav_data = ImportFohBehaviourDataStrategyStep().run(participant_config)
-        trail_intervals, _, pipeline_status = FohGetTrialIntervalStrategyStep().run(
+        raw_bio_data = FohLslPhysiologyDataImportStrategy().run(self.participant_config)
+        raw_behav_data = ImportFohBehaviourDataStrategyStep().run(self.participant_config)
+        trial_intervals, _, status = FohGetTrialIntervalStrategyStep().run(
             raw_bio_data, raw_behav_data
         )
-        self.assertEqual(pipeline_status.status[type(trail_intervals)], ProcessingStatus.OK)
-        self.assertTrue(trail_intervals)
+        self.assertEqual(status.status[type(trial_intervals)], ProcessingStatus.OK)
+        self.assertTrue(trial_intervals)
 
     def test_basic_foh_pipeline(self):
-        data_folder = DATA_FOLDER
+        pipeline_out = run_pipeline(self.participant_config.subject_id, BIDS_FOLDER)
+        self.assertTrue(pipeline_out)
+        self.assertTrue(pipeline_out.figure_data_out["eda_qc"])
+        self.assertTrue(pipeline_out.figure_data_out["Interval_qc"])
+        self.assertEqual(pipeline_out.status.status[RawBioData], ProcessingStatus.OK)
+        self.assertEqual(pipeline_out.status.status[RawFohBehaviourData], ProcessingStatus.OK)
+        self.assertEqual(pipeline_out.status.status[FohRawTargetBehaviourData], ProcessingStatus.OK)
+        self.assertEqual(pipeline_out.status.status[TrialIntervals], ProcessingStatus.OK)
 
-        participant_config = ParticipantConfig.from_lsl_data(
-            CORRECT_PARTICIPANT,
-            data_folder,
-            PhysiologyFileFormat.LSL,
-        )
-
-        pipeline_data_out = run_pipeline(participant_config.subject_id, data_folder)
-        self.assertTrue(pipeline_data_out)
-        self.assertTrue(pipeline_data_out.figure_data_out["eda_qc"])
-        self.assertTrue(pipeline_data_out.figure_data_out["Interval_qc"])
-        self.assertEqual(pipeline_data_out.status.status[RawBioData], ProcessingStatus.OK)
-        self.assertEqual(pipeline_data_out.status.status[RawFohBehaviourData], ProcessingStatus.OK)
-        self.assertEqual(
-            pipeline_data_out.status.status[FohRawTargetBehaviourData], ProcessingStatus.OK
-        )
-        self.assertEqual(pipeline_data_out.status.status[TrialIntervals], ProcessingStatus.OK)
-
-    def test_batch_processing(self):
-        data_folder = DATA_FOLDER
-
+    def test_crane_batch_processing(self):
         with tempfile.TemporaryDirectory() as output_folder:
-            result = CliRunner().invoke(run_batch, [str(data_folder), output_folder])
-
+            result = CliRunner().invoke(run_batch, [str(BIDS_FOLDER), output_folder])
         self.assertEqual(result.exit_code, 0, msg=result.output)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -239,6 +239,34 @@ one real pipeline (Crane) that exists today — it wasn't built out further
 "in case" a hypothetical future pipeline needs more. If a genuine second
 use case shows up later, that's when the abstraction earns its keep.
 
+## Fix data problems as close to the source as you can
+
+Data pulled in from an external system (REDCap, a paper form, an experiment
+log) should ideally already arrive correct and consistent — every
+correction added downstream is a chance to introduce a *new*
+inconsistency, not just fix an old one. Rule of thumb, in order of
+preference:
+
+1. **Fix it at the source**, if that's realistic (correct the field in
+   REDCap itself, fix the form).
+2. If the source can't practically be fixed (e.g. a column header typo
+   that's painful to change in REDCap), fix it **right where the data
+   enters the pipeline** — the import/pull step — not scattered through
+   later processing.
+3. Anything else genuinely messy in the recorded data itself belongs
+   **downstream**, and ideally somewhere a human already reviews the
+   result — like a crosscheck GUI — rather than buried inside a CLI
+   script or general processing logic.
+
+This is the same reasoning behind keeping CLIs thin
+([Code Organization](code-organization.md#the-command-line-tools)): the
+CLI's job is to read, call, save — not to silently rewrite data as it
+passes through. Every extra cleaning step is untested surface area, and a
+correction buried deep in `processing/` is invisible the next time someone
+reads that code. Keeping corrections at the boundary (import) or at the
+point of human review (crosscheck) means there's exactly one obvious place
+to look for "why does this value look different from the source."
+
 ## Respect input/output contracts
 
 Every strategy step accepts and returns a fixed, typed shape of data —

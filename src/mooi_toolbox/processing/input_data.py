@@ -12,12 +12,12 @@ class PhysiologyFileFormat(Enum):
 
 
 # TODO: Figure out where to put the foh tag...
-# TODO: this happens to match FOH_DATASET_CONFIG.task_correction_label in
+# TODO: this happens to match FOH_DATASET_CONFIG.task_tag_task in
 # gui/foh_bids_crosscheck_gui.py (the tag the crosscheck tool writes into filenames), but
 # nothing keeps them in sync -- they're two independent hardcoded strings. Find a nice way to
 # share one source of truth once this function starts reading crosscheck decisions instead of
 # guessing (see docs/bids_crosscheck_plan.md's "TODO (deferred, not scoped now)").
-PIPELINE_ID = "foh"
+TASK_LABEL = "foh"
 logger = logging.getLogger(__name__)
 
 
@@ -35,8 +35,92 @@ class ParticipantConfig:
     output_folder: Path
     verbose: bool
     show_plots: bool
-    # _expected_date_format = "%Y%m%d%H%M"
 
+    @classmethod
+    def from_bids_data(
+        cls,
+        id_in: str,
+        physiology_data_type_in: PhysiologyFileFormat,
+        data_folder_in: Path,
+        behaviour_data_types_in: list[type],
+        behav_folder_in: Path | None = None,
+        output_folder_in: Path | None = None,
+        log_folder_in: Path | None = None,
+        verbose: bool = False,
+        show_plots: bool = False,
+    ) -> "ParticipantConfig":
+
+        if not id_in.isalnum():
+            logger.warning(
+                f"Participant ID {id_in} is not valid as it contains non alphanumeric characters."
+                f" Please correct."
+            )
+
+        search_root = data_folder_in
+        physiology_fn_list = list(
+            search_root.rglob(f"sub-{id_in}_*{physiology_data_type_in.value}")
+        )
+
+        if physiology_fn_list:
+            physiology_fn = physiology_fn_list[0]
+
+            if len(physiology_fn_list) > 1:
+                logger.warning(
+                    f"Multiple files detected for subject {id_in}."
+                    f"Expect only 1 {physiology_fn_list}"
+                )
+        else:
+            logger.warning(f"No matching physiology files found for {id_in}")
+            physiology_fn = None
+
+        if behav_folder_in is None:
+            behav_folder_in = data_folder_in
+
+        if output_folder_in is None:
+            output_folder_in = data_folder_in.parent / "output"
+
+        output_folder_in.mkdir(parents=True, exist_ok=True)
+
+        if log_folder_in is None:
+            log_folder_in = output_folder_in / "logs"
+
+        log_folder_in.mkdir(parents=True, exist_ok=True)
+
+        behaviour_fn_dict = {}
+        for behav_data_type in behaviour_data_types_in:
+            glob_pattern = behav_data_type.filename_glob.format(participant_id=id_in)
+
+            behav_file_matches = list(behav_folder_in.rglob(glob_pattern))
+            # Date checking to crosscheck
+            if not behav_file_matches:
+                logger.warning(
+                    f"No file matches for {behav_data_type.__name__} for participant {id_in}"
+                )
+                behaviour_fn_dict[behav_data_type] = None
+                continue
+            else:
+                behaviour_fn_dict[behav_data_type] = behav_file_matches[0]
+
+            if len(behav_file_matches) > 1:
+                logger.warning(
+                    f"Multiple {behav_data_type.__name__} files for {id_in}: {behav_file_matches}"
+                )
+
+        return cls(
+            subject_id=id_in,
+            physiology_fn=str(physiology_fn) if physiology_fn else "",
+            physiology_data_type=physiology_data_type_in,
+            data_folder=data_folder_in,
+            behav_folder=behav_folder_in,
+            _behaviour_file_names=behaviour_fn_dict,
+            log_folder=log_folder_in,
+            output_folder=output_folder_in,
+            verbose=verbose,
+            show_plots=show_plots,
+        )
+
+    # _expected_date_format = "%Y%m%d%H%M"
+    # @deprecated("Moving to BIDS folder use after crosscheck rather than raw crane files.")
     @classmethod
     def from_physiology_data(
         cls,
@@ -163,23 +247,14 @@ class ParticipantConfig:
         log_folder_in.mkdir(parents=True, exist_ok=True)
 
         selected_stream_fns = []
-        for xdf_path in data_folder_in.rglob(
-            f"*{id_in}*{PIPELINE_ID}{physiology_data_type_in.value}"
-        ):
+        glob_str = f"sub-{id_in}*task-{TASK_LABEL}*_beh{physiology_data_type_in.value}"
+        for xdf_path in data_folder_in.rglob(glob_str):
             print(f"Found {xdf_path}")
-
-            file_to_run_key = str(xdf_path.name).split("_")[-1]
-            if file_to_run_key != f"{PIPELINE_ID}.xdf":
-                logger.warning(
-                    f"{xdf_path} path with key {file_to_run_key} does not match {PIPELINE_ID}.xdf"
-                    f"Skipping..."
-                )
-                continue
             selected_stream_fns.append(xdf_path)
 
         if not selected_stream_fns:
             raise ValueError(
-                f"No physiology files matching *_{PIPELINE_ID}.xdf found for participant {id_in}."
+                f"No physiology files matching {glob_str} found for participant {id_in}."
             )
         # Data needs to be crosschecked to remove multiple competing files.
         else:

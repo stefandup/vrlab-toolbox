@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+import pyperclip
 
 from pywinauto import Application, Desktop
 from pywinauto.keyboard import send_keys
@@ -85,12 +86,14 @@ def clear_existing_opensignals_errors():
         if not found:
             break
 
+
 def clear_existing_opensignals_errors():
     for _ in range(3):
         found = close_opensignals_error()
         time.sleep(0.8)
         if not found:
             break
+
 
 def setup_opensignals():
     try:
@@ -151,10 +154,12 @@ def setup_opensignals():
         time.sleep(12)
 
         print("[OK] OpenSignals automated by coordinates")
+        return True
 
     except Exception as e:
         print(f"[ERROR] OpenSignals automation failed: {e}")
         raise
+
 
 def setup_labrecorder(participant_id: str):
     try:
@@ -165,15 +170,24 @@ def setup_labrecorder(participant_id: str):
         win.set_focus()
         time.sleep(1)
 
+        # ---------------------------------------------------------
+        # Participant ID
+        # ---------------------------------------------------------
         print("[INFO] Setting participant ID...")
         participant_edit = win.child_window(
-            auto_id="MainWindow.centralwidget.scrollArea.qt_scrollarea_viewport.scrollAreaWidgetContents.lineEdit_participant",
+            auto_id=(
+                "MainWindow.centralwidget.scrollArea.qt_scrollarea_viewport."
+                "scrollAreaWidgetContents.lineEdit_participant"
+            ),
             control_type="Edit",
         )
         participant_edit.set_edit_text(participant_id)
 
         time.sleep(1)
 
+        # ---------------------------------------------------------
+        # ORIGINAL WORKING FLOW
+        # ---------------------------------------------------------
         print("[INFO] Clicking Update...")
         win.child_window(
             title="Update",
@@ -192,6 +206,75 @@ def setup_labrecorder(participant_id: str):
 
         time.sleep(1)
 
+        # ---------------------------------------------------------
+        # EXTRA FIELDS
+        # These must NEVER stop Lab Recorder from starting.
+        # ---------------------------------------------------------
+
+        try:
+            print("[INFO] Setting session to S001...")
+            session_edit = win.child_window(
+                auto_id=(
+                    "MainWindow.centralwidget.scrollArea.qt_scrollarea_viewport."
+                    "scrollAreaWidgetContents.lineEdit_session"
+                ),
+                control_type="Edit",
+            )
+            session_edit.set_edit_text("S001")
+        except Exception as e:
+            print(f"[WARN] Could not set session: {e}")
+
+        try:
+            print("[INFO] Setting task to foh...")
+            task_combo = win.child_window(
+                auto_id=(
+                    "MainWindow.centralwidget.scrollArea.qt_scrollarea_viewport."
+                    "scrollAreaWidgetContents.input_blocktask"
+                ),
+                control_type="ComboBox",
+            )
+
+            task_edit = task_combo.child_window(control_type="Edit")
+            task_edit.set_edit_text("foh")
+        except Exception as e:
+            print(f"[WARN] Could not set task: {e}")
+
+        try:
+            print("[INFO] Setting modality to beh...")
+            modality_combo = win.child_window(
+                auto_id=(
+                    "MainWindow.centralwidget.scrollArea.qt_scrollarea_viewport."
+                    "scrollAreaWidgetContents.input_modality"
+                ),
+                control_type="ComboBox",
+            )
+
+            modality_edit = modality_combo.child_window(control_type="Edit")
+            modality_edit.set_edit_text("beh")
+        except Exception as e:
+            print(f"[WARN] Could not set modality: {e}")
+
+        try:
+            print("[INFO] Setting FOH filename template...")
+            template_edit = win.child_window(
+                auto_id=(
+                    "MainWindow.centralwidget.scrollArea.qt_scrollarea_viewport."
+                    "scrollAreaWidgetContents.lineEdit_template"
+                ),
+                control_type="Edit",
+            )
+
+            template_edit.set_edit_text(
+                r"sub-%p\ses-%s\%m\sub-%p_ses-%s_task-%b_run-%r_foh.xdf"
+            )
+        except Exception as e:
+            print(f"[WARN] Could not set filename template: {e}")
+
+        time.sleep(1)
+
+        # ---------------------------------------------------------
+        # ALWAYS PRESS START
+        # ---------------------------------------------------------
         print("[INFO] Clicking Start...")
         win.child_window(
             title="Start",
@@ -200,6 +283,7 @@ def setup_labrecorder(participant_id: str):
         ).click_input()
 
         print("[OK] LabRecorder fully automated")
+        return True
 
     except Exception as e:
         print(f"[ERROR] LabRecorder automation failed: {e}")
@@ -235,15 +319,20 @@ def setup_foh(participant_id: str):
         pyautogui.press("backspace")
         time.sleep(0.2)
 
-        print(f"[INFO] Typing participant ID: {participant_id}")
-        pyautogui.write(participant_id, interval=0.05)
+        print(f"[INFO] Pasting participant ID exactly: {participant_id}")
+        pyperclip.copy(participant_id)
+        time.sleep(0.2)
+        pyautogui.hotkey("ctrl", "v")
         time.sleep(0.5)
 
         print("[INFO] Clicking Training as final automated step...")
         pyautogui.moveTo(*TRAINING_BTN, duration=0.3)
         pyautogui.click()
 
-        print("[OK] FOH stopped on Training screen. User can now click Back and Start VR manually.")
+        print(
+            "[OK] FOH stopped on Training screen. "
+            "User can now click Back and Start VR manually."
+        )
 
     except Exception as e:
         print(f"[ERROR] FOH automation failed: {e}")

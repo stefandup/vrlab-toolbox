@@ -188,7 +188,7 @@ class ImportCraneBehaviourDataStrategyStep:
 
     def run(self, config_in: ParticipantConfig) -> RawCraneBehaviourData:
 
-        return RawCraneBehaviourData.load_from_config(config_in)
+        return RawCraneBehaviourData.load_from_behaviour_type(config_in, self.behaviour_output_type)
 
 
 class ProcessCraneBehaviourDataStrategyStep:
@@ -213,11 +213,11 @@ class ProcessCraneBehaviourDataStrategyStep:
             dizziness_avg=("Dizzy", "mean"),
             stressed_avg=("Stressed", "mean"),
             dropped_total=("TotalDropped", "sum"),
-            nr_frustration_barrels=("nrFrustrationBarrels", "median"),
-            nr_error_slips=("NrErrorSlips", "mean"),
-            nr_slips=("NrSlips", "mean"),
-            nr_no_reason_slips=("NrNoReasonSlips", "mean"),
-            nr_forced_slips=("NrForcedSlips", "mean"),
+            nr_frustration_barrels=("nrFrustrationBarrels", "sum"),
+            nr_error_slips=("NrErrorSlips", "sum"),
+            nr_slips=("NrSlips", "sum"),
+            nr_no_reason_slips=("NrNoReasonSlips", "sum"),
+            nr_forced_slips=("NrForcedSlips", "sum"),
             avg_velocity=("AvgVelocity", "mean"),
             target_score=("TargetScore", "median"),
         )

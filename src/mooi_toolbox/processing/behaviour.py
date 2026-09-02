@@ -29,7 +29,7 @@ class RawBehaviourData:
     subject_config: ParticipantConfig
     raw_behav_df: pd.DataFrame
     validation_schema: pa.DataFrameSchema = field(default_factory=build_base_output_schema)
-    filename_glob = "{date_string}_{participant_id}_*.csv"
+    filename_glob = "sub-{participant_id}_*acq-behaviour*.tsv"
 
     def __post_init__(self):
         self.raw_behav_df = self.validate_behav_data()
@@ -44,6 +44,20 @@ class RawBehaviourData:
     def load_from_config(cls, config_in: ParticipantConfig) -> Self:
         behav_df = load_from_participant_config(config_in)
         return cls(config_in, behav_df)
+
+    @classmethod
+    def load_from_behaviour_type(cls, config_in: ParticipantConfig, behaviour_type: type):
+        behav_file_found = config_in._behaviour_file_names[behaviour_type]
+
+        if not behav_file_found:
+            error = f"No files found for {config_in.subject_id}"
+            logger.error(error)
+            raise FileNotFoundError(error)
+
+        logger.info(f"Found {behav_file_found}")
+        df_out = pd.read_csv(behav_file_found, delimiter="\t")
+
+        return cls(config_in, df_out)
 
 
 def load_and_validate_behaviour_csv(
