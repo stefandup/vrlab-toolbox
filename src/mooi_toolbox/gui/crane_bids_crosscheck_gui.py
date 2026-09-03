@@ -60,9 +60,12 @@ from mooi_toolbox.cli.crane_convert_to_bids import (
     resolve_crane_filename,
     save_debrief_id_corrections,
     save_raw_filename_id_corrections,
+    strip_duplicate_marker,
 )
 from mooi_toolbox.gui.bids_crosscheck_common import (
     DEFAULT_CONVERT_BUTTON_TOOLTIP,
+    EXTRA_RAW_ACTION_GROUP_OVERRIDE,
+    EXTRA_RAW_ACTION_GROUP_RAW,
     CandidateExtras,
     run_bids_crosscheck_app,
 )
@@ -277,7 +280,7 @@ class CraneCandidateExtras(CandidateExtras):
             )
             parts = []
             if info.duration_minutes is not None:
-                parts.append(f"{round(info.duration_minutes)} min")
+                parts.append(f"<b>{round(info.duration_minutes)} min</b>")
             parts.append(channels_text)
             return " &nbsp;&nbsp; ".join(parts)
 
@@ -300,7 +303,7 @@ class CraneCandidateExtras(CandidateExtras):
             parts = []
             if info.n_rows is not None:
                 row_word = "trials" if scan_type == BEHAVIOUR_SCAN_TYPE else "row(s)"
-                parts.append(f"{info.n_rows} {row_word}")
+                parts.append(f"<b>{info.n_rows} {row_word}</b>")
             parts.append(columns_text)
             return " &nbsp;&nbsp; ".join(parts)
 
@@ -368,15 +371,16 @@ class CraneCandidateExtras(CandidateExtras):
     # everything after run-<NNN> with a single generic label, same for all three scan types).
     # See docs/bids_converter_plan.md.
     #
-    # filename_correction_available IS overridden below though -- crane's converter can still
-    # produce a filename that needs a human fix, just not the kind task-tagging addresses:
-    # a "-dupN" collision marker (see _resolve_destination in crane_convert_to_bids.py) left
-    # on whichever duplicate turns out to be the real recording, or any other entity a human
-    # spots as wrong (task-/acq-/...). The free-text "Correct filename..." button covers all
-    # of those without a dataset-specific dialog for each.
+    # No filename_correction_available override either (falls back to CandidateExtras' own
+    # "False") -- the one thing crane's converter can leave behind that needs a post-hoc fix,
+    # a "-dupN" collision marker (see _resolve_destination in crane_convert_to_bids.py) on
+    # whichever duplicate turns out to be the real recording, is handled automatically by
+    # duplicate_marker_free_name below instead of a free-text escape hatch: by the time a
+    # human resolves a duplicate here, every other part of the name (subject/task/acq/run)
+    # is already correct, so there's nothing left a manual retype should ever need to fix.
 
-    def filename_correction_available(self, scan_type: str) -> bool:
-        return True
+    def duplicate_marker_free_name(self, scan_type: str, file: Path) -> str | None:
+        return strip_duplicate_marker(file.name)
 
     def refreshable(self, scan_type: str) -> bool:
         return scan_type in (PHYSIOLOGY_SCAN_TYPE, BEHAVIOUR_SCAN_TYPE, DEBRIEF_SCAN_TYPE)
@@ -504,21 +508,25 @@ class DebriefRecordIdCorrectionDialog(QDialog):
     share the exact same literal record_id (e.g. two subjects who both typed "0001" into
     REDCap -- the debrief-side counterpart of a raw filename's "(N)" duplicate-copy marker,
     see `RawFilenameCorrectionDialog`). A value-keyed correction can't tell those apart, so
-    each row gets its own key (`debrief_correction_key`) and every row in a duplicated group
-    is always listed for explicit review, whether or not its current value happens to already
-    match a known subject -- and never auto-guessed, since guessing the same subject for two
-    different rows would just recreate the ambiguity it's meant to resolve.
+    each row gets its own key (`debrief_correction_key`).
+
+    Every row from the export is listed, in export order, not just the mismatched/ambiguous
+    ones -- same "show everything, mark what's wrong" shape as `RawFilenameCorrectionDialog`,
+    so fixing one row shows up as its own tick turning green rather than the row quietly
+    disappearing from view (which reads as "did that even work?"). A duplicated record_id is
+    still never auto-guessed, since guessing the same subject for two different rows would
+    just recreate the ambiguity it's meant to resolve.
     """
 
     def __init__(self, raw_folder: Path, bids_folder: Path, parent: QWidget | None = None):
         super().__init__(parent)
         self.bids_folder = bids_folder
         self.setWindowTitle("Fix debrief record IDs")
-        self.resize(680, 420)
+        self.resize(760, 560)
 
         layout = QVBoxLayout(self)
         self._rows: list[tuple[str, str]] = []  # (record_id, correction_key) per listed row
-        self._unmatched_subject_ids: list[str] = []
+        self._known_subject_ids: set[str] = set()
 
         existing_corrections = load_debrief_id_corrections(bids_folder)
         debrief_df = load_debrief_export(raw_folder)
@@ -529,12 +537,13 @@ class DebriefRecordIdCorrectionDialog(QDialog):
             layout.addWidget(buttons)
             return
 
-        known_ids = discover_raw_subject_ids(raw_folder) | existing_subject_ids(bids_folder)
+        self._known_subject_ids = discover_raw_subject_ids(raw_folder) | existing_subject_ids(
+            bids_folder
+        )
         record_id_column = debrief_df["record_id"].astype(str)
         value_counts = record_id_column.value_counts()
 
         occurrence_counters: dict[str, int] = {}
-        corrected_ids_seen: set[str] = set()
         self._duplicate_counts: dict[str, int] = {}
         occurrence_by_key: dict[str, int] = {}
         for record_id in record_id_column:
@@ -542,28 +551,23 @@ class DebriefRecordIdCorrectionDialog(QDialog):
             occurrence_counters[record_id] = occurrence_index + 1
             key = debrief_correction_key(record_id, occurrence_index)
             occurrence_by_key[key] = occurrence_index
-            corrected_id = existing_corrections.get(key, record_id)
-            corrected_ids_seen.add(corrected_id)
-            if value_counts[record_id] > 1 or corrected_id not in known_ids:
-                self._rows.append((record_id, key))
-                self._duplicate_counts[key] = int(value_counts[record_id])
-        self._rows.sort(key=lambda pair: pair[1])
-        # What a guess is actually checked against: subjects still missing a debrief, not
-        # every known id -- a guess landing on a subject that already has one would just
-        # create a second, wrong debrief for them, not fix anything.
-        self._unmatched_subject_ids = sorted(known_ids - corrected_ids_seen)
+            self._rows.append((record_id, key))
+            self._duplicate_counts[key] = int(value_counts[record_id])
 
-        layout.addWidget(
-            QLabel(
-                "These debrief rows don't match any known subject id, or share their "
-                "record_id with another row (ambiguous -- could be two different subjects who "
-                "both entered the same id). Each non-ambiguous row is pre-filled with a "
-                "best-effort guess (stray whitespace/PID-dash fixes); ambiguous rows are left "
-                "blank for you to assign individually. Clear a box to skip that row. This "
-                'never changes the raw export; corrections are saved separately and applied '
-                'the next time you click "Refresh BIDS".'
-            )
+        info_label = QLabel(
+            "Every row from the debrief export, with the subject id it currently "
+            f"resolves to. {CHECK} means that id matches a known subject; {CROSS} means "
+            "it doesn't -- double-check it, or this subject may genuinely have no "
+            "debrief data yet. Non-ambiguous rows are pre-filled with a best-effort "
+            "guess (stray whitespace/PID-dash fixes); rows that share their record_id "
+            "with another row (ambiguous -- could be two different subjects who both "
+            "entered the same id) are left blank for you to assign individually. Type a "
+            "corrected subject id for any row that's wrong, or clear a box to leave it "
+            "unmatched. This never changes the raw export; corrections are saved "
+            'separately and applied the next time you click "Refresh BIDS".'
         )
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
 
         self.table = QTableWidget(len(self._rows), 3)
         self.table.setHorizontalHeaderLabels(
@@ -574,9 +578,9 @@ class DebriefRecordIdCorrectionDialog(QDialog):
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeaderItem(1).setToolTip(
-            f"{CHECK} matches a subject still missing a debrief file\n"
-            f"{CROSS} doesn't match any subject still missing a debrief file -- double-check "
-            "it, or this subject may genuinely have no debrief data (e.g. never completed it)"
+            f"{CHECK} matches a known subject id\n"
+            f"{CROSS} doesn't match any known subject id -- double-check it, or this subject "
+            "may genuinely have no debrief data yet"
         )
         self.table.verticalHeader().setVisible(False)
         for row, (record_id, key) in enumerate(self._rows):
@@ -610,14 +614,6 @@ class DebriefRecordIdCorrectionDialog(QDialog):
         self.table.itemChanged.connect(self._on_item_changed)
         layout.addWidget(self.table, 1)
 
-        if self._unmatched_subject_ids:
-            reference_label = QLabel(
-                "Subject ids still without a debrief match: "
-                + ", ".join(self._unmatched_subject_ids)
-            )
-            reference_label.setWordWrap(True)
-            layout.addWidget(reference_label)
-
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
@@ -630,13 +626,13 @@ class DebriefRecordIdCorrectionDialog(QDialog):
         text = item.text().strip() if item is not None else ""
         if not text:
             icon, tooltip = "", ""
-        elif text in self._unmatched_subject_ids:
-            icon, tooltip = CHECK, "Matches a subject still missing a debrief file"
+        elif text in self._known_subject_ids:
+            icon, tooltip = CHECK, "Matches a known subject id"
         else:
             icon, tooltip = (
                 CROSS,
-                "Doesn't match any subject still missing a debrief file -- double-check it, "
-                "or this subject may genuinely have no debrief data",
+                "Doesn't match any known subject id -- double-check it, or this subject may "
+                "genuinely have no debrief data yet",
             )
         match_item = self.table.item(row, 1)
         if match_item is not None:
@@ -846,18 +842,20 @@ def main() -> None:
         override_file_filter="CSV files (*.csv)",
         extra_raw_actions=[
             (
-                "Fix debrief record IDs...",
+                "Fix Record IDs in Debrief Export",
                 "Declare corrected subject ids for debrief record_id values that don't match "
                 "any known subject. Saved separately -- never edits the raw debrief export.",
                 _on_fix_debrief_record_ids,
+                EXTRA_RAW_ACTION_GROUP_OVERRIDE,
             ),
             (
-                "Fix raw filenames...",
+                "Fix Filenames in Raw Folder",
                 "Review every raw physiology/behaviour filename and, if needed, declare its "
                 "correct subject id -- for filenames that don't parse at all, or ones that "
                 'parse fine but to the wrong id (e.g. two subjects sharing a "(N)" '
                 "duplicate-copy marker). Saved separately -- never renames the raw file.",
                 _on_fix_raw_filenames,
+                EXTRA_RAW_ACTION_GROUP_RAW,
             ),
         ],
         convert_button_tooltip=(

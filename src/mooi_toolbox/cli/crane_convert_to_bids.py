@@ -102,6 +102,12 @@ _DUPLICATE_COPY_MARKER_PATTERN = re.compile(r"\(\d+\)\s*$")
 # but consistent) wherever a subject id is derived, so e.g. a sub-XXX/ folder name doesn't
 # end up depending on which spelling happened to appear in a given source file.
 _PID_DASH_PATTERN = re.compile(r"^PID-(\d+)$", re.IGNORECASE)
+# Appended to a converted file's BIDS suffix by `_resolve_destination` when two raw sources
+# collide on the same destination name (e.g. "..._physio-dup2.mat", counter starting at 2 --
+# the first file to land on a name keeps it plain). A different marker from
+# `_DUPLICATE_COPY_MARKER_PATTERN` above: that one flags an ambiguous *raw* filename before
+# conversion; this one is left on an already-converted BIDS file. See `strip_duplicate_marker`.
+_SUFFIX_DUPLICATE_MARKER_PATTERN = re.compile(r"-dup\d+$")
 
 
 def canonicalize_subject_id(subject_id: str) -> str:
@@ -473,6 +479,23 @@ def _resolve_destination(
             counter += 1
         destination = candidate
     return destination
+
+
+def strip_duplicate_marker(filename: str) -> str | None:
+    """The BIDS-valid version of `filename` with `_resolve_destination`'s "-dupN" collision
+    marker removed from its suffix, or None if it doesn't carry one.
+
+    Used by the crosscheck GUI right after a duplicate is resolved down to one surviving
+    file (see `gui.bids_crosscheck_common.CandidateExtras.duplicate_marker_free_name`) --
+    by then every other part of the name (subject/task/acq/run) is already correct, so the
+    marker is the only thing left to fix, and it can be derived from the filename itself
+    rather than asking a human to retype the whole name.
+    """
+    stem = Path(filename).stem
+    if not _SUFFIX_DUPLICATE_MARKER_PATTERN.search(stem):
+        return None
+    corrected_stem = _SUFFIX_DUPLICATE_MARKER_PATTERN.sub("", stem, count=1)
+    return f"{corrected_stem}{Path(filename).suffix}"
 
 
 def _copy_into_subject_folder(

@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 DECISIONS_FILENAME = "crosscheck.json"
 PENDING_SELECTIONS_FILENAME = "crosscheck_pending.json"
 EXCLUDED_SUBJECTS_FILENAME = "excluded_subjects.json"
+STUDY_ID_FILENAME = "study_id.json"
 SUBJECT_FOLDER_PREFIX = "sub-"
 BIDSIGNORE_FILENAME = ".bidsignore"
 RUN_TOKEN_PATTERN = re.compile(r"run-\d+")
@@ -103,6 +104,26 @@ def excluded_subjects_path(bids_folder: Path) -> Path:
     return bids_folder / EXCLUDED_SUBJECTS_FILENAME
 
 
+def study_id_path(bids_folder: Path) -> Path:
+    return bids_folder / STUDY_ID_FILENAME
+
+
+def load_study_id(bids_folder: Path) -> str | None:
+    """The short study id previously saved for this BIDS folder (see `save_study_id`), or
+    None if none has been set yet. Lives inside `bids_folder` itself, not app settings, so
+    it travels with the folder if it's ever copied or moved elsewhere.
+    """
+    path = study_id_path(bids_folder)
+    if not path.exists():
+        return None
+    with path.open("r", encoding="utf-8") as study_id_file:
+        return json.load(study_id_file).get("study_id")
+
+
+def save_study_id(bids_folder: Path, study_id: str) -> None:
+    _write_json_atomic(study_id_path(bids_folder), {"study_id": study_id})
+
+
 def _is_real_collision(destination: Path, source: Path) -> bool:
     """True if `destination` exists and isn't just `source` itself under a different case.
 
@@ -129,6 +150,7 @@ def ensure_bidsignore(bids_folder: Path, extra_patterns: tuple[str, ...] = ()) -
         DECISIONS_FILENAME,
         PENDING_SELECTIONS_FILENAME,
         EXCLUDED_SUBJECTS_FILENAME,
+        STUDY_ID_FILENAME,
         *extra_patterns,
     )
     path = bids_folder / BIDSIGNORE_FILENAME
@@ -1073,7 +1095,12 @@ def revert_all_decisions(bids_folder: Path) -> tuple[list[Path], list[str]]:
     return reverted, errors
 
 
-BACKUP_FILENAMES = (DECISIONS_FILENAME, EXCLUDED_SUBJECTS_FILENAME, PENDING_SELECTIONS_FILENAME)
+BACKUP_FILENAMES = (
+    DECISIONS_FILENAME,
+    EXCLUDED_SUBJECTS_FILENAME,
+    PENDING_SELECTIONS_FILENAME,
+    STUDY_ID_FILENAME,
+)
 
 
 def backup_decisions(
@@ -1241,7 +1268,23 @@ def rebuild_from_raw(
         if folder.is_dir():
             shutil.rmtree(folder)
 
-    pending = [(key, entry) for key, entries in decisions.items() for entry in entries]
+    # A decision recorded for a subject before they were excluded (e.g. a filename fix, made
+    # before "Remove Subject Folder from BIDS" cleared them out) is never removed from
+    # `decisions` -- record_subject_excluded only ever adds to excluded_subjects.json, it
+    # doesn't touch decisions. Left in, every one of those entries would permanently fail to
+    # resolve below (their subject's folder is deleted above, on purpose) and clutter the
+    # unresolved report forever. Skipped by `subject_id` only, not `id_correction`'s
+    # `original_id`/`corrected_id` -- that type renames a folder into existence, and the
+    # exclusion sweep above only runs once, before any renames happen, so an id_correction
+    # entry can still be the one thing standing between a stale original-id folder and the
+    # excluded id it should end up under; skipping it here could leave that stale folder
+    # behind instead of cleaning it up.
+    pending = [
+        (key, entry)
+        for key, entries in decisions.items()
+        for entry in entries
+        if entry.get("type") == "id_correction" or entry.get("subject_id") not in excluded
+    ]
     resolved: list[str] = []
     unresolved: list[str] = []
 

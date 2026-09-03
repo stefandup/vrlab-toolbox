@@ -6,19 +6,21 @@ Dataset-specific entry points (`crane_bids_crosscheck_gui.py`,
 docs/bids_crosscheck_plan.md for the design.
 """
 
+import json
 import logging
 from collections import Counter
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QItemSelectionModel, QSettings, Qt, QUrl
+from PySide6.QtCore import QItemSelectionModel, QSettings, QStandardPaths, Qt, QUrl
 from PySide6.QtGui import QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QButtonGroup,
     QCheckBox,
+    QComboBox,
     QDateTimeEdit,
     QDialog,
     QDialogButtonBox,
@@ -57,6 +59,7 @@ from mooi_toolbox.processing.bids_crosscheck import (
     load_decisions,
     load_excluded_subjects,
     load_pending_selections,
+    load_study_id,
     read_scans_tsv_date,
     rebuild_from_raw,
     record_date_correction,
@@ -73,6 +76,7 @@ from mooi_toolbox.processing.bids_crosscheck import (
     restore_subjects_from_bids,
     revert_all_decisions,
     save_pending_selections,
+    save_study_id,
     scan_bids_folder,
     set_crosschecked,
 )
@@ -93,6 +97,67 @@ SUBJECT_ID_ROLE = Qt.ItemDataRole.UserRole
 SETTINGS_ORGANIZATION = "MooiToolbox"
 LAST_BIDS_FOLDER_SETTINGS_KEY = "last_bids_folder"
 LAST_RAW_FOLDER_SETTINGS_KEY = "last_raw_folder"
+# Every study id this app has ever seen, across every BIDS folder -- app-wide (unlike the
+# study id itself, which lives inside each BIDS folder via `save_study_id`), so the study id
+# combo box has something to suggest for a brand-new folder that doesn't have one yet.
+KNOWN_STUDY_IDS_SETTINGS_KEY = "known_study_ids"
+# Which group box an `extra_raw_actions` button belongs beside -- see `run_bids_crosscheck_app`'s
+# docstring on `extra_raw_actions`.
+EXTRA_RAW_ACTION_GROUP_RAW = "raw"
+EXTRA_RAW_ACTION_GROUP_OVERRIDE = "override"
+CROSSCHECK_DATA_BACKUP_DIRNAME = "crosscheck_backups"
+# Explicit-primary-button palette -- shared by the crosscheck (green) and dataset-specific
+# "Fix ..." (grey) buttons, see `_primary_action_stylesheet`. Different colors so the two
+# stay visually distinguishable: marking something reviewed vs. repairing raw data are
+# different kinds of action, even when both deserve equal visual weight.
+CROSSCHECK_PRIMARY_HOVER_COLOR = "#27ae60"
+FIX_ACTION_COLOR = "#7f8c8d"
+FIX_ACTION_HOVER_COLOR = "#6c7a7d"
+PRIMARY_BUTTON_DISABLED_BG = "#555555"
+PRIMARY_BUTTON_DISABLED_FG = "#999999"
+PATH_LABEL_FONT_POINT_INCREASE = 2
+
+
+def _primary_action_stylesheet(base_color: str, hover_color: str) -> str:
+    """Stylesheet for an "explicit primary action" button -- bold, padded, filled with
+    `base_color` -- used for whichever single button in a row is the main thing to click
+    (e.g. "Mark selected crosschecked", "Fix Filenames in Raw Folder"), so it reads as a
+    real call to action rather than sitting flush with plain Browse/Reveal-style buttons.
+    """
+    return (
+        f"QPushButton {{ font-weight: bold; font-size: 13px; padding: 6px 20px; "
+        f"background-color: {base_color}; color: white; border-radius: 4px; border: none; }}"
+        f"QPushButton:hover {{ background-color: {hover_color}; }}"
+        f"QPushButton:disabled {{ background-color: {PRIMARY_BUTTON_DISABLED_BG}; "
+        f"color: {PRIMARY_BUTTON_DISABLED_FG}; }}"
+    )
+
+
+def _style_path_label(label: QLabel) -> None:
+    """Bumps a folder/file path value's font size -- these are the thing a user most needs
+    to read clearly at a glance (which BIDS/raw folder am I even looking at?), unlike the
+    "Path:" caption beside it or the buttons around it.
+    """
+    font = label.font()
+    font.setPointSize(font.pointSize() + PATH_LABEL_FONT_POINT_INCREASE)
+    label.setFont(font)
+
+
+_INVALID_PATH_CHARACTERS = '<>:"/\\|?*'
+
+
+def _sanitize_for_filesystem(text: str) -> str:
+    """`text` with characters invalid in a Windows/macOS/Linux folder name replaced with
+    "_", and surrounding whitespace/dots stripped -- turns a free-typed study id into a safe
+    folder name for `_crosscheck_data_dir`. Falls back to "study" if nothing usable is left
+    (e.g. the study id was pure punctuation), so a save/restore never lands in an empty- or
+    dot-named folder.
+    """
+    cleaned = "".join("_" if char in _INVALID_PATH_CHARACTERS else char for char in text.strip())
+    cleaned = cleaned.strip(" .")
+    return cleaned or "study"
+
+
 STATUS_ICON_TOOLTIP = (
     f"{STATUS_ICON['ok']} complete -- exactly one file found\n"
     f"{STATUS_ICON['missing']} missing -- no file found\n"
@@ -243,6 +308,18 @@ class CandidateExtras:
         """
         return False
 
+    def duplicate_marker_free_name(self, scan_type: str, file: Path) -> str | None:
+        """The corrected filename `file` should be renamed to now that it's the sole
+        surviving candidate for `scan_type` (a duplicate pick was just committed), or None
+        if it doesn't need one. Checked once, right after a commit -- see
+        `_commit_pending_selections` -- so a dataset whose converter can leave a
+        collision marker on a survivor (crane's `-dupN`, see
+        `crane_convert_to_bids._resolve_destination`) gets it stripped automatically,
+        without a human retyping the filename by hand. Most datasets (the no-op default
+        here) never produce a marker like this in the first place.
+        """
+        return None
+
     def has_warning(self, scan_type: str, file: Path) -> bool:
         """True if this candidate has a dataset-specific issue worth flagging at a glance."""
         return False
@@ -280,40 +357,44 @@ class BidsCrosscheckWindow(QMainWindow):
         raw_converter: Callable[[Path, Path, Path | None], list[str]] | None = None,
         override_file_label: str | None = None,
         override_file_filter: str = "All files (*)",
-        extra_raw_actions: list[tuple[str, str, Callable[[Path, Path, QWidget], None]]]
+        extra_raw_actions: list[tuple[str, str, Callable[[Path, Path, QWidget], None], str]]
         | None = None,
         convert_button_tooltip: str = DEFAULT_CONVERT_BUTTON_TOOLTIP,
         extra_backup_filenames: tuple[str, ...] = (),
     ):
-        """`raw_converter`, if given, adds a "Raw folder" selector and "Refresh BIDS" button
-        above the BIDS folder one -- optional, dataset-specific (crane and FOH both supply
-        one today). Called as `raw_converter(raw_folder, bids_folder, override_file)`,
-        expected to do its own writing into `bids_folder` and return human-readable lines
-        describing what it did, for display in the "Last conversion" status panel; a raised
-        exception is caught and shown as an error there instead. This window never imports
-        the dataset-specific converter itself -- it only ever calls whatever callable it's
-        handed.
+        """`raw_converter`, if given, adds a "Raw Folder" group box and a "Refresh BIDS"
+        button in the "BIDS Folder" group box below it -- optional, dataset-specific (crane
+        and FOH both supply one today). Called as `raw_converter(raw_folder, bids_folder,
+        override_file)`, expected to do its own writing into `bids_folder` and return
+        human-readable lines describing what it did, for display in the "Last conversion"
+        status panel; a raised exception is caught and shown as an error there instead. This
+        window never imports the dataset-specific converter itself -- it only ever calls
+        whatever callable it's handed.
 
         `convert_button_tooltip`, if given, overrides the "Refresh BIDS" button's default
         tooltip -- for a dataset-specific detail worth calling out beyond the generic
         "only ever adds new subjects" guarantee (e.g. crane's debrief backfill behavior).
 
         `override_file_label`, if given (only meaningful alongside `raw_converter`), adds a
-        third, optional single-file selector -- e.g. crane's "override which workbook counts
-        as the debrief source" when auto-detection can't tell. `override_file` is None unless
-        the user has picked one; the callable decides what None means (typically: fall back
-        to its own auto-detection). `override_file_filter` is the QFileDialog filter string
-        for that picker (e.g. "Excel files (*.xlsx)") -- this window has no opinion on what
-        kind of file it is, only that the dataset-specific converter does.
+        third, optional single-file selector, in its own group box titled with this label --
+        e.g. crane's "Debrief export" ("override which workbook counts as the debrief
+        source" when auto-detection can't tell). `override_file` is None unless the user has
+        picked one; the callable decides what None means (typically: fall back to its own
+        auto-detection). `override_file_filter` is the QFileDialog filter string for that
+        picker (e.g. "Excel files (*.xlsx)") -- this window has no opinion on what kind of
+        file it is, only that the dataset-specific converter does.
 
         `extra_raw_actions`, if given (only meaningful alongside `raw_converter`), adds one
-        more button per entry next to "Refresh BIDS" -- each `(button_label, tooltip,
-        callback)`, called as `callback(raw_folder, bids_folder, self)` once both are set.
-        e.g. crane's "Fix debrief record IDs..." and "Fix raw filenames..." dialogs.
-        Same "this window doesn't know what the callback does" contract as `raw_converter`.
+        more button per entry -- each `(button_label, tooltip, callback, group)`, called as
+        `callback(raw_folder, bids_folder, self)` once both are set. `group` is
+        `EXTRA_RAW_ACTION_GROUP_RAW` to place the button in the "Raw Folder" group box, or
+        `EXTRA_RAW_ACTION_GROUP_OVERRIDE` to place it in the `override_file_label` group box
+        instead -- e.g. crane's "Fix Filenames in Raw Folder" (raw) and "Fix Record IDs in
+        Debrief Export" (override) dialogs. Same "this window doesn't know what the callback
+        does" contract as `raw_converter`.
 
         `extra_backup_filenames`, if given, names dataset-specific files living alongside
-        `crosscheck.json` that "Backup crosscheck data..."/"Rebuild from backup..." should
+        `crosscheck.json` that "Save Crosscheck Data"/"Restore Saved Crosscheck Data" should
         also cover -- e.g. crane's `debrief_id_corrections.json`/
         `raw_filename_id_corrections.json`, which an `extra_raw_actions` dialog writes and
         `raw_converter` itself reads as input on the next conversion. This window doesn't
@@ -391,22 +472,67 @@ class BidsCrosscheckWindow(QMainWindow):
         tooltip += " This can't be undone from within the tool."
         return tooltip
 
+    def _add_extra_action_buttons(self, button_row: QHBoxLayout, group: str) -> None:
+        """Appends every `extra_raw_actions` entry tagged with `group`
+        (`EXTRA_RAW_ACTION_GROUP_RAW`/`EXTRA_RAW_ACTION_GROUP_OVERRIDE`) to the *front* of
+        `button_row` -- e.g. crane's "Fix Filenames in Raw Folder" leftmost in the Raw
+        Folder group's button row, "Fix Record IDs in Debrief Export" leftmost in the
+        Debrief Export one. Styled as an explicit primary action (grey, not the crosscheck
+        green) so a dataset-specific repair button reads as something to actually click,
+        distinct from the plain Browse/Reveal buttons that follow it in the same row.
+        No-op if no entry is tagged for this `group`.
+        """
+        for label, tooltip, callback, action_group in self.extra_raw_actions:
+            if action_group != group:
+                continue
+            button = QPushButton(label)
+            button.setToolTip(tooltip)
+            button.setEnabled(False)
+            button.setMinimumHeight(30)
+            button.setStyleSheet(
+                _primary_action_stylesheet(FIX_ACTION_COLOR, FIX_ACTION_HOVER_COLOR)
+            )
+            button.clicked.connect(
+                lambda _checked=False, callback=callback: self._on_extra_raw_action(callback)
+            )
+            button_row.addWidget(button)
+            self.extra_raw_action_buttons.append(button)
+
     def _build_ui(self) -> None:
         central = QWidget()
         self.setCentralWidget(central)
         root_layout = QVBoxLayout(central)
 
+        self.extra_raw_action_buttons: list[QPushButton] = []
+
+        # Folder pickers stacked in a left column, with "Last conversion" beside them (not
+        # below the subject detail panes, its old spot) -- fills what would otherwise be
+        # dead space to their right, and keeps that status visible without pushing Subject
+        # Actions/the subject list further down the page.
+        top_row = QHBoxLayout()
+        folders_column = QVBoxLayout()
+
         if self.raw_converter is not None:
-            raw_bar = QHBoxLayout()
-            raw_bar.addWidget(QLabel("Raw folder:"))
+            raw_group = QGroupBox("Raw Folder")
+            raw_group_layout = QVBoxLayout(raw_group)
+            raw_group_layout.setSpacing(4)
+            raw_path_row = QHBoxLayout()
+            raw_path_row.setSpacing(6)
+            raw_path_row.addWidget(QLabel("Path:"))
             self.raw_folder_label = QLabel("No raw folder selected")
-            raw_bar.addWidget(self.raw_folder_label, 1)
+            _style_path_label(self.raw_folder_label)
+            raw_path_row.addWidget(self.raw_folder_label, 1)
+            raw_group_layout.addLayout(raw_path_row)
+
+            raw_button_row = QHBoxLayout()
+            raw_button_row.setSpacing(6)
+            self._add_extra_action_buttons(raw_button_row, EXTRA_RAW_ACTION_GROUP_RAW)
             raw_browse_button = QPushButton("Browse...")
             raw_browse_button.setToolTip(
                 "Pick the raw data folder to convert into the BIDS folder below."
             )
             raw_browse_button.clicked.connect(self._on_browse_raw_folder)
-            raw_bar.addWidget(raw_browse_button)
+            raw_button_row.addWidget(raw_browse_button)
             self.reveal_raw_button = QPushButton("Reveal Raw Folder")
             self.reveal_raw_button.setToolTip(
                 "Open the raw folder in the system file browser, so you can look at the raw "
@@ -414,52 +540,88 @@ class BidsCrosscheckWindow(QMainWindow):
             )
             self.reveal_raw_button.setEnabled(False)
             self.reveal_raw_button.clicked.connect(self._on_reveal_raw_folder)
-            raw_bar.addWidget(self.reveal_raw_button)
-            self.convert_button = QPushButton("Refresh BIDS")
-            self.convert_button.setToolTip(self.convert_button_tooltip)
-            self.convert_button.setEnabled(False)
-            self.convert_button.clicked.connect(self._on_convert_to_bids)
-            raw_bar.addWidget(self.convert_button)
-
-            self.extra_raw_action_buttons: list[QPushButton] = []
-            for label, tooltip, callback in self.extra_raw_actions:
-                button = QPushButton(label)
-                button.setToolTip(tooltip)
-                button.setEnabled(False)
-                button.clicked.connect(
-                    lambda _checked=False, callback=callback: self._on_extra_raw_action(callback)
-                )
-                raw_bar.addWidget(button)
-                self.extra_raw_action_buttons.append(button)
-
-            root_layout.addLayout(raw_bar)
+            raw_button_row.addWidget(self.reveal_raw_button)
+            raw_button_row.addStretch(1)
+            raw_group_layout.addLayout(raw_button_row)
+            folders_column.addWidget(raw_group)
 
             if self.override_file_label is not None:
-                override_bar = QHBoxLayout()
-                override_bar.addWidget(QLabel(f"{self.override_file_label}:"))
+                override_group = QGroupBox(self.override_file_label.title())
+                override_group_layout = QVBoxLayout(override_group)
+                override_group_layout.setSpacing(4)
+                override_path_row = QHBoxLayout()
+                override_path_row.setSpacing(6)
+                override_path_row.addWidget(QLabel("Path:"))
                 self.override_file_label_widget = QLabel("(auto-detect)")
-                override_bar.addWidget(self.override_file_label_widget, 1)
+                _style_path_label(self.override_file_label_widget)
+                override_path_row.addWidget(self.override_file_label_widget, 1)
+                override_group_layout.addLayout(override_path_row)
+
+                override_button_row = QHBoxLayout()
+                override_button_row.setSpacing(6)
+                self._add_extra_action_buttons(override_button_row, EXTRA_RAW_ACTION_GROUP_OVERRIDE)
                 override_browse_button = QPushButton("Browse...")
                 override_browse_button.setToolTip(
                     f"Pick a specific file to use as the {self.override_file_label.lower()}, "
                     "overriding auto-detection."
                 )
                 override_browse_button.clicked.connect(self._on_browse_override_file)
-                override_bar.addWidget(override_browse_button)
+                override_button_row.addWidget(override_browse_button)
                 override_clear_button = QPushButton("Clear")
                 override_clear_button.setToolTip("Go back to auto-detection.")
                 override_clear_button.clicked.connect(self._on_clear_override_file)
-                override_bar.addWidget(override_clear_button)
-                root_layout.addLayout(override_bar)
+                override_button_row.addWidget(override_clear_button)
+                override_button_row.addStretch(1)
+                override_group_layout.addLayout(override_button_row)
+                folders_column.addWidget(override_group)
 
-        top_bar = QHBoxLayout()
-        top_bar.addWidget(QLabel("BIDS folder:"))
+        bids_group = QGroupBox("BIDS Folder")
+        bids_group_layout = QVBoxLayout(bids_group)
+        bids_group_layout.setSpacing(4)
+        bids_path_row = QHBoxLayout()
+        bids_path_row.setSpacing(6)
+        bids_path_row.addWidget(QLabel("Path:"))
         self.folder_label = QLabel("No BIDS folder selected")
-        top_bar.addWidget(self.folder_label, 1)
+        _style_path_label(self.folder_label)
+        bids_path_row.addWidget(self.folder_label, 1)
+        bids_group_layout.addLayout(bids_path_row)
+
+        bids_study_row = QHBoxLayout()
+        bids_study_row.setSpacing(6)
+        bids_study_row.addWidget(QLabel("Study ID:"))
+        self.study_id_combo = QComboBox()
+        self.study_id_combo.setEditable(True)
+        self.study_id_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.study_id_combo.setToolTip(
+            "A short id for this study -- saved inside this BIDS folder, so it's remembered "
+            "next time you open it, and used to name its saved crosscheck data (see \"Save "
+            "Crosscheck Data\" below) so that stays identifiable by a human. Pick an "
+            "existing one from the dropdown if you're pointing this tool at a different "
+            "copy of a study you've already worked on."
+        )
+        self.study_id_combo.lineEdit().editingFinished.connect(self._on_study_id_committed)
+        self.study_id_combo.activated.connect(lambda _index: self._on_study_id_committed())
+        bids_study_row.addWidget(self.study_id_combo, 1)
+        bids_group_layout.addLayout(bids_study_row)
+
+        bids_button_row = QHBoxLayout()
+        bids_button_row.setSpacing(6)
+        if self.raw_converter is not None:
+            # The primary action in this box -- same explicit-button treatment as the "Fix
+            # ..." buttons above, and leftmost for the same reason.
+            self.convert_button = QPushButton("Refresh BIDS")
+            self.convert_button.setToolTip(self.convert_button_tooltip)
+            self.convert_button.setEnabled(False)
+            self.convert_button.setMinimumHeight(30)
+            self.convert_button.setStyleSheet(
+                _primary_action_stylesheet(FIX_ACTION_COLOR, FIX_ACTION_HOVER_COLOR)
+            )
+            self.convert_button.clicked.connect(self._on_convert_to_bids)
+            bids_button_row.addWidget(self.convert_button)
         self.browse_button = QPushButton("Browse...")
         self.browse_button.setToolTip("Pick the top-level BIDS folder to scan for subjects.")
         self.browse_button.clicked.connect(self._on_browse)
-        top_bar.addWidget(self.browse_button)
+        bids_button_row.addWidget(self.browse_button)
         self.reveal_bids_button = QPushButton("Reveal BIDS Folder")
         self.reveal_bids_button.setToolTip(
             "Open the BIDS folder in the system file browser, so you can look at what's "
@@ -467,13 +629,41 @@ class BidsCrosscheckWindow(QMainWindow):
         )
         self.reveal_bids_button.setEnabled(False)
         self.reveal_bids_button.clicked.connect(self._on_reveal_bids_folder)
-        top_bar.addWidget(self.reveal_bids_button)
-        root_layout.addLayout(top_bar)
+        bids_button_row.addWidget(self.reveal_bids_button)
+        bids_button_row.addStretch(1)
+        bids_group_layout.addLayout(bids_button_row)
 
-        summary_bar = QHBoxLayout()
+        bids_summary_row = QHBoxLayout()
+        bids_summary_row.setSpacing(6)
+        bids_summary_row.addWidget(QLabel("Summary:"))
         self.summary_label = QLabel("")
         self.summary_label.setTextFormat(Qt.TextFormat.RichText)
-        summary_bar.addWidget(self.summary_label, 1)
+        self.summary_label.setWordWrap(True)
+        bids_summary_row.addWidget(self.summary_label, 1)
+        bids_group_layout.addLayout(bids_summary_row)
+        folders_column.addWidget(bids_group)
+
+        top_row.addLayout(folders_column, 1)
+
+        if self.raw_converter is not None:
+            # Persistent status area for the last "Refresh BIDS" run -- beside the folder
+            # pickers rather than below the subject detail panes, so it stays visible
+            # regardless of which subject is selected (a conversion result isn't about any
+            # one subject) without eating into that scrollable space.
+            self.conversion_status_group = QGroupBox("Last conversion")
+            conversion_status_layout = QVBoxLayout(self.conversion_status_group)
+            self.conversion_status_text = QTextEdit()
+            self.conversion_status_text.setReadOnly(True)
+            self.conversion_status_text.setFont(QFont("Courier New"))
+            self.conversion_status_text.setPlainText("No conversion run yet.")
+            conversion_status_layout.addWidget(self.conversion_status_text)
+            top_row.addWidget(self.conversion_status_group, 1)
+
+        root_layout.addLayout(top_row)
+
+        general_actions_group = QGroupBox("General Actions")
+        summary_bar = QHBoxLayout(general_actions_group)
+        summary_bar.setSpacing(6)
         self.commit_all_button = QPushButton()
         self.commit_all_button.setToolTip(
             "Keeps every pick you've made. Removes every OTHER candidate for it from BIDS, "
@@ -526,37 +716,40 @@ class BidsCrosscheckWindow(QMainWindow):
         self.revert_all_button.clicked.connect(self._on_revert_all_decisions)
         summary_bar.addWidget(self.revert_all_button)
 
-        self.backup_button = QPushButton("Backup crosscheck data...")
-        self.backup_button.setToolTip(
+        self.save_crosscheck_data_button = QPushButton("Save Crosscheck Data")
+        self.save_crosscheck_data_button.setToolTip(
             "Copy this BIDS folder's recorded decisions (crosscheck.json, "
             "excluded_subjects.json, and pending picks -- plus any other correction files "
-            "this dataset's tool uses) to a folder of your choice. Keep this alongside a "
-            "backup of your raw folder: together they're enough to recreate a fully "
-            "crosschecked BIDS folder with \"Rebuild from backup...\" if this BIDS folder is "
-            "ever lost or corrupted -- everything else in it is either raw data (already "
-            "safe in the raw folder) or re-derivable by re-running this tool."
+            "this dataset's tool uses) into this app's own local data folder, keyed to this "
+            "BIDS folder -- no folder picker needed. Together with your raw folder (already "
+            "safe -- this tool never touches it), this is enough to recreate a fully "
+            "crosschecked BIDS folder with \"Restore Saved Crosscheck Data\" if this BIDS "
+            "folder is ever lost or corrupted -- everything else in it is either raw data or "
+            "re-derivable by re-running this tool."
         )
-        self.backup_button.clicked.connect(self._on_backup_decisions)
-        summary_bar.addWidget(self.backup_button)
+        self.save_crosscheck_data_button.clicked.connect(self._on_save_crosscheck_data)
+        summary_bar.addWidget(self.save_crosscheck_data_button)
 
-        self.rebuild_button = QPushButton("Rebuild from backup...")
-        self.rebuild_button.setToolTip(
-            "Disaster recovery: puts back any dataset-specific correction files from a "
-            "backup (see \"Backup crosscheck data...\"), re-imports this BIDS folder from "
-            "raw, then automatically replays the backed-up crosscheck.json/"
+        self.restore_crosscheck_data_button = QPushButton("Restore Saved Crosscheck Data")
+        self.restore_crosscheck_data_button.setToolTip(
+            "Disaster recovery: puts back any dataset-specific correction files from this "
+            "BIDS folder's saved data (see \"Save Crosscheck Data\"), re-imports this BIDS "
+            "folder from raw, then automatically replays the saved crosscheck.json/"
             "excluded_subjects.json so every past pick, tag, and correction is reapplied "
             "without redoing it by hand. Only for a BIDS folder that's empty or was just "
-            "freshly (re-)created -- not for merging a backup into one that already has its "
-            "own, different state."
+            "freshly (re-)created -- not for merging saved data into one that already has "
+            "its own, different state."
         )
-        self.rebuild_button.setVisible(self.raw_converter is not None)
-        self.rebuild_button.setEnabled(False)
-        self.rebuild_button.clicked.connect(self._on_rebuild_from_backup)
-        summary_bar.addWidget(self.rebuild_button)
+        self.restore_crosscheck_data_button.setVisible(self.raw_converter is not None)
+        self.restore_crosscheck_data_button.setEnabled(False)
+        self.restore_crosscheck_data_button.clicked.connect(self._on_restore_saved_crosscheck_data)
+        summary_bar.addWidget(self.restore_crosscheck_data_button)
 
-        root_layout.addLayout(summary_bar)
+        summary_bar.addStretch(1)
+        root_layout.addWidget(general_actions_group)
         self._update_commit_all_button()
         self._update_rename_all_button()
+        self._update_crosscheck_data_buttons_enabled()
 
         self.progress_bar = QProgressBar()
         self.progress_bar.setFormat("Loading %v / %m subjects...")
@@ -595,7 +788,7 @@ class BidsCrosscheckWindow(QMainWindow):
         # _refresh_subject_actions_group() rather than rebuilt/reinserted on every selection
         # change, so it doesn't appear/disappear/reflow the rest of the window as you click
         # around. Blank (no buttons) when nothing's selected, not hidden.
-        self.subject_actions_group = QGroupBox("Subject actions")
+        self.subject_actions_group = QGroupBox("Subject Actions")
         QHBoxLayout(self.subject_actions_group)
         right_layout.addWidget(self.subject_actions_group)
 
@@ -606,21 +799,6 @@ class BidsCrosscheckWindow(QMainWindow):
         self.detail_layout.addStretch(1)
         self.detail_scroll.setWidget(self.detail_container)
         right_layout.addWidget(self.detail_scroll, 1)
-
-        if self.raw_converter is not None:
-            # Persistent, fixed-height status area for the last "Convert to BIDS..." run --
-            # below the scan-type detail panes, not inside detail_scroll, so it stays visible
-            # regardless of which subject is selected (a conversion result isn't about any
-            # one subject).
-            self.conversion_status_group = QGroupBox("Last conversion")
-            conversion_status_layout = QVBoxLayout(self.conversion_status_group)
-            self.conversion_status_text = QTextEdit()
-            self.conversion_status_text.setReadOnly(True)
-            self.conversion_status_text.setFont(QFont("Courier New"))
-            self.conversion_status_text.setMaximumHeight(160)
-            self.conversion_status_text.setPlainText("No conversion run yet.")
-            conversion_status_layout.addWidget(self.conversion_status_text)
-            right_layout.addWidget(self.conversion_status_group)
 
         splitter.addWidget(right_panel)
 
@@ -638,6 +816,7 @@ class BidsCrosscheckWindow(QMainWindow):
         self._settings.setValue(LAST_BIDS_FOLDER_SETTINGS_KEY, str(bids_folder))
         ensure_bidsignore(bids_folder, self.extras.bidsignore_patterns())
         self.extras.on_bids_folder_changed(bids_folder)
+        self._load_study_id_for_current_folder()
         self._rescan(reload_pending=True)
         self._update_convert_button_enabled()
 
@@ -666,10 +845,66 @@ class BidsCrosscheckWindow(QMainWindow):
             return
         both_selected = self.raw_folder is not None and self.bids_folder is not None
         self.convert_button.setEnabled(both_selected)
-        self.rebuild_button.setEnabled(both_selected)
         for button in self.extra_raw_action_buttons:
             button.setEnabled(both_selected)
         self.reveal_raw_button.setEnabled(self.raw_folder is not None)
+        self._update_crosscheck_data_buttons_enabled()
+
+    def _current_study_id(self) -> str:
+        return self.study_id_combo.currentText().strip()
+
+    def _known_study_ids(self) -> list[str]:
+        """Every study id this app has ever seen, across every BIDS folder -- see
+        `KNOWN_STUDY_IDS_SETTINGS_KEY`."""
+        raw = self._settings.value(KNOWN_STUDY_IDS_SETTINGS_KEY, "[]")
+        try:
+            return list(json.loads(raw))
+        except (TypeError, ValueError):
+            return []
+
+    def _refresh_study_id_combo_items(self) -> None:
+        """Repopulates the dropdown from `_known_study_ids()` without disturbing whatever
+        text is currently shown -- `addItems`/`clear` don't fire `editingFinished`/
+        `activated` (the only signals `study_id_combo` is connected to), so this never
+        triggers a spurious save."""
+        current_text = self.study_id_combo.currentText()
+        self.study_id_combo.clear()
+        self.study_id_combo.addItems(self._known_study_ids())
+        self.study_id_combo.setCurrentText(current_text)
+
+    def _load_study_id_for_current_folder(self) -> None:
+        if self.bids_folder is None:
+            return
+        self._refresh_study_id_combo_items()
+        self.study_id_combo.setCurrentText(load_study_id(self.bids_folder) or "")
+        self._update_crosscheck_data_buttons_enabled()
+
+    def _on_study_id_committed(self) -> None:
+        study_id = self._current_study_id()
+        if self.bids_folder is not None and study_id:
+            save_study_id(self.bids_folder, study_id)
+            if study_id not in self._known_study_ids():
+                known = [*self._known_study_ids(), study_id]
+                known.sort(key=str.casefold)
+                self._settings.setValue(KNOWN_STUDY_IDS_SETTINGS_KEY, json.dumps(known))
+                self._refresh_study_id_combo_items()
+        self._update_crosscheck_data_buttons_enabled()
+
+    def _update_crosscheck_data_buttons_enabled(self) -> None:
+        """Save/Restore Crosscheck Data both need a study id (see `_crosscheck_data_dir`) --
+        Restore additionally needs the raw_converter hook and a raw folder, same as Refresh
+        BIDS, since it re-imports from raw before replaying decisions.
+        """
+        has_study_id = bool(self._current_study_id())
+        self.save_crosscheck_data_button.setEnabled(
+            self.bids_folder is not None and has_study_id
+        )
+        self.restore_crosscheck_data_button.setEnabled(
+            self.raw_converter is not None
+            and self.raw_folder is not None
+            and self.bids_folder is not None
+            and has_study_id
+        )
 
     def _on_reveal_raw_folder(self) -> None:
         if self.raw_folder is None:
@@ -716,9 +951,9 @@ class BidsCrosscheckWindow(QMainWindow):
 
     def _update_conversion_status_panel(self, lines: list[str], error: str | None) -> None:
         """Updates the persistent "Last conversion" panel in place -- not a popup, so it
-        doesn't block on being dismissed and stays visible (below the scan-type detail
-        panes) as a standing record of what the last run did, until the next one replaces
-        it."""
+        doesn't block on being dismissed and stays visible (beside the folder pickers, at
+        the top of the window) as a standing record of what the last run did, until the
+        next one replaces it."""
         self.last_conversion_log_lines = lines
         if error:
             self.conversion_status_group.setTitle("Last conversion -- failed")
@@ -1450,52 +1685,78 @@ class BidsCrosscheckWindow(QMainWindow):
             QMessageBox.warning(self, "Some decisions could not be reverted", "\n".join(errors))
         self._rescan(reload_pending=True)
 
-    def _on_backup_decisions(self) -> None:
+    def _crosscheck_data_dir(self, study_id: str) -> Path:
+        """Where "Save Crosscheck Data"/"Restore Saved Crosscheck Data" read and write --
+        the app's own standard local-data location, named after `study_id` (see the "Study
+        ID" field beside the BIDS folder path) rather than the folder's own path, so the
+        saved copy stays findable and identifiable by a human even if the BIDS folder itself
+        later moves. Keyed by this app's own name too (`self._settings`' app name, e.g.
+        "CraneBidsCrosscheck"), so FOH and crane never collide even if someone reuses the
+        same study id for both.
+        """
+        app_data_location = QStandardPaths.StandardLocation.AppDataLocation
+        app_data_root = Path(QStandardPaths.writableLocation(app_data_location))
+        return (
+            app_data_root
+            / SETTINGS_ORGANIZATION
+            / self._settings.applicationName()
+            / CROSSCHECK_DATA_BACKUP_DIRNAME
+            / _sanitize_for_filesystem(study_id)
+        )
+
+    def _on_save_crosscheck_data(self) -> None:
         if self.bids_folder is None:
             return
-        folder = QFileDialog.getExistingDirectory(self, "Select backup destination folder")
-        if not folder:
+        study_id = self._current_study_id()
+        if not study_id:
+            QMessageBox.warning(self, "No study ID set", "Enter a study ID above before saving.")
             return
-        copied = backup_decisions(self.bids_folder, Path(folder), self.extra_backup_filenames)
+        destination = self._crosscheck_data_dir(study_id)
+        destination.mkdir(parents=True, exist_ok=True)
+        copied = backup_decisions(self.bids_folder, destination, self.extra_backup_filenames)
         if not copied:
             QMessageBox.information(
                 self,
-                "Nothing to back up",
+                "Nothing to save",
                 "No crosscheck records exist yet for this BIDS folder.",
             )
             return
-        QMessageBox.information(self, "Backup complete", f"Copied {len(copied)} file(s) to {folder}.")
+        QMessageBox.information(
+            self, "Crosscheck data saved", f"Copied {len(copied)} file(s) to {destination}."
+        )
 
-    def _on_rebuild_from_backup(self) -> None:
-        """Disaster recovery: re-import from raw, then replay a backed-up crosscheck.json/
-        excluded_subjects.json (see `_on_backup_decisions`) onto the fresh import -- see
-        `rebuild_from_raw`. Requires the same raw_converter hook "Refresh BIDS" already uses,
-        so it's only offered when that's configured.
+    def _on_restore_saved_crosscheck_data(self) -> None:
+        """Disaster recovery: re-import from raw, then replay this BIDS folder's saved
+        crosscheck.json/excluded_subjects.json (see `_on_save_crosscheck_data`) onto the
+        fresh import -- see `rebuild_from_raw`. Requires the same raw_converter hook
+        "Refresh BIDS" already uses, so it's only offered when that's configured.
         """
         if self.raw_converter is None or self.raw_folder is None or self.bids_folder is None:
             return
-        folder = QFileDialog.getExistingDirectory(self, "Select backup folder to rebuild from")
-        if not folder:
+        study_id = self._current_study_id()
+        if not study_id:
+            QMessageBox.warning(self, "No study ID set", "Enter a study ID above before restoring.")
             return
-        backup_folder = Path(folder)
+        backup_folder = self._crosscheck_data_dir(study_id)
         decisions = load_decisions(backup_folder)
         excluded = load_excluded_subjects(backup_folder)
         if not decisions and not excluded:
             QMessageBox.warning(
                 self,
-                "No backup found",
-                f"No crosscheck.json or excluded_subjects.json found in {backup_folder}.",
+                "No saved crosscheck data found",
+                "No crosscheck data has been saved for this BIDS folder yet -- use "
+                '"Save Crosscheck Data" first.',
             )
             return
 
         confirm = QMessageBox.question(
             self,
-            "Rebuild from backup",
-            "This re-imports this BIDS folder from raw, then replays every recorded decision "
-            f"from the backup at {backup_folder} -- picks, tags, and corrections alike -- to "
-            "reconstruct the same crosschecked state, without redoing it by hand. Only use "
-            "this on a BIDS folder that's empty or was just freshly created -- it isn't a "
-            "merge into one that already has its own, different state. Continue?",
+            "Restore saved crosscheck data",
+            "This re-imports this BIDS folder from raw, then replays every saved decision "
+            f"from {backup_folder} -- picks, tags, and corrections alike -- to reconstruct "
+            "the same crosschecked state, without redoing it by hand. Only use this on a "
+            "BIDS folder that's empty or was just freshly created -- it isn't a merge into "
+            "one that already has its own, different state. Continue?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -1512,22 +1773,22 @@ class BidsCrosscheckWindow(QMainWindow):
             self.raw_converter(self.raw_folder, self.bids_folder, self.override_file)
             resolved, unresolved = rebuild_from_raw(self.bids_folder, decisions, excluded)
         except Exception as error_raised:  # noqa: BLE001 -- arbitrary converter, shown not swallowed
-            logger.exception("Rebuild from backup failed")
+            logger.exception("Restore from saved crosscheck data failed")
             QApplication.restoreOverrideCursor()
-            QMessageBox.warning(self, "Rebuild failed", str(error_raised))
+            QMessageBox.warning(self, "Restore failed", str(error_raised))
             return
         QApplication.restoreOverrideCursor()
 
         if unresolved:
             QMessageBox.warning(
                 self,
-                "Rebuild finished with some items unresolved",
+                "Restore finished with some items unresolved",
                 f"Reapplied {len(resolved)} decision(s). {len(unresolved)} could not be "
                 "auto-replayed and need a manual look:\n\n" + "\n".join(unresolved),
             )
         else:
             QMessageBox.information(
-                self, "Rebuild complete", f"Reapplied {len(resolved)} decision(s) from backup."
+                self, "Restore complete", f"Reapplied {len(resolved)} decision(s) from saved data."
             )
         self.load_bids_folder(self.bids_folder)
 
@@ -1776,6 +2037,14 @@ class BidsCrosscheckWindow(QMainWindow):
         crosscheck_button.clicked.connect(
             lambda: self._on_toggle_subject_crosschecked(subject_id, not all_crosschecked)
         )
+        if not all_crosschecked:
+            # Primary action -- same treatment as the group selection's "Mark selected
+            # crosschecked" button. Un-marking (the other state) stays plain/secondary,
+            # same rule the group version follows.
+            crosscheck_button.setMinimumHeight(34)
+            crosscheck_button.setStyleSheet(
+                _primary_action_stylesheet(FOUND_EVERYWHERE_COLOR, CROSSCHECK_PRIMARY_HOVER_COLOR)
+            )
         layout.addWidget(crosscheck_button)
         if all_crosschecked:
             crosschecked_label = QLabel(
@@ -1807,13 +2076,15 @@ class BidsCrosscheckWindow(QMainWindow):
                 widget.deleteLater()
 
         if not subject_ids:
-            self.subject_actions_group.setTitle("Subject actions")
+            self.subject_actions_group.setTitle("Subject Actions")
             return
         if len(subject_ids) == 1:
-            self.subject_actions_group.setTitle(f"Subject actions -- {subject_ids[0]}")
+            self.subject_actions_group.setTitle(
+                f"Subject Actions  —  {SUBJECT_FOLDER_PREFIX}{subject_ids[0]}"
+            )
         else:
             self.subject_actions_group.setTitle(
-                f"Subject actions -- {len(subject_ids)} subjects selected"
+                f"Group Actions  —  {len(subject_ids)} subjects selected"
             )
 
         pending_subject_ids = [s for s in subject_ids if self._pending_selections.get(s)]
@@ -1858,8 +2129,6 @@ class BidsCrosscheckWindow(QMainWindow):
             )
             rename_button.clicked.connect(lambda: self._on_rename_subject(subject_id))
             layout.addWidget(rename_button)
-
-            layout.addWidget(self._build_subject_crosscheck_widget(subject_id))
         else:
             if self._task_tag_supported:
                 task = self.dataset_config.task_tag_task
@@ -1873,15 +2142,6 @@ class BidsCrosscheckWindow(QMainWindow):
                     lambda: self._on_rename_selected_to_task_label(subject_ids)
                 )
                 layout.addWidget(bulk_rename_button)
-
-            bulk_crosscheck_button = QPushButton("Mark selected crosschecked")
-            bulk_crosscheck_button.setToolTip(
-                "Manually mark every selected subject as reviewed, for every scan type."
-            )
-            bulk_crosscheck_button.clicked.connect(
-                lambda: self._on_bulk_crosschecked(subject_ids, True)
-            )
-            layout.addWidget(bulk_crosscheck_button)
 
             bulk_uncrosscheck_button = QPushButton("Un-mark selected crosschecked")
             bulk_uncrosscheck_button.setToolTip(
@@ -1924,6 +2184,28 @@ class BidsCrosscheckWindow(QMainWindow):
         layout.addWidget(remove_button)
 
         layout.addStretch(1)
+
+        if len(subject_ids) > 1:
+            # The clear primary action for a group selection: bigger, filled, and pinned to
+            # the far right of the row (the stretch above pushes it there) -- everything else
+            # in this row, un-marking included, stays plain/default-styled so this is the one
+            # thing that reads as "the main thing to do here."
+            bulk_crosscheck_button = QPushButton("Mark selected crosschecked")
+            bulk_crosscheck_button.setToolTip(
+                "Manually mark every selected subject as reviewed, for every scan type."
+            )
+            bulk_crosscheck_button.clicked.connect(
+                lambda: self._on_bulk_crosschecked(subject_ids, True)
+            )
+            bulk_crosscheck_button.setMinimumHeight(34)
+            bulk_crosscheck_button.setStyleSheet(
+                _primary_action_stylesheet(FOUND_EVERYWHERE_COLOR, CROSSCHECK_PRIMARY_HOVER_COLOR)
+            )
+            layout.addWidget(bulk_crosscheck_button)
+        else:
+            # Same placement/treatment as the group version above, for the single-subject
+            # case -- see _build_subject_crosscheck_widget.
+            layout.addWidget(self._build_subject_crosscheck_widget(subject_ids[0]))
 
     def _effective_candidates_for(self, subject_ids: list[str]) -> list[tuple[str, str, Path]]:
         """(subject_id, scan_type, file) for every selected subject's effective candidate.
@@ -2105,10 +2387,28 @@ class BidsCrosscheckWindow(QMainWindow):
                     )
                 except BidsCrosscheckError as error:
                     QMessageBox.warning(self, "Could not record selection", str(error))
+                    continue
+                self._strip_duplicate_marker_if_needed(subject_id, scan_type, selected_file)
             self._pending_selections[subject_id] = {}
         self._persist_pending_selections()
         self._update_commit_all_button()
         self._rescan()
+
+    def _strip_duplicate_marker_if_needed(
+        self, subject_id: str, scan_type: str, file: Path
+    ) -> None:
+        """Renames `file` if `extras.duplicate_marker_free_name` says it needs one -- see
+        that hook's docstring. `file` was just confirmed as the sole survivor for
+        `scan_type` by the `record_selected_run` call right before this."""
+        corrected_name = self.extras.duplicate_marker_free_name(scan_type, file)
+        if corrected_name is None:
+            return
+        try:
+            record_filename_correction(
+                self.bids_folder, subject_id, scan_type, file, corrected_name
+            )
+        except (BidsCrosscheckError, OSError) as error:
+            QMessageBox.warning(self, "Could not clean up duplicate marker", str(error))
 
     def _on_reveal_subject_folder(self, subject_id: str) -> None:
         if self.scan is None:
@@ -2231,7 +2531,7 @@ def run_bids_crosscheck_app(
     raw_converter: Callable[[Path, Path, Path | None], list[str]] | None = None,
     override_file_label: str | None = None,
     override_file_filter: str = "All files (*)",
-    extra_raw_actions: list[tuple[str, str, Callable[[Path, Path, QWidget], None]]]
+    extra_raw_actions: list[tuple[str, str, Callable[[Path, Path, QWidget], None], str]]
     | None = None,
     convert_button_tooltip: str = DEFAULT_CONVERT_BUTTON_TOOLTIP,
     extra_backup_filenames: tuple[str, ...] = (),
