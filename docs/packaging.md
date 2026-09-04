@@ -8,7 +8,7 @@ at all, and bundling all of them into one installer.
 ## Why PyInstaller?
 
 Not everyone who needs to run a tool like `vrlab_crane_process` is a Python
-developer with a `.venv` set up (see [Getting Started](getting-started.md#1-set-up-a-virtual-environment)).
+developer with a `.venv` set up (see [Development Setup](dev-setup.md#1-set-up-a-virtual-environment)).
 [PyInstaller](https://pyinstaller.org/) bundles the Python interpreter,
 every dependency, and the script itself into one executable file. The
 result — `vrlab_crane_process.exe` — can be copied to any folder, including
@@ -162,8 +162,10 @@ builds, it also:
    `build_output/toolbox/` folder.
 3. Compiles `toolbox_installer.iss` (an [Inno Setup](https://jrsoftware.org/isinfo.php)
    script, in the workspace root) with `ISCC.exe`, producing
-   `build_output\installer\MooiToolboxSetup.exe` (`OutputDir` in
-   `toolbox_installer.iss`'s `[Setup]` section).
+   `build_output\installer\MooiToolboxSetup-<version>.exe`, e.g.
+   `MooiToolboxSetup-v1.2.0.exe` (`OutputDir`/`OutputBaseFilename` in
+   `toolbox_installer.iss`'s `[Setup]` section — `MyAppVersion` is passed
+   in via `/DMyAppVersion=<version>`, resolved in step 1 above).
 
 `toolbox_installer.iss` is deliberately a **current-user, no-admin** install
 (`PrivilegesRequired=lowest`) — appropriate for lab machines where installing
@@ -191,9 +193,9 @@ software as an administrator often isn't an option:
   doesn't (e.g. a renamed or dropped tool's stale `.exe`) -- the explicit uninstall-first step
   avoids that buildup instead.
 
-`toolbox_installer.iss` produces a single `MooiToolboxSetup.exe` — no disk
-spanning, so there's no separate `.bin` payload file to keep track of or
-lose. If the combined toolbox ever grows past Inno's ~2 GB single-file
+`toolbox_installer.iss` produces a single `MooiToolboxSetup-<version>.exe`
+— no disk spanning, so there's no separate `.bin` payload file to keep
+track of or lose. If the combined toolbox ever grows past Inno's ~2 GB single-file
 limit, `DiskSpanning=yes` (with `DiskSliceSize=max`) would need to come
 back, splitting the installer into a small `.exe` stub plus one or more
 `.bin` parts users would have to download alongside it.

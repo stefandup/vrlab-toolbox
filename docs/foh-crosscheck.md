@@ -1,50 +1,18 @@
 # FOH Crosscheck
 
-This page is for anyone using the FOH Crosscheck tool to prepare data for
-analysis — no coding background needed.
-
-## What is "crosschecking"?
-
-When a raw FOH recording session gets converted into the tidy, standardised
-folder layout analysis expects (called "BIDS"), the conversion step doesn't
-try to be clever about picking files. If a session was restarted, or there
-are two recordings that could both plausibly be "the real one," the
-converter just keeps all of them rather than guessing. That's deliberate —
-guessing wrong and silently keeping the wrong file would be far worse than
-leaving the decision to a person.
-
-**Crosschecking is that person's job**: going through each subject's folder
-and confirming — or fixing — which file is the right one, so everything
-downstream can trust it without re-checking. It's a filing and bookkeeping
-step, not a data-quality step (more on that distinction below). Critically,
-it is a *bookkeeping* step in a very literal sense: the point of this tool
-is never to change your raw data — it's to build up a written record of
-every decision made about it, a record kept entirely separate from the raw
-files themselves, so that record can always be checked, corrected, or
-replayed from scratch. The FOH Crosscheck tool is a small program built
-specifically to make that job fast: it shows you exactly which subjects
-need a decision, gives you the information you need to make it, and
-remembers every decision so it never has to be redone.
+This is step 1: before your data can be [processed](processing.md), your
+raw recordings need to be converted into BIDS and crosschecked. This page
+is for anyone using the FOH Crosscheck tool to do that — no coding
+background needed. If you haven't already, read
+[Crosschecking](crosschecking.md) first — it covers what crosschecking
+means and why it matters in general; this page picks up from there with
+what's specific to FOH and the actual walkthrough.
 
 !!! info "The raw folder is never changed — not once, not ever"
-    Everything this tool does — picking a recording, tagging it, correcting
-    a date or filename, even removing a subject from BIDS — happens only in
-    the **BIDS folder** and its own bookkeeping files. Your **raw folder**
-    is opened for reading only: nothing on this page ever writes to it,
-    renames anything in it, or deletes anything from it. That's true of
-    every button on this page, however it's worded — something like
-    **"Correct filename..."** or **"Fix raw filenames..."** only corrects
-    how a name gets *read* when building BIDS from raw, never edits
-    anything on disk in the raw folder itself.
-
-    That one rule is what makes everything else on this page safe. Because
-    every decision is *recorded* — never irreversibly baked into a renamed
-    or deleted raw file — the entire BIDS folder, crosscheck decisions and
-    all, can always be rebuilt from nothing but the raw folder plus those
-    records. If the BIDS folder is ever lost, corrupted, or deleted by
-    accident, nothing about your actual work is lost with it: see [Backing
-    up, and rebuilding after a lost BIDS
-    folder](#backing-up-and-rebuilding-after-a-lost-bids-folder).
+    Worth repeating here: nothing on this page ever writes to, renames, or
+    deletes anything in your **raw folder**. See
+    [Crosschecking](crosschecking.md#what-is-crosschecking) for the full
+    explanation of why that's safe.
 
 ## Why this matters for FOH data specifically
 
@@ -63,23 +31,6 @@ on an earlier, incomplete attempt, with no error message anywhere to catch
 it. Crosschecking front-loads that judgment call once, on purpose, instead
 of leaving it to chance.
 
-## How this is different from QC
-
-It's easy to mix these two up, since both involve looking closely at a
-recording — but they answer different questions, at different points:
-
-- **Crosschecking** asks: *"Is this the right file, correctly labelled, and
-  has someone recorded that this decision was made?"* It happens first,
-  before any analysis, and it's what this page covers.
-- **Quality control (QC)** asks: *"Is the data inside this file actually
-  good?"* — clean signal, sensible trial timing, no equipment glitches.
-  That's a separate, later step (see the [Interactive QC
-  Plan](crane_interactive_qc_plan.md) for the sibling tool being built for
-  Crane's version of this).
-
-Crosschecking always happens first: there's no point quality-checking a
-recording that turns out to be the wrong one.
-
 ## How to do a crosscheck
 
 !!! tip "Not sure what a button or icon does?"
@@ -88,7 +39,7 @@ recording that turns out to be the wrong one.
 
 ### 1. Open the tool
 
-With your Python environment set up (see [Getting
+With the toolbox installed (see [Getting
 Started](getting-started.md) if you haven't done this yet), open a terminal
 and type:
 
@@ -250,7 +201,7 @@ in the **Subject actions** panel (above the recording detail) — this
 deletes the other recording(s) from your BIDS folder and records your
 decision. Nothing is lost: the raw folder (step 2) is never touched by
 this tool, so a removed recording is always still sitting there if you
-ever need it back — see [step 14](#14-restore-or-revert-everything) to
+ever need it back — see [step 14](#14-restore-a-subjects-duplicate-pick) to
 bring it back into BIDS. It only appears enabled once you've actually
 picked something; the button's label counts your pending picks so you
 can see at a glance whether there's anything to save.
@@ -290,7 +241,7 @@ that apply to the whole subject rather than one specific recording:
 marking it reviewed, renaming its ID, re-reading its info from disk if a
 recording has changed since the tool last looked (**Refresh**), undoing a
 duplicate pick already committed (**Restore from raw...**, see [step
-14](#14-restore-or-revert-everything)), and removing it from BIDS
+14](#14-restore-a-subjects-duplicate-pick)), and removing it from BIDS
 entirely (see [step 13](#13-remove-a-subject-from-bids) below). It
 stays visible at a fixed spot regardless of what's selected — blank when
 nothing is selected, and titled with the subject's ID when exactly one
@@ -392,51 +343,37 @@ clear later why they were removed. Leave the reason blank and click OK if
 you don't need to record one, or Cancel to back out without removing
 anything.
 
-If you removed the wrong subject, see [step
-14](#14-restore-or-revert-everything) to bring them back.
+Removing a subject this way has no in-app undo — if you removed the wrong
+one, see the warning box in [step
+14](#14-restore-a-subjects-duplicate-pick) below for how to bring them
+back.
 
-### 14. Restore or revert everything
+### 14. Restore a subject's duplicate pick
 
-Made a mistake? How you undo it depends on what you're trying to take back:
+Only one kind of undo is built into the tool: select a subject (or a few,
+with Ctrl-click) and click **"Restore from raw..."** (or **"Restore
+selected from raw..."** for more than one) in the **Subject actions**
+panel. This only works for a subject who's still visible in the list with
+a duplicate already resolved (step 8) — it clears the bookkeeping for just
+them, leaving every other subject's decisions untouched, so click
+**Refresh BIDS** (step 2) afterward to bring their full record back in
+fresh. Because it re-derives their *whole* folder, not just the one file
+that was removed, any other decision already made for them (a corrected
+date, a crosschecked mark, another scan type's pick) goes with it and
+needs redoing too.
 
-- **Undoing just one subject's duplicate pick** — select that subject (or
-  a few, with Ctrl-click) and click **"Restore from raw..."** (or
-  **"Restore selected from raw..."** for more than one) in the **Subject
-  actions** panel. This only works for a subject who's still visible in
-  the list with a duplicate already resolved (step 8) — it clears the
-  bookkeeping for just them, leaving every other subject's decisions
-  untouched, so click **Refresh BIDS** (step 2) afterward to bring their
-  full record back in fresh. Because it re-derives their *whole* folder,
-  not just the one file that was removed, any other decision already made
-  for them (a corrected date, a crosschecked mark, another scan type's
-  pick) goes with it and needs redoing too.
-- **Bringing back a subject removed entirely** (step 13) — a subject
-  removed whole has no row left in the list to select, so there's no
-  scoped way to reach just them yet. Use **"Restore all from raw
-  folder..."** near the top of the window instead — it brings back
-  *every* subject removed from BIDS, whole-subject removals and
-  duplicate picks alike, the same way described above. Click **Refresh
-  BIDS** afterward to actually bring the data back in.
-- **"Revert all changes..."** reverses every recorded rename — corrected
-  dates, corrected IDs, foh tags — and clears every recorded decision,
-  including crosschecked marks.
-
-!!! warning "Bulk only for whole-subject removals and renames, for this version at least"
-    **"Restore all from raw folder"** and **"Restore selected from
-    raw..."** cover the same kind of undo — bringing a subject's whole
-    record back so it can be re-derived from raw — just at different
-    scopes: everything removed, or a specific selection you can actually
-    still see and click on. **"Revert all changes"** is bulk only,
-    though: it reverses everything recorded, not just one decision — and
-    only the *most recent* recorded decision for each subject/scan-type
-    can be reversed, since each new correction overwrites the previous
-    record rather than keeping a history. A recording that was, say,
-    date-corrected and *then* tagged foh can only be reverted back to its
-    date-corrected state, not all the way back to its very first
-    filename.
-
-    Subjects removed from BIDS aren't touched by "Revert all changes" —
-    if you want everything back, restore those first.
+!!! warning "Nothing else is undoable in-app"
+    A whole subject removed entirely (step 13), or files removed by
+    **"Remove non-selected files from BIDS"** (step 8), have no in-app
+    undo — treat both as permanent. Your raw folder is still completely
+    untouched either way (that's the guarantee at the top of this page),
+    so nothing is actually lost — but bringing that data back into BIDS
+    means re-running the raw-to-BIDS setup by hand: point the tool at a
+    fresh, empty BIDS folder (or delete the old one) and click **Refresh
+    BIDS** to rebuild from raw. See [Backing up, and rebuilding after a
+    lost BIDS folder](#backing-up-and-rebuilding-after-a-lost-bids-folder)
+    below for restoring your crosscheck *decisions* into that fresh
+    rebuild too, so you don't have to redo them by hand.
 
 ### Backing up, and rebuilding after a lost BIDS folder
 
@@ -445,19 +382,20 @@ is never touched** — spelled out concretely: everything in your BIDS
 folder is either raw data (already safe, and reproducible any time by
 re-running "Refresh BIDS") or bookkeeping this tool writes as you work.
 Only that bookkeeping is unique and worth backing up on its own: click
-**"Backup crosscheck data..."** near the top of the window and pick a
-folder — it copies the small set of files that record every decision
-you've made, nothing more.
+**"Save Crosscheck Data"** in the **General Actions** panel near the top
+of the window — no folder to pick, it copies the small set of files that
+record every decision you've made into the app's own local data folder,
+identified by the **Study ID** you've set for this BIDS folder. Tick
+**Auto-save** next to it to do this automatically on an interval instead
+of remembering to click it yourself.
 
-If the BIDS folder itself is ever lost or corrupted, click **"Rebuild from
-backup..."**, pick the backup folder you made earlier, and confirm. This
-re-imports fresh from your raw folder, then automatically replays every past
-pick, tag, and correction from the backup — you don't redo any of it by
-hand. It's only meant for a BIDS folder that's empty or was just freshly
-created, not for merging a backup into one that already has its own,
-different state. If anything couldn't be automatically matched back up (rare
-— it means the raw data itself changed since the backup was made), you'll
-get a summary of exactly what needs a manual look, rather than a silent gap.
+If the BIDS folder itself is ever lost or corrupted, point the tool at a
+fresh, empty BIDS folder with the *same* Study ID and click **"Restore
+Saved Crosscheck Data"**. This re-imports fresh from your raw folder, then
+automatically replays every past pick, tag, and correction from your saved
+data — you don't redo any of it by hand. It's only meant for a BIDS folder
+that's empty or was just freshly created, not for merging saved data into
+one that already has its own, different state.
 
 !!! note "Want a completely fresh start instead?"
     There's no single "clear everything and start over" button in this
@@ -502,118 +440,20 @@ Two things stay single-subject only, on purpose:
   actual file to work with (e.g. **Remove non-selected files from BIDS
   for selected** or bulk FOH-tagging).
 
-## A sibling tool for Crane
+## Crane has its own version of this tool
 
-The Crane experiment has its own equivalent tool, `vrlab_crane_bids_crosscheck`
-— same idea, same layout (including its own raw folder + "Refresh BIDS"
-step), just checking `physiology`/`behaviour`/`debrief` files instead of a
-single FOH recording, and its raw-to-BIDS step does real reshaping rather
-than a plain copy (see [BIDS Converter Plan](bids_converter_plan.md) for
-what differs).
-
-### Crane's layout at a glance
-
-Everything below is covered in detail in the numbered walkthrough further
-up this page — this is just a quick, visual reference for where each part
-lives on screen, numbered to match the screenshot:
-
-![Crane BIDS Crosscheck window, numbered 1 to 14 to mark each panel and action described in the table below.](assets/images/crane-crosscheck-ui-layout.png)
-
-| # | Panel / control | What it's for |
-| --- | --- | --- |
-| 1 | **Raw Folder** | Where your raw recordings live. Browse, Reveal, or fix a raw filename. |
-| 2 | **Debrief Data** | The REDCap questionnaire export (Crane only — see [Fixing debrief record IDs](#fixing-debrief-record-ids)). |
-| 3 | **BIDS Folder** | The folder you're actually crosschecking. **Refresh BIDS** pulls in any new subjects from the raw folder. |
-| 4 | **Summary** | Subject counts per scan type, and how many still need a decision. |
-| 5 | **General Actions** | Bulk actions across every subject: remove non-selected files, save crosscheck data, auto-save. |
-| 6 | **Subject list** | One row per subject — icons show status at a glance (see [step 4](#4-read-the-subject-list)). |
-| 7 | **Restore Saved Crosscheck Data** | Reload your most recently saved crosscheck session. |
-| 8 | **Subject Actions** | Actions that apply to whichever subject is selected on the left (see [step 9](#9-mark-a-subject-as-reviewed-optional)). |
-| 9 | **Physiology detail** | Full detail for the physiology recording — Reveal, or correct its date. |
-| 10 | **Behaviour detail** | Same, for the behaviour recording. |
-| 11 | **Debrief detail** | Same, for the debrief file. |
-| 12 | **scans.tsv** | The BIDS bookkeeping file listing every scan for this subject, with its recorded date. |
-| 13 | **Channel/label detail** | Channels found, trial count, and whether every expected column was present. |
-| 14 | **Activity Log** | A running record of everything the tool has done this session. |
-
-Everything else on this page applies to Crane too, with one difference: Crane's raw-to-BIDS step already writes real BIDS filenames
-itself, so there's no "Tag with ... BIDS tags" step to do by hand (step
-12) — instead, next to whichever recording currently counts as "the one,"
-you'll see **"Correct filename..."**. Use it if something in the name
-still looks wrong: a stray `-dup2` (or `-dup3`, ...) left over from two raw
-files landing on the same name, a wrong `task-`/`acq-` entity, or anything
-else you spot — type the corrected filename directly (keeping the same
-file extension) and it's renamed, with any `scans.tsv` reference to it kept
-in sync automatically.
-
-Crane also has two extra raw-side correction dialogs near the top of the
-window — **"Fix debrief record IDs..."** and **"Fix raw filenames..."** —
-for declaring a corrected subject id where the raw data itself is
-ambiguous. Both work the same basic way: a table of anything that looks
-off, a box to type the correct subject id into, and nothing actually
-changes until you click **Save** — leaving a box blank makes no change at
-all for that row. Neither one ever edits your raw data; each saves its
-corrections to its own file in the BIDS folder, applied the next time you
-click **Refresh BIDS**.
-
-### Fixing debrief record IDs
-
-Crane's debrief (questionnaire) data comes from a REDCap export with a
-`record_id` column that's supposed to be the subject's id — but since
-it's typed in by hand, it sometimes doesn't quite match: stray spaces, a
-spurious `.0` on the end, a missing dash, or two different subjects who
-both happened to type the same id.
-
-Click **"Fix debrief record IDs..."** to see every `record_id` that
-doesn't cleanly match a known subject, or that's shared by more than one
-row (each occurrence gets its own row here, labelled "1 of 2", "2 of 2",
-etc., so you can tell them apart). For each row:
-
-- **record_id (from export)** — the value as it actually appears in the
-  export, unchanged.
-- **Matched** — a quick ✓/✗ showing whether the id currently typed in the
-  next column matches a subject who's still missing a debrief file.
-- **Corrected subject id** — type the real subject id here. Rows that
-  aren't shared with another row are pre-filled with a best-effort guess
-  (whitespace trimmed, that spurious `.0` removed); rows sharing a
-  `record_id` with another are left blank on purpose, since guessing the
-  same subject for both would just recreate the ambiguity — you need to
-  assign each one individually. A list of subject ids still without a
-  debrief match is shown below the table as a reference while you do.
-
-Leave a box blank to skip that row — it's fine for a subject to genuinely
-have no debrief data (e.g. they never completed the questionnaire).
-Click **Save** once every row you care about is filled in.
-
-### Fixing incorrect raw filenames
-
-Every raw physiology/behaviour file's subject id is normally read
-straight from its filename. Occasionally that fails outright (the
-filename doesn't match the expected pattern at all), or it succeeds but
-lands on the wrong id — most often because of a `(N)` marker at the end
-of the id, which is ambiguous on its own: it could mean a harmless second
-copy of the same recording, or two genuinely different subjects who
-happen to share a base id.
-
-Click **"Fix raw filenames..."** to see every raw file, with a
-**"Currently resolves to"** column showing the subject id it currently
-maps to (or **"(unparseable)"**, in red, if it doesn't resolve at all).
-Click a row to see, in the details pane below the table, plain-English
-reasoning for why it failed (or what it resolves to if it didn't), plus
-any matching line from the last time you ran **Refresh BIDS**. Type the
-correct subject id into **"Corrected subject id"** for any row that's
-wrong, then click **Save**.
-
-This never renames the file itself on disk — only what the *next*
-Refresh BIDS run resolves that filename to.
-
-**"Backup crosscheck data..."**/**"Rebuild from backup..."** (see
-[above](#backing-up-and-rebuilding-after-a-lost-bids-folder)) include
-both of these correction files automatically for Crane, since a rebuild
-needs them in place *before* Refresh BIDS runs, not just the decisions
-made afterward.
+The Crane experiment has its own crosscheck tool, covered on its own page:
+[Crane Crosscheck](crane-crosscheck.md). It's built the same way and works
+the same way — same idea, same layout, same "raw folder is never touched"
+guarantee — just checking `physiology`/`behaviour`/`debrief` files instead
+of a single FOH recording. You may use FOH Crosscheck, Crane Crosscheck, or
+both, depending on which experiment(s) your data comes from; neither tool
+depends on the other.
 
 ---
+
+**Next: [Crane Crosscheck](crane-crosscheck.md)** — the equivalent tool
+for Crane data.
 
 **Also see:** [BIDS Crosscheck Plan](bids_crosscheck_plan.md) for the
 original design decisions behind this tool, and [BIDS Crosscheck:

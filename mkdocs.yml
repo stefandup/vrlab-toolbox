@@ -3,34 +3,44 @@ docs_dir: docs
 site_dir: build_output/docs_site
 theme:
   name: material
+  logo: assets/images/vrlab_icon.ico
+  favicon: assets/images/vrlab_icon.ico
   features:
     - navigation.footer
 
 markdown_extensions:
   - admonition
+  - attr_list
 
 nav:
   - Home: index.md
   - Why This Toolbox Exists: philosophy.md
   - For Users:
       - Getting Started: getting-started.md
-      - Pipeline Rules: pipeline-rules.md
-      - Interval QC Plot: interval-qc.md
-      - EDA & SCRs: eda.md
-      - Lab Streaming (LSL/XDF): lab-streaming.md
-      - FOH Crosscheck: foh-crosscheck.md
-      - Testing: testing.md
-      - API Reference: api-reference.md
+      - 1. Prepare Your Data:
+          - Crosschecking: crosschecking.md
+          - FOH Crosscheck: foh-crosscheck.md
+          - Crane Crosscheck: crane-crosscheck.md
+      - 2. Process Your Data: processing.md
+      - 3. Check Your Output:
+          - EDA & SCRs: eda.md
+          - FOH Output Checks: foh-output.md
+          - Crane Output Checks (Interval QC): interval-qc.md
   - For Contributors:
       - AI Use Guidelines: ai-use.md
+      - Development Setup: dev-setup.md
       - Code Organization: code-organization.md
       - Golden Rules: golden-rules.md
       - Pipeline Concepts: pipeline-concepts.md
       - Design Patterns: design-patterns.md
+      - Pipeline Rules: pipeline-rules.md
+      - Lab Streaming (LSL/XDF): lab-streaming.md
       - Data Stores: data-stores.md
       - Core Data Classes: core-classes.md
       - BIDS Crosscheck Architecture: bids-crosscheck-architecture.md
       - GitHub Guidelines: contributing.md
+      - Testing: testing.md
+      - API Reference: api-reference.md
       - Building & Releasing: packaging.md
   - Project Notes:
       - Next Steps: pipeline_next_steps.md

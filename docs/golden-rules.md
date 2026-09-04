@@ -145,7 +145,7 @@ Why this earns its own rule, not just "prefer Path where convenient":
 - **CLI entry points should hand back `Path` from the start**, via
   `click.Path(..., path_type=Path)`, rather than a plain string that gets
   wrapped in `Path(...)` partway through the function — see
-  [Getting Started](getting-started.md#3-run-the-crane-pipeline) and
+  [Process Your Data](processing.md) and
   [Lab Streaming](lab-streaming.md) for real examples of this at the click
   layer.
 - **It matters more, not less, as folder-based conventions (like the BIDS

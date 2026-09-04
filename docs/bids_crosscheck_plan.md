@@ -51,7 +51,8 @@ For what's actually built, read [BIDS Crosscheck:
 Architecture](bids-crosscheck-architecture.md) and the code itself
 (`processing/bids_crosscheck.py`, `gui/bids_crosscheck_common.py`) over this
 plan's layout mockup. For how to *use* either tool, see [FOH
-Crosscheck](foh-crosscheck.md). The decisions below (scan types, JSON
+Crosscheck](foh-crosscheck.md) or [Crane Crosscheck](crane-crosscheck.md).
+The decisions below (scan types, JSON
 recording, no-auto-merge, code layering) are all still accurate — it's
 mainly the UI layout that moved on from the original sketch.
 

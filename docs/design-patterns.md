@@ -517,7 +517,7 @@ Same `pd.concat` function, opposite `axis` — worth knowing the difference:
 `axis=1` glues columns together side by side (what `.merge()` does, within
 one participant); `axis=0` stacks rows on top of each other (what the CLI
 does, across participants). See
-[Getting Started](getting-started.md#what-you-get-out) for where that
+[Process Your Data](processing.md#cranes-output-files) for where that
 combined file actually comes from.
 
 ### Try it yourself: chain strategies through the contracts
@@ -564,7 +564,7 @@ concrete importer produced either one.
   covered in depth in *Fluent Python* by Luciano Ramalho (O'Reilly). There's
   a live example of exactly this in this codebase: `TrialIntervals`
   (`trial_intervals.py`) already has `__len__` (so `len(my_intervals)`
-  works — see [Interval QC Plot](interval-qc.md#what-is-a-trial-interval)),
+  works — see [Core Data Classes](core-classes.md#trialintervals)),
   and gets `__eq__` for free from `@dataclass`. What's still missing —
   tracked as an open TODO — is `__iter__`/`__getitem__`, so you still have
   to write `my_intervals.intervals.items()` to loop over one, rather than

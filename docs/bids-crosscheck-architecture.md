@@ -5,7 +5,7 @@ decisions behind this tool — why it exists, what's deliberately out of
 scope, the mockup it was built from. This page is the *code* map: what's
 actually built, where it lives, and what to touch to change or extend it.
 If you're looking to *use* the tool instead, see [FOH
-Crosscheck](foh-crosscheck.md).
+Crosscheck](foh-crosscheck.md) or [Crane Crosscheck](crane-crosscheck.md).
 
 ## Philosophy
 
@@ -271,6 +271,7 @@ committed GUI test suite — worth formalizing if this tool keeps growing.
 
 ---
 
-**Also see:** [FOH Crosscheck](foh-crosscheck.md) for the user-facing
-walkthrough, and [BIDS Crosscheck Plan](bids_crosscheck_plan.md) for the
-original design rationale.
+**Also see:** [FOH Crosscheck](foh-crosscheck.md) and [Crane
+Crosscheck](crane-crosscheck.md) for the user-facing walkthroughs, and
+[BIDS Crosscheck Plan](bids_crosscheck_plan.md) for the original design
+rationale.

@@ -43,25 +43,138 @@ for what that changes.
 A named set of `(start, end)` time pairs for one participant — e.g.
 `"Baseline": (0.0, 5.0)`. Produced by a `GetTrialIntervalsStartegy`,
 consumed by every processing step that needs to slice data per trial. See
-[Interval QC Plot](interval-qc.md#what-is-a-trial-interval) for the full
-treatment of what a trial interval means and how it's built.
+[Interval QC Plot](interval-qc.md#what-is-a-trial-interval) for the
+conceptual picture (what a trial interval means, and the QC plot that
+checks one was built correctly) — this section is the code-level detail
+behind it.
 
 ```python
 @dataclass
 class TrialIntervals:
+    """
+    Trial intervals are named time periods in the experiment at the subject level, encoded
+    as (start, end) time pairs keyed by a str name.
+
+    For example:
+    "Baseline": (0, 5) — the "Baseline" trial spans from 0 to 5 seconds.
+    """
+
     intervals: dict[str, tuple[float, float]] = field(default_factory=dict)
 
     def __len__(self):
         return len(self.intervals)
 ```
 
+Strip away the class, and it's really just a `dict`:
+`{"Baseline": (0, 5), "Stress": (5, 65), ...}`. The class wraps that dict
+and adds behaviour on top — keeping it sorted by start time, filling gaps,
+relabelling, comparing two sets of intervals — which is why the pipeline
+passes `TrialIntervals` objects around instead of bare dictionaries.
+
+### Toy example: creating one yourself
+
+You can build one directly, with made-up values, to get a feel for the
+shape — no recording data needed:
+
 ```python
 from mooi_toolbox.processing.trial_intervals import TrialIntervals
 
-intervals = TrialIntervals(intervals={"Baseline": (0.0, 5.0), "Task": (5.0, 65.0)})
-len(intervals)          # 2 — via __len__
-intervals.intervals     # sorted by start time via __post_init__
+my_intervals = TrialIntervals(
+    intervals={
+        "Baseline": (0.0, 60.0),
+        "Stress": (60.0, 120.0),
+        "Recovery": (120.0, 180.0),
+    }
+)
+
+len(my_intervals)       # 3 — one per named interval, via __len__
+my_intervals.intervals  # the underlying dict, always kept sorted by start time
 ```
+
+### Real example 1: unlabelled, straight from trigger pulses
+
+`TrialIntervals.from_raw_interval_pairs` is a shortcut constructor for
+when all you have is a plain list of `(start, end)` pairs, with no
+meaningful names yet — exactly the situation right after detecting raw
+trigger pulses, before anything's matched to behaviour:
+
+```python
+from mooi_toolbox.processing.trial_intervals import TrialIntervals
+
+raw_pairs = [(0.0, 60.0), (60.0, 120.0), (120.0, 180.0)]
+unlabelled = TrialIntervals.from_raw_interval_pairs(raw_pairs)
+# {"TP0": (0.0, 60.0), "TP1": (60.0, 120.0), "TP2": (120.0, 180.0)}
+```
+
+That `TP0`, `TP1`, … naming is exactly what labels the blue **"Raw
+biopac"** row in [Interval QC Plot](interval-qc.md#row-by-row)'s example
+plot — this constructor is what produces it.
+
+### Real example 2: labelled, straight from behaviour data
+
+Compare that to `get_crane_trigger_behav_intervals`
+(`crane_trial_intervals.py`), which builds a `TrialIntervals` from a
+participant's behaviour dataframe instead, using real trial names:
+
+```python
+def get_crane_trigger_behav_intervals(validated_behav_df: pd.DataFrame) -> TrialIntervals:
+    intervals_out = {}
+    for _, row in validated_behav_df.iterrows():
+        intervals_out.update(
+            {
+                f"{row['BlockType']}_{row['TrialType']}_{row['TrialNr']}": tuple(
+                    [row["TrialStartTime"], row["TrialEndTime"]]
+                )
+            }
+        )
+    return TrialIntervals(intervals=intervals_out)
+```
+
+This is what produces names like `NonStressBlock_NonSlipTrial_1` — the
+orange **"Raw behav"** row on the same plot. Matching *this* object
+against the unlabelled one above (correcting for clock drift along the
+way) is exactly what `CraneGetTrialIntervalStrategyStep` (below) does.
+
+### Real example 3: what the matched result actually contains
+
+Running the full matching step (`CraneGetTrialIntervalStrategyStep`) on
+the synthetic `DUMMY000` participant's raw, pre-BIDS output in `examples/`
+(see [Testing](testing.md#the-examples-folder)) produces a `TrialIntervals`
+with 23 entries — this is `.intervals`, first five shown:
+
+```
+{
+    'NonStressBlock_NonSlipTrial_1_Training': (4.9845, 65.3135),
+    'ITI_0': (65.3135, 94.522),
+    'NonStressBlock_SlipTrial_2_Training': (94.522, 155.1415),
+    'ITI_1': (155.1415, 205.774),
+    'NonStressBlock_NonSlipTrial_3_Training': (205.774, 266.104),
+    ...
+}
+```
+
+This is exactly the object drawn as the red "Matched with Behav" row in
+[Interval QC Plot](interval-qc.md#row-by-row)'s example plot — real trial
+names, timestamps corrected onto the trigger channel's clock.
+
+### The two strategies behind the QC plot
+
+`crane_trial_intervals.py` defines two strategy steps (see [Design
+Patterns](design-patterns.md#strategy) for what "strategy step" means
+here):
+
+- **`CraneGetTrialIntervalStrategyStep`** — the main path. Needs *both*
+  physiology and behaviour data, and produces all four rows of the QC
+  plot, including a filled-in "Matched with Behav" row.
+- **`CraneGetTrialIntervalStrategyFallbackStep`** — set as the main step's
+  `fallback_strategy`, and used when matching against behaviour data fails
+  (see [Pipeline Rules](pipeline-rules.md#missing-files-dont-stop-the-pipeline)).
+  It only has trigger data to work with, so its version of the plot only
+  fills rows 1–3 — the "Matched with Behav" row stays empty, and physiology
+  is processed against unlabelled trigger intervals instead. See [Interval
+  QC Plot: when behaviour data is missing or doesn't
+  match](interval-qc.md#when-behaviour-data-is-missing-or-doesnt-match) for
+  what that looks like on the plot itself.
 
 ## `PipelineStatus`
 

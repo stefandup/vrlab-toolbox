@@ -1,5 +1,7 @@
 # Welcome
 
+![Mobi Mooi Toolbox icon](assets/images/vrlab_icon.ico){ width="96" }
+
 The Mobi Mooi Toolbox turns raw recordings — physiology signals, VR event
 logs, and questionnaire answers — into one clean, per-participant data file
 that's ready for analysis, by running every participant's data through the
@@ -11,12 +13,13 @@ Curious *why* it's built this way before diving in? See
 
 ## Who this is for
 
-- **New to Python?** Start with [Getting Started](getting-started.md).
-  These pages assume you can already run a Python script, but explain
-  everything else as we go.
-- **Comfortable with Python already?** Look out for **Going further** boxes
-  throughout — they explain *why* the pipeline is built the way it is, not
-  just what it does.
+- **Just here to run a tool or check some data?** Start with [Getting
+  Started](getting-started.md) — no coding background needed. **For
+  Users** below covers everything from there.
+- **Changing the code itself?** **For Contributors** below is for you.
+  Look out for **Going further** boxes throughout those pages — they
+  explain *why* the pipeline is built the way it is, not just what it
+  does.
 
 ## Where to go next
 
@@ -28,21 +31,28 @@ whether you're running the pipeline or changing it.
 
 ### For users
 
-Running the pipeline and understanding its output — no code changes needed.
+Running the tools and understanding what they show you — no code changes,
+no coding background needed.
 
-- **Run it:** [Getting Started](getting-started.md)
-- **Understand the data:** [Pipeline Rules](pipeline-rules.md), [Interval QC Plot](interval-qc.md), [EDA & SCRs](eda.md), [Lab Streaming (LSL/XDF)](lab-streaming.md)
-- **Check it works:** [Testing](testing.md)
-- **Look things up:** [API Reference](api-reference.md)
+- **1. Get set up:** [Getting Started](getting-started.md)
+- **2. Prepare your data:** [Crosschecking](crosschecking.md), [FOH Crosscheck](foh-crosscheck.md), [Crane Crosscheck](crane-crosscheck.md)
+- **3. Process your data:** [Process Your Data](processing.md)
+- **4. Check your output:** [EDA & SCRs](eda.md), [FOH Output Checks](foh-output.md), [Crane Output Checks](interval-qc.md)
 
 ### For contributors
 
 Changing the code and sharing that change back.
 
 - **AI use guidelines:** [AI Use Guidelines](ai-use.md), [AI Style Guide](ai-style-guide.md)
+- **Set up a dev environment:** [Development Setup](dev-setup.md)
 - **Understand the code:** [Code Organization](code-organization.md), [Golden Rules](golden-rules.md)
 - **Understand the architecture:** [Pipeline Concepts](pipeline-concepts.md), [Design Patterns](design-patterns.md)
+- **File matching & LSL internals:** [Pipeline Rules](pipeline-rules.md), [Lab Streaming (LSL/XDF)](lab-streaming.md)
+- **Data classes:** [Data Stores](data-stores.md), [Core Data Classes](core-classes.md)
+- **BIDS crosscheck internals:** [BIDS Crosscheck Architecture](bids-crosscheck-architecture.md)
 - **GitHub guidelines:** [For Contributors](contributing.md)
+- **Check it works:** [Testing](testing.md)
+- **Look things up:** [API Reference](api-reference.md)
 - **Build & release:** [Building & Releasing](packaging.md)
 
 !!! note "Going further"

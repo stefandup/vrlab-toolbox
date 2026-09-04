@@ -274,7 +274,7 @@ the sidebar) — click a test to run just that one, with pass/fail shown
 inline next to the code.
 
 To enable it, add to `.vscode/settings.json` (the same file used for the
-venv setting in [Getting Started](getting-started.md#vs-code-auto-activate-this-venv-in-every-new-terminal)):
+venv setting in [Development Setup](dev-setup.md#vs-code-auto-activate-this-venv-in-every-new-terminal)):
 
 ```json
 {

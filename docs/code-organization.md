@@ -1,8 +1,8 @@
 # Code Organization
 
-Coming from [Getting Started](getting-started.md)? This page explains how
-the code you just ran is actually laid out, so you can find your way around
-it.
+Coming from [Development Setup](dev-setup.md)? This page explains how
+the code you just installed is actually laid out, so you can find your way
+around it.
 
 ## What this toolbox does
 
@@ -58,7 +58,7 @@ build/packaging config — one file instead of the older scattered
     When you `pip install -e .`, every name under `[project.scripts]` gets
     written as an actual small executable/script file **inside your
     virtual environment** — `.venv\Scripts\` on Windows,
-    `.venv/bin/` on macOS/Linux (see [Getting Started](getting-started.md#1-set-up-a-virtual-environment)
+    `.venv/bin/` on macOS/Linux (see [Development Setup](dev-setup.md#1-set-up-a-virtual-environment)
     for what a venv is). That's genuinely why typing `vrlab_crane_process`
     works once your venv is active: your shell finds that file on its
     `PATH`. Worth browsing that folder once, next to `site-packages/` — it
@@ -159,6 +159,50 @@ just imports and assembles the pieces above.
 See [Lab Streaming (LSL/XDF)](lab-streaming.md) for what's different about
 FOH's data (one `.xdf` file instead of separate `.mat`/CSV files) and why
 that only changes the import/interval steps, not the processing steps.
+
+### How `eda.py` processes a signal
+
+[EDA & SCRs](eda.md) covers what EDA/SCRs are and how to read the QC plot,
+in plain terms; this is the code behind it. The processing chain, from raw
+signal to one row of output:
+
+1. **Slice** — `run_eda_intervals` uses `trial_intervals.slice_data_frame`
+   to cut the full EDA recording into one chunk per trial interval.
+2. **Clean, decompose, find peaks** — for each interval,
+   `run_nk_eda_processing` wraps three NeuroKit2 calls in order:
+   `nk.eda_clean` (remove noise) → `nk.eda_phasic` (split into
+   tonic/phasic components) → `nk.eda_peaks` (detect SCRs in the phasic
+   component).
+3. **Count** — `get_eda_data_out` counts detected SCR peaks for that
+   interval and divides by the interval's length in minutes, producing one
+   `..._SCR_per_min` value.
+4. **Tidy column names** — `correct_order` cleans up the resulting column
+   names so repeated interval labels (e.g. two `ITI` columns) don't
+   collide.
+5. **QC plot** — separately, `run_eda_qc` runs the *same* cleaning/decompose
+   steps over the **whole, unsliced** recording (not per interval) purely to
+   draw the QC figure — it doesn't feed into the numeric output.
+
+`eda.py` calls NeuroKit2 with this project's chosen methods
+(`clean_method="biosppy"`, `peak_detect_method="vanhalem2020"`) and
+reshapes the result — see [EDA & SCRs](eda.md#the-neurokit2-toolbox) for
+what NeuroKit2 itself is.
+
+`ProcessEdaPhysiologyDataStrategyStep` (`eda.py`) is the concrete strategy
+that satisfies `ProcessPhysiologyDataStrategyStep` from `pipeline.py` — see
+[Design Patterns](design-patterns.md) for what that means. Like the
+interval-matching step, it has its own `fallback_strategy`:
+
+- **`ProcessEdaPhysiologyDataStrategyStep`** — the main path. Takes the
+  already-matched `TrialIntervals` produced by the interval step and
+  processes each labelled trial.
+- **`ProcessEdaPhysiologyFallbackStrategyStep`** — used when no matched
+  intervals are available. It derives its own raw, unlabelled trigger
+  intervals directly from the physiology data
+  (`trial_intervals.get_raw_biopac_trigger_intervals`) and processes those
+  instead — the same "partial data beats no data" idea as the interval
+  step's fallback (see item 5 in
+  [Next Steps](pipeline_next_steps.md#5-add-a-fallback-for-partialmissing-behaviour-data-using-unlabelled-intervals)).
 
 ## The command-line tools
 

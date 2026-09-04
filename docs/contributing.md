@@ -5,9 +5,11 @@ This page is for anyone going one step further: **changing** the code and
 sharing that change back. If you're only running the pipeline, you can
 skip this page.
 
-Before you write any code, read [AI Use Guidelines](ai-use.md) — this
-project has a specific stance on how (and how little) AI coding assistants
-should be involved in writing that code.
+If you haven't set up a coding environment for this project yet, start with
+[Development Setup](dev-setup.md) first. Before you write any code, also
+read [AI Use Guidelines](ai-use.md) — this project has a specific stance on
+how (and how little) AI coding assistants should be involved in writing
+that code.
 
 ## What is "origin"?
 
