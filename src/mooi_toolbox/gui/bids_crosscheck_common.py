@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFileDialog,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QInputDialog,
@@ -36,6 +37,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QSplitter,
     QTableWidget,
@@ -108,7 +110,7 @@ EXTRA_RAW_ACTION_GROUP_OVERRIDE = "override"
 CROSSCHECK_DATA_BACKUP_DIRNAME = "crosscheck_backups"
 AUTOSAVE_ENABLED_SETTINGS_KEY = "autosave_enabled"
 AUTOSAVE_INTERVAL_MINUTES_SETTINGS_KEY = "autosave_interval_minutes"
-DEFAULT_AUTOSAVE_INTERVAL_MINUTES = 10
+DEFAULT_AUTOSAVE_INTERVAL_MINUTES = 2
 MIN_AUTOSAVE_INTERVAL_MINUTES = 1
 MAX_AUTOSAVE_INTERVAL_MINUTES = 60
 # Qt's plain-text QToolTip never wraps on its own -- a long tooltip string renders as one
@@ -124,7 +126,12 @@ FIX_ACTION_COLOR = "#7f8c8d"
 FIX_ACTION_HOVER_COLOR = "#6c7a7d"
 PRIMARY_BUTTON_DISABLED_BG = "#555555"
 PRIMARY_BUTTON_DISABLED_FG = "#999999"
-PATH_LABEL_FONT_POINT_INCREASE = 2
+# Compact path-display panels (Raw Folder/Debrief Data/BIDS Folder): a small muted "Path:
+# <parent>" caption above a large bold <name> -- see `_style_secondary_label`/
+# `_style_name_label`/`_set_path_display`.
+SECONDARY_TEXT_COLOR = "#9aa0a6"
+NAME_LABEL_FONT_POINT_INCREASE = 9
+SUMMARY_LABEL_FONT_POINT_INCREASE = 3
 
 
 def _primary_action_stylesheet(base_color: str, hover_color: str) -> str:
@@ -157,14 +164,38 @@ def wrap_tooltip(text: str, width: int = TOOLTIP_WRAP_WIDTH) -> str:
     return "\n\n".join(wrapped)
 
 
-def _style_path_label(label: QLabel) -> None:
-    """Bumps a folder/file path value's font size -- these are the thing a user most needs
-    to read clearly at a glance (which BIDS/raw folder am I even looking at?), unlike the
-    "Path:" caption beside it or the buttons around it.
+def _style_secondary_label(label: QLabel) -> None:
+    """Small, muted caption style for a panel's "Path: <parent>" line -- kept quiet since
+    the bold name label below it (see `_style_name_label`) is what a user needs to read at
+    a glance, not the full path."""
+    label.setStyleSheet(f"color: {SECONDARY_TEXT_COLOR};")
+
+
+def _style_name_label(label: QLabel) -> None:
+    """Large, bold style for a panel's selected folder/file *name* -- the thing a user most
+    needs to read clearly at a glance (which BIDS/raw folder am I even looking at?), unlike
+    the small "Path:" caption above it or the buttons around it.
     """
     font = label.font()
-    font.setPointSize(font.pointSize() + PATH_LABEL_FONT_POINT_INCREASE)
+    font.setPointSize(font.pointSize() + NAME_LABEL_FONT_POINT_INCREASE)
+    font.setBold(True)
     label.setFont(font)
+    label.setWordWrap(True)
+
+
+def _style_summary_label(label: QLabel) -> None:
+    """Bumps the Summary panel's font size a bit above body text -- readable totals at a
+    glance, without competing with the bold folder/file names in the panels beside it."""
+    font = label.font()
+    font.setPointSize(font.pointSize() + SUMMARY_LABEL_FONT_POINT_INCREASE)
+    label.setFont(font)
+
+
+def _set_path_display(path_label: QLabel, name_label: QLabel, path: Path) -> None:
+    """Splits `path` into a small "Path: <parent>" caption and a large bold name -- the
+    shared display shape for the Raw Folder/Debrief Data/BIDS Folder panels."""
+    path_label.setText(f"Path: {path.parent}\\")
+    name_label.setText(path.name or str(path))
 
 
 _INVALID_PATH_CHARACTERS = '<>:"/\\|?*'
@@ -479,7 +510,7 @@ class BidsCrosscheckWindow(QMainWindow):
         stored = self._settings.value(LAST_RAW_FOLDER_SETTINGS_KEY, "")
         if stored and Path(stored).is_dir():
             self.raw_folder = Path(stored)
-            self.raw_folder_label.setText(str(self.raw_folder))
+            _set_path_display(self.raw_folder_path_label, self.raw_folder_name_label, self.raw_folder)
             self._update_convert_button_enabled()
             self._update_override_file_label()
 
@@ -509,12 +540,12 @@ class BidsCrosscheckWindow(QMainWindow):
 
     def _add_extra_action_buttons(self, button_row: QHBoxLayout, group: str) -> None:
         """Appends every `extra_raw_actions` entry tagged with `group`
-        (`EXTRA_RAW_ACTION_GROUP_RAW`/`EXTRA_RAW_ACTION_GROUP_OVERRIDE`) to the *front* of
-        `button_row` -- e.g. crane's "Fix Filenames in Raw Folder" leftmost in the Raw
-        Folder group's button row, "Fix Record IDs in Debrief Export" leftmost in the
-        Debrief Export one. Styled as an explicit primary action (grey, not the crosscheck
-        green) so a dataset-specific repair button reads as something to actually click,
-        distinct from the plain Browse/Reveal buttons that follow it in the same row.
+        (`EXTRA_RAW_ACTION_GROUP_RAW`/`EXTRA_RAW_ACTION_GROUP_OVERRIDE`) to `button_row` --
+        e.g. crane's "Fix Filenames in Raw Folder" in its own row below the Raw Folder
+        group's Browse/Reveal, "Fix Record IDs in Debrief Export" below the Debrief Data
+        group's Browse/Clear. Styled as an explicit primary action (grey, not the crosscheck
+        green) so a dataset-specific repair button reads as something to actually click, and
+        stretched to fill the row's width so it reads as the one prominent action there.
         No-op if no entry is tagged for this `group`.
         """
         for label, tooltip, callback, action_group in self.extra_raw_actions:
@@ -524,6 +555,7 @@ class BidsCrosscheckWindow(QMainWindow):
             button.setToolTip(wrap_tooltip(tooltip))
             button.setEnabled(False)
             button.setMinimumHeight(30)
+            button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             button.setStyleSheet(
                 _primary_action_stylesheet(FIX_ACTION_COLOR, FIX_ACTION_HOVER_COLOR)
             )
@@ -540,35 +572,37 @@ class BidsCrosscheckWindow(QMainWindow):
 
         self.extra_raw_action_buttons: list[QPushButton] = []
 
-        # Folder pickers stacked in a left column, with the Activity Log beside them (not
-        # below the subject detail panes, its old spot) -- fills what would otherwise be
-        # dead space to their right, and keeps that log visible without pushing Subject
-        # Actions/the subject list further down the page.
+        # 2x2 grid: Raw Folder / Debrief Data (row 0), BIDS Folder / Summary (row 1) -- with
+        # the Activity Log beside the whole grid (not below the subject detail panes, its
+        # old spot), so it stays visible regardless of which subject is selected without
+        # eating into that scrollable space.
         top_row = QHBoxLayout()
-        folders_column = QVBoxLayout()
+        folders_grid = QGridLayout()
+        folders_grid.setSpacing(8)
+        # BIDS Folder/Summary drop to row 0 themselves when there's no Raw Folder/Debrief
+        # Data row above them (no raw_converter at all), instead of leaving a blank row.
+        bids_row = 1 if self.raw_converter is not None else 0
 
         if self.raw_converter is not None:
             raw_group = QGroupBox("Raw Folder")
             raw_group_layout = QVBoxLayout(raw_group)
             raw_group_layout.setSpacing(4)
-            raw_path_row = QHBoxLayout()
-            raw_path_row.setSpacing(6)
-            raw_path_row.addWidget(QLabel("Path:"))
-            self.raw_folder_label = QLabel("No raw folder selected")
-            _style_path_label(self.raw_folder_label)
-            raw_path_row.addWidget(self.raw_folder_label, 1)
-            raw_group_layout.addLayout(raw_path_row)
+            self.raw_folder_path_label = QLabel("")
+            _style_secondary_label(self.raw_folder_path_label)
+            raw_group_layout.addWidget(self.raw_folder_path_label)
+            self.raw_folder_name_label = QLabel("No raw folder selected")
+            _style_name_label(self.raw_folder_name_label)
+            raw_group_layout.addWidget(self.raw_folder_name_label)
 
             raw_button_row = QHBoxLayout()
             raw_button_row.setSpacing(6)
-            self._add_extra_action_buttons(raw_button_row, EXTRA_RAW_ACTION_GROUP_RAW)
             raw_browse_button = QPushButton("Browse...")
             raw_browse_button.setToolTip(
                 "Pick the raw data folder to convert into the BIDS folder below."
             )
             raw_browse_button.clicked.connect(self._on_browse_raw_folder)
             raw_button_row.addWidget(raw_browse_button)
-            self.reveal_raw_button = QPushButton("Reveal Raw Folder")
+            self.reveal_raw_button = QPushButton("Reveal")
             self.reveal_raw_button.setToolTip(
                 wrap_tooltip(
                     "Open the raw folder in the system file browser, so you can look at the "
@@ -580,23 +614,31 @@ class BidsCrosscheckWindow(QMainWindow):
             raw_button_row.addWidget(self.reveal_raw_button)
             raw_button_row.addStretch(1)
             raw_group_layout.addLayout(raw_button_row)
-            folders_column.addWidget(raw_group)
+
+            # Dataset-specific raw-folder repair action(s) (e.g. crane's "Fix Filenames in
+            # Raw Folder") get their own full-width row below Browse/Reveal, rather than
+            # crowding into that row.
+            raw_extra_action_row = QHBoxLayout()
+            raw_extra_action_row.setSpacing(6)
+            self._add_extra_action_buttons(raw_extra_action_row, EXTRA_RAW_ACTION_GROUP_RAW)
+            if raw_extra_action_row.count():
+                raw_group_layout.addLayout(raw_extra_action_row)
+
+            folders_grid.addWidget(raw_group, 0, 0)
 
             if self.override_file_label is not None:
                 override_group = QGroupBox(self.override_file_label.title())
                 override_group_layout = QVBoxLayout(override_group)
                 override_group_layout.setSpacing(4)
-                override_path_row = QHBoxLayout()
-                override_path_row.setSpacing(6)
-                override_path_row.addWidget(QLabel("Path:"))
-                self.override_file_label_widget = QLabel("(auto-detect)")
-                _style_path_label(self.override_file_label_widget)
-                override_path_row.addWidget(self.override_file_label_widget, 1)
-                override_group_layout.addLayout(override_path_row)
+                self.override_file_path_label = QLabel("")
+                _style_secondary_label(self.override_file_path_label)
+                override_group_layout.addWidget(self.override_file_path_label)
+                self.override_file_name_label = QLabel("(auto-detect)")
+                _style_name_label(self.override_file_name_label)
+                override_group_layout.addWidget(self.override_file_name_label)
 
                 override_button_row = QHBoxLayout()
                 override_button_row.setSpacing(6)
-                self._add_extra_action_buttons(override_button_row, EXTRA_RAW_ACTION_GROUP_OVERRIDE)
                 override_browse_button = QPushButton("Browse...")
                 override_browse_button.setToolTip(
                     wrap_tooltip(
@@ -612,18 +654,45 @@ class BidsCrosscheckWindow(QMainWindow):
                 override_button_row.addWidget(override_clear_button)
                 override_button_row.addStretch(1)
                 override_group_layout.addLayout(override_button_row)
-                folders_column.addWidget(override_group)
+
+                override_extra_action_row = QHBoxLayout()
+                override_extra_action_row.setSpacing(6)
+                self._add_extra_action_buttons(
+                    override_extra_action_row, EXTRA_RAW_ACTION_GROUP_OVERRIDE
+                )
+                if override_extra_action_row.count():
+                    override_group_layout.addLayout(override_extra_action_row)
+
+                folders_grid.addWidget(override_group, 0, 1)
 
         bids_group = QGroupBox("BIDS Folder")
         bids_group_layout = QVBoxLayout(bids_group)
         bids_group_layout.setSpacing(4)
-        bids_path_row = QHBoxLayout()
-        bids_path_row.setSpacing(6)
-        bids_path_row.addWidget(QLabel("Path:"))
-        self.folder_label = QLabel("No BIDS folder selected")
-        _style_path_label(self.folder_label)
-        bids_path_row.addWidget(self.folder_label, 1)
-        bids_group_layout.addLayout(bids_path_row)
+        self.bids_folder_path_label = QLabel("")
+        _style_secondary_label(self.bids_folder_path_label)
+        bids_group_layout.addWidget(self.bids_folder_path_label)
+        self.bids_folder_name_label = QLabel("No BIDS folder selected")
+        _style_name_label(self.bids_folder_name_label)
+        bids_group_layout.addWidget(self.bids_folder_name_label)
+
+        bids_button_row = QHBoxLayout()
+        bids_button_row.setSpacing(6)
+        self.browse_button = QPushButton("Browse...")
+        self.browse_button.setToolTip("Pick the top-level BIDS folder to scan for subjects.")
+        self.browse_button.clicked.connect(self._on_browse)
+        bids_button_row.addWidget(self.browse_button)
+        self.reveal_bids_button = QPushButton("Reveal")
+        self.reveal_bids_button.setToolTip(
+            wrap_tooltip(
+                "Open the BIDS folder in the system file browser, so you can look at what's "
+                "actually on disk yourself."
+            )
+        )
+        self.reveal_bids_button.setEnabled(False)
+        self.reveal_bids_button.clicked.connect(self._on_reveal_bids_folder)
+        bids_button_row.addWidget(self.reveal_bids_button)
+        bids_button_row.addStretch(1)
+        bids_group_layout.addLayout(bids_button_row)
 
         bids_study_row = QHBoxLayout()
         bids_study_row.setSpacing(6)
@@ -645,48 +714,36 @@ class BidsCrosscheckWindow(QMainWindow):
         bids_study_row.addWidget(self.study_id_combo, 1)
         bids_group_layout.addLayout(bids_study_row)
 
-        bids_button_row = QHBoxLayout()
-        bids_button_row.setSpacing(6)
         if self.raw_converter is not None:
-            # The primary action in this box -- same explicit-button treatment as the "Fix
-            # ..." buttons above, and leftmost for the same reason.
+            # The clear primary action in this box -- full-width and bold so it reads as
+            # the main thing to do here, same explicit-button treatment as the "Fix ..."
+            # buttons above it.
             self.convert_button = QPushButton("Refresh BIDS")
             self.convert_button.setToolTip(wrap_tooltip(self.convert_button_tooltip))
             self.convert_button.setEnabled(False)
-            self.convert_button.setMinimumHeight(30)
+            self.convert_button.setMinimumHeight(34)
+            self.convert_button.setSizePolicy(
+                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+            )
             self.convert_button.setStyleSheet(
                 _primary_action_stylesheet(FIX_ACTION_COLOR, FIX_ACTION_HOVER_COLOR)
             )
             self.convert_button.clicked.connect(self._on_convert_to_bids)
-            bids_button_row.addWidget(self.convert_button)
-        self.browse_button = QPushButton("Browse...")
-        self.browse_button.setToolTip("Pick the top-level BIDS folder to scan for subjects.")
-        self.browse_button.clicked.connect(self._on_browse)
-        bids_button_row.addWidget(self.browse_button)
-        self.reveal_bids_button = QPushButton("Reveal BIDS Folder")
-        self.reveal_bids_button.setToolTip(
-            wrap_tooltip(
-                "Open the BIDS folder in the system file browser, so you can look at what's "
-                "actually on disk yourself."
-            )
-        )
-        self.reveal_bids_button.setEnabled(False)
-        self.reveal_bids_button.clicked.connect(self._on_reveal_bids_folder)
-        bids_button_row.addWidget(self.reveal_bids_button)
-        bids_button_row.addStretch(1)
-        bids_group_layout.addLayout(bids_button_row)
+            bids_group_layout.addWidget(self.convert_button)
 
-        bids_summary_row = QHBoxLayout()
-        bids_summary_row.setSpacing(6)
-        bids_summary_row.addWidget(QLabel("Summary:"))
+        folders_grid.addWidget(bids_group, bids_row, 0)
+
+        summary_group = QGroupBox("Summary")
+        summary_group_layout = QVBoxLayout(summary_group)
         self.summary_label = QLabel("")
         self.summary_label.setTextFormat(Qt.TextFormat.RichText)
         self.summary_label.setWordWrap(True)
-        bids_summary_row.addWidget(self.summary_label, 1)
-        bids_group_layout.addLayout(bids_summary_row)
-        folders_column.addWidget(bids_group)
+        _style_summary_label(self.summary_label)
+        summary_group_layout.addWidget(self.summary_label)
+        summary_group_layout.addStretch(1)
+        folders_grid.addWidget(summary_group, bids_row, 1)
 
-        top_row.addLayout(folders_column, 1)
+        top_row.addLayout(folders_grid, 1)
 
         if self.raw_converter is not None:
             # Persistent running log -- beside the folder pickers rather than below the
@@ -873,7 +930,7 @@ class BidsCrosscheckWindow(QMainWindow):
 
     def load_bids_folder(self, bids_folder: Path) -> None:
         self.bids_folder = bids_folder
-        self.folder_label.setText(str(bids_folder))
+        _set_path_display(self.bids_folder_path_label, self.bids_folder_name_label, bids_folder)
         self.reveal_bids_button.setEnabled(True)
         self._settings.setValue(LAST_BIDS_FOLDER_SETTINGS_KEY, str(bids_folder))
         ensure_bidsignore(bids_folder, self.extras.bidsignore_patterns())
@@ -886,7 +943,7 @@ class BidsCrosscheckWindow(QMainWindow):
         folder = QFileDialog.getExistingDirectory(self, "Select raw data folder")
         if folder:
             self.raw_folder = Path(folder)
-            self.raw_folder_label.setText(str(self.raw_folder))
+            _set_path_display(self.raw_folder_path_label, self.raw_folder_name_label, self.raw_folder)
             self._settings.setValue(LAST_RAW_FOLDER_SETTINGS_KEY, str(self.raw_folder))
             self._update_convert_button_enabled()
             self._update_override_file_label()
@@ -913,7 +970,9 @@ class BidsCrosscheckWindow(QMainWindow):
         if self.override_file_label is None:
             return
         if self.override_file is not None:
-            self.override_file_label_widget.setText(str(self.override_file))
+            _set_path_display(
+                self.override_file_path_label, self.override_file_name_label, self.override_file
+            )
             return
         detected = None
         if self.override_file_autodetect is not None and self.raw_folder is not None:
@@ -922,11 +981,16 @@ class BidsCrosscheckWindow(QMainWindow):
             except OSError:
                 detected = None
         if detected is not None:
-            self.override_file_label_widget.setText(f"{detected}  (auto-detected)")
+            _set_path_display(self.override_file_path_label, self.override_file_name_label, detected)
+            self.override_file_path_label.setText(
+                f"{self.override_file_path_label.text()}  (auto-detected)"
+            )
         elif self.raw_folder is not None:
-            self.override_file_label_widget.setText("(auto-detect -- no file found yet)")
+            self.override_file_path_label.setText("")
+            self.override_file_name_label.setText("(none found yet)")
         else:
-            self.override_file_label_widget.setText("(auto-detect)")
+            self.override_file_path_label.setText("")
+            self.override_file_name_label.setText("(auto-detect)")
 
     def _update_convert_button_enabled(self) -> None:
         if self.raw_converter is None:
@@ -1151,16 +1215,18 @@ class BidsCrosscheckWindow(QMainWindow):
             return
         summary = completeness_summary(self.scan, self.dataset_config)
         total = len(self.scan.scans)
-        parts = [f"{total} subjects"]
+        # One line per fact -- the Summary panel's own box, so each line can read at the
+        # larger _style_summary_label size without competing for space with everything
+        # else that used to share this row.
+        lines = [f"<b>{total} subject{'s' if total != 1 else ''} found</b>"]
         for scan_type, (ok, scan_total) in summary.items():
-            part = f"{scan_type}: {ok}/{scan_total}"
+            line = f"{scan_type.capitalize()}: {ok}/{scan_total}"
             # Found for every subject -- a positive confirmation worth calling out, not just
-            # a fraction to eyeball (e.g. "debrief: 83/83" is easy to misread at a glance as
+            # a fraction to eyeball (e.g. "Debrief: 83/83" is easy to misread at a glance as
             # "still missing some" without doing the arithmetic).
             if scan_total and ok == scan_total:
-                part += f' <span style="color:{FOUND_EVERYWHERE_COLOR}">✓</span>'
-            parts.append(part)
-        text = " | ".join(parts)
+                line += f' <span style="color:{FOUND_EVERYWHERE_COLOR}">✓</span>'
+            lines.append(line)
 
         # A subject still "needs crosschecking" if any of its scan types hasn't been marked
         # reviewed -- same any-scan-type-flagged rule _subject_has_issues already uses.
@@ -1173,11 +1239,11 @@ class BidsCrosscheckWindow(QMainWindow):
             )
         )
         if uncrosschecked:
-            text += (
-                f' | <b style="color:{UNCROSSCHECKED_COLOR}">{uncrosschecked} still need '
-                "crosschecking</b>"
+            lines.append(
+                f'<span style="color:{UNCROSSCHECKED_COLOR}"><b>{uncrosschecked} still need '
+                "crosschecking</b></span>"
             )
-        self.summary_label.setText(text)
+        self.summary_label.setText("<br>".join(lines))
 
     def _refresh_subject_list(self) -> None:
         if self.scan is None:

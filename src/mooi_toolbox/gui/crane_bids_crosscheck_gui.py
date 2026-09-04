@@ -842,7 +842,7 @@ def main() -> None:
         CraneCandidateExtras(),
         settings_app_name="CraneBidsCrosscheck",
         raw_converter=_run_crane_conversion,
-        override_file_label="Debrief export",
+        override_file_label="Debrief Data",
         override_file_filter="CSV files (*.csv)",
         override_file_autodetect=find_debrief_export,
         extra_raw_actions=[
