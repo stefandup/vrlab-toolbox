@@ -847,7 +847,7 @@ def main() -> None:
         override_file_autodetect=find_debrief_export,
         extra_raw_actions=[
             (
-                "Fix Record IDs in Debrief Export",
+                "Fix Record IDs in Debrief Data",
                 "Declare corrected subject ids for debrief record_id values that don't match "
                 "any known subject. Saved separately -- never edits the raw debrief export.",
                 _on_fix_debrief_record_ids,

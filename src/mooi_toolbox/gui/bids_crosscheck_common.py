@@ -132,6 +132,14 @@ PRIMARY_BUTTON_DISABLED_FG = "#999999"
 SECONDARY_TEXT_COLOR = "#9aa0a6"
 NAME_LABEL_FONT_POINT_INCREASE = 9
 SUMMARY_LABEL_FONT_POINT_INCREASE = 3
+# BIDS Folder is the one panel students should treat as "home base" -- a quiet accent
+# (border, a slightly larger/heavier folder name, and the Refresh BIDS button's color)
+# nudges attention there without shouting. Kept separate from FIX_ACTION_COLOR/
+# CROSSCHECK_PRIMARY_HOVER_COLOR so this reads as its own, distinct kind of emphasis rather
+# than reusing an existing button color for a new meaning.
+BIDS_FOLDER_ACCENT_COLOR = "#5b9bd5"
+BIDS_FOLDER_ACCENT_HOVER_COLOR = "#4a86b5"
+BIDS_FOLDER_NAME_EXTRA_POINT_INCREASE = 2
 
 
 def _primary_action_stylesheet(base_color: str, hover_color: str) -> str:
@@ -648,6 +656,16 @@ class BidsCrosscheckWindow(QMainWindow):
                 )
                 override_browse_button.clicked.connect(self._on_browse_override_file)
                 override_button_row.addWidget(override_browse_button)
+                override_reveal_button = QPushButton("Reveal")
+                override_reveal_button.setToolTip(
+                    wrap_tooltip(
+                        f"Open the folder containing the currently effective "
+                        f"{self.override_file_label.lower()} in the system file browser, so "
+                        "you can look at it yourself."
+                    )
+                )
+                override_reveal_button.clicked.connect(self._on_reveal_override_file)
+                override_button_row.addWidget(override_reveal_button)
                 override_clear_button = QPushButton("Clear")
                 override_clear_button.setToolTip("Go back to auto-detection.")
                 override_clear_button.clicked.connect(self._on_clear_override_file)
@@ -666,6 +684,14 @@ class BidsCrosscheckWindow(QMainWindow):
                 folders_grid.addWidget(override_group, 0, 1)
 
         bids_group = QGroupBox("BIDS Folder")
+        # The one panel students should treat as "home base" -- a slightly brighter,
+        # thicker border than the plain default the other panels keep, so it stands out
+        # without any color/banner/icon loud enough to look like an alert.
+        bids_group.setStyleSheet(
+            f"QGroupBox {{ border: 2px solid {BIDS_FOLDER_ACCENT_COLOR}; border-radius: 4px; "
+            "margin-top: 8px; }"
+            "QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; }"
+        )
         bids_group_layout = QVBoxLayout(bids_group)
         bids_group_layout.setSpacing(4)
         self.bids_folder_path_label = QLabel("")
@@ -673,6 +699,11 @@ class BidsCrosscheckWindow(QMainWindow):
         bids_group_layout.addWidget(self.bids_folder_path_label)
         self.bids_folder_name_label = QLabel("No BIDS folder selected")
         _style_name_label(self.bids_folder_name_label)
+        # A touch larger/heavier than the Raw Folder/Debrief Data names beside it -- same
+        # "home base" emphasis as the border above.
+        bids_name_font = self.bids_folder_name_label.font()
+        bids_name_font.setPointSize(bids_name_font.pointSize() + BIDS_FOLDER_NAME_EXTRA_POINT_INCREASE)
+        self.bids_folder_name_label.setFont(bids_name_font)
         bids_group_layout.addWidget(self.bids_folder_name_label)
 
         bids_button_row = QHBoxLayout()
@@ -715,9 +746,10 @@ class BidsCrosscheckWindow(QMainWindow):
         bids_group_layout.addLayout(bids_study_row)
 
         if self.raw_converter is not None:
-            # The clear primary action in this box -- full-width and bold so it reads as
-            # the main thing to do here, same explicit-button treatment as the "Fix ..."
-            # buttons above it.
+            # The most visually prominent action in the whole top-left area -- full-width,
+            # bold, and in the same quiet accent color as the BIDS Folder panel's border
+            # above (not the grey FIX_ACTION_COLOR the "Fix ..." buttons in the other panels
+            # use), so it reads as the one main thing to do here.
             self.convert_button = QPushButton("Refresh BIDS")
             self.convert_button.setToolTip(wrap_tooltip(self.convert_button_tooltip))
             self.convert_button.setEnabled(False)
@@ -726,7 +758,7 @@ class BidsCrosscheckWindow(QMainWindow):
                 QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
             )
             self.convert_button.setStyleSheet(
-                _primary_action_stylesheet(FIX_ACTION_COLOR, FIX_ACTION_HOVER_COLOR)
+                _primary_action_stylesheet(BIDS_FOLDER_ACCENT_COLOR, BIDS_FOLDER_ACCENT_HOVER_COLOR)
             )
             self.convert_button.clicked.connect(self._on_convert_to_bids)
             bids_group_layout.addWidget(self.convert_button)
@@ -734,6 +766,13 @@ class BidsCrosscheckWindow(QMainWindow):
         folders_grid.addWidget(bids_group, bids_row, 0)
 
         summary_group = QGroupBox("Summary")
+        # Same quiet accent border as the BIDS Folder panel beside it -- see that panel's
+        # own comment.
+        summary_group.setStyleSheet(
+            f"QGroupBox {{ border: 2px solid {BIDS_FOLDER_ACCENT_COLOR}; border-radius: 4px; "
+            "margin-top: 8px; }"
+            "QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; }"
+        )
         summary_group_layout = QVBoxLayout(summary_group)
         self.summary_label = QLabel("")
         self.summary_label.setTextFormat(Qt.TextFormat.RichText)
@@ -960,6 +999,22 @@ class BidsCrosscheckWindow(QMainWindow):
         self.override_file = None
         self._update_override_file_label()
 
+    def _effective_override_file(self) -> Path | None:
+        """The file this window is actually about to use for `override_file_label` -- the
+        human's explicit pick if there is one, otherwise whatever `override_file_autodetect`
+        currently resolves to (or None if neither applies). Shared by
+        `_update_override_file_label` (what to display) and `_on_reveal_override_file`
+        (what to open), so the two never disagree about what "the debrief file" means.
+        """
+        if self.override_file is not None:
+            return self.override_file
+        if self.override_file_autodetect is not None and self.raw_folder is not None:
+            try:
+                return self.override_file_autodetect(self.raw_folder)
+            except OSError:
+                return None
+        return None
+
     def _update_override_file_label(self) -> None:
         """Shows the actual file this window is about to use -- either the human's explicit
         pick, or, when nothing's been picked, whatever `override_file_autodetect` currently
@@ -974,12 +1029,7 @@ class BidsCrosscheckWindow(QMainWindow):
                 self.override_file_path_label, self.override_file_name_label, self.override_file
             )
             return
-        detected = None
-        if self.override_file_autodetect is not None and self.raw_folder is not None:
-            try:
-                detected = self.override_file_autodetect(self.raw_folder)
-            except OSError:
-                detected = None
+        detected = self._effective_override_file()
         if detected is not None:
             _set_path_display(self.override_file_path_label, self.override_file_name_label, detected)
             self.override_file_path_label.setText(
@@ -991,6 +1041,20 @@ class BidsCrosscheckWindow(QMainWindow):
         else:
             self.override_file_path_label.setText("")
             self.override_file_name_label.setText("(auto-detect)")
+
+    def _on_reveal_override_file(self) -> None:
+        file = self._effective_override_file()
+        if file is None:
+            QMessageBox.warning(
+                self,
+                "No file to reveal",
+                f"No {self.override_file_label.lower()} is currently selected or auto-detected.",
+            )
+            return
+        if not file.exists():
+            QMessageBox.warning(self, "File not found", f"{file} doesn't exist.")
+            return
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(file.parent)))
 
     def _update_convert_button_enabled(self) -> None:
         if self.raw_converter is None:
