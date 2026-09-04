@@ -509,8 +509,34 @@ The Crane experiment has its own equivalent tool, `vrlab_crane_bids_crosscheck`
 step), just checking `physiology`/`behaviour`/`debrief` files instead of a
 single FOH recording, and its raw-to-BIDS step does real reshaping rather
 than a plain copy (see [BIDS Converter Plan](bids_converter_plan.md) for
-what differs). Everything else on this page applies there too, with one
-difference: Crane's raw-to-BIDS step already writes real BIDS filenames
+what differs).
+
+### Crane's layout at a glance
+
+Everything below is covered in detail in the numbered walkthrough further
+up this page — this is just a quick, visual reference for where each part
+lives on screen, numbered to match the screenshot:
+
+![Crane BIDS Crosscheck window, numbered 1 to 14 to mark each panel and action described in the table below.](assets/images/crane-crosscheck-ui-layout.png)
+
+| # | Panel / control | What it's for |
+| --- | --- | --- |
+| 1 | **Raw Folder** | Where your raw recordings live. Browse, Reveal, or fix a raw filename. |
+| 2 | **Debrief Data** | The REDCap questionnaire export (Crane only — see [Fixing debrief record IDs](#fixing-debrief-record-ids)). |
+| 3 | **BIDS Folder** | The folder you're actually crosschecking. **Refresh BIDS** pulls in any new subjects from the raw folder. |
+| 4 | **Summary** | Subject counts per scan type, and how many still need a decision. |
+| 5 | **General Actions** | Bulk actions across every subject: remove non-selected files, save crosscheck data, auto-save. |
+| 6 | **Subject list** | One row per subject — icons show status at a glance (see [step 4](#4-read-the-subject-list)). |
+| 7 | **Restore Saved Crosscheck Data** | Reload your most recently saved crosscheck session. |
+| 8 | **Subject Actions** | Actions that apply to whichever subject is selected on the left (see [step 9](#9-mark-a-subject-as-reviewed-optional)). |
+| 9 | **Physiology detail** | Full detail for the physiology recording — Reveal, or correct its date. |
+| 10 | **Behaviour detail** | Same, for the behaviour recording. |
+| 11 | **Debrief detail** | Same, for the debrief file. |
+| 12 | **scans.tsv** | The BIDS bookkeeping file listing every scan for this subject, with its recorded date. |
+| 13 | **Channel/label detail** | Channels found, trial count, and whether every expected column was present. |
+| 14 | **Activity Log** | A running record of everything the tool has done this session. |
+
+Everything else on this page applies to Crane too, with one difference: Crane's raw-to-BIDS step already writes real BIDS filenames
 itself, so there's no "Tag with ... BIDS tags" step to do by hand (step
 12) — instead, next to whichever recording currently counts as "the one,"
 you'll see **"Correct filename..."**. Use it if something in the name
