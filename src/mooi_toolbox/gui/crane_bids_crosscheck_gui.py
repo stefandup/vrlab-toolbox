@@ -53,6 +53,7 @@ from mooi_toolbox.cli.crane_convert_to_bids import (
     discover_raw_subject_ids,
     existing_subject_ids,
     explain_unparseable_filename,
+    find_debrief_export,
     guess_corrected_subject_id,
     load_debrief_export,
     load_debrief_id_corrections,
@@ -68,6 +69,7 @@ from mooi_toolbox.gui.bids_crosscheck_common import (
     EXTRA_RAW_ACTION_GROUP_RAW,
     CandidateExtras,
     run_bids_crosscheck_app,
+    wrap_tooltip,
 )
 from mooi_toolbox.processing.bids_crosscheck import DatasetConfig, ScanTypeConfig
 from mooi_toolbox.processing.biodata import ACCEPTED_LABEL_PATTERN, CANONICAL_LABEL_SPELLING
@@ -594,8 +596,10 @@ class DebriefRecordIdCorrectionDialog(QDialog):
             record_item.setFlags(record_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             if duplicate_count > 1:
                 record_item.setToolTip(
-                    "Ambiguous: another row in the export shares this exact record_id -- "
-                    "assign each occurrence to its own subject below."
+                    wrap_tooltip(
+                        "Ambiguous: another row in the export shares this exact record_id "
+                        "-- assign each occurrence to its own subject below."
+                    )
                 )
             self.table.setItem(row, 0, record_item)
             match_item = QTableWidgetItem("")
@@ -637,7 +641,7 @@ class DebriefRecordIdCorrectionDialog(QDialog):
         match_item = self.table.item(row, 1)
         if match_item is not None:
             match_item.setText(icon)
-            match_item.setToolTip(tooltip)
+            match_item.setToolTip(wrap_tooltip(tooltip) if tooltip else tooltip)
 
     def _on_item_changed(self, item: QTableWidgetItem) -> None:
         if item.column() == 2:
@@ -840,6 +844,7 @@ def main() -> None:
         raw_converter=_run_crane_conversion,
         override_file_label="Debrief export",
         override_file_filter="CSV files (*.csv)",
+        override_file_autodetect=find_debrief_export,
         extra_raw_actions=[
             (
                 "Fix Record IDs in Debrief Export",

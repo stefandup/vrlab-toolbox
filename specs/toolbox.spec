@@ -27,7 +27,12 @@ TOOLS = [
     ("vrlab_foh_bids_crosscheck", os.path.join("gui", "foh_bids_crosscheck_gui.py"), False, []),
     ("vrlab_foh_import_to_bids", os.path.join("cli", "foh_import_to_bids.py"), True, []),
     ("vrlab_plot_target_data", os.path.join("cli", "plot_subject_target_scr_bars.py"), True, []),
-    ("vrlab_toolbox_launcher", os.path.join("gui", "toolbox_launcher.py"), False, []),
+    (
+        "vrlab_toolbox_launcher",
+        os.path.join("gui", "toolbox_launcher.py"),
+        False,
+        [(ICON, "assets")],
+    ),
 ]
 
 collect_args = []

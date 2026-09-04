@@ -346,13 +346,17 @@ Examples:
 """
 
 
-def _find_debrief_export(input_folder: Path, override: Path | None = None) -> Path | None:
+def find_debrief_export(input_folder: Path, override: Path | None = None) -> Path | None:
     """Locate the shared REDCAP group export. `override`, if given, is used as-is, no
     searching -- for when auto-detection refuses (multiple candidates) and a human just
     knows which file is the real one. Otherwise searches recursively for
     `GROUP_REDCAP_GLOB`, the same pattern `crane_debrief_behaviour.get_group_debrief_data`
     matches against for the real pipeline's own debrief loading, so a file this converter
     finds is guaranteed to also be the one the pipeline itself would load later.
+
+    Public (not `_`-prefixed) so `gui/crane_bids_crosscheck_gui.py` can also call it with
+    just `input_folder`, to show which file auto-detection currently resolves to -- see that
+    module's `override_file_autodetect` wiring.
     """
     if override is not None:
         return override
@@ -384,7 +388,7 @@ def load_debrief_export(input_folder: Path, override: Path | None = None) -> pd.
     this converter is meant to dump, not decide) so this converter's debrief columns never
     drift from what the real pipeline expects.
     """
-    export_path = _find_debrief_export(input_folder, override)
+    export_path = find_debrief_export(input_folder, override)
     if export_path is None:
         return None
 
