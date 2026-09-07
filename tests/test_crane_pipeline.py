@@ -9,7 +9,6 @@ from click.testing import CliRunner
 from mooi_toolbox.cli.vrlab_crane_process import main as run_batch
 
 matplotlib.use("Agg")
-from mooi_toolbox.cli.crane_convert_to_bids import convert_crane_to_bids
 from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.biopac import BiopacPhysiologyDataImportStartegy
 from mooi_toolbox.processing.crane_behaviour import (
@@ -18,6 +17,7 @@ from mooi_toolbox.processing.crane_behaviour import (
     RawCraneBehaviourData,
     build_crane_raw_behav_file_schema,
 )
+from mooi_toolbox.processing.crane_bids import convert_crane_to_bids
 from mooi_toolbox.processing.crane_debrief_behaviour import RawDebriefBehaviourData
 from mooi_toolbox.processing.crane_dummy_data import (
     discover_template_pairs,

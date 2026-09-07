@@ -275,7 +275,7 @@ SCANS_TSV_DATE_QT_DISPLAY_FORMAT = "yyyy-MM-dd HH:mm"
 def _parse_scans_tsv_date(value: str | None) -> datetime | None:
     """Parses a scans.tsv `acq_time` value as the strict YYYYMMDDHHMM format the scans.tsv
     pane checks every row against. Crane's converter itself just writes whatever digit string
-    it can scrape from a raw filename (see cli/crane_convert_to_bids.py) -- neither this format
+    it can scrape from a raw filename (see processing/crane_bids.py) -- neither this format
     nor a consistent length -- so most existing values are expected to fail this until a human
     corrects them via the pane.
     """
@@ -377,7 +377,7 @@ class CandidateExtras:
         if it doesn't need one. Checked once, right after a commit -- see
         `_commit_pending_selections` -- so a dataset whose converter can leave a
         collision marker on a survivor (crane's `-dupN`, see
-        `crane_convert_to_bids._resolve_destination`) gets it stripped automatically,
+        `crane_bids._resolve_destination`) gets it stripped automatically,
         without a human retyping the filename by hand. Most datasets (the no-op default
         here) never produce a marker like this in the first place.
         """

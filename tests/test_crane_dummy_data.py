@@ -9,9 +9,9 @@ import pandas as pd
 
 matplotlib.use("Agg")
 
-from mooi_toolbox.cli.crane_convert_to_bids import convert_crane_to_bids
 from mooi_toolbox.processing.biodata import RawBioData
 from mooi_toolbox.processing.crane_behaviour import RawCraneBehaviourData
+from mooi_toolbox.processing.crane_bids import convert_crane_to_bids
 from mooi_toolbox.processing.crane_debrief_behaviour import RawDebriefBehaviourData
 from mooi_toolbox.processing.crane_dummy_data import (
     DUMMY_GROUP_DEBRIEF_FN,
@@ -46,7 +46,7 @@ class TestCraneDummyData(unittest.TestCase):
     generate_dummy_dataset() still writes the flat, raw {date}_{id}_CraneOut.{csv,mat} layout
     -- that's the input a real raw-to-BIDS conversion would run against, not what the pipeline
     itself reads anymore. So each generated dataset is run once through
-    crane_convert_to_bids.convert_crane_to_bids() here, and run_pipeline() below points at that
+    crane_bids.convert_crane_to_bids() here, and run_pipeline() below points at that
     BIDS output, not the raw output_folder -- matching examples/crane_bids_dummy, the real BIDS
     dummy data these tests are meant to mirror.
     """

@@ -1,9 +1,114 @@
+import csv
+import json
+import os
+import re
+import shutil
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pandera.pandas as pa
+
+SCANS_TSV_COLUMNS = ("filename", "acq_time")
+# Marks a filename whose BIDS suffix collided with an existing one and got disambiguated
+# (see resolve_collision) -- not part of real BIDS, callers strip it once a human has picked
+# the canonical file among duplicates.
+_SUFFIX_DUPLICATE_MARKER_PATTERN = re.compile(r"-dup\d+$")
+
+
+def read_scans_tsv_rows(path: Path) -> list[dict[str, str]]:
+    if not path.exists():
+        return []
+    with path.open("r", newline="", encoding="utf-8") as tsv_file:
+        return list(csv.DictReader(tsv_file, delimiter="\t"))
+
+
+def append_scan_row(scans_tsv_path: Path, filename: str, acq_time: str) -> None:
+    """Record one scan file's acquisition date/time as a row in its `scans.tsv` sidecar --
+    BIDS's own place for per-scan acquisition metadata.
+    """
+    rows = read_scans_tsv_rows(scans_tsv_path)
+    rows.append({"filename": filename, "acq_time": acq_time})
+    with scans_tsv_path.open("w", newline="", encoding="utf-8") as tsv_file:
+        writer = csv.DictWriter(tsv_file, fieldnames=SCANS_TSV_COLUMNS, delimiter="\t")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def build_bids_filename(
+    subject_id: str,
+    session: str,
+    task: str,
+    run: str,
+    suffix: str,
+    extension: str,
+    acq: str | None = None,
+) -> str:
+    """A BIDS filename in real entity order: sub-/ses-/task-/[acq-/]run-/suffix.ext."""
+    acq_entity = f"acq-{acq}_" if acq else ""
+    return f"sub-{subject_id}_{session}_{task}_{acq_entity}{run}_{suffix}{extension}"
+
+
+def resolve_collision(build_path: Callable[[str], Path], base_suffix: str) -> Path:
+    """First available path for `base_suffix`, or a "-dupN" variant if `build_path(base_suffix)`
+    already exists -- e.g. two different source files landing on the same destination name.
+    Both are real candidate files a human should pick between, so this disambiguates rather
+    than silently overwriting one.
+    """
+    destination = build_path(base_suffix)
+    if not destination.exists():
+        return destination
+    counter = 2
+    candidate = build_path(f"{base_suffix}-dup{counter}")
+    while candidate.exists():
+        counter += 1
+        candidate = build_path(f"{base_suffix}-dup{counter}")
+    return candidate
+
+
+def strip_duplicate_marker(filename: str) -> str | None:
+    """The BIDS-valid version of `filename` with `resolve_collision`'s "-dupN" marker removed
+    from its suffix, or None if it doesn't carry one.
+    """
+    stem = Path(filename).stem
+    if not _SUFFIX_DUPLICATE_MARKER_PATTERN.search(stem):
+        return None
+    corrected_stem = _SUFFIX_DUPLICATE_MARKER_PATTERN.sub("", stem, count=1)
+    return f"{corrected_stem}{Path(filename).suffix}"
+
+
+def copy_scan(source: Path, destination: Path, scans_tsv_path: Path, acq_time: str) -> None:
+    """Byte-copy `source` into `destination` and record it in the session's `scans.tsv`."""
+    shutil.copy2(source, destination)
+    relative_name = destination.relative_to(scans_tsv_path.parent).as_posix()
+    append_scan_row(scans_tsv_path, relative_name, acq_time)
+
+
+def write_scan_as_tsv(source: Path, destination: Path, scans_tsv_path: Path, acq_time: str) -> None:
+    """Reformat a comma-delimited `source` into a true tab-delimited `destination` (BIDS
+    requires `.tsv`, e.g. for `_events`) and record it in the session's `scans.tsv`. A real
+    reformat, not a rename -- round-tripping through pandas can trim trailing float precision
+    on numeric columns.
+    """
+    pd.read_csv(source).to_csv(destination, sep="\t", index=False)
+    relative_name = destination.relative_to(scans_tsv_path.parent).as_posix()
+    append_scan_row(scans_tsv_path, relative_name, acq_time)
+
+
+def load_json_map(path: Path) -> dict[str, str]:
+    if not path.exists():
+        return {}
+    with path.open("r", encoding="utf-8") as json_file:
+        return json.load(json_file)
+
+
+def save_json_map(path: Path, data: dict[str, str]) -> None:
+    tmp_path = path.with_suffix(".json.tmp")
+    with tmp_path.open("w", encoding="utf-8") as tmp_file:
+        json.dump(data, tmp_file, indent=2, sort_keys=True)
+    os.replace(tmp_path, path)
 
 
 def build_base_bids_events_schema(

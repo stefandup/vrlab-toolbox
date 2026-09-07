@@ -7,7 +7,7 @@ from rich.progress import Progress
 from rich.table import Table
 
 from mooi_toolbox import mobi_logging
-from mooi_toolbox.cli.crane_convert_to_bids import convert_crane_to_bids, print_conversion_summary
+from mooi_toolbox.processing.crane_bids import convert_crane_to_bids, print_conversion_summary
 from mooi_toolbox.processing.crane_dummy_data import (
     DUMMY_DATA_LOG_FILENAME,
     ERROR_TYPES,

@@ -56,7 +56,7 @@ def run_pipeline(data_in: ParticipantConfig) -> LongWalkPipelineOutputData:
     # Input raw eda
 
     try:
-        raw_timestamped_data: RawBioData = BiopacPhysiologyDataImportStartegy().import_data(data_in)
+        raw_timestamped_data: RawBioData = BiopacPhysiologyDataImportStartegy().run()
         eda_raw_timestamped = raw_timestamped_data["EDA"]
         status.data_in = ProcessingStatus.OK
     except (ValueError, FileNotFoundError) as e:

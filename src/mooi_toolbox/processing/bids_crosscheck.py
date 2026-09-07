@@ -45,7 +45,7 @@ class DatasetConfig:
     task_tag_acq: str | None = None
     task_tag_folder_name: str | None = None
     # True for datasets (e.g. crane) that record each file's acquisition date as a row in a
-    # `scans.tsv` sidecar (see cli/crane_convert_to_bids.py) instead of a leading filename
+    # `scans.tsv` sidecar (see processing/crane_bids.py) instead of a leading filename
     # date prefix -- gates whether the crosscheck GUI's "Correct date..." button edits that
     # row (record_scans_tsv_date_correction) or renames the file (record_date_correction).
     dates_in_scans_tsv: bool = False
@@ -199,7 +199,7 @@ def existing_subject_ids(bids_folder: Path) -> set[str]:
     alongside the renamed subject as a duplicate. A reverted rename naturally drops back out
     of this set, since `revert_all_decisions` clears `decisions.json` entirely.
 
-    Shared by every raw-to-BIDS importer (`cli/crane_convert_to_bids.py`,
+    Shared by every raw-to-BIDS importer (`processing/crane_bids.py`,
     `cli/foh_import_to_bids.py`) to decide which subjects to skip -- copy-only,
     incremental-by-subject is the common contract across datasets (see
     docs/bids_converter_plan.md), even though what counts as "a subject's data" differs
@@ -1115,7 +1115,7 @@ def backup_decisions(
 
     `extra_filenames`, if given, adds dataset-specific files living alongside these (also
     resolved relative to `bids_folder`) -- e.g. crane's `debrief_id_corrections.json`/
-    `raw_filename_id_corrections.json` (`cli/crane_convert_to_bids.py`), which aren't
+    `raw_filename_id_corrections.json` (`processing/crane_bids.py`), which aren't
     `record_*`-style decisions but are still human-entered input a from-raw rebuild would
     otherwise lose. See `restore_backup_files`/`rebuild_from_raw` to restore from a backup
     made here.

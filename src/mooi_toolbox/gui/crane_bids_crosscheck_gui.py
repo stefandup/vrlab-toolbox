@@ -1,7 +1,7 @@
 """Standalone PySide6 tool: human-in-the-loop crosscheck for the crane BIDS folder.
 
 See docs/bids_crosscheck_plan.md and docs/bids_converter_plan.md. Glob patterns match
-`cli/crane_convert_to_bids.py`'s real output by *suffix* (`*.mat`/`*_events.tsv`/
+`processing/crane_bids.py`'s real output by *suffix* (`*.mat`/`*_events.tsv`/
 `*_beh.tsv`), not by extension alone -- behaviour and debrief are both `.tsv` now, so a
 bare `*.tsv` would also match the session's own `scans.tsv` sidecar as well as conflate
 the two scan types with each other. Unlike FOH, crane has no tagging step (see
@@ -43,7 +43,24 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from mooi_toolbox.cli.crane_convert_to_bids import (
+from mooi_toolbox.gui.bids_crosscheck_common import (
+    DEFAULT_CONVERT_BUTTON_TOOLTIP,
+    EXTRA_RAW_ACTION_GROUP_OVERRIDE,
+    EXTRA_RAW_ACTION_GROUP_RAW,
+    CandidateExtras,
+    run_bids_crosscheck_app,
+    wrap_tooltip,
+)
+from mooi_toolbox.processing.bids import strip_duplicate_marker
+from mooi_toolbox.processing.bids_crosscheck import (
+    DatasetConfig,
+    ScanTypeConfig,
+    existing_subject_ids,
+)
+from mooi_toolbox.processing.biodata import ACCEPTED_LABEL_PATTERN, CANONICAL_LABEL_SPELLING
+from mooi_toolbox.processing.biopac import clean_biopac_labels
+from mooi_toolbox.processing.crane_behaviour import build_crane_raw_behav_file_schema
+from mooi_toolbox.processing.crane_bids import (
     DEBRIEF_ID_CORRECTIONS_FILENAME,
     RAW_FILENAME_ID_CORRECTIONS_FILENAME,
     CraneConversionSummary,
@@ -51,7 +68,6 @@ from mooi_toolbox.cli.crane_convert_to_bids import (
     debrief_correction_key,
     discover_raw_files_for_review,
     discover_raw_subject_ids,
-    existing_subject_ids,
     explain_unparseable_filename,
     find_debrief_export,
     guess_corrected_subject_id,
@@ -61,20 +77,7 @@ from mooi_toolbox.cli.crane_convert_to_bids import (
     resolve_crane_filename,
     save_debrief_id_corrections,
     save_raw_filename_id_corrections,
-    strip_duplicate_marker,
 )
-from mooi_toolbox.gui.bids_crosscheck_common import (
-    DEFAULT_CONVERT_BUTTON_TOOLTIP,
-    EXTRA_RAW_ACTION_GROUP_OVERRIDE,
-    EXTRA_RAW_ACTION_GROUP_RAW,
-    CandidateExtras,
-    run_bids_crosscheck_app,
-    wrap_tooltip,
-)
-from mooi_toolbox.processing.bids_crosscheck import DatasetConfig, ScanTypeConfig
-from mooi_toolbox.processing.biodata import ACCEPTED_LABEL_PATTERN, CANONICAL_LABEL_SPELLING
-from mooi_toolbox.processing.biopac import clean_biopac_labels
-from mooi_toolbox.processing.crane_behaviour import build_crane_raw_behav_file_schema
 from mooi_toolbox.processing.crane_debrief_behaviour import crane_raw_debrief_file_schema
 
 logger = logging.getLogger(__name__)
@@ -84,7 +87,7 @@ CRANE_DATASET_CONFIG = DatasetConfig(
     scan_types=(
         ScanTypeConfig(name="physiology", glob_patterns=("*.mat",)),
         # Not a bare "*.tsv" -- that would also match the session's own
-        # sub-XXX_ses-01_scans.tsv sidecar (see crane_convert_to_bids.py), and would conflate
+        # sub-XXX_ses-01_scans.tsv sidecar (see processing/crane_bids.py), and would conflate
         # behaviour with debrief now that both scan types are written tab-delimited.
         ScanTypeConfig(name="behaviour", glob_patterns=("*_events.tsv",)),
         ScanTypeConfig(name="debrief", glob_patterns=("*_beh.tsv",)),
@@ -111,7 +114,7 @@ EXPECTED_PHYSIO_CHANNELS = ("EDA",)
 # stricter check (value ranges, balanced conditions, ...) belongs to the pipeline, not a
 # glance-level crosscheck. The debrief schema describes the shared REDCAP group export's
 # columns (record_id plus wide crane_<emotion>_rb/_gb columns); a per-subject BIDS debrief
-# file keeps the same columns since `crane_convert_to_bids.load_debrief_export` filters
+# file keeps the same columns since `crane_bids.load_debrief_export` filters
 # against this same schema before writing it.
 BEHAVIOUR_EXPECTED_COLUMNS = tuple(build_crane_raw_behav_file_schema().columns.keys())
 DEBRIEF_EXPECTED_COLUMNS = tuple(crane_raw_debrief_file_schema.columns.keys())
@@ -367,7 +370,7 @@ class CraneCandidateExtras(CandidateExtras):
 
     # No task_tag_available override -- falls back to CandidateExtras' own "False"
     # for every scan type. Tagging (FOH's "Tag as foh") exists to replace non-BIDS free text
-    # the *raw collection software* tacks on after the run token; crane_convert_to_bids.py
+    # the *raw collection software* tacks on after the run token; processing/crane_bids.py
     # already writes real BIDS suffixes (_physio/_events/_beh) itself, so there's no
     # junk left to clean up, and tagging would instead destroy that distinction (it replaces
     # everything after run-<NNN> with a single generic label, same for all three scan types).
@@ -375,7 +378,7 @@ class CraneCandidateExtras(CandidateExtras):
     #
     # No filename_correction_available override either (falls back to CandidateExtras' own
     # "False") -- the one thing crane's converter can leave behind that needs a post-hoc fix,
-    # a "-dupN" collision marker (see _resolve_destination in crane_convert_to_bids.py) on
+    # a "-dupN" collision marker (see bids.resolve_collision) on
     # whichever duplicate turns out to be the real recording, is handled automatically by
     # duplicate_marker_free_name below instead of a free-text escape hatch: by the time a
     # human resolves a duplicate here, every other part of the name (subject/task/acq/run)
@@ -500,8 +503,8 @@ def _format_conversion_summary(summary: CraneConversionSummary) -> str:
 class DebriefRecordIdCorrectionDialog(QDialog):
     """Lets a human declare "this messy debrief record_id really means this subject",
     without ever touching the raw REDCAP export -- corrections are saved to their own JSON
-    (`crane_convert_to_bids.save_debrief_id_corrections`, in the BIDS folder) and applied the
-    next time "Refresh BIDS" runs (`crane_convert_to_bids.apply_debrief_id_corrections`). A
+    (`crane_bids.save_debrief_id_corrections`, in the BIDS folder) and applied the
+    next time "Refresh BIDS" runs (`crane_bids.apply_debrief_id_corrections`). A
     plain editable table with freeform text, not a dropdown-matched picker -- same correction
     style as `bids_crosscheck_common.py`'s existing "Correct date..."/"Rename subject ID..."
     `QInputDialog.getText` dialogs, just extended to handle more than one row at a time.
@@ -674,8 +677,8 @@ class RawFilenameCorrectionDialog(QDialog):
     ever failing to parse (e.g. a "(N)" duplicate-copy marker that could mean either a
     harmless double-copy of the same recording or two different subjects sharing a base id;
     see `parse_crane_filename`'s own docstring). Corrections are saved to their own JSON
-    (`crane_convert_to_bids.save_raw_filename_id_corrections`, in the BIDS folder) and
-    applied the next time "Refresh BIDS" runs (`crane_convert_to_bids.resolve_crane_filename`).
+    (`crane_bids.save_raw_filename_id_corrections`, in the BIDS folder) and
+    applied the next time "Refresh BIDS" runs (`crane_bids.resolve_crane_filename`).
     Same shape as `DebriefRecordIdCorrectionDialog`: self-contained (works without a prior
     conversion run), plain editable table -- deliberately *not* pre-filled with a guess the
     way the debrief dialog's "Corrected subject id" column is, so nothing here is auto-
@@ -825,7 +828,7 @@ def _run_crane_conversion(
     the shared REDCAP group export.
     """
     handler = _ListLogHandler()
-    converter_logger = logging.getLogger("mooi_toolbox.cli.crane_convert_to_bids")
+    converter_logger = logging.getLogger("mooi_toolbox.processing.crane_bids")
     converter_logger.addHandler(handler)
     try:
         summary = convert_crane_to_bids(raw_folder, bids_folder, debrief_export)
