@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import pandera.pandas as pa
 
-SCANS_TSV_COLUMNS = ("filename", "acq_time")
+SCANS_TSV_COLUMNS: tuple[str, ...] = ("filename", "acq_time")
 # Marks a filename whose BIDS suffix collided with an existing one and got disambiguated
 # (see resolve_collision) -- not part of real BIDS, callers strip it once a human has picked
 # the canonical file among duplicates.
