@@ -5,6 +5,9 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from rich.console import Console
+from rich.table import Table
+
 from mooi_toolbox.processing import bids
 
 DECISIONS_FILENAME = "crosscheck.json"
@@ -219,6 +222,38 @@ class LongWalkConversionSummary:
     already_converted: set[str] = field(default_factory=set)
     skipped_files: int = 0
     unparseable_files: list[Path] = field(default_factory=list)
+
+
+def _cell(paths_by_subject: dict, subject_id: str) -> str:
+    value = paths_by_subject.get(subject_id)
+    if not value:
+        return "(missing)"
+    if isinstance(value, list):
+        return ", ".join(path.name for path in value)
+    return value.name
+
+
+def print_longwalk_conversion_summary(summary: LongWalkConversionSummary) -> None:
+    """Rich console/table rendering of a `CraneConversionSummary`, factored out so the CLI's
+    `main()` stays a thin wrapper around `convert_crane_to_bids()`.
+    """
+    console = Console()
+    if not summary.new_subject_ids:
+        console.print(
+            "No new subjects found -- everything in the source folder is already converted."
+        )
+        return
+
+    table = Table(title="Crane raw -> BIDS conversion")
+    table.add_column("Subject ID")
+    table.add_column("Physiology")
+    for subject_id in summary.new_subject_ids:
+        table.add_row(
+            subject_id,
+            _cell(summary.subject_physiology, subject_id),
+        )
+
+    console.print(table)
 
 
 def convert_longwalk_to_bids(

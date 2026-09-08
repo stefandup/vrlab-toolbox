@@ -1,9 +1,13 @@
 import json
+import logging
 import shutil
 import tempfile
 import unittest
 from pathlib import Path
 
+from click.testing import CliRunner
+
+from mooi_toolbox.cli.longwalk_convert_to_bids import main as run_longwalk_convert_to_bids
 from mooi_toolbox.processing import longwalk_bids
 from mooi_toolbox.processing.input_data import ParticipantConfig, PhysiologyFileFormat
 from mooi_toolbox.processing.longwalk_behaviour import LongWalkRawBehaviourData
@@ -174,6 +178,76 @@ class TestConvertBiopacToBids(unittest.TestCase):
         summary = longwalk_bids.convert_longwalk_to_bids(self.input_folder, self.output_folder)
 
         self.assertEqual(summary.new_subject_ids, ["PID7177"])
+
+
+class TestLongwalkConvertToBidsCli(unittest.TestCase):
+    def setUp(self):
+        self.input_folder = Path(tempfile.mkdtemp())
+        self.output_folder = Path(tempfile.mkdtemp())
+        # This project's pytest config sets log_cli=true, which conflicts with click's
+        # CliRunner stdout capture: any logger call during invoke() crashes with "ValueError:
+        # I/O operation on closed file" (reproducible with plain click+logging, no BIDS code
+        # involved -- the same failure already hits test_crane_pipeline.py's CliRunner test in
+        # this environment). Disabling logging around the invoke() call sidesteps it without
+        # touching the shared pytest config.
+        logging.disable(logging.CRITICAL)
+        self.addCleanup(lambda: logging.disable(logging.NOTSET))
+
+    def tearDown(self):
+        shutil.rmtree(self.input_folder, ignore_errors=True)
+        shutil.rmtree(self.output_folder, ignore_errors=True)
+
+    def test_converts_a_new_subject(self):
+        _touch(self.input_folder / "PID7177_2026781335.mat")
+
+        result = CliRunner().invoke(
+            run_longwalk_convert_to_bids, [str(self.input_folder), str(self.output_folder)]
+        )
+
+        self.assertEqual(result.exit_code, 0, msg=result.output)
+        self.assertTrue((self.output_folder / "sub-PID7177" / "ses-01" / "beh").is_dir())
+        self.assertIn("PID7177", result.output)
+
+    def test_is_a_no_op_when_the_input_folder_is_empty(self):
+        result = CliRunner().invoke(
+            run_longwalk_convert_to_bids, [str(self.input_folder), str(self.output_folder)]
+        )
+
+        self.assertEqual(result.exit_code, 0, msg=result.output)
+        self.assertIn("No new subjects found", result.output)
+
+    def test_skips_an_unparseable_filename_without_erroring(self):
+        # PID10047(1)_20267221221.mat -- an ambiguous "(N)"-marked id, same as the crosscheck
+        # GUI's raw-filename correction case; the CLI must not crash on it, just skip and log.
+        _touch(self.input_folder / "PID10047(1)_20267221221.mat")
+
+        result = CliRunner().invoke(
+            run_longwalk_convert_to_bids, [str(self.input_folder), str(self.output_folder)]
+        )
+
+        self.assertEqual(result.exit_code, 0, msg=result.output)
+        self.assertFalse((self.output_folder / "sub-PID10047").exists())
+
+    def test_a_second_run_skips_the_already_converted_subject(self):
+        _touch(self.input_folder / "PID7177_2026781335.mat")
+        CliRunner().invoke(
+            run_longwalk_convert_to_bids, [str(self.input_folder), str(self.output_folder)]
+        )
+
+        result = CliRunner().invoke(
+            run_longwalk_convert_to_bids, [str(self.input_folder), str(self.output_folder)]
+        )
+
+        self.assertEqual(result.exit_code, 0, msg=result.output)
+        self.assertIn("No new subjects found", result.output)
+
+    def test_fails_for_a_missing_input_folder(self):
+        result = CliRunner().invoke(
+            run_longwalk_convert_to_bids,
+            [str(self.input_folder / "does-not-exist"), str(self.output_folder)],
+        )
+
+        self.assertNotEqual(result.exit_code, 0)
 
 
 @unittest.skip("Still busy writing for the pipeline")
