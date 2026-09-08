@@ -36,6 +36,8 @@ _DUPLICATE_COPY_MARKER_PATTERN = re.compile(r"\(\d+\)\s*$")
 
 logger = logging.getLogger(__name__)
 
+# TODO: Consider moving all non longwalk things to biopac_bids etc
+
 
 # TODO: Move to BIDS
 def decisions_path(bids_folder: Path) -> Path:
@@ -86,8 +88,7 @@ def load_excluded_subjects(bids_folder: Path) -> dict[str, str | None]:
         return json.load(excluded_file)
 
 
-# TODO: Move to BIDS - All functions here likley would benefit from centrally being in bids.py
-def existing_subject_ids(bids_folder: Path) -> set[str]:
+def existing_biopac_subject_ids(bids_folder: Path) -> set[str]:
     """Track which subject IDs are already handled to prevent duplicate re-imports.
 
     Considers a subject ID "handled" if: (1) its `sub-XXX/` folder still exists,
@@ -109,9 +110,8 @@ def existing_subject_ids(bids_folder: Path) -> set[str]:
     return present | set(load_excluded_subjects(bids_folder)) | renamed_away
 
 
-# TODO: Can be renamed to ParsedFilename?
 @dataclass
-class ParsedCraneFilename:
+class ParsedBIOPACFilename:
     subject_id: str
     date_prefix: str | None
 
@@ -123,7 +123,7 @@ def canonicalize_subject_id(subject_id: str) -> str:
     return subject_id
 
 
-def parse_crane_filename(file: Path) -> ParsedCraneFilename | None:
+def parse_biopac_filename(file: Path) -> ParsedBIOPACFilename | None:
     """Subject id + date prefix from a raw crane filename's stem, in one pass. Returns None
     if the filename doesn't match the expected shape, or if the id carries an ambiguous
     "(N)" duplicate-copy marker -- callers must handle None (skip + log), not guess.
@@ -134,20 +134,20 @@ def parse_crane_filename(file: Path) -> ParsedCraneFilename | None:
     subject_id = match.group("subject_id")
     if _DUPLICATE_COPY_MARKER_PATTERN.search(subject_id):
         return None
-    return ParsedCraneFilename(
+    return ParsedBIOPACFilename(
         subject_id=canonicalize_subject_id(subject_id),
         date_prefix=match.group("date"),
     )
 
 
 # TODO: This can be renamed if it works
-def resolve_crane_filename(
+def resolve_biopac_filename(
     file: Path, input_folder: Path, corrections: dict[str, str]
-) -> ParsedCraneFilename | None:
-    """Like `parse_crane_filename`, but checks a human-declared correction first (see
+) -> ParsedBIOPACFilename | None:
+    """Like `parse_biopac_filename`, but checks a human-declared correction first (see
     `load_raw_filename_id_corrections`), keyed by the file's path relative to `input_folder`.
     Still tries to recover a real date prefix even when a correction overrides the subject
-    id. `convert_crane_to_bids` falls back to "nodate" only when this still comes back None.
+    id. `convert_biopac_to_bids` falls back to "nodate" only when this still comes back None.
     """
     try:
         key = file.relative_to(input_folder).as_posix()
@@ -157,10 +157,10 @@ def resolve_crane_filename(
     if corrected_subject_id:
         match = _SUBJECT_ID_PATTERN.match(file.stem)
         date_prefix = match.group("date") if match is not None else None
-        return ParsedCraneFilename(
+        return ParsedBIOPACFilename(
             subject_id=canonicalize_subject_id(corrected_subject_id), date_prefix=date_prefix
         )
-    return parse_crane_filename(file)
+    return parse_biopac_filename(file)
 
 
 def _session_folder(output_folder: Path, subject_id: str) -> Path:
@@ -207,11 +207,10 @@ def _copy_into_subject_folder(
     return destination
 
 
-# TODO: This can be biopac conversion summary. However there are additional crane ones.
 @dataclass
-class CraneConversionSummary:
+class LongWalkConversionSummary:
     """Everything a caller (the CLI's `main()`, or the crosscheck GUI's "Convert to BIDS..."
-    button) needs to report what a `convert_crane_to_bids()` call actually did. Warnings/skips
+    button) needs to report what a `convert_longwalk_to_bids()` call actually did. Warnings/skips
     are also emitted via the module `logger` as they happen -- this is the end-of-run rollup.
     """
 
@@ -222,15 +221,15 @@ class CraneConversionSummary:
     unparseable_files: list[Path] = field(default_factory=list)
 
 
-def convert_biopac_to_bids(
+def convert_longwalk_to_bids(
     input_folder: Path, output_folder: Path, debrief_export: Path | None = None
-) -> CraneConversionSummary:
+) -> LongWalkConversionSummary:
     """
     CLI or "Convert to BIDS" crosscheck drivable BIDS conversion for biopac style folders.
     I.e. csv and mat based data.
     """
     output_folder.mkdir(parents=True, exist_ok=True)
-    already_converted = existing_subject_ids(output_folder)
+    already_converted = existing_biopac_subject_ids(output_folder)
 
     # Recursive, like every real pipeline lookup this mirrors -- raw files aren't guaranteed
     # to sit directly at input_folder's top level.
@@ -243,7 +242,7 @@ def convert_biopac_to_bids(
     unparseable_files: list[Path] = []
 
     for mat_file in physiology_files:
-        parsed = resolve_crane_filename(mat_file, input_folder, raw_filename_corrections)
+        parsed = resolve_biopac_filename(mat_file, input_folder, raw_filename_corrections)
         if parsed is None:
             unparseable_files.append(mat_file)
             continue
@@ -285,7 +284,7 @@ def convert_biopac_to_bids(
         len(already_converted),
     )
 
-    return CraneConversionSummary(
+    return LongWalkConversionSummary(
         new_subject_ids=new_subject_ids,
         subject_physiology=dict(subject_physiology),
         already_converted=already_converted,
