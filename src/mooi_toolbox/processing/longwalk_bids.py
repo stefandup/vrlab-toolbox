@@ -261,9 +261,9 @@ def save_raw_filename_id_corrections(bids_folder: Path, corrections: dict[str, s
 
 
 def discover_raw_files_for_review(input_folder: Path) -> list[Path]:
-    """Every raw physiology/behaviour file in `input_folder`, read-only, regardless of
-    whether it currently resolves to a subject id -- lets the crosscheck GUI's raw-filename
-    correction dialog review or override any of them, not only ones that fail to parse.
+    """Every raw physiology file in `input_folder`, read-only, regardless of whether it
+    currently resolves to a subject id -- lets the crosscheck GUI's raw-filename correction
+    dialog review or override any of them, not only ones that fail to parse.
     """
     return sorted(
         (input_folder.rglob(PHYSIOLOGY_GLOB)),
@@ -272,18 +272,20 @@ def discover_raw_files_for_review(input_folder: Path) -> list[Path]:
 
 
 def explain_unparseable_filename(file: Path) -> str:
-    """Plain-English reason `parse_longwalk_filename` returned None, for the crosscheck GUI's
-    raw-filename correction dialog.
+    """Plain-English reason `parse_biopac_filename` returned None, for the crosscheck GUI's
+    raw-filename correction dialog. `parse_biopac_filename` only ever fails for one of two
+    reasons -- the filename stem doesn't match the `{subject_id}_{date}` shape at all, or it
+    matches but the id carries an ambiguous "(N)" duplicate-copy marker -- so those are the
+    only two explanations here.
     """
-    stem = file.stem
-    match = _SUBJECT_ID_PATTERN.match(stem)
-    if match is not None and _DUPLICATE_COPY_MARKER_PATTERN.search(match.group("subject_id")):
-        return (
-            'Ends in a "(N)" marker -- could be a harmless duplicate copy of the same '
-            "recording, or two different subjects that happen to share a base id. Declare "
-            "which below."
-        )
-    return 'Ends in "_CraneOut" but the id portion still didn\'t match the expected pattern.'
+    match = _SUBJECT_ID_PATTERN.match(file.stem)
+    if match is None:
+        return 'Doesn\'t match the expected "{subject_id}_{date}" filename pattern.'
+    return (
+        'Ends in a "(N)" marker -- could be a harmless duplicate copy of the same '
+        "recording, or two different subjects that happen to share a base id. Declare "
+        "which below."
+    )
 
 
 def convert_longwalk_to_bids(
