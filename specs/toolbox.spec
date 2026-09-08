@@ -26,6 +26,18 @@ TOOLS = [
     ("vrlab_foh_batch_process", os.path.join("cli", "mobi_FOH_process_batch.py"), True, []),
     ("vrlab_foh_bids_crosscheck", os.path.join("gui", "foh_bids_crosscheck_gui.py"), False, []),
     ("vrlab_foh_import_to_bids", os.path.join("cli", "foh_import_to_bids.py"), True, []),
+    (
+        "vrlab_longwalk_bids_crosscheck",
+        os.path.join("gui", "longwalk_bids_crosscheck_gui.py"),
+        False,
+        [],
+    ),
+    (
+        "vrlab_longwalk_convert_to_bids",
+        os.path.join("cli", "longwalk_convert_to_bids.py"),
+        True,
+        [],
+    ),
     ("vrlab_plot_target_data", os.path.join("cli", "plot_subject_target_scr_bars.py"), True, []),
     (
         "vrlab_toolbox_launcher",

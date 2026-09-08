@@ -426,7 +426,7 @@ class BidsCrosscheckWindow(QMainWindow):
         convert_button_tooltip: str = DEFAULT_CONVERT_BUTTON_TOOLTIP,
         extra_backup_filenames: tuple[str, ...] = (),
     ):
-        """`raw_converter`, if given, adds a "Raw Folder" group box and a "Refresh BIDS"
+        """`raw_converter`, if given, adds a "Raw folder summary" group box and a "Refresh BIDS"
         button in the "BIDS Folder" group box below it -- optional, dataset-specific (crane
         and FOH both supply one today). Called as `raw_converter(raw_folder, bids_folder,
         override_file)`, expected to do its own writing into `bids_folder` and return
@@ -459,7 +459,7 @@ class BidsCrosscheckWindow(QMainWindow):
         `extra_raw_actions`, if given (only meaningful alongside `raw_converter`), adds one
         more button per entry -- each `(button_label, tooltip, callback, group)`, called as
         `callback(raw_folder, bids_folder, self)` once both are set. `group` is
-        `EXTRA_RAW_ACTION_GROUP_RAW` to place the button in the "Raw Folder" group box, or
+        `EXTRA_RAW_ACTION_GROUP_RAW` to place the button in the "Raw folder summary" group box, or
         `EXTRA_RAW_ACTION_GROUP_OVERRIDE` to place it in the `override_file_label` group box
         instead -- e.g. crane's "Fix Filenames in Raw Folder" (raw) and "Fix Record IDs in
         Debrief Export" (override) dialogs. Same "this window doesn't know what the callback
@@ -519,6 +519,7 @@ class BidsCrosscheckWindow(QMainWindow):
         if stored and Path(stored).is_dir():
             self.raw_folder = Path(stored)
             _set_path_display(self.raw_folder_path_label, self.raw_folder_name_label, self.raw_folder)
+            self._update_raw_folder_summary_label()
             self._update_convert_button_enabled()
             self._update_override_file_label()
 
@@ -592,7 +593,7 @@ class BidsCrosscheckWindow(QMainWindow):
         bids_row = 1 if self.raw_converter is not None else 0
 
         if self.raw_converter is not None:
-            raw_group = QGroupBox("Raw Folder")
+            raw_group = QGroupBox("Raw folder summary")
             raw_group_layout = QVBoxLayout(raw_group)
             raw_group_layout.setSpacing(4)
             self.raw_folder_path_label = QLabel("")
@@ -601,6 +602,9 @@ class BidsCrosscheckWindow(QMainWindow):
             self.raw_folder_name_label = QLabel("No raw folder selected")
             _style_name_label(self.raw_folder_name_label)
             raw_group_layout.addWidget(self.raw_folder_name_label)
+            self.raw_folder_summary_label = QLabel("")
+            _style_summary_label(self.raw_folder_summary_label)
+            raw_group_layout.addWidget(self.raw_folder_summary_label)
 
             raw_button_row = QHBoxLayout()
             raw_button_row.setSpacing(6)
@@ -765,7 +769,7 @@ class BidsCrosscheckWindow(QMainWindow):
 
         folders_grid.addWidget(bids_group, bids_row, 0)
 
-        summary_group = QGroupBox("Summary")
+        summary_group = QGroupBox("BIDS folder summary")
         # Same quiet accent border as the BIDS Folder panel beside it -- see that panel's
         # own comment.
         summary_group.setStyleSheet(
@@ -984,8 +988,24 @@ class BidsCrosscheckWindow(QMainWindow):
             self.raw_folder = Path(folder)
             _set_path_display(self.raw_folder_path_label, self.raw_folder_name_label, self.raw_folder)
             self._settings.setValue(LAST_RAW_FOLDER_SETTINGS_KEY, str(self.raw_folder))
+            self._update_raw_folder_summary_label()
             self._update_convert_button_enabled()
             self._update_override_file_label()
+
+    def _update_raw_folder_summary_label(self) -> None:
+        """Total file count under `self.raw_folder`, recursively -- a quick "does this look
+        like the right folder" sanity check, shown the same way the BIDS Folder summary shows
+        its subject count. Deliberately a flat total rather than a per-scan-type breakdown:
+        `dataset_config.scan_types`' glob patterns describe the *converted* BIDS layout (e.g.
+        crane's `behaviour` pattern, `*_events.tsv`, only exists after conversion -- raw
+        behaviour is a differently-named `.csv`), so they'd undercount or misdescribe what's
+        actually sitting in the raw folder for datasets whose raw/BIDS shapes diverge.
+        """
+        if self.raw_folder is None or not self.raw_folder.is_dir():
+            self.raw_folder_summary_label.setText("")
+            return
+        count = sum(1 for path in self.raw_folder.rglob("*") if path.is_file())
+        self.raw_folder_summary_label.setText(f"{count} file{'s' if count != 1 else ''} found")
 
     def _on_browse_override_file(self) -> None:
         file, _ = QFileDialog.getOpenFileName(

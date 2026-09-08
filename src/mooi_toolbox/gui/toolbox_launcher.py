@@ -30,6 +30,7 @@ from mooi_toolbox import __version__
 GUI_TOOLS = (
     ("FOH BIDS Crosscheck", "vrlab_foh_bids_crosscheck.exe"),
     ("Crane BIDS Crosscheck", "vrlab_crane_bids_crosscheck.exe"),
+    ("Longwalk BIDS Crosscheck", "vrlab_longwalk_bids_crosscheck.exe"),
 )
 
 CLI_TOOLS = (
@@ -40,6 +41,7 @@ CLI_TOOLS = (
     "vrlab_foh_assess_data",
     "vrlab_foh_batch_process",
     "vrlab_foh_import_to_bids",
+    "vrlab_longwalk_convert_to_bids",
     "vrlab_plot_target_data",
 )
 
