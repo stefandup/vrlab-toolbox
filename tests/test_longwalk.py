@@ -250,19 +250,19 @@ class TestLongwalkConvertToBidsCli(unittest.TestCase):
         self.assertNotEqual(result.exit_code, 0)
 
 
-@unittest.skip("Still busy writing for the pipeline")
 class TestLongWalkPipeline(unittest.TestCase):
-    def test_import_strategy(self):
-        EXAMPLE_PARTICIPANT_MAT = r"long_walk_data\\PID864_20267281136.mat"
-        DATA_FOLDER = Path(r"long_walk_data")
+    def test_config_strategy(self):
+        DATA_FOLDER = Path(r"longwalk_bids")
         EXAMPLE_PARTICIPANT_ID = "PID864"
 
-        ParticipantConfig.from_bids_data(
+        participant_config = ParticipantConfig.from_bids_data(
             EXAMPLE_PARTICIPANT_ID,
-            PhysiologyFileFormat.BIOPAC,
+            PhysiologyFileFormat.MATLAB,
             DATA_FOLDER,
             [type(LongWalkRawBehaviourData)],
         )
+
+        self.assertIsInstance(participant_config, ParticipantConfig)
 
     def test_placeholder(self):
         pass

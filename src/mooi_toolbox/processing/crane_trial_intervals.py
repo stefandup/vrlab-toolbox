@@ -43,7 +43,7 @@ class CraneGetTrialIntervalStrategyFallbackStep:
             )
         interval_pipeline_status.set(TrialIntervals, ProcessingStatus.ERROR)
 
-        corrected_raw_trigger_intervals_gaps_filled = get_biopac_trigger_intervals_pipeline(
+        corrected_raw_trigger_intervals_gaps_filled = get_biopac_trigger_intervals_crane_pipeline(
             raw_biopac_triggers
         )
 
@@ -83,7 +83,7 @@ class CraneGetTrialIntervalStrategyStep:
             )
             interval_pipeline_status.set(TrialIntervals, ProcessingStatus.ERROR)
 
-        corrected_raw_trigger_intervals_gaps_filled = get_biopac_trigger_intervals_pipeline(
+        corrected_raw_trigger_intervals_gaps_filled = get_biopac_trigger_intervals_crane_pipeline(
             raw_biopac_triggers
         )
 
@@ -110,7 +110,7 @@ class CraneGetTrialIntervalStrategyStep:
         return (aligned_behav_with_triggers, interval_qc_figure, interval_pipeline_status)
 
 
-def get_biopac_trigger_intervals_pipeline(raw_biopac_triggers) -> TrialIntervals:
+def get_biopac_trigger_intervals_crane_pipeline(raw_biopac_triggers) -> TrialIntervals:
 
     biopac_interval_pipeline_status = PipelineStatus()
 

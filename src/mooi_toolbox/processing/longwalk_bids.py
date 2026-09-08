@@ -36,7 +36,6 @@ _SUBJECT_ID_PATTERN = re.compile(r"^(?:(?P<subject_id>.+?)[_-])?(?P<date>\d+)$",
 # the filename alone, so it's routed to the crosscheck GUI for a human decision instead.
 _DUPLICATE_COPY_MARKER_PATTERN = re.compile(r"\(\d+\)\s*$")
 
-
 logger = logging.getLogger(__name__)
 
 # TODO: Consider moving all non longwalk things to biopac_bids etc
@@ -143,7 +142,6 @@ def parse_biopac_filename(file: Path) -> ParsedBIOPACFilename | None:
     )
 
 
-# TODO: This can be renamed if it works
 def resolve_biopac_filename(
     file: Path, input_folder: Path, corrections: dict[str, str]
 ) -> ParsedBIOPACFilename | None:

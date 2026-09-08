@@ -63,7 +63,7 @@ class TrialIntervals:
             intervals=gap_filled_intervals, physiology_file_format=self.physiology_file_format
         )
 
-    def relabel_with(self, other) -> "TrialIntervals":
+    def relabel_with_intervals(self, other: "TrialIntervals") -> "TrialIntervals":
         relabelled_trial_intervals = self.intervals.copy()
 
         if not isinstance(other, TrialIntervals):
@@ -284,7 +284,7 @@ def plot_biopac_interval_qc(
     axes[0].set_xlim(0, 25)
 
     # Row 0: raw trigger voltage signal
-    trigger_time_stamps, trigger_signal = get_biopac_raw_trigger_signal(trigger_df)
+    trigger_time_stamps, trigger_signal = get_biopac_raw_trigger_signal_for_plot(trigger_df)
     time_stamp_series = trigger_df["Trigger"]
     trigger_time_min = (trigger_time_stamps - time_stamp_series.iloc[0]) / 60
     axes[0].plot(trigger_time_min, trigger_signal, color="black", linewidth=0.5)
@@ -447,7 +447,9 @@ def get_raw_biopac_trigger_intervals(
     return trigger_intervals_out
 
 
-def get_biopac_raw_trigger_signal(raw_trigger_data: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
+def get_biopac_raw_trigger_signal_for_plot(
+    raw_trigger_data: pd.DataFrame,
+) -> tuple[pd.Series, pd.Series]:
     """Extracts the raw trigger voltage signal and its timestamps, ready for plotting."""
     time_stamps = raw_trigger_data["time_stamps"]
     trigger_signal = raw_trigger_data["Trigger"]
@@ -545,7 +547,9 @@ def align_biopac_trigger_drift_from_behav_file(
         logger.info(
             f"Mean difference between trigger and behav intervals is: {np.nanmean(np.abs(deltas))}"
         )
-        relabelled_trigger_intervals = trigger_intervals_in.relabel_with(behav_trial_intervals_in)
+        relabelled_trigger_intervals = trigger_intervals_in.relabel_with_intervals(
+            behav_trial_intervals_in
+        )
         relabelled_trigger_intervals.drop_nan_intervals()
         pipeline_status.set(TrialIntervals, ProcessingStatus.OK)
     except ValueError as error:

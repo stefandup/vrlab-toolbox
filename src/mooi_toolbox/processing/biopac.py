@@ -18,7 +18,7 @@ class BiopacPhysiologyDataImportStartegy:
 
     def run(self, config_in: ParticipantConfig) -> RawBioData:
 
-        raw_data_for_pipeline = load_biopac_data(config_in)
+        raw_data_for_pipeline = load_biopac_data(Path(config_in.physiology_fn))
 
         return raw_data_for_pipeline
 
@@ -28,17 +28,17 @@ def clean_biopac_labels(labels_in):
     return [label.strip().split(" ")[0] for label in labels_in.flatten()]
 
 
-def load_biopac_data(config_in: ParticipantConfig) -> RawBioData:
+def load_biopac_data(physiology_fn: Path) -> RawBioData:
     """Load biopac mat files into pd Dataframe."""
     # time_stamps EDA DF
 
-    logger.info(f"Loading {config_in.physiology_fn}")
+    logger.info(f"Loading {str(physiology_fn)}")
     dfs_out: dict[str, pd.DataFrame] = {}
 
     try:
-        imported_data = sio.loadmat(config_in.physiology_fn)
+        imported_data = sio.loadmat(physiology_fn)
     except ValueError as e:
-        logger.error("Error loading %s: %s", config_in.physiology_fn, e)
+        logger.error("Error loading %s: %s", physiology_fn, e)
         raise
     mat_data = imported_data["data"]
     mat_isi = imported_data["isi"]
