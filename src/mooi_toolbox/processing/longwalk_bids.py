@@ -256,6 +256,36 @@ def print_longwalk_conversion_summary(summary: LongWalkConversionSummary) -> Non
     console.print(table)
 
 
+def save_raw_filename_id_corrections(bids_folder: Path, corrections: dict[str, str]) -> None:
+    bids.save_json_map(bids_folder / RAW_FILENAME_ID_CORRECTIONS_FILENAME, corrections)
+
+
+def discover_raw_files_for_review(input_folder: Path) -> list[Path]:
+    """Every raw physiology/behaviour file in `input_folder`, read-only, regardless of
+    whether it currently resolves to a subject id -- lets the crosscheck GUI's raw-filename
+    correction dialog review or override any of them, not only ones that fail to parse.
+    """
+    return sorted(
+        (input_folder.rglob(PHYSIOLOGY_GLOB)),
+        key=lambda file: file.relative_to(input_folder).as_posix(),
+    )
+
+
+def explain_unparseable_filename(file: Path) -> str:
+    """Plain-English reason `parse_longwalk_filename` returned None, for the crosscheck GUI's
+    raw-filename correction dialog.
+    """
+    stem = file.stem
+    match = _SUBJECT_ID_PATTERN.match(stem)
+    if match is not None and _DUPLICATE_COPY_MARKER_PATTERN.search(match.group("subject_id")):
+        return (
+            'Ends in a "(N)" marker -- could be a harmless duplicate copy of the same '
+            "recording, or two different subjects that happen to share a base id. Declare "
+            "which below."
+        )
+    return 'Ends in "_CraneOut" but the id portion still didn\'t match the expected pattern.'
+
+
 def convert_longwalk_to_bids(
     input_folder: Path, output_folder: Path, debrief_export: Path | None = None
 ) -> LongWalkConversionSummary:
