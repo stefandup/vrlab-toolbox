@@ -303,6 +303,9 @@ class TestLongWalkPipeline(unittest.TestCase):
         )
         self.assertIsInstance(behav_output_data, LongWalkBehaviouralOutputData)
 
+    def test_correct_subjcet_gives_correct_output(self):
+        pass
+
 
 if __name__ == "__main__":
     unittest.main()

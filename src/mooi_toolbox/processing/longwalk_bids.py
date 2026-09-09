@@ -208,6 +208,17 @@ def _copy_into_subject_folder(
     return destination
 
 
+def create_bids_events_file_in_folder(
+    bids_events: bids.BidsEventsData,
+    output_folder: Path,
+    subject_id: str,
+    acq_date: str,
+    acq: str,
+) -> None:
+    destination = _resolve_destination(output_folder, subject_id, acq, "", "events")
+    bids_events.events_df.to_csv(f"{destination}.tsv", sep="\t")
+
+
 @dataclass
 class LongWalkConversionSummary:
     """Everything a caller (the CLI's `main()`, or the crosscheck GUI's "Convert to BIDS..."
