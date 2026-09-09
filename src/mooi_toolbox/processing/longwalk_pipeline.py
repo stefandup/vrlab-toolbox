@@ -69,7 +69,7 @@ def run_pipeline(
         steps=[LongWalkImportRawBehaviourDataStrategy()]
     )
     process_behav_steps = pipeline.SequentialBehaviourProcessingSteps(
-        steps=ProcessLongWalkBehaviourDataWithIntervalsStrategyStep()
+        steps_with_trial_intervals=[ProcessLongWalkBehaviourDataWithIntervalsStrategyStep()]
     )
     import_physiology_steps = pipeline.SequentialPhysiolgyImportSteps(
         steps=[BiopacPhysiologyDataImportStartegy()]

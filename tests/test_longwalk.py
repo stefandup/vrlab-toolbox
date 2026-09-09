@@ -21,6 +21,7 @@ from mooi_toolbox.processing.longwalk_behaviour import (
     LongWalkRawBehaviourData,
     ProcessLongWalkBehaviourDataWithIntervalsStrategyStep,
 )
+from mooi_toolbox.processing.longwalk_pipeline import run_pipeline
 from mooi_toolbox.processing.longwalk_trial_intervals import LongWalkGetTrialIntervalStrategyStep
 
 
@@ -263,13 +264,13 @@ class TestLongwalkConvertToBidsCli(unittest.TestCase):
 
 class TestLongWalkPipeline(unittest.TestCase):
     def setUp(self):
-        DATA_FOLDER = Path(r"longwalk_bids")
-        EXAMPLE_PARTICIPANT_ID = "PID864"
+        self.DATA_FOLDER = Path(r"longwalk_bids")
+        self.EXAMPLE_PARTICIPANT_ID = "PID864"
 
         self.participant_config = ParticipantConfig.from_bids_data(
-            EXAMPLE_PARTICIPANT_ID,
+            self.EXAMPLE_PARTICIPANT_ID,
             PhysiologyFileFormat.MATLAB,
-            DATA_FOLDER,
+            self.DATA_FOLDER,
         )
         self.raw_biodata = BiopacPhysiologyDataImportStartegy().run(self.participant_config)
 
@@ -304,7 +305,9 @@ class TestLongWalkPipeline(unittest.TestCase):
         self.assertIsInstance(behav_output_data, LongWalkBehaviouralOutputData)
 
     def test_correct_subjcet_gives_correct_output(self):
-        pass
+        pipeline_out = run_pipeline(self.EXAMPLE_PARTICIPANT_ID, self.DATA_FOLDER)
+        pipeline_out.validate_participant_output()
+        status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
 
 
 if __name__ == "__main__":

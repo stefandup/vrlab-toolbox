@@ -43,7 +43,7 @@ class LongWalkRawBehaviourData(RawBehaviourData):
 
 
 class LongWalkImportRawBehaviourDataStrategy:
-    behaviour_data_type = LongWalkRawBehaviourData
+    behaviour_output_type = LongWalkRawBehaviourData
 
     def run(self, config_in: ParticipantConfig) -> LongWalkRawBehaviourData:
 
@@ -134,7 +134,7 @@ def get_longwalk_outputdata_from_events(
         .reset_index(drop=True)
     )
     df_wide.columns.name = None
-    df_wide.add_suffix("_duration_seconds")
+    df_wide = df_wide.add_suffix("_duration_seconds")
     output_data = LongWalkBehaviouralOutputData(subject_id=subject_id_in)
     output_data.subject_df_out = df_wide
     return output_data

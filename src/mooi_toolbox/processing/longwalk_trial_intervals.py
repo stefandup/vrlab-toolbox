@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 class LongWalkGetTrialIntervalStrategyStep:
     input_bio_data_type: type[RawBioData] = RawBioData
     input_behaviour_data_type: type[LongWalkRawBehaviourData] = LongWalkRawBehaviourData
+    fallback_strategy = None
 
     def run(
         self, raw_biodata_in: RawBioData, raw_behaviour_data_in: LongWalkRawBehaviourData
