@@ -9,8 +9,19 @@ from click.testing import CliRunner
 
 from mooi_toolbox.cli.longwalk_convert_to_bids import main as run_longwalk_convert_to_bids
 from mooi_toolbox.processing import longwalk_bids
+from mooi_toolbox.processing.biopac import BiopacPhysiologyDataImportStartegy
+from mooi_toolbox.processing.eda import (
+    EdaPhysiologyOutputData,
+    ProcessEdaPhysiologyDataStrategyStep,
+)
 from mooi_toolbox.processing.input_data import ParticipantConfig, PhysiologyFileFormat
-from mooi_toolbox.processing.longwalk_behaviour import LongWalkRawBehaviourData
+from mooi_toolbox.processing.longwalk_behaviour import (
+    LongWalkBehaviouralOutputData,
+    LongWalkImportRawBehaviourDataStrategy,
+    LongWalkRawBehaviourData,
+    ProcessLongWalkBehaviourDataWithIntervalsStrategyStep,
+)
+from mooi_toolbox.processing.longwalk_trial_intervals import LongWalkGetTrialIntervalStrategyStep
 
 
 def _touch(path: Path) -> Path:
@@ -251,21 +262,46 @@ class TestLongwalkConvertToBidsCli(unittest.TestCase):
 
 
 class TestLongWalkPipeline(unittest.TestCase):
-    def test_config_strategy(self):
+    def setUp(self):
         DATA_FOLDER = Path(r"longwalk_bids")
         EXAMPLE_PARTICIPANT_ID = "PID864"
 
-        participant_config = ParticipantConfig.from_bids_data(
+        self.participant_config = ParticipantConfig.from_bids_data(
             EXAMPLE_PARTICIPANT_ID,
             PhysiologyFileFormat.MATLAB,
             DATA_FOLDER,
-            [type(LongWalkRawBehaviourData)],
+        )
+        self.raw_biodata = BiopacPhysiologyDataImportStartegy().run(self.participant_config)
+
+    def test_config_import(self):
+        self.assertIsInstance(self.participant_config, ParticipantConfig)
+
+    def test_behav_import_strategy(self):
+        raw_behav_data = LongWalkImportRawBehaviourDataStrategy().run(self.participant_config)
+        self.assertIsInstance(raw_behav_data, LongWalkRawBehaviourData)
+
+    def test_biopac_data_processing_strategy(self):
+        raw_behav_data = LongWalkImportRawBehaviourDataStrategy().run(self.participant_config)
+        trial_intervals, _, _ = LongWalkGetTrialIntervalStrategyStep().run(
+            self.raw_biodata, raw_behav_data
+        )
+        raw_biodata = ProcessEdaPhysiologyDataStrategyStep().run(
+            self.participant_config, self.raw_biodata, trial_intervals
         )
 
-        self.assertIsInstance(participant_config, ParticipantConfig)
+        self.assertIsInstance(raw_biodata, EdaPhysiologyOutputData)
 
-    def test_placeholder(self):
-        pass
+    def test_trial_interval_strategy(self):
+
+        raw_behav_data = LongWalkImportRawBehaviourDataStrategy().run(self.participant_config)
+
+        trial_intervals, _, _ = LongWalkGetTrialIntervalStrategyStep().run(
+            self.raw_biodata, raw_behav_data
+        )
+        behav_output_data = ProcessLongWalkBehaviourDataWithIntervalsStrategyStep().run(
+            self.participant_config, raw_behav_data, trial_intervals
+        )
+        self.assertIsInstance(behav_output_data, LongWalkBehaviouralOutputData)
 
 
 if __name__ == "__main__":

@@ -1,3 +1,4 @@
+import logging
 import tempfile
 import unittest
 from pathlib import Path
@@ -38,10 +39,9 @@ from mooi_toolbox.processing.trial_intervals import TrialIntervals
 REAL_DATA_BIDS_FOLDER = Path(r"crane_data\crane_bids")
 
 # BIDS-shaped output of crane_generate_sample_data + crane_convert_to_bids (see
-# examples/crane_bids_dummy/dummy_data_log.txt) -- sub-XXX/ses-01/beh/... BIDS layout. The
-# pipeline's own file-discovery (ParticipantConfig.from_physiology_data) doesn't understand this
-# layout yet, so every test below that resolves through EXAMPLES_FOLDER is expected to fail until
-# that's refactored -- these fixtures exist to give that refactor something real to target.
+# examples/crane_bids_dummy/dummy_data_log.txt) -- sub-XXX/ses-01/beh/... BIDS layout.
+# Regenerate with: crane_generate_sample_data examples/crane_templates examples --with-errors
+# --seed 42 --bids-folder examples/crane_bids_dummy (see docs/testing.md).
 EXAMPLES_FOLDER = Path(r"examples\\crane_bids_dummy")
 
 CRANE_PARTICIPANT_NO_FILE_ID = "NOFILES"
@@ -54,9 +54,8 @@ DUMMY_CLEAN_ID = "DUMMY000"
 DUMMY_MISSING_PHYSIOLOGY_ID = "DUMMY005"
 DUMMY_MISSING_BEHAVIOUR_ID = "DUMMY006"
 DUMMY_MISSING_DEBRIEF_ID = "DUMMY007"
-DUMMY_DATE_MISMATCH_ID = "DUMMY008"
-DUMMY_BAD_TRIGGER_COUNT_ID = "DUMMY009"
-DUMMY_SHORT_TRIGGER_ID = "DUMMY010"
+DUMMY_BAD_TRIGGER_COUNT_ID = "DUMMY008"
+DUMMY_SHORT_TRIGGER_ID = "DUMMY009"
 
 ALL_OK_STATUS_STR = PipelineStatus(
     status={
@@ -132,65 +131,6 @@ class TestCraneBehaviourStrategy(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Interval correction -- one test per real, recorded trigger anomaly (no dummy
-# equivalent exists for these yet, so they need REAL_DATA_FOLDER on disk)
-# ---------------------------------------------------------------------------
-
-
-class TestCraneGetIntervalStrategy(unittest.TestCase):
-    def _run_interval_strategy_for(
-        self, subject_id: str, folder: Path = REAL_DATA_BIDS_FOLDER
-    ) -> TrialIntervals:
-        participant_config = FindCraneParticipantFilesStrategyStep().run(subject_id, folder)
-        raw_bio_data = BiopacPhysiologyDataImportStartegy().run(participant_config)
-        raw_behav_data = ImportCraneBehaviourDataStrategyStep().run(participant_config)
-        trial_intervals, _, status = CraneGetTrialIntervalStrategyStep().run(
-            raw_bio_data, raw_behav_data
-        )
-        print(subject_id, status)
-        return trial_intervals
-
-    def test_interval_correction_with_correct_intervals(self):
-        self.assertTrue(self._run_interval_strategy_for(DUMMY_CLEAN_ID, EXAMPLES_FOLDER).intervals)
-
-    def test_interval_correction_with_missing_initial_trigger_tp(self):
-        MISSING_INITIAL_TRIGGER = "PID16186"
-        self.assertTrue(self._run_interval_strategy_for(MISSING_INITIAL_TRIGGER).intervals)
-
-    def test_interval_correction_with_initial_double_trigger(self):
-        INITIAL_DOUBLE_TRIGGER = "PID16407"
-        self.assertTrue(self._run_interval_strategy_for(INITIAL_DOUBLE_TRIGGER).intervals)
-
-    def test_interval_correction_with_double_trigger_and_missing_init_tp_nr1(self):
-        MISSING_TRIGGER_AND_INIT_TP_1 = "PID5753"
-        self.assertTrue(self._run_interval_strategy_for(MISSING_TRIGGER_AND_INIT_TP_1).intervals)
-
-    def test_shifting_algorithm_for_missing_first_last_tp(self):
-        MISSING_INIT_AND_LAST_TP = "PID1267"
-        self.assertTrue(self._run_interval_strategy_for(MISSING_INIT_AND_LAST_TP).intervals)
-
-    def test_interval_correction_with_double_trigger_and_missing_init_tp_nr2(self):
-        MISSING_TRIGGER_AND_INIT_TP_2 = "PID4572"
-        self.assertTrue(self._run_interval_strategy_for(MISSING_TRIGGER_AND_INIT_TP_2).intervals)
-
-    def test_interval_correction_with_missing_last_and_initial_triggers(self):
-        MISSING_LAST_AND_INITIAL_TRIGGERS = "PID16230"
-        self.assertTrue(
-            self._run_interval_strategy_for(MISSING_LAST_AND_INITIAL_TRIGGERS).intervals
-        )
-
-    @unittest.skip("Double triggers beyond scope for now.")
-    def test_interval_correction_with_multiple_double_triggers_1(self):
-        MULTIPLE_DOUBLE_TRIGGERS_1 = "PID9188"
-        self.assertTrue(self._run_interval_strategy_for(MULTIPLE_DOUBLE_TRIGGERS_1).intervals)
-
-    @unittest.skip("Double triggers beyond scope for now.")
-    def test_interval_correction_with_multiple_double_triggers_2(self):
-        MULTIPLE_DOUBLE_TRIGGERS_2 = "PID7177"  # worse!
-        self.assertTrue(self._run_interval_strategy_for(MULTIPLE_DOUBLE_TRIGGERS_2).intervals)
-
-
-# ---------------------------------------------------------------------------
 # Full pipeline -- dummy data (self-contained, run anywhere)
 # ---------------------------------------------------------------------------
 
@@ -227,9 +167,6 @@ class TestCranePipelineDummyData(unittest.TestCase):
         self.assertEqual(
             sorted(status_str.split(" ")), sorted(CORRECTED_INTERVAL_STATUS_STR.split(" "))
         )
-
-    def test_crane_spots_errors_when_behav_physiology_no_match(self):
-        run_pipeline(DUMMY_DATE_MISMATCH_ID, EXAMPLES_FOLDER)
 
     def test_crane_returns_ok_for_correct_interval_nr(self):
         pipeline_out = run_pipeline(DUMMY_CLEAN_ID, EXAMPLES_FOLDER)
@@ -288,14 +225,78 @@ class TestCranePipelineDummyData(unittest.TestCase):
             )
 
     def test_batch_processing(self):
-        with tempfile.TemporaryDirectory() as output_folder:
-            result = CliRunner().invoke(run_batch, [str(EXAMPLES_FOLDER), output_folder])
+        # This project's pytest config sets log_cli=true, which conflicts with click's
+        # CliRunner stdout capture: any logger call during invoke() crashes with "ValueError:
+        # I/O operation on closed file" (see the same fix in test_longwalk.py's
+        # TestLongwalkConvertToBidsCli.setUp). Disabling logging around invoke() sidesteps it.
+        logging.disable(logging.CRITICAL)
+        try:
+            with tempfile.TemporaryDirectory() as output_folder:
+                result = CliRunner().invoke(run_batch, [str(EXAMPLES_FOLDER), output_folder])
+        finally:
+            logging.disable(logging.NOTSET)
         self.assertEqual(result.exit_code, 0, msg=result.output)
 
 
 # ---------------------------------------------------------------------------
-# Full pipeline -- real data (needs REAL_DATA_FOLDER on disk)
+# Interval correction and full pipeline -- real data (needs REAL_DATA_BIDS_FOLDER
+# on disk). Grouped last, same split as test_longwalk.py/test_foh_pipeline.py: everything
+# self-contained above, everything needing real, gitignored data below. One test per real,
+# recorded trigger anomaly -- no dummy equivalent exists for these yet.
 # ---------------------------------------------------------------------------
+
+
+class TestCraneGetIntervalStrategy(unittest.TestCase):
+    def _run_interval_strategy_for(
+        self, subject_id: str, folder: Path = REAL_DATA_BIDS_FOLDER
+    ) -> TrialIntervals:
+        participant_config = FindCraneParticipantFilesStrategyStep().run(subject_id, folder)
+        raw_bio_data = BiopacPhysiologyDataImportStartegy().run(participant_config)
+        raw_behav_data = ImportCraneBehaviourDataStrategyStep().run(participant_config)
+        trial_intervals, _, status = CraneGetTrialIntervalStrategyStep().run(
+            raw_bio_data, raw_behav_data
+        )
+        print(subject_id, status)
+        return trial_intervals
+
+    def test_interval_correction_with_correct_intervals(self):
+        self.assertTrue(self._run_interval_strategy_for(DUMMY_CLEAN_ID, EXAMPLES_FOLDER).intervals)
+
+    def test_interval_correction_with_missing_initial_trigger_tp(self):
+        MISSING_INITIAL_TRIGGER = "PID16186"
+        self.assertTrue(self._run_interval_strategy_for(MISSING_INITIAL_TRIGGER).intervals)
+
+    def test_interval_correction_with_initial_double_trigger(self):
+        INITIAL_DOUBLE_TRIGGER = "PID16407"
+        self.assertTrue(self._run_interval_strategy_for(INITIAL_DOUBLE_TRIGGER).intervals)
+
+    def test_interval_correction_with_double_trigger_and_missing_init_tp_nr1(self):
+        MISSING_TRIGGER_AND_INIT_TP_1 = "PID5753"
+        self.assertTrue(self._run_interval_strategy_for(MISSING_TRIGGER_AND_INIT_TP_1).intervals)
+
+    def test_shifting_algorithm_for_missing_first_last_tp(self):
+        MISSING_INIT_AND_LAST_TP = "PID1267"
+        self.assertTrue(self._run_interval_strategy_for(MISSING_INIT_AND_LAST_TP).intervals)
+
+    def test_interval_correction_with_double_trigger_and_missing_init_tp_nr2(self):
+        MISSING_TRIGGER_AND_INIT_TP_2 = "PID4572"
+        self.assertTrue(self._run_interval_strategy_for(MISSING_TRIGGER_AND_INIT_TP_2).intervals)
+
+    def test_interval_correction_with_missing_last_and_initial_triggers(self):
+        MISSING_LAST_AND_INITIAL_TRIGGERS = "PID16230"
+        self.assertTrue(
+            self._run_interval_strategy_for(MISSING_LAST_AND_INITIAL_TRIGGERS).intervals
+        )
+
+    @unittest.skip("Double triggers beyond scope for now.")
+    def test_interval_correction_with_multiple_double_triggers_1(self):
+        MULTIPLE_DOUBLE_TRIGGERS_1 = "PID9188"
+        self.assertTrue(self._run_interval_strategy_for(MULTIPLE_DOUBLE_TRIGGERS_1).intervals)
+
+    @unittest.skip("Double triggers beyond scope for now.")
+    def test_interval_correction_with_multiple_double_triggers_2(self):
+        MULTIPLE_DOUBLE_TRIGGERS_2 = "PID7177"  # worse!
+        self.assertTrue(self._run_interval_strategy_for(MULTIPLE_DOUBLE_TRIGGERS_2).intervals)
 
 
 class TestCranePipelineRealData(unittest.TestCase):

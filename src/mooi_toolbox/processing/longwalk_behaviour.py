@@ -72,7 +72,7 @@ class ProcessLongWalkBehaviourDataWithIntervalsStrategyStep:
     def run(
         self,
         config_in: ParticipantConfig,
-        raw_behaviour_data_in: type[LongWalkRawBehaviourData],
+        raw_behaviour_data_in: LongWalkRawBehaviourData,
         trial_intervals_in: TrialIntervals,
     ) -> LongWalkBehaviouralOutputData:
         # Save to BIDS
@@ -90,3 +90,7 @@ def update_longwalk_behav_events_file_from_intervals(
     #    if trial_type in TrialIntervals.intervals:
 
     return LongWalkRawBehaviourData(raw_behaviour_data_in.subject_config)
+
+
+def calucluate_interval_durations(trial_intervals_in: TrialIntervals):
+    pass

@@ -42,7 +42,7 @@ class ParticipantConfig:
         id_in: str,
         physiology_data_type_in: PhysiologyFileFormat,
         data_folder_in: Path,
-        behaviour_data_types_in: list[type],
+        behaviour_data_types_in: list[type] | None = None,
         behav_folder_in: Path | None = None,
         output_folder_in: Path | None = None,
         log_folder_in: Path | None = None,
@@ -87,24 +87,25 @@ class ParticipantConfig:
         log_folder_in.mkdir(parents=True, exist_ok=True)
 
         behaviour_fn_dict = {}
-        for behav_data_type in behaviour_data_types_in:
-            glob_pattern = behav_data_type.filename_glob.format(participant_id=id_in)
+        if behaviour_data_types_in is not None:
+            for behav_data_type in behaviour_data_types_in:
+                glob_pattern = behav_data_type.filename_glob.format(participant_id=id_in)
 
-            behav_file_matches = list(behav_folder_in.rglob(glob_pattern))
-            # Date checking to crosscheck
-            if not behav_file_matches:
-                logger.warning(
-                    f"No file matches for {behav_data_type.__name__} for participant {id_in}"
-                )
-                behaviour_fn_dict[behav_data_type] = None
-                continue
-            else:
-                behaviour_fn_dict[behav_data_type] = behav_file_matches[0]
+                behav_file_matches = list(behav_folder_in.rglob(glob_pattern))
+                # Date checking to crosscheck
+                if not behav_file_matches:
+                    logger.warning(
+                        f"No file matches for {behav_data_type.__name__} for participant {id_in}"
+                    )
+                    behaviour_fn_dict[behav_data_type] = None
+                    continue
+                else:
+                    behaviour_fn_dict[behav_data_type] = behav_file_matches[0]
 
-            if len(behav_file_matches) > 1:
-                logger.warning(
-                    f"Multiple {behav_data_type.__name__} files for {id_in}: {behav_file_matches}"
-                )
+                if len(behav_file_matches) > 1:
+                    logger.warning(
+                        f"Multiple {behav_data_type.__name__} files for {id_in}: {behav_file_matches}"
+                    )
 
         return cls(
             subject_id=id_in,

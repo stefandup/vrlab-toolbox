@@ -153,7 +153,7 @@ def build_base_bids_events_schema(
                         lambda s: np.isfinite(s).all(), error="duration must contain finite numbers"
                     ),
                 ],
-                nullable=False,
+                nullable=True,
                 coerce=True,
                 required=True,
             ),

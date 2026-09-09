@@ -982,6 +982,7 @@ class TestBackupDecisions(unittest.TestCase):
     def test_copies_decisions_excluded_and_pending_files(self):
         file = _touch(self.bids_folder / "sub-001" / "a_physiology.acq")
         record_selected_run(self.bids_folder, "001", "physiology", file, (file,))
+        _touch(self.bids_folder / "sub-002" / "a_physiology.acq")
         record_subject_excluded(self.bids_folder, "002", reason="pilot")
         save_pending_selections(self.bids_folder, {"003": {"physiology": "b.acq"}})
 
