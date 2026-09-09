@@ -38,6 +38,12 @@ TOOLS = [
         True,
         [],
     ),
+    (
+        "vrlab_longwalk_process",
+        os.path.join("cli", "vrlab_longwalk_process.py"),
+        True,
+        [],
+    ),
     ("vrlab_plot_target_data", os.path.join("cli", "plot_subject_target_scr_bars.py"), True, []),
     (
         "vrlab_toolbox_launcher",

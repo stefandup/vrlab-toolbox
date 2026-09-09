@@ -208,6 +208,7 @@ def _copy_into_subject_folder(
     return destination
 
 
+# TODO: Dont forget to add to the scans.tsv
 def create_bids_events_file_in_folder(
     bids_events: bids.BidsEventsData,
     output_folder: Path,

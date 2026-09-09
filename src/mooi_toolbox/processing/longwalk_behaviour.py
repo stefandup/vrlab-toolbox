@@ -105,6 +105,7 @@ class ProcessLongWalkBehaviourDataWithIntervalsStrategyStep:
             df_out, {"trial_type": pandera_defaults.optional_str_col()}
         )
         # Create outputdata: Time to complete intervals! :)
+        # TODO: Dont forget to add to the scans.tsv
         create_bids_events_file_in_folder(
             bids_events_out, config_in.data_folder, config_in.subject_id, "", "behaviour"
         )
