@@ -9,6 +9,7 @@ from rich.console import Console
 from rich.table import Table
 
 from mooi_toolbox.processing import bids
+from mooi_toolbox.processing.bids import append_scan_row
 
 DECISIONS_FILENAME = "crosscheck.json"
 EXCLUDED_SUBJECTS_FILENAME = "excluded_subjects.json"
@@ -208,7 +209,7 @@ def _copy_into_subject_folder(
     return destination
 
 
-# TODO: Dont forget to add to the scans.tsv
+# TODO: Check that this is OK
 def create_bids_events_file_in_folder(
     bids_events: bids.BidsEventsData,
     output_folder: Path,
@@ -218,6 +219,11 @@ def create_bids_events_file_in_folder(
 ) -> None:
     destination = _resolve_destination(output_folder, subject_id, acq, "", "events")
     bids_events.events_df.to_csv(f"{destination}.tsv", sep="\t")
+
+    relative_name = destination.relative_to(
+        _scans_tsv_path(output_folder, subject_id).parent
+    ).as_posix()
+    append_scan_row(_scans_tsv_path(output_folder, subject_id), relative_name, "")
 
 
 @dataclass
