@@ -1,101 +1,101 @@
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 
-import pandas as pd
 import pandera.pandas as pa
-from matplotlib.figure import Figure
 from pandas.core.api import DataFrame as DataFrame
 
-from mooi_toolbox.processing import eda
-from mooi_toolbox.processing.biodata import RawBioData
+from mooi_toolbox.processing import pipeline
 from mooi_toolbox.processing.biopac import BiopacPhysiologyDataImportStartegy
+from mooi_toolbox.processing.eda import (
+    ProcessEdaPhysiologyDataStrategyStep,
+    build_eda_physiology_output_schema,
+)
 from mooi_toolbox.processing.input_data import ParticipantConfig
+from mooi_toolbox.processing.longwalk_behaviour import (
+    LongWalkImportRawBehaviourDataStrategy,
+    ProcessLongWalkBehaviourDataWithIntervalsStrategyStep,
+    build_long_walk_behaviour_output_data_schema,
+)
+from mooi_toolbox.processing.longwalk_trial_intervals import LongWalkGetTrialIntervalStrategyStep
 from mooi_toolbox.processing.output_data import (
     PipelineOutputData,
-    build_base_pipeline_output_schema,
 )
-from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
-from mooi_toolbox.processing.trial_intervals import get_raw_biopac_trigger_intervals
 
 logger = logging.getLogger(__name__)
 
 EXPECTED_INTERVAL_NR = 12
 
 
+class FindLongWalkParticipantFilesStrategyStep:
+    physiology_data_type = BiopacPhysiologyDataImportStartegy.input_data_file_format
+    behaviour_data_types = [
+        ProcessLongWalkBehaviourDataWithIntervalsStrategyStep.input_data_type,
+    ]
+
+    def run(
+        self, participant_id_in: str, data_folder_in: Path, output_folder_in: Path | None = None
+    ) -> ParticipantConfig:
+
+        return ParticipantConfig.from_bids_data(
+            id_in=participant_id_in,
+            physiology_data_type_in=self.physiology_data_type,
+            data_folder_in=data_folder_in,
+            behaviour_data_types_in=self.behaviour_data_types,
+            output_folder_in=output_folder_in,
+        )
+
+
+def build_longwalk_participant_output_schema() -> pa.DataFrameSchema:
+    return pa.DataFrameSchema(
+        {
+            **build_long_walk_behaviour_output_data_schema().columns,
+            **build_eda_physiology_output_schema().columns,
+        }
+    )
+
+
 @dataclass
 class LongWalkPipelineOutputData(PipelineOutputData):
     def validate_participant_output(self) -> DataFrame:
-        return build_long_walk_participant_output_schema().validate(self.subject_df_out)
+        return build_longwalk_participant_output_schema().validate(self.subject_df_out)
 
 
-def _optional_float_column() -> pa.Column:
-    return pa.Column(float, nullable=True, coerce=True, required=False)
+def run_pipeline(
+    participant_id_in: str, data_folder_in: Path, output_folder_in: Path | None = None
+) -> LongWalkPipelineOutputData:
 
+    import_behav_steps = pipeline.SequentialBehaviourImportSteps(
+        steps=[LongWalkImportRawBehaviourDataStrategy()]
+    )
+    process_behav_steps = pipeline.SequentialBehaviourProcessingSteps(
+        steps=ProcessLongWalkBehaviourDataWithIntervalsStrategyStep()
+    )
+    import_physiology_steps = pipeline.SequentialPhysiolgyImportSteps(
+        steps=[BiopacPhysiologyDataImportStartegy()]
+    )
+    process_physiology_steps = pipeline.SequentialPhysiologyProcessingSteps(
+        steps=[ProcessEdaPhysiologyDataStrategyStep()]
+    )
 
-def build_long_walk_participant_output_schema():
+    long_walk_pipeline = pipeline.PipelineTemplate(
+        find_participant_strategy_step=FindLongWalkParticipantFilesStrategyStep(),
+        sequential_physiology_import_steps=import_physiology_steps,
+        sequential_behaviour_data_import_steps=import_behav_steps,
+        get_intervals_strategy=LongWalkGetTrialIntervalStrategyStep(),
+        sequential_behaviour_processing_steps=process_behav_steps,
+        sequential_physiology_processing_steps=process_physiology_steps,
+    )
 
-    physiology_columns = {
-        r"^.+_SCR_per_min$": pa.Column(
-            float,
-            nullable=True,
-            coerce=True,
-            required=False,
-            regex=True,
-        )
-    }
+    participant_config, participant_pipeline_data_out = long_walk_pipeline.run(
+        participant_id_in,
+        data_folder_in,
+        output_folder_in,
+    )
 
-    return build_base_pipeline_output_schema({**physiology_columns})
+    long_walk_pipeline_output_data = LongWalkPipelineOutputData(participant_config.subject_id)
+    long_walk_pipeline_output_data.subject_df_out = participant_pipeline_data_out.subject_df_out
+    long_walk_pipeline_output_data.status = participant_pipeline_data_out.status
+    long_walk_pipeline_output_data.figure_data_out = participant_pipeline_data_out.figure_data_out
 
-
-def run_pipeline(data_in: ParticipantConfig) -> LongWalkPipelineOutputData:
-    # TODO: Make less of a messy pipeline! Fix Crane as well to be less messy!
-    fig: Figure | None = None
-    # Assume OK unless and exception is raied
-    status = PipelineStatus()
-
-    # Input raw eda
-
-    try:
-        raw_timestamped_data: RawBioData = BiopacPhysiologyDataImportStartegy().run()
-        eda_raw_timestamped = raw_timestamped_data["EDA"]
-        status.data_in = ProcessingStatus.OK
-    except (ValueError, FileNotFoundError) as e:
-        logger.warning("Error loading biopac eda data. %s", e)
-        status.data_in = ProcessingStatus.ERROR
-        return LongWalkPipelineOutputData.error(data_in.subject_id, status)
-
-    participant_data_out = []
-
-    # Do QC
-
-    vr_intervals, status_out = get_raw_biopac_trigger_intervals(raw_timestamped_data["Trigger"])
-    if len(vr_intervals) != EXPECTED_INTERVAL_NR:
-        logger.warning(
-            "Interval count is %d and not %d for subject %s.",
-            len(vr_intervals),
-            EXPECTED_INTERVAL_NR,
-            data_in.subject_id,
-        )
-        status.intervals = ProcessingStatus.ERROR
-    else:
-        status.intervals = status_out
-
-    try:
-        scr_df_out = eda.run_eda_intervals(eda_raw_timestamped, vr_intervals)
-        participant_data_out.append(scr_df_out)
-        fig = eda.run_eda_qc(eda_raw_timestamped, scr_df_out, vr_intervals)
-        status.physiology = ProcessingStatus.OK
-
-    except ValueError as e:
-        logger.warning("Skipping physiology analysis on %s. %s", data_in.subject_id, e)
-        status.physiology = ProcessingStatus.ERROR
-
-    # Append the final status
-    participant_data_out.append(pd.DataFrame({"Processing_Status": [status.get_as_text()]}))
-
-    df_out = pd.concat(participant_data_out, axis=1)
-
-    if "Subject_ID" not in df_out.columns:
-        df_out.insert(0, "Subject_ID", data_in.subject_id)
-
-    return LongWalkPipelineOutputData(subject_df_out=df_out, figure_data_out=fig, status=status)
+    return long_walk_pipeline_output_data
