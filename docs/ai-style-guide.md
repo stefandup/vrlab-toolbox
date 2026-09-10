@@ -11,11 +11,15 @@ This complements [AI Use Guidelines](ai-use.md): that page is the
 docs can clear the bar for AI authorship (see [AI Use
 Guidelines](ai-use.md#the-core-rule-ai-is-a-tutor-not-a-coder)). This page
 is the *what*, for whenever code does get proposed, and for
-guidance/examples an assistant gives along the way. It also keeps the
-maintained, file-level record of exactly where that *whether* line falls
-today — see [Cleared for Vibe Coding](#cleared-for-vibe-coding) below —
-since `AGENTS.md`'s BYPASS/OVERRIDE commands need one canonical list to
-point at rather than a description duplicated across pages.
+guidance/examples an assistant gives along the way. It also renders
+exactly where that *whether* line falls today — see [Cleared for Vibe
+Coding](#cleared-for-vibe-coding) below — since `AGENTS.md`'s
+BYPASS/OVERRIDE commands need one canonical list to point at rather than
+a description duplicated across pages. That canonical list is
+[`vibe_list.md`](https://github.com/stefandup/mobi-mooi-toolbox/blob/master/vibe_list.md)
+at the repo root, a plain file in the
+`.gitignore`/`CODEOWNERS` mold; this page transcludes its table rather
+than keeping a second copy.
 
 ## The rule this page exists to enforce
 
@@ -113,10 +117,13 @@ line runs through the middle of `processing/`: most of it is the analysis
 logic this project exists to teach, but a handful of modules are
 format/plumbing work — BIDS conversion, dummy-data generation, the
 crosscheck feature — with the same low-teaching-value shape as the GUI
-layer, not the pipeline foundation itself. The table below is the
-maintained, file-level record of where that line actually falls; keep it
-in sync whenever a file in one of these areas is added, renamed, or
-moved. In `AGENTS.md`, this list is what **BYPASS** is scoped to.
+layer, not the pipeline foundation itself. The table below — transcluded
+from [`vibe_list.md`](https://github.com/stefandup/mobi-mooi-toolbox/blob/master/vibe_list.md)
+at the repo root, the single place it's actually maintained — is the file-level record of where that line
+falls today. In `AGENTS.md`, this list is what **BYPASS** is scoped to;
+everything *not* on it is default-deny (see [Verboten without
+OVERRIDE](#verboten-without-override) below), so a new area only ever
+needs adding to `vibe_list.md` itself to become BYPASS-eligible.
 
 "Cleared" doesn't mean unsupervised, though. AI-authored code here still
 has to pass the [four rules of vibe
@@ -131,14 +138,7 @@ that area's current AI-authored state against the four rules. An
 unticked box means it hasn't had that pass yet, not that something's
 wrong.
 
-| Area | Files | Human-checked ([@stefandup](https://github.com/stefandup)) |
-| --- | --- | --- |
-| BIDS conversion | `src/mooi_toolbox/processing/bids.py`, `crane_bids.py`, `longwalk_bids.py` | [ ] |
-| Dummy/sample data | `src/mooi_toolbox/processing/crane_dummy_data.py` | [ ] |
-| CLIs | every file in `src/mooi_toolbox/cli/` — already thin by design, see [Thin CLI, fat `processing/`](#patterns-to-reuse-not-reinvent) above | [ ] |
-| Crosscheck (backend + GUI) | `src/mooi_toolbox/processing/bids_crosscheck.py`; `src/mooi_toolbox/gui/bids_crosscheck_common.py`, `crane_bids_crosscheck_gui.py`, `foh_bids_crosscheck_gui.py`, `longwalk_bids_crosscheck_gui.py` | [ ] |
-| Build/packaging scripts | `build.ps1`, `build_mac.sh`, `toolbox_installer.iss` | [ ] |
-| Docs | everything under `docs/`, plus `mkdocs.yml` — already covered by [AI Use Guidelines](ai-use.md)'s docs exception | [ ] |
+--8<-- "vibe_list.md:table"
 
 ## Execution exception: dummy-data generation
 
@@ -161,31 +161,56 @@ BIDS-conversion CLIs standalone, the crosscheck tool, or the
 pipeline/processing CLIs (e.g. `vrlab_crane_process`) on that data, which
 all stay under `AGENTS.md`'s ordinary "only suggest commands" rule.
 
+## Execution exception: code-checking tools
+
+A second exception to the same run-nothing-yourself default (see above):
+an AI assistant may run the project's configured checkers — `ruff check`,
+`ruff format`/`--check`, `pyright`/Pylance — directly, and apply the fixes
+they suggest, against any file listed in
+[`vibe_list.md`](https://github.com/stefandup/mobi-mooi-toolbox/blob/master/vibe_list.md).
+That's not a new authorship permission; it's the same one BYPASS already
+grants for those files, just applied to catching what a first pass
+missed, so there's no extra approval step beyond the one the file's
+presence on `vibe_list.md` already implies. Running a checker against, or
+fixing what it flags in, any file *not* on `vibe_list.md` still means
+only suggesting the command — same as every other command against an
+OVERRIDE-only file.
+
 ## Verboten without OVERRIDE
 
 ![Stop sign](assets/images/stop-sign.png){ width="80" }
 
-Everything else in `src/mooi_toolbox/processing/` — the actual pipeline,
-signal-processing, and schema logic that [AI Use
-Guidelines](ai-use.md#the-core-rule-ai-is-a-tutor-not-a-coder)'s core rule
-is about — stays off-limits for AI authorship under `AGENTS.md`'s ordinary
-BYPASS command. Reaching for **OVERRIDE** instead doesn't relax the
-standard; it's for the "genuinely unavoidable" cases that page already
-allows for, and the same [four rules of vibe
+This isn't a second list to maintain — it's **everything not named** in
+[`vibe_list.md`](https://github.com/stefandup/mobi-mooi-toolbox/blob/master/vibe_list.md)'s
+[Cleared for vibe coding](#cleared-for-vibe-coding) table above, anywhere in the repo, not
+just `src/mooi_toolbox/processing/`. Default-deny: a file doesn't need
+adding to a table here to become off-limits for AI authorship under
+`AGENTS.md`'s ordinary BYPASS command — it's off-limits the moment it's
+absent from `vibe_list.md`. Reaching for **OVERRIDE** instead doesn't
+relax the standard; it's for the "genuinely unavoidable" cases that page
+already allows for, and the same [four rules of vibe
 coding](ai-use.md#the-four-rules-of-vibe-coding) still apply to whatever
 lands.
 
-| Area | Files |
-| --- | --- |
-| Pipeline orchestration | `crane_pipeline.py`, `foh_pipeline.py`, `longwalk_pipeline.py`, `mobi_core_pipeline.py`, `graphomotor_pipeline.py`, `pipeline.py` |
-| Signal processing | `biopac.py`, `ecg.py`, `eda.py`, `eeg.py`, `lsl.py`, `opensignals.py`, `spiral.py` |
-| Behaviour/trial-interval extraction | `behaviour.py`, `biodata.py`, `crane_behaviour.py`, `crane_debrief_behaviour.py`, `crane_trial_intervals.py`, `foh_behaviour.py`, `foh_target_behaviour.py`, `foh_trial_intervals.py`, `longwalk_behaviour.py`, `longwalk_trial_intervals.py`, `trial_intervals.py` |
-| REDCap/config/IO | `crane_redcap.py`, `redcap.py`, `foh_config.py`, `input_data.py`, `output_data.py`, `processing_status.py` |
-| Schemas/shared utilities | `pandera_defaults.py`, `plot_utils.py` |
-| Graphomotor | `graphomotor_qc.py`, `graphomotor_task.py`, `graphomotor_xdf.py` |
-
-(All paths above are relative to `src/mooi_toolbox/processing/`;
-`__init__.py` is omitted as trivial.)
+In practice, today, that's almost entirely `src/mooi_toolbox/processing/`'s
+pipeline orchestration (`crane_pipeline.py`, `foh_pipeline.py`,
+`longwalk_pipeline.py`, `mobi_core_pipeline.py`, `graphomotor_pipeline.py`,
+`pipeline.py`), signal processing (`biopac.py`, `ecg.py`, `eda.py`,
+`eeg.py`, `lsl.py`, `opensignals.py`, `spiral.py`), behaviour/trial-interval
+extraction (`behaviour.py`, `biodata.py`, `crane_behaviour.py`,
+`crane_debrief_behaviour.py`, `crane_trial_intervals.py`,
+`foh_behaviour.py`, `foh_target_behaviour.py`, `foh_trial_intervals.py`,
+`longwalk_behaviour.py`, `longwalk_trial_intervals.py`,
+`trial_intervals.py`), REDCap/config/IO (`crane_redcap.py`, `redcap.py`,
+`foh_config.py`, `input_data.py`, `output_data.py`,
+`processing_status.py`), schemas/shared utilities (`pandera_defaults.py`,
+`plot_utils.py`), and graphomotor (`graphomotor_qc.py`,
+`graphomotor_task.py`, `graphomotor_xdf.py`) — the actual analysis logic
+[AI Use Guidelines](ai-use.md#the-core-rule-ai-is-a-tutor-not-a-coder)'s
+core rule is about. That's a description of where OVERRIDE tends to come
+up, though, not the mechanism itself: it's whatever's left over once
+`vibe_list.md` is subtracted, so this paragraph can go stale without
+breaking anything, unlike a maintained deny-list would.
 
 ## Using this page
 
