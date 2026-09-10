@@ -23,21 +23,21 @@ Examples:
 
 \b
   5 clean participants, reproducible:
-  crane_generate_sample_data examples/crane_templates examples --seed 42
+  crane_generate_sample_data crane_examples/crane_templates crane_examples --seed 42
 
 \b
   Also add one participant per known error scenario (missing files, bad
   triggers, ...) -- each including a synthetic debrief row generated straight
   from crane_raw_debrief_file_schema (see crane_debrief_behaviour.py), so the
   group debrief export is never missing a column the real pipeline expects:
-  crane_generate_sample_data examples/crane_templates examples --with-errors --seed 42
+  crane_generate_sample_data crane_examples/crane_templates crane_examples --with-errors --seed 42
 
 \b
   Reproduce one real crane_data/ participant's trigger anomaly, without
   exposing their data (only that file's trigger-pulse timing is ever read).
   --reference-error-type is not an arbitrary label — it must be one of:
   {", ".join(REFERENCE_ERROR_TYPES)}:
-  crane_generate_sample_data examples/crane_templates examples \\
+  crane_generate_sample_data crane_examples/crane_templates crane_examples \\
     --reference-folder crane_data \\
     --reference-subject-id PID16186 \\
     --reference-error-type missing_initial_trigger
@@ -45,7 +45,7 @@ Examples:
 \b
   Same, but choose the generated participant's ID yourself (default is
   REF<reference-subject-id>):
-  crane_generate_sample_data examples/crane_templates examples \\
+  crane_generate_sample_data crane_examples/crane_templates crane_examples \\
     --reference-folder crane_data \\
     --reference-subject-id PID16186 \\
     --reference-error-type missing_initial_trigger \\
@@ -56,8 +56,8 @@ Examples:
   crane_convert_to_bids.convert_crane_to_bids -- output_folder still ends up
   holding the plain raw CraneOut files either way, this just also converts
   them into --bids-folder for you:
-  crane_generate_sample_data examples/crane_templates examples \\
-    --with-errors --seed 42 --bids-folder examples_bids
+  crane_generate_sample_data crane_examples/crane_templates crane_examples \\
+    --with-errors --seed 42 --bids-folder crane_examples/crane_bids_dummy
 
 \b
   Every run writes/updates "{DUMMY_DATA_LOG_FILENAME}" inside output_folder --

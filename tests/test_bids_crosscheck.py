@@ -13,6 +13,7 @@ from mooi_toolbox.processing.bids_crosscheck import (
     crosschecked_scan_types,
     ensure_bidsignore,
     existing_subject_ids,
+    fill_missing_scans_tsv_dates,
     list_scans_tsv_rows,
     load_decisions,
     load_excluded_subjects,
@@ -21,6 +22,7 @@ from mooi_toolbox.processing.bids_crosscheck import (
     record_date_correction,
     record_id_correction,
     record_scans_tsv_row_date_correction,
+    record_scans_tsv_row_removed,
     record_selected_run,
     record_subject_excluded,
     record_task_tag,
@@ -252,6 +254,146 @@ class TestRecordScansTsvRowDateCorrection(unittest.TestCase):
 
         rows = list_scans_tsv_rows(self.bids_folder, "001")
         self.assertEqual(rows[0]["acq_time"], "2024100")
+
+
+class TestFillMissingScansTsvDates(unittest.TestCase):
+    def setUp(self):
+        self.bids_folder = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        shutil.rmtree(self.bids_folder, ignore_errors=True)
+
+    def test_fills_a_missing_row_from_the_reference_date(self):
+        _write_scans_tsv(
+            self.bids_folder / "sub-001" / "ses-01" / "sub-001_ses-01_scans.tsv",
+            [
+                {"filename": "sub-001_ses-01_physio.mat", "acq_time": "202401081200"},
+                {"filename": "sub-001_ses-01_events.tsv", "acq_time": ""},
+            ],
+        )
+
+        filled = fill_missing_scans_tsv_dates(self.bids_folder, "001")
+
+        self.assertEqual(filled, ["sub-001_ses-01_events.tsv"])
+        rows = list_scans_tsv_rows(self.bids_folder, "001")
+        self.assertEqual(rows[1]["acq_time"], "202401081200")
+
+    def test_does_not_overwrite_a_row_that_already_has_a_parseable_date(self):
+        _write_scans_tsv(
+            self.bids_folder / "sub-001" / "ses-01" / "sub-001_ses-01_scans.tsv",
+            [
+                {"filename": "sub-001_ses-01_physio.mat", "acq_time": "202401081200"},
+                {"filename": "sub-001_ses-01_events.tsv", "acq_time": "202401091300"},
+            ],
+        )
+
+        filled = fill_missing_scans_tsv_dates(self.bids_folder, "001")
+
+        self.assertEqual(filled, [])
+        rows = list_scans_tsv_rows(self.bids_folder, "001")
+        self.assertEqual(rows[1]["acq_time"], "202401091300")
+
+    def test_returns_empty_list_when_no_row_has_a_reference_date(self):
+        _write_scans_tsv(
+            self.bids_folder / "sub-001" / "ses-01" / "sub-001_ses-01_scans.tsv",
+            [{"filename": "sub-001_ses-01_events.tsv", "acq_time": ""}],
+        )
+
+        filled = fill_missing_scans_tsv_dates(self.bids_folder, "001")
+
+        self.assertEqual(filled, [])
+        rows = list_scans_tsv_rows(self.bids_folder, "001")
+        self.assertEqual(rows[0]["acq_time"], "")
+
+    def test_returns_empty_list_when_subject_has_no_scans_tsv(self):
+        self.assertEqual(fill_missing_scans_tsv_dates(self.bids_folder, "001"), [])
+
+    def test_revert_all_decisions_restores_the_original_empty_value(self):
+        _write_scans_tsv(
+            self.bids_folder / "sub-001" / "ses-01" / "sub-001_ses-01_scans.tsv",
+            [
+                {"filename": "sub-001_ses-01_physio.mat", "acq_time": "202401081200"},
+                {"filename": "sub-001_ses-01_events.tsv", "acq_time": ""},
+            ],
+        )
+        fill_missing_scans_tsv_dates(self.bids_folder, "001")
+
+        revert_all_decisions(self.bids_folder)
+
+        rows = list_scans_tsv_rows(self.bids_folder, "001")
+        self.assertEqual(rows[1]["acq_time"], "")
+
+
+class TestRecordScansTsvRowRemoved(unittest.TestCase):
+    def setUp(self):
+        self.bids_folder = Path(tempfile.mkdtemp())
+        self.scans_tsv = _write_scans_tsv(
+            self.bids_folder / "sub-001" / "ses-01" / "sub-001_ses-01_scans.tsv",
+            [
+                {"filename": "sub-001_ses-01_physio.mat", "acq_time": "202401081200"},
+                {"filename": "sub-001_ses-01_events.tsv", "acq_time": "202401081200"},
+                {"filename": "sub-001_ses-01_events.tsv", "acq_time": ""},
+            ],
+        )
+
+    def tearDown(self):
+        shutil.rmtree(self.bids_folder, ignore_errors=True)
+
+    def test_removes_the_matching_row(self):
+        record_scans_tsv_row_removed(
+            self.bids_folder, "001", "sub-001_ses-01_events.tsv", ""
+        )
+
+        rows = list_scans_tsv_rows(self.bids_folder, "001")
+        self.assertEqual(len(rows), 2)
+        self.assertTrue(all(row["acq_time"] != "" for row in rows))
+
+    def test_matches_filename_and_acq_time_together_not_filename_alone(self):
+        # Two rows share this filename -- only the one whose acq_time also matches should go.
+        record_scans_tsv_row_removed(
+            self.bids_folder, "001", "sub-001_ses-01_events.tsv", "202401081200"
+        )
+
+        rows = list_scans_tsv_rows(self.bids_folder, "001")
+        self.assertEqual(len(rows), 2)
+        remaining_events_rows = [r for r in rows if r["filename"] == "sub-001_ses-01_events.tsv"]
+        self.assertEqual(
+            remaining_events_rows, [{"filename": "sub-001_ses-01_events.tsv", "acq_time": ""}]
+        )
+
+    def test_raises_when_no_row_matches(self):
+        with self.assertRaises(BidsCrosscheckError):
+            record_scans_tsv_row_removed(
+                self.bids_folder, "001", "sub-001_ses-01_events.tsv", "no-such-date"
+            )
+
+    def test_raises_for_a_subject_with_no_scans_tsv(self):
+        with self.assertRaises(BidsCrosscheckError):
+            record_scans_tsv_row_removed(self.bids_folder, "002", "anything.tsv", "")
+
+    def test_decision_records_the_removed_row(self):
+        record_scans_tsv_row_removed(
+            self.bids_folder, "001", "sub-001_ses-01_events.tsv", ""
+        )
+
+        decisions = load_decisions(self.bids_folder)
+        key = "001_scans_tsv_row:sub-001_ses-01_events.tsv:2"
+        self.assertEqual(decisions[key][-1]["type"], "scans_tsv_row_removed")
+        self.assertEqual(
+            decisions[key][-1]["removed_row"],
+            {"filename": "sub-001_ses-01_events.tsv", "acq_time": ""},
+        )
+
+    def test_revert_all_decisions_restores_the_row(self):
+        record_scans_tsv_row_removed(
+            self.bids_folder, "001", "sub-001_ses-01_events.tsv", ""
+        )
+
+        revert_all_decisions(self.bids_folder)
+
+        rows = list_scans_tsv_rows(self.bids_folder, "001")
+        self.assertEqual(len(rows), 3)
+        self.assertIn({"filename": "sub-001_ses-01_events.tsv", "acq_time": ""}, rows)
 
 
 class TestRecordIdCorrection(unittest.TestCase):
@@ -1102,6 +1244,38 @@ class TestRebuildFromRaw(unittest.TestCase):
         )
         self.assertFalse((self.fresh_bids_folder / "sub-001" / "sub-001_run-3_eeg.xdf").exists())
         self.assertEqual(load_decisions(self.fresh_bids_folder), decisions)
+
+    def test_replays_a_scans_tsv_row_removal(self):
+        _write_scans_tsv(
+            self.original_bids_folder / "sub-001" / "ses-01" / "sub-001_ses-01_scans.tsv",
+            [
+                {"filename": "sub-001_ses-01_events.tsv", "acq_time": "202401081200"},
+                {"filename": "sub-001_ses-01_events.tsv", "acq_time": ""},
+            ],
+        )
+        record_scans_tsv_row_removed(
+            self.original_bids_folder, "001", "sub-001_ses-01_events.tsv", ""
+        )
+        decisions = load_decisions(self.original_bids_folder)
+        excluded = load_excluded_subjects(self.original_bids_folder)
+
+        # A fresh raw import/reprocessing recreates the same duplicate-append pattern.
+        _write_scans_tsv(
+            self.fresh_bids_folder / "sub-001" / "ses-01" / "sub-001_ses-01_scans.tsv",
+            [
+                {"filename": "sub-001_ses-01_events.tsv", "acq_time": "202401081200"},
+                {"filename": "sub-001_ses-01_events.tsv", "acq_time": ""},
+            ],
+        )
+
+        resolved, unresolved = rebuild_from_raw(self.fresh_bids_folder, decisions, excluded)
+
+        self.assertEqual(unresolved, [])
+        self.assertEqual(len(resolved), 1)
+        rows = list_scans_tsv_rows(self.fresh_bids_folder, "001")
+        self.assertEqual(
+            rows, [{"filename": "sub-001_ses-01_events.tsv", "acq_time": "202401081200"}]
+        )
 
     def test_applies_exclusions(self):
         _touch(self.original_bids_folder / "sub-002" / "a.xdf")

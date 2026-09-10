@@ -4,8 +4,10 @@ import logging
 import os
 import re
 import shutil
+from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
@@ -13,6 +15,11 @@ logger = logging.getLogger(__name__)
 
 DECISIONS_FILENAME = "crosscheck.json"
 PENDING_SELECTIONS_FILENAME = "crosscheck_pending.json"
+# The strict format a scans.tsv `acq_time` value must match -- shared with the crosscheck
+# GUI's scans.tsv pane (parse_scans_tsv_date/scans_tsv_reference_date below), so the tick/cross
+# it shows next to a row and what fill_missing_scans_tsv_dates considers "already dated" never
+# disagree.
+SCANS_TSV_DATE_FORMAT = "%Y%m%d%H%M"
 EXCLUDED_SUBJECTS_FILENAME = "excluded_subjects.json"
 STUDY_ID_FILENAME = "study_id.json"
 SUBJECT_FOLDER_PREFIX = "sub-"
@@ -687,6 +694,142 @@ def record_scans_tsv_date_correction(
     return file
 
 
+def parse_scans_tsv_date(value: str | None) -> datetime | None:
+    """Parses a scans.tsv `acq_time` value as the strict YYYYMMDDHHMM format this tool expects.
+    Raw converters (crane, longwalk) sometimes write whatever digit string they could scrape
+    from a filename -- neither this format nor a consistent length -- so an existing value is
+    expected to fail this until a human corrects it. Returns None for anything that doesn't
+    match, missing or otherwise.
+    """
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, SCANS_TSV_DATE_FORMAT)
+    except ValueError:
+        return None
+
+
+def scans_tsv_reference_date(rows: list[dict[str, str]]) -> datetime | None:
+    """The majority `acq_time` value among a subject's own scans.tsv rows -- there's nothing
+    else in a scans.tsv to compare against, so one outlier among several agreeing rows is a
+    much more useful signal than "no rows agree with anything". None if no row has a parseable
+    date at all. Shared by the crosscheck GUI's per-row tick/cross and
+    `fill_missing_scans_tsv_dates` below, so what counts as "this subject's date" never
+    disagrees between the two.
+    """
+    valid_dates = [
+        parsed for parsed in (parse_scans_tsv_date(row.get("acq_time")) for row in rows) if parsed
+    ]
+    return Counter(valid_dates).most_common(1)[0][0] if valid_dates else None
+
+
+def fill_missing_scans_tsv_dates(bids_folder: Path, subject_id: str) -> list[str]:
+    """Fills every row in `subject_id`'s scans.tsv sidecar whose `acq_time` is empty or doesn't
+    parse as YYYYMMDDHHMM, using that subject's own `scans_tsv_reference_date` -- e.g. a
+    behaviour/events row appended without a real acquisition time (see
+    processing/longwalk_bids.py) gets backfilled from the same participant's already-dated
+    physiology row. Never touches a row that already carries *some* parseable date, even a
+    disagreeing one -- that's still a human decision for "Edit date...", not something to
+    silently overwrite. Returns the filenames actually filled; empty if there was nothing to
+    fill, or no reference date to fill from yet.
+
+    Reuses the same `scans_tsv_date_correction` decision type as
+    `record_scans_tsv_row_date_correction`, keyed per row (filename + position, since more than
+    one row can share a filename -- see `record_scans_tsv_row_removed`), so `revert_all_decisions`
+    and `rebuild_from_raw` already know how to undo/replay this without extra cases.
+    """
+    subject_folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{subject_id}"
+    matches = sorted(subject_folder.glob("**/*_scans.tsv"))
+    if not matches:
+        return []
+    scans_tsv = matches[0]
+
+    rows = _read_scans_tsv_rows(scans_tsv)
+    reference_date = scans_tsv_reference_date(rows)
+    if reference_date is None:
+        return []
+    corrected_date = reference_date.strftime(SCANS_TSV_DATE_FORMAT)
+
+    filled: list[str] = []
+    decisions = load_decisions(bids_folder)
+    for index, row in enumerate(rows):
+        if parse_scans_tsv_date(row.get("acq_time")) is not None:
+            continue
+        filename = row.get("filename", "")
+        _append_decision(
+            decisions,
+            _decision_key(subject_id, f"scans_tsv:{filename}:{index}"),
+            {
+                "type": "scans_tsv_date_correction",
+                "subject_id": subject_id,
+                "scan_type": f"scans_tsv:{filename}",
+                "scans_tsv": scans_tsv.relative_to(bids_folder).as_posix(),
+                "filename": filename,
+                "original_date": row.get("acq_time", ""),
+                "corrected_date": corrected_date,
+            },
+        )
+        row["acq_time"] = corrected_date
+        filled.append(filename)
+
+    if filled:
+        _write_decisions_atomic(bids_folder, decisions)
+        _write_scans_tsv_rows(scans_tsv, rows)
+    return filled
+
+
+def record_scans_tsv_row_removed(
+    bids_folder: Path,
+    subject_id: str,
+    relative_filename: str,
+    acq_time: str,
+) -> None:
+    """Deletes one row from `subject_id`'s scans.tsv sidecar -- e.g. a stale duplicate line left
+    behind because `append_scan_row` never dedupes (a reprocessing run appending the same events
+    file a second time). Only removes the tsv row; the file on disk, if any, is left exactly
+    where it is -- unlike `_remove_scans_tsv_row`, which only ever runs alongside an actual file
+    deletion (`record_selected_run`'s non-selected candidates).
+
+    Matches on `filename` *and* `acq_time` together, not filename alone, so it can target one
+    specific row even when two rows share a filename -- the exact "duplicate line" case this
+    exists for. Removes the first match. Recorded as a `scans_tsv_row_removed` decision so
+    `revert_all_decisions`/`rebuild_from_raw` can restore it.
+    """
+    subject_folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{subject_id}"
+    matches = sorted(subject_folder.glob("**/*_scans.tsv"))
+    if not matches:
+        raise BidsCrosscheckError(f"No scans.tsv found for subject {subject_id!r}")
+    scans_tsv = matches[0]
+
+    rows = _read_scans_tsv_rows(scans_tsv)
+    row_index = next(
+        (
+            index
+            for index, row in enumerate(rows)
+            if row.get("filename") == relative_filename and row.get("acq_time", "") == acq_time
+        ),
+        None,
+    )
+    if row_index is None:
+        raise BidsCrosscheckError(f"No matching {relative_filename!r} row found in {scans_tsv}")
+    removed_row = rows.pop(row_index)
+
+    decisions = load_decisions(bids_folder)
+    _append_decision(
+        decisions,
+        _decision_key(subject_id, f"scans_tsv_row:{relative_filename}:{row_index}"),
+        {
+            "type": "scans_tsv_row_removed",
+            "subject_id": subject_id,
+            "scans_tsv": scans_tsv.relative_to(bids_folder).as_posix(),
+            "row_index": row_index,
+            "removed_row": removed_row,
+        },
+    )
+    _write_decisions_atomic(bids_folder, decisions)
+    _write_scans_tsv_rows(scans_tsv, rows)
+
+
 def list_scans_tsv_rows(bids_folder: Path, subject_id: str) -> list[dict[str, str]] | None:
     """Every row of `subject_id`'s `scans.tsv` sidecar (`filename`, `acq_time`), for the
     crosscheck GUI's scans.tsv pane -- unlike `read_scans_tsv_date`, which only looks up one
@@ -1115,6 +1258,15 @@ def revert_all_decisions(bids_folder: Path) -> tuple[list[Path], list[str]]:
                         row["acq_time"] = entry["original_date"]
                     _write_scans_tsv_rows(scans_tsv, rows)
                     reverted.append(scans_tsv)
+                elif entry_type == "scans_tsv_row_removed":
+                    scans_tsv = bids_folder / entry["scans_tsv"]
+                    if not scans_tsv.is_file():
+                        continue
+                    rows = _read_scans_tsv_rows(scans_tsv)
+                    index = min(entry["row_index"], len(rows))
+                    rows.insert(index, entry["removed_row"])
+                    _write_scans_tsv_rows(scans_tsv, rows)
+                    reverted.append(scans_tsv)
                 elif entry_type == "id_correction":
                     corrected_folder = (
                         bids_folder / f"{SUBJECT_FOLDER_PREFIX}{entry['corrected_id']}"
@@ -1263,6 +1415,26 @@ def _replay_decision(bids_folder: Path, entry: dict) -> str | None:
                 return f"{entry['filename']!r} row not found in {entry['scans_tsv']}"
             for row in matching_rows:
                 row["acq_time"] = entry["corrected_date"]
+            _write_scans_tsv_rows(scans_tsv, rows)
+            return None
+        if entry_type == "scans_tsv_row_removed":
+            scans_tsv = bids_folder / entry["scans_tsv"]
+            if not scans_tsv.is_file():
+                return f"{entry['scans_tsv']} not found"
+            rows = _read_scans_tsv_rows(scans_tsv)
+            removed_row = entry["removed_row"]
+            match_index = next(
+                (
+                    index
+                    for index, row in enumerate(rows)
+                    if row.get("filename") == removed_row.get("filename")
+                    and row.get("acq_time", "") == removed_row.get("acq_time", "")
+                ),
+                None,
+            )
+            if match_index is None:
+                return f"{removed_row.get('filename')!r} row not found in {entry['scans_tsv']}"
+            rows.pop(match_index)
             _write_scans_tsv_rows(scans_tsv, rows)
             return None
         # "crosschecked" is a marker with no filesystem effect -- nothing to replay.

@@ -27,9 +27,9 @@ from mooi_toolbox.processing.crane_pipeline import run_pipeline
 from mooi_toolbox.processing.processing_status import ProcessingStatus
 from mooi_toolbox.processing.trial_intervals import TrialIntervals
 
-# Templates currently live under examples/crane_templates on disk, not the sample_data/ path
-# this constant previously pointed at (that folder doesn't exist in this checkout).
-TEMPLATE_FOLDER = Path("examples/crane_templates")
+# Templates currently live under crane_examples/crane_templates on disk, not the sample_data/
+# path this constant previously pointed at (that folder doesn't exist in this checkout).
+TEMPLATE_FOLDER = Path("crane_examples/crane_templates")
 
 ERROR_SCENARIO_STATUS_KEY = {
     "missing_physiology": RawBioData,
@@ -47,8 +47,8 @@ class TestCraneDummyData(unittest.TestCase):
     -- that's the input a real raw-to-BIDS conversion would run against, not what the pipeline
     itself reads anymore. So each generated dataset is run once through
     crane_bids.convert_crane_to_bids() here, and run_pipeline() below points at that
-    BIDS output, not the raw output_folder -- matching examples/crane_bids_dummy, the real BIDS
-    dummy data these tests are meant to mirror.
+    BIDS output, not the raw output_folder -- matching crane_examples/crane_bids_dummy, the real
+    BIDS dummy data these tests are meant to mirror.
     """
 
     @classmethod

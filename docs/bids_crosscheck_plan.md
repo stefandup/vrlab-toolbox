@@ -233,6 +233,35 @@ actually on disk is reported unresolved rather than guessed at, in keeping with 
 tool's "never guess" philosophy (see the FOH stream-indicators section above). See
 [BIDS Crosscheck: Architecture](bids-crosscheck-architecture.md) for the code map.
 
+**Update (2026-09-10): scans.tsv rows can now be bulk-dated or individually removed from the
+GUI.** Longwalk's behaviour/events step (`longwalk_behaviour.py`) appends a `scans.tsv` row via
+`longwalk_bids.create_bids_events_file_in_folder` alongside its physiology row -- already picked
+up by the existing scans.tsv pane (`dates_in_scans_tsv=True` in
+`gui/longwalk_bids_crosscheck_gui.py`) with no changes needed there. Two gaps this surfaced:
+
+- That events row was recorded with a hardcoded empty `acq_time`, regardless of what its caller
+  passed in -- `create_bids_events_file_in_folder` accepted an `acq_date` parameter but never
+  used it. Fixed in `processing/longwalk_bids.py` to actually pass it through. The pipeline caller
+  itself (`longwalk_behaviour.py`, protected by `AGENTS.md`'s OVERRIDE, not BYPASS) still calls it
+  with `""` today, so existing/new events rows still land empty -- the fix below is how an
+  operator backfills them, not an automatic one.
+- There was no way to fill a missing date, or remove a stray row, without hand-editing the tsv.
+  `processing/bids_crosscheck.py` gained `fill_missing_scans_tsv_dates` (backfills every
+  missing/unparseable row for a subject from that subject's own `scans_tsv_reference_date` --
+  e.g. copying the physiology row's date onto an empty events row -- never touching a row that
+  already has *some* parseable date) and `record_scans_tsv_row_removed` (deletes one row,
+  matched by filename *and* acq_time together so it can target one specific line even when two
+  rows share a filename -- e.g. a duplicate events line left behind by a reprocessing run, since
+  `append_scan_row` never dedupes). Both are recorded decisions, so `revert_all_decisions`/
+  `rebuild_from_raw` already know how to undo/replay them. `gui/bids_crosscheck_common.py`
+  exposes the first as a "Fill missing scans.tsv dates" action in the Subject/Group Actions panel
+  (works the same for one or many selected subjects) and the second as a "Remove row..." button
+  next to each scans.tsv row's existing "Edit date...".
+- `SCANS_TSV_DATE_FORMAT`/date-parsing (`parse_scans_tsv_date`, `scans_tsv_reference_date`) moved
+  from the GUI module into `processing/bids_crosscheck.py` in the process, since
+  `fill_missing_scans_tsv_dates` needed the same parsing with no Qt dependency -- the GUI now
+  imports these instead of keeping its own copy.
+
 ## Deliberately out of scope for now
 
 - **No automatic collision resolution** — see above.

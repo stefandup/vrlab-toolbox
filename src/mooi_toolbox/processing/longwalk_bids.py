@@ -209,7 +209,6 @@ def _copy_into_subject_folder(
     return destination
 
 
-# TODO: Check that this is OK
 def create_bids_events_file_in_folder(
     bids_events: bids.BidsEventsData,
     output_folder: Path,
@@ -223,7 +222,7 @@ def create_bids_events_file_in_folder(
     relative_name = destination.relative_to(
         _scans_tsv_path(output_folder, subject_id).parent
     ).as_posix()
-    append_scan_row(_scans_tsv_path(output_folder, subject_id), relative_name, "")
+    append_scan_row(_scans_tsv_path(output_folder, subject_id), relative_name, acq_date)
 
 
 @dataclass

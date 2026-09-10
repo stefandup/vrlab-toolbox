@@ -9,7 +9,6 @@ docs/bids_crosscheck_plan.md for the design.
 import json
 import logging
 import textwrap
-from collections import Counter
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -50,6 +49,7 @@ from rich.progress import Progress
 
 from mooi_toolbox import __version__
 from mooi_toolbox.processing.bids_crosscheck import (
+    SCANS_TSV_DATE_FORMAT,
     SUBJECT_FOLDER_PREFIX,
     BidsCrosscheckError,
     BidsFolderScan,
@@ -59,11 +59,13 @@ from mooi_toolbox.processing.bids_crosscheck import (
     completeness_summary,
     crosschecked_scan_types,
     ensure_bidsignore,
+    fill_missing_scans_tsv_dates,
     list_scans_tsv_rows,
     load_decisions,
     load_excluded_subjects,
     load_pending_selections,
     load_study_id,
+    parse_scans_tsv_date,
     read_scans_tsv_date,
     rebuild_from_raw,
     record_date_correction,
@@ -71,6 +73,7 @@ from mooi_toolbox.processing.bids_crosscheck import (
     record_id_correction,
     record_scans_tsv_date_correction,
     record_scans_tsv_row_date_correction,
+    record_scans_tsv_row_removed,
     record_selected_run,
     record_subject_excluded,
     record_task_tag,
@@ -80,6 +83,7 @@ from mooi_toolbox.processing.bids_crosscheck import (
     save_pending_selections,
     save_study_id,
     scan_bids_folder,
+    scans_tsv_reference_date,
     set_crosschecked,
 )
 
@@ -263,7 +267,6 @@ BIDS_DATATYPE_NAMES = {
 }
 
 
-SCANS_TSV_DATE_FORMAT = "%Y%m%d%H%M"
 SCANS_TSV_DATE_QT_FORMAT = "yyyyMMddHHmm"
 # Separators here are purely cosmetic -- they make the HH/mm section visually distinct so a
 # user notices it's editable, rather than reading as one undifferentiated block of 12 digits
@@ -271,36 +274,9 @@ SCANS_TSV_DATE_QT_FORMAT = "yyyyMMddHHmm"
 # separators), since that's the strict format scans.tsv itself requires.
 SCANS_TSV_DATE_QT_DISPLAY_FORMAT = "yyyy-MM-dd HH:mm"
 
-
-def _parse_scans_tsv_date(value: str | None) -> datetime | None:
-    """Parses a scans.tsv `acq_time` value as the strict YYYYMMDDHHMM format the scans.tsv
-    pane checks every row against. Crane's converter itself just writes whatever digit string
-    it can scrape from a raw filename (see processing/crane_bids.py) -- neither this format
-    nor a consistent length -- so most existing values are expected to fail this until a human
-    corrects them via the pane.
-    """
-    if not value:
-        return None
-    try:
-        return datetime.strptime(value, SCANS_TSV_DATE_FORMAT)
-    except ValueError:
-        return None
-
-
-def _scans_tsv_reference_date(rows: list[dict[str, str]]) -> datetime | None:
-    """The majority `acq_time` value among a subject's own scans.tsv rows -- there's nothing
-    else in a scans.tsv to compare against, so one outlier among several agreeing rows is a
-    much more useful signal than "no rows agree with anything". Shared by the scans.tsv pane's
-    per-row tick/cross (`_build_scans_tsv_row`) and the master subject list's at-a-glance
-    SCANS_TSV_DATE_ISSUE_ICON (`_scans_tsv_has_date_issue`), so the two never disagree about
-    what counts as an issue.
-    """
-    valid_dates = [
-        parsed
-        for parsed in (_parse_scans_tsv_date(row.get("acq_time")) for row in rows)
-        if parsed is not None
-    ]
-    return Counter(valid_dates).most_common(1)[0][0] if valid_dates else None
+# SCANS_TSV_DATE_FORMAT, parse_scans_tsv_date and scans_tsv_reference_date now live in
+# processing/bids_crosscheck.py (fill_missing_scans_tsv_dates needs the same parsing, with no
+# Qt dependency) -- imported above instead of duplicated here.
 
 
 class ScansTsvDateCorrectionDialog(QDialog):
@@ -312,7 +288,7 @@ class ScansTsvDateCorrectionDialog(QDialog):
     QDateTimeEdit only ever holds a valid date/time, whatever it returns is guaranteed
     well-formed. The displayed format is cosmetic only; `corrected_date()` still returns the
     strict YYYYMMDDHHMM scans.tsv requires. Defaults to today when the row's existing value
-    doesn't parse (see `_parse_scans_tsv_date`), so correcting an unparseable/missing value
+    doesn't parse (see `parse_scans_tsv_date`), so correcting an unparseable/missing value
     starts from a sensible point rather than a blank or invalid one.
     """
 
@@ -326,7 +302,7 @@ class ScansTsvDateCorrectionDialog(QDialog):
         self.date_edit = QDateTimeEdit()
         self.date_edit.setDisplayFormat(SCANS_TSV_DATE_QT_DISPLAY_FORMAT)
         self.date_edit.setCalendarPopup(True)
-        parsed = _parse_scans_tsv_date(current_date)
+        parsed = parse_scans_tsv_date(current_date)
         self.date_edit.setDateTime(parsed or datetime.now())
         layout.addWidget(self.date_edit)
 
@@ -1441,9 +1417,9 @@ class BidsCrosscheckWindow(QMainWindow):
         rows = list_scans_tsv_rows(self.bids_folder, subject_id)
         if not rows:
             return False
-        reference_date = _scans_tsv_reference_date(rows)
+        reference_date = scans_tsv_reference_date(rows)
         for row in rows:
-            parsed = _parse_scans_tsv_date(row.get("acq_time"))
+            parsed = parse_scans_tsv_date(row.get("acq_time"))
             if parsed is None or (reference_date is not None and parsed != reference_date):
                 return True
         return False
@@ -2165,7 +2141,7 @@ class BidsCrosscheckWindow(QMainWindow):
         group = QGroupBox(f"scans.tsv ({len(rows)} {row_word})")
         layout = QVBoxLayout(group)
 
-        reference_date = _scans_tsv_reference_date(rows)
+        reference_date = scans_tsv_reference_date(rows)
 
         for row in rows:
             layout.addWidget(self._build_scans_tsv_row(subject_id, row, reference_date))
@@ -2177,7 +2153,7 @@ class BidsCrosscheckWindow(QMainWindow):
     ) -> QWidget:
         relative_filename = row.get("filename", "")
         raw_date = row.get("acq_time", "")
-        parsed = _parse_scans_tsv_date(raw_date)
+        parsed = parse_scans_tsv_date(raw_date)
         if parsed is None:
             icon, color = "✗", UNCROSSCHECKED_COLOR
             tooltip = f"{raw_date or '(empty)'!r} doesn't parse as YYYYMMDDHHMM"
@@ -2216,6 +2192,19 @@ class BidsCrosscheckWindow(QMainWindow):
         )
         row_layout.addWidget(edit_button)
 
+        remove_button = QPushButton("Remove row...")
+        remove_button.setToolTip(
+            wrap_tooltip(
+                "Delete this one row from scans.tsv -- e.g. a duplicate line left behind by "
+                "a reprocessing run appending the same file twice. Only removes the tsv row; "
+                "doesn't touch the file on disk."
+            )
+        )
+        remove_button.clicked.connect(
+            lambda: self._on_delete_scans_tsv_row(subject_id, relative_filename, raw_date)
+        )
+        row_layout.addWidget(remove_button)
+
         return row_widget
 
     def _on_edit_scans_tsv_date(
@@ -2235,6 +2224,31 @@ class BidsCrosscheckWindow(QMainWindow):
             )
         except BidsCrosscheckError as error:
             QMessageBox.warning(self, "Could not correct date", str(error))
+            return
+        self._rescan()
+
+    def _on_delete_scans_tsv_row(
+        self, subject_id: str, relative_filename: str, acq_time: str
+    ) -> None:
+        if self.bids_folder is None:
+            return
+        confirm = QMessageBox.question(
+            self,
+            "Remove scans.tsv row",
+            f"Remove this row from scans.tsv?\n\n{relative_filename}  —  "
+            f"{acq_time or '(empty)'}\n\n"
+            "The file on disk, if any, is untouched -- this only removes the tsv row.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            record_scans_tsv_row_removed(
+                self.bids_folder, subject_id, relative_filename, acq_time
+            )
+        except BidsCrosscheckError as error:
+            QMessageBox.warning(self, "Could not remove row", str(error))
             return
         self._rescan()
 
@@ -2362,6 +2376,27 @@ class BidsCrosscheckWindow(QMainWindow):
             refresh_button.clicked.connect(lambda: self._on_refresh_subjects(subject_ids))
             layout.addWidget(refresh_button)
 
+        if self.dataset_config.dates_in_scans_tsv:
+            fill_dates_label = (
+                "Fill missing scans.tsv dates"
+                if len(subject_ids) == 1
+                else "Fill missing scans.tsv dates for selected"
+            )
+            fill_dates_button = QPushButton(fill_dates_label)
+            fill_dates_button.setToolTip(
+                wrap_tooltip(
+                    "Fills any scans.tsv row that's missing an acquisition date (or has one "
+                    "that doesn't parse) using that same subject's own reference date -- e.g. "
+                    "an events row appended without one. Never overwrites a row that already "
+                    "has some parseable date, even a disagreeing one; use \"Edit date...\" for "
+                    "that."
+                )
+            )
+            fill_dates_button.clicked.connect(
+                lambda: self._on_fill_missing_scans_tsv_dates(subject_ids)
+            )
+            layout.addWidget(fill_dates_button)
+
         if len(subject_ids) == 1:
             subject_id = subject_ids[0]
             rename_button = QPushButton("Rename subject ID...")
@@ -2483,6 +2518,53 @@ class BidsCrosscheckWindow(QMainWindow):
         for _subject_id, scan_type, file in self._effective_candidates_for(subject_ids):
             self.extras.refresh(scan_type, file)
         self.extras.flush()
+        self._rescan()
+
+    def _on_fill_missing_scans_tsv_dates(self, subject_ids: list[str]) -> None:
+        """Fills every missing/unparseable scans.tsv date across `subject_ids`, one subject
+        at a time (see `fill_missing_scans_tsv_dates`). No confirmation dialog for a single
+        subject -- matches every other single-subject action in this pane; a group selection
+        gets one, matching every other bulk action here.
+        """
+        if self.bids_folder is None:
+            return
+        if len(subject_ids) > 1:
+            confirm = QMessageBox.question(
+                self,
+                "Fill missing scans.tsv dates for selected",
+                "This will fill any missing/unparseable scans.tsv date for each of the "
+                f"{len(subject_ids)} selected subject(s), using that subject's own reference "
+                "date. Continue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if confirm != QMessageBox.StandardButton.Yes:
+                return
+
+        filled_by_subject: dict[str, list[str]] = {}
+        for subject_id in subject_ids:
+            filenames = fill_missing_scans_tsv_dates(self.bids_folder, subject_id)
+            if filenames:
+                filled_by_subject[subject_id] = filenames
+        total_filled = sum(len(filenames) for filenames in filled_by_subject.values())
+        if not total_filled:
+            QMessageBox.information(
+                self,
+                "Nothing to fill",
+                "No missing/unparseable scans.tsv date found to fill -- or no other dated "
+                "row yet to copy a reference date from -- for the selected subject(s).",
+            )
+            return
+        summary = "\n".join(
+            f"sub-{subject_id}: {len(filenames)} row(s)"
+            for subject_id, filenames in filled_by_subject.items()
+        )
+        QMessageBox.information(
+            self,
+            "Filled missing dates",
+            f"Filled {total_filled} row(s) across {len(filled_by_subject)} subject(s):\n\n"
+            f"{summary}",
+        )
         self._rescan()
 
     def _on_rename_selected_to_task_label(self, subject_ids: list[str]) -> None:

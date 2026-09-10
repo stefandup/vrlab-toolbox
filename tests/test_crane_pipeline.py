@@ -39,10 +39,10 @@ from mooi_toolbox.processing.trial_intervals import TrialIntervals
 REAL_DATA_BIDS_FOLDER = Path(r"crane_data\crane_bids")
 
 # BIDS-shaped output of crane_generate_sample_data + crane_convert_to_bids (see
-# examples/crane_bids_dummy/dummy_data_log.txt) -- sub-XXX/ses-01/beh/... BIDS layout.
-# Regenerate with: crane_generate_sample_data examples/crane_templates examples --with-errors
-# --seed 42 --bids-folder examples/crane_bids_dummy (see docs/testing.md).
-EXAMPLES_FOLDER = Path(r"examples\\crane_bids_dummy")
+# crane_examples/crane_bids_dummy/dummy_data_log.txt) -- sub-XXX/ses-01/beh/... BIDS layout.
+# Regenerate with: crane_generate_sample_data crane_examples/crane_templates crane_examples
+# --with-errors --seed 42 --bids-folder crane_examples/crane_bids_dummy (see docs/testing.md).
+EXAMPLES_FOLDER = Path(r"crane_examples\\crane_bids_dummy")
 
 CRANE_PARTICIPANT_NO_FILE_ID = "NOFILES"
 EXAMPLE_LONG_DELAY_ID = "00011"
@@ -200,9 +200,9 @@ class TestCranePipelineDummyData(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw_dir, tempfile.TemporaryDirectory() as bids_dir:
             raw_folder = Path(raw_dir)
             bids_folder = Path(bids_dir)
-            csv_template, mat_template = discover_template_pairs(Path("examples/crane_templates"))[
-                0
-            ]
+            csv_template, mat_template = discover_template_pairs(
+                Path("crane_examples/crane_templates")
+            )[0]
             subject_id = "DUMMYUNBAL"
 
             _, debrief_rows = generate_dummy_participant(
