@@ -5,7 +5,7 @@ This project is written to teach and learn (see
 AI coding assistants are common enough now that how you use one here is
 part of that. This page states the house rule plainly.
 
-!!! note "The exception: prose docs, and the GUI layer"
+!!! note "The exception: prose docs, the GUI layer, and a few named plumbing modules"
     This page, like the rest of the prose docs, was AI-drafted from the
     author's own rough notes, then checked line by line against what was
     actually meant — draft, verify, correct, not draft-and-paste. The
@@ -14,9 +14,17 @@ part of that. This page states the house rule plainly.
     foundation (see [Design Patterns](design-patterns.md)), not the
     foundation itself.
 
-    Either way, the test isn't *who typed it* — it's **do you understand
-    it, could you explain it, could you extend it?** Pass that, and
-    AI-authored code is fine. Fail it, and that gap is cognitive debt —
+    A handful of `processing/` modules join them for the same reason,
+    despite living in that directory: BIDS conversion, dummy/sample-data
+    generation, and the crosscheck feature's processing-layer backend are
+    format/plumbing work, not the analysis logic this project exists to
+    teach. The [AI Style Guide](ai-style-guide.md#cleared-for-vibe-coding)
+    keeps the maintained, file-level list — that's the canonical record of
+    where this line falls, not this page.
+
+    Either way, the test isn't *who typed it* — it's the [four rules of
+    vibe coding](#the-four-rules-of-vibe-coding) below. Pass them, and
+    AI-authored code is fine. Fail one, and that gap is cognitive debt —
     see below.
 
 ## The core rule: AI is a tutor, not a coder
@@ -24,7 +32,10 @@ part of that. This page states the house rule plainly.
 **For the pipeline, processing, and schema code this project exists to
 teach: no vibe coding, unless genuinely unavoidable.** "Vibe coding" here
 means asking an AI assistant to produce a change and pasting it in without
-having worked out and understood the change yourself first.
+having worked out and understood the change yourself first. The named
+exceptions above — GUI, docs, and the specific plumbing modules listed in
+the [AI Style Guide](ai-style-guide.md#cleared-for-vibe-coding) — are
+carve-outs from *this* rule, not a loosening of it for everything else.
 
 For that code, use an AI assistant the way you'd use a good tutor:
 
@@ -34,8 +45,25 @@ For that code, use an AI assistant the way you'd use a good tutor:
 - Then **write the code yourself**. Type it, don't paste it.
 
 Outside that foundation — the GUI layer built on top of it, or prose docs —
-the bar is the test from the note above: understand it, could explain it,
-could extend it. That test is what decides it, not who typed it first.
+the bar is the [four rules of vibe coding](#the-four-rules-of-vibe-coding)
+below. That test is what decides it, not who typed it first.
+
+## The four rules of vibe coding
+
+Before AI-authored code counts as *yours* — cleared list or not — all four
+of these have to be true:
+
+1. **You can read through it and understand every step** — not just that
+   it runs, but what each part does and why.
+2. **You can explain it to someone else** — out loud, from memory, without
+   re-reading the file first.
+3. **You can fix it manually if it breaks** — debug it yourself, without
+   going back to the assistant that wrote it.
+4. **You can build on it manually** — extend it or adapt it to a new case
+   yourself, without asking the assistant to do that step too.
+
+Fail any one of these and what you have is cognitive debt (see below), not
+working code — even if it runs today.
 
 ## Why: cognitive debt
 
@@ -84,12 +112,19 @@ why the guardrail matters more here, not less:
 
 ## When AI-authored code is acceptable
 
-The GUI layer, repetitive boilerplate with no learning value, and prose
-docs all clear the bar above. The actual logic of a pipeline, a schema, or
-a design pattern doesn't — that's the part this project exists to teach,
-and where writing it yourself matters most. Either way, keep it on this
+The GUI layer, repetitive boilerplate with no learning value, prose docs,
+and the named `processing/` plumbing modules (BIDS conversion, dummy/
+sample-data generation, the crosscheck backend — see the [AI Style
+Guide](ai-style-guide.md#cleared-for-vibe-coding) for the current list)
+all clear the bar above. The actual logic of a pipeline, a schema, or a
+design pattern doesn't — that's the part this project exists to teach, and
+where writing it yourself matters most. Either way, keep it on this
 project's existing rails — see the [AI Style Guide](ai-style-guide.md) for
 the established stack, patterns, and what *not* to introduce.
+
+In your own AI tool, this maps onto `AGENTS.md`'s **BYPASS** (scoped to
+the cleared list) and **OVERRIDE** (for the rest — the "genuinely
+unavoidable" case above, not a way around it) commands.
 
 ## Setting this up in your own AI tool
 
@@ -100,9 +135,10 @@ assistant reads a different config file (e.g. `CLAUDE.md`, `.cursorrules`,
 `.github/copilot-instructions.md`), it's worth setting up something
 similar for yourself, with the same shape: explain first, guide instead of
 solve, one step, consent before any edit. It earns its keep most while
-you're still building the understand-it/explain-it/extend-it muscle from
-the test above — once you're reliably passing that test unassisted on the
-code you're touching, loosen the rails to match.
+you're still building the muscle behind the [four rules of vibe
+coding](#the-four-rules-of-vibe-coding) — once you're reliably passing
+that test unassisted on the code you're touching, loosen the rails to
+match.
 
 That covers *behaviour* — how an assistant should interact with you. Pair
 it with the [AI Style Guide](ai-style-guide.md), which covers *output* —

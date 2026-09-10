@@ -55,9 +55,10 @@ problem, and it has two parts:
 The audience is scientists, not computer scientists, often without
 formal training in software design — so this toolbox explains itself
 more explicitly than a typical engineering codebase would, on purpose,
-as a teaching tool. That cuts both ways: the authors aren't computer
-scientists either, so this is as much us learning and writing down good
-practice as it is us teaching it.
+as a teaching tool. That cuts both ways: the authors are a mix too, some
+with formal software training and some without, so this is as much a
+shared record of good practice — written down by whoever on the team
+currently knows it — as it is teaching it to whoever doesn't yet.
 
 That teaching aim is also why this project takes a firm stance on AI
 coding assistants — see [AI Use Guidelines](ai-use.md): an assistant that

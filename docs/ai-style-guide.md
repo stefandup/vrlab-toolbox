@@ -11,7 +11,11 @@ This complements [AI Use Guidelines](ai-use.md): that page is the
 docs can clear the bar for AI authorship (see [AI Use
 Guidelines](ai-use.md#the-core-rule-ai-is-a-tutor-not-a-coder)). This page
 is the *what*, for whenever code does get proposed, and for
-guidance/examples an assistant gives along the way.
+guidance/examples an assistant gives along the way. It also keeps the
+maintained, file-level record of exactly where that *whether* line falls
+today — see [Cleared for Vibe Coding](#cleared-for-vibe-coding) below —
+since `AGENTS.md`'s BYPASS/OVERRIDE commands need one canonical list to
+point at rather than a description duplicated across pages.
 
 ## The rule this page exists to enforce
 
@@ -99,6 +103,68 @@ fictional domain unrelated to this project's own work (this repo's
 domain like library checkouts, bus schedules, or a small inventory — pick
 whatever fits the concept, but stay in one domain per explanation) — so an
 example never gets mistaken for, or pasted in as, real production code.
+
+## Cleared for vibe coding
+
+[AI Use Guidelines](ai-use.md#the-core-rule-ai-is-a-tutor-not-a-coder)
+draws its *whether* line at "pipeline, processing, and schema code," with
+the GUI layer and prose docs as the named exceptions. In practice that
+line runs through the middle of `processing/`: most of it is the analysis
+logic this project exists to teach, but a handful of modules are
+format/plumbing work — BIDS conversion, dummy-data generation, the
+crosscheck feature — with the same low-teaching-value shape as the GUI
+layer, not the pipeline foundation itself. The table below is the
+maintained, file-level record of where that line actually falls; keep it
+in sync whenever a file in one of these areas is added, renamed, or
+moved. In `AGENTS.md`, this list is what **BYPASS** is scoped to.
+
+"Cleared" doesn't mean unsupervised, though. AI-authored code here still
+has to pass the [four rules of vibe
+coding](ai-use.md#the-four-rules-of-vibe-coding) — read it and understand
+every step, explain it to someone else, fix it manually if it breaks,
+build on it manually — and it still has to land on this page's
+established stack and style rules above. Cleared for authorship isn't
+cleared to invent a new pattern. The **Human-checked** column is that
+sign-off, made concrete: tick it once
+[@stefandup](https://github.com/stefandup) has actually read through
+that area's current AI-authored state against the four rules. An
+unticked box means it hasn't had that pass yet, not that something's
+wrong.
+
+| Area | Files | Human-checked ([@stefandup](https://github.com/stefandup)) |
+| --- | --- | --- |
+| BIDS conversion | `src/mooi_toolbox/processing/bids.py`, `crane_bids.py`, `longwalk_bids.py` | [ ] |
+| Dummy/sample data | `src/mooi_toolbox/processing/crane_dummy_data.py` | [ ] |
+| CLIs | every file in `src/mooi_toolbox/cli/` — already thin by design, see [Thin CLI, fat `processing/`](#patterns-to-reuse-not-reinvent) above | [ ] |
+| Crosscheck (backend + GUI) | `src/mooi_toolbox/processing/bids_crosscheck.py`; `src/mooi_toolbox/gui/bids_crosscheck_common.py`, `crane_bids_crosscheck_gui.py`, `foh_bids_crosscheck_gui.py`, `longwalk_bids_crosscheck_gui.py` | [ ] |
+| Build/packaging scripts | `build.ps1`, `build_mac.sh`, `toolbox_installer.iss` | [ ] |
+| Docs | everything under `docs/`, plus `mkdocs.yml` — already covered by [AI Use Guidelines](ai-use.md)'s docs exception | [ ] |
+
+## Verboten without OVERRIDE
+
+![Stop sign](assets/images/stop-sign.png){ width="80" }
+
+Everything else in `src/mooi_toolbox/processing/` — the actual pipeline,
+signal-processing, and schema logic that [AI Use
+Guidelines](ai-use.md#the-core-rule-ai-is-a-tutor-not-a-coder)'s core rule
+is about — stays off-limits for AI authorship under `AGENTS.md`'s ordinary
+BYPASS command. Reaching for **OVERRIDE** instead doesn't relax the
+standard; it's for the "genuinely unavoidable" cases that page already
+allows for, and the same [four rules of vibe
+coding](ai-use.md#the-four-rules-of-vibe-coding) still apply to whatever
+lands.
+
+| Area | Files |
+| --- | --- |
+| Pipeline orchestration | `crane_pipeline.py`, `foh_pipeline.py`, `longwalk_pipeline.py`, `mobi_core_pipeline.py`, `graphomotor_pipeline.py`, `pipeline.py` |
+| Signal processing | `biopac.py`, `ecg.py`, `eda.py`, `eeg.py`, `lsl.py`, `opensignals.py`, `spiral.py` |
+| Behaviour/trial-interval extraction | `behaviour.py`, `biodata.py`, `crane_behaviour.py`, `crane_debrief_behaviour.py`, `crane_trial_intervals.py`, `foh_behaviour.py`, `foh_target_behaviour.py`, `foh_trial_intervals.py`, `longwalk_behaviour.py`, `longwalk_trial_intervals.py`, `trial_intervals.py` |
+| REDCap/config/IO | `crane_redcap.py`, `redcap.py`, `foh_config.py`, `input_data.py`, `output_data.py`, `processing_status.py` |
+| Schemas/shared utilities | `pandera_defaults.py`, `plot_utils.py` |
+| Graphomotor | `graphomotor_qc.py`, `graphomotor_task.py`, `graphomotor_xdf.py` |
+
+(All paths above are relative to `src/mooi_toolbox/processing/`;
+`__init__.py` is omitted as trivial.)
 
 ## Using this page
 
