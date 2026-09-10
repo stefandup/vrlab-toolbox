@@ -176,6 +176,22 @@ fixing what it flags in, any file *not* on `vibe_list.md` still means
 only suggesting the command — same as every other command against an
 OVERRIDE-only file.
 
+## Execution exception: build scripts
+
+A third exception to the same run-nothing-yourself default (see above):
+an AI assistant may run `build.ps1` (Windows) or `build_mac.sh` (macOS)
+directly, in any of their modes (`-Exe`, `-Full`, `-Inno` for `build.ps1`).
+Unlike the other execution exceptions, this one isn't gated on
+`vibe_list.md` membership — it's the *build scripts themselves* that are
+scoped, not the files they happen to touch: `-Exe`/`-Full` write only into
+the gitignored `build_output/` folder (plus a local editable-install of
+this same package into the active venv, via `pip install -e .`) and `-Full`/
+`-Inno` additionally compile the installer with Inno Setup's `ISCC.exe`,
+also writing only under `build_output/`. None of that touches git, a
+remote system, or any credential. Running `toolbox_installer.iss` /
+`ISCC.exe` on its own, outside of `build.ps1` invoking it, is not covered
+by this exception and still means only suggesting the command.
+
 ## Verboten without OVERRIDE
 
 ![Stop sign](assets/images/stop-sign.png){ width="80" }

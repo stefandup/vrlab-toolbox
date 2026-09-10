@@ -8,7 +8,6 @@ docs/bids_crosscheck_plan.md for the design.
 
 import json
 import logging
-import textwrap
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -48,6 +47,18 @@ from PySide6.QtWidgets import (
 from rich.progress import Progress
 
 from mooi_toolbox import __version__
+from mooi_toolbox.gui.qt_common import (
+    HOME_BASE_ACCENT_COLOR,
+    HOME_BASE_ACCENT_HOVER_COLOR,
+    HOME_BASE_NAME_EXTRA_POINT_INCREASE,
+    SETTINGS_ORGANIZATION,
+    wrap_tooltip,
+)
+from mooi_toolbox.gui.qt_common import accent_group_box_stylesheet as _accent_group_box_stylesheet
+from mooi_toolbox.gui.qt_common import primary_action_stylesheet as _primary_action_stylesheet
+from mooi_toolbox.gui.qt_common import set_path_display as _set_path_display
+from mooi_toolbox.gui.qt_common import style_name_label as _style_name_label
+from mooi_toolbox.gui.qt_common import style_secondary_label as _style_secondary_label
 from mooi_toolbox.processing.bids_crosscheck import (
     SCANS_TSV_DATE_FORMAT,
     SUBJECT_FOLDER_PREFIX,
@@ -100,7 +111,6 @@ PENDING_COLOR = "#9b59b6"
 UNCROSSCHECKED_COLOR = "#e74c3c"
 FOUND_EVERYWHERE_COLOR = "#2ecc71"
 SUBJECT_ID_ROLE = Qt.ItemDataRole.UserRole
-SETTINGS_ORGANIZATION = "MooiToolbox"
 LAST_BIDS_FOLDER_SETTINGS_KEY = "last_bids_folder"
 LAST_RAW_FOLDER_SETTINGS_KEY = "last_raw_folder"
 # Every study id this app has ever seen, across every BIDS folder -- app-wide (unlike the
@@ -117,82 +127,27 @@ AUTOSAVE_INTERVAL_MINUTES_SETTINGS_KEY = "autosave_interval_minutes"
 DEFAULT_AUTOSAVE_INTERVAL_MINUTES = 2
 MIN_AUTOSAVE_INTERVAL_MINUTES = 1
 MAX_AUTOSAVE_INTERVAL_MINUTES = 60
-# Qt's plain-text QToolTip never wraps on its own -- a long tooltip string renders as one
-# unbroken line stretching off-screen unless it already contains manual line breaks. Kept
-# narrow enough to read as a compact box rather than a nearly-full-width banner.
-TOOLTIP_WRAP_WIDTH = 68
 # Explicit-primary-button palette -- shared by the crosscheck (green) and dataset-specific
-# "Fix ..." (grey) buttons, see `_primary_action_stylesheet`. Different colors so the two
-# stay visually distinguishable: marking something reviewed vs. repairing raw data are
-# different kinds of action, even when both deserve equal visual weight.
+# "Fix ..." (grey) buttons, see qt_common's `primary_action_stylesheet`. Different colors
+# so the two stay visually distinguishable: marking something reviewed vs. repairing raw
+# data are different kinds of action, even when both deserve equal visual weight.
 CROSSCHECK_PRIMARY_HOVER_COLOR = "#27ae60"
 FIX_ACTION_COLOR = "#7f8c8d"
 FIX_ACTION_HOVER_COLOR = "#6c7a7d"
-PRIMARY_BUTTON_DISABLED_BG = "#555555"
-PRIMARY_BUTTON_DISABLED_FG = "#999999"
 # Compact path-display panels (Raw Folder/Debrief Data/BIDS Folder): a small muted "Path:
-# <parent>" caption above a large bold <name> -- see `_style_secondary_label`/
-# `_style_name_label`/`_set_path_display`.
-SECONDARY_TEXT_COLOR = "#9aa0a6"
-NAME_LABEL_FONT_POINT_INCREASE = 9
+# <parent>" caption above a large bold <name> -- see qt_common's `style_secondary_label`/
+# `style_name_label`/`set_path_display`.
 SUMMARY_LABEL_FONT_POINT_INCREASE = 3
 # BIDS Folder is the one panel students should treat as "home base" -- a quiet accent
 # (border, a slightly larger/heavier folder name, and the Refresh BIDS button's color)
 # nudges attention there without shouting. Kept separate from FIX_ACTION_COLOR/
 # CROSSCHECK_PRIMARY_HOVER_COLOR so this reads as its own, distinct kind of emphasis rather
-# than reusing an existing button color for a new meaning.
-BIDS_FOLDER_ACCENT_COLOR = "#5b9bd5"
-BIDS_FOLDER_ACCENT_HOVER_COLOR = "#4a86b5"
-BIDS_FOLDER_NAME_EXTRA_POINT_INCREASE = 2
-
-
-def _primary_action_stylesheet(base_color: str, hover_color: str) -> str:
-    """Stylesheet for an "explicit primary action" button -- bold, padded, filled with
-    `base_color` -- used for whichever single button in a row is the main thing to click
-    (e.g. "Mark selected crosschecked", "Fix Filenames in Raw Folder"), so it reads as a
-    real call to action rather than sitting flush with plain Browse/Reveal-style buttons.
-    """
-    return (
-        f"QPushButton {{ font-weight: bold; font-size: 13px; padding: 6px 20px; "
-        f"background-color: {base_color}; color: white; border-radius: 4px; border: none; }}"
-        f"QPushButton:hover {{ background-color: {hover_color}; }}"
-        f"QPushButton:disabled {{ background-color: {PRIMARY_BUTTON_DISABLED_BG}; "
-        f"color: {PRIMARY_BUTTON_DISABLED_FG}; }}"
-    )
-
-
-def wrap_tooltip(text: str, width: int = TOOLTIP_WRAP_WIDTH) -> str:
-    """Hard-wraps `text` into paragraph "boxes" instead of one unbroken line -- see
-    `TOOLTIP_WRAP_WIDTH`. Splits on blank-line paragraph breaks ("\\n\\n") and wraps each one
-    independently; a paragraph that already contains its own manual line breaks (e.g. an
-    icon legend, one entry per line) is left exactly as written, since that's already
-    deliberately structured rather than one long run-on sentence.
-    """
-    paragraphs = text.split("\n\n")
-    wrapped = [
-        paragraph if "\n" in paragraph else "\n".join(textwrap.wrap(paragraph, width=width))
-        for paragraph in paragraphs
-    ]
-    return "\n\n".join(wrapped)
-
-
-def _style_secondary_label(label: QLabel) -> None:
-    """Small, muted caption style for a panel's "Path: <parent>" line -- kept quiet since
-    the bold name label below it (see `_style_name_label`) is what a user needs to read at
-    a glance, not the full path."""
-    label.setStyleSheet(f"color: {SECONDARY_TEXT_COLOR};")
-
-
-def _style_name_label(label: QLabel) -> None:
-    """Large, bold style for a panel's selected folder/file *name* -- the thing a user most
-    needs to read clearly at a glance (which BIDS/raw folder am I even looking at?), unlike
-    the small "Path:" caption above it or the buttons around it.
-    """
-    font = label.font()
-    font.setPointSize(font.pointSize() + NAME_LABEL_FONT_POINT_INCREASE)
-    font.setBold(True)
-    label.setFont(font)
-    label.setWordWrap(True)
+# than reusing an existing button color for a new meaning. Aliased from qt_common's
+# generic HOME_BASE_* names (shared with the process-results viewer's own "home base"
+# panels) so every existing call site below keeps its original, dataset-flavored name.
+BIDS_FOLDER_ACCENT_COLOR = HOME_BASE_ACCENT_COLOR
+BIDS_FOLDER_ACCENT_HOVER_COLOR = HOME_BASE_ACCENT_HOVER_COLOR
+BIDS_FOLDER_NAME_EXTRA_POINT_INCREASE = HOME_BASE_NAME_EXTRA_POINT_INCREASE
 
 
 def _style_summary_label(label: QLabel) -> None:
@@ -201,13 +156,6 @@ def _style_summary_label(label: QLabel) -> None:
     font = label.font()
     font.setPointSize(font.pointSize() + SUMMARY_LABEL_FONT_POINT_INCREASE)
     label.setFont(font)
-
-
-def _set_path_display(path_label: QLabel, name_label: QLabel, path: Path) -> None:
-    """Splits `path` into a small "Path: <parent>" caption and a large bold name -- the
-    shared display shape for the Raw Folder/Debrief Data/BIDS Folder panels."""
-    path_label.setText(f"Path: {path.parent}\\")
-    name_label.setText(path.name or str(path))
 
 
 _INVALID_PATH_CHARACTERS = '<>:"/\\|?*'
@@ -494,7 +442,9 @@ class BidsCrosscheckWindow(QMainWindow):
         stored = self._settings.value(LAST_RAW_FOLDER_SETTINGS_KEY, "")
         if stored and Path(stored).is_dir():
             self.raw_folder = Path(stored)
-            _set_path_display(self.raw_folder_path_label, self.raw_folder_name_label, self.raw_folder)
+            _set_path_display(
+                self.raw_folder_path_label, self.raw_folder_name_label, self.raw_folder
+            )
             self._update_raw_folder_summary_label()
             self._update_convert_button_enabled()
             self._update_override_file_label()
@@ -667,11 +617,7 @@ class BidsCrosscheckWindow(QMainWindow):
         # The one panel students should treat as "home base" -- a slightly brighter,
         # thicker border than the plain default the other panels keep, so it stands out
         # without any color/banner/icon loud enough to look like an alert.
-        bids_group.setStyleSheet(
-            f"QGroupBox {{ border: 2px solid {BIDS_FOLDER_ACCENT_COLOR}; border-radius: 4px; "
-            "margin-top: 8px; }"
-            "QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; }"
-        )
+        bids_group.setStyleSheet(_accent_group_box_stylesheet(BIDS_FOLDER_ACCENT_COLOR))
         bids_group_layout = QVBoxLayout(bids_group)
         bids_group_layout.setSpacing(4)
         self.bids_folder_path_label = QLabel("")
@@ -682,7 +628,9 @@ class BidsCrosscheckWindow(QMainWindow):
         # A touch larger/heavier than the Raw Folder/Debrief Data names beside it -- same
         # "home base" emphasis as the border above.
         bids_name_font = self.bids_folder_name_label.font()
-        bids_name_font.setPointSize(bids_name_font.pointSize() + BIDS_FOLDER_NAME_EXTRA_POINT_INCREASE)
+        bids_name_font.setPointSize(
+            bids_name_font.pointSize() + BIDS_FOLDER_NAME_EXTRA_POINT_INCREASE
+        )
         self.bids_folder_name_label.setFont(bids_name_font)
         bids_group_layout.addWidget(self.bids_folder_name_label)
 
@@ -748,11 +696,7 @@ class BidsCrosscheckWindow(QMainWindow):
         summary_group = QGroupBox("BIDS folder summary")
         # Same quiet accent border as the BIDS Folder panel beside it -- see that panel's
         # own comment.
-        summary_group.setStyleSheet(
-            f"QGroupBox {{ border: 2px solid {BIDS_FOLDER_ACCENT_COLOR}; border-radius: 4px; "
-            "margin-top: 8px; }"
-            "QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; }"
-        )
+        summary_group.setStyleSheet(_accent_group_box_stylesheet(BIDS_FOLDER_ACCENT_COLOR))
         summary_group_layout = QVBoxLayout(summary_group)
         self.summary_label = QLabel("")
         self.summary_label.setTextFormat(Qt.TextFormat.RichText)
@@ -962,7 +906,9 @@ class BidsCrosscheckWindow(QMainWindow):
         folder = QFileDialog.getExistingDirectory(self, "Select raw data folder")
         if folder:
             self.raw_folder = Path(folder)
-            _set_path_display(self.raw_folder_path_label, self.raw_folder_name_label, self.raw_folder)
+            _set_path_display(
+                self.raw_folder_path_label, self.raw_folder_name_label, self.raw_folder
+            )
             self._settings.setValue(LAST_RAW_FOLDER_SETTINGS_KEY, str(self.raw_folder))
             self._update_raw_folder_summary_label()
             self._update_convert_button_enabled()
@@ -1027,7 +973,9 @@ class BidsCrosscheckWindow(QMainWindow):
             return
         detected = self._effective_override_file()
         if detected is not None:
-            _set_path_display(self.override_file_path_label, self.override_file_name_label, detected)
+            _set_path_display(
+                self.override_file_path_label, self.override_file_name_label, detected
+            )
             self.override_file_path_label.setText(
                 f"{self.override_file_path_label.text()}  (auto-detected)"
             )
@@ -1545,7 +1493,8 @@ class BidsCrosscheckWindow(QMainWindow):
         target = self.dataset_config.task_tag_folder_name
         if target and target != folder_name and self.extras.task_tag_available(scan_type):
             target_meaning = BIDS_DATATYPE_NAMES.get(target)
-            tooltip += f'\n\nOnce tagged {self._task_tag_display_marker()!r}, it moves to "{target}"'
+            marker = self._task_tag_display_marker()
+            tooltip += f'\n\nOnce tagged {marker!r}, it moves to "{target}"'
             if target_meaning:
                 tooltip += f" -- BIDS's own term for {target_meaning} data"
             tooltip += "."
@@ -1902,7 +1851,9 @@ class BidsCrosscheckWindow(QMainWindow):
             return
         copied, destination = self._save_crosscheck_data(study_id)
         if not copied:
-            self._log_activity("Nothing to save -- no crosscheck records exist yet for this BIDS folder.")
+            self._log_activity(
+                "Nothing to save -- no crosscheck records exist yet for this BIDS folder."
+            )
             return
         self._log_activity(f"Saved crosscheck data: copied {len(copied)} file(s) to {destination}.")
 
@@ -1928,7 +1879,9 @@ class BidsCrosscheckWindow(QMainWindow):
             return
         copied, destination = self._save_crosscheck_data(study_id)
         if copied:
-            self._log_activity(f"Auto-saved crosscheck data: {len(copied)} file(s) to {destination}.")
+            self._log_activity(
+                f"Auto-saved crosscheck data: {len(copied)} file(s) to {destination}."
+            )
 
     def _on_restore_saved_crosscheck_data(self) -> None:
         """Disaster recovery: re-import from raw, then replay this BIDS folder's saved
@@ -1992,7 +1945,9 @@ class BidsCrosscheckWindow(QMainWindow):
                 "auto-replayed and need a manual look:\n\n" + "\n".join(unresolved),
             )
         else:
-            self._log_activity(f"Restore complete: reapplied {len(resolved)} decision(s) from saved data.")
+            self._log_activity(
+                f"Restore complete: reapplied {len(resolved)} decision(s) from saved data."
+            )
         self.load_bids_folder(self.bids_folder)
 
     def _build_scan_type_group(self, subject_id: str, subject_scan: SubjectScan) -> QGroupBox:

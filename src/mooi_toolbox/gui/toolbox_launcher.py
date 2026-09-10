@@ -27,10 +27,25 @@ from PySide6.QtWidgets import (
 
 from mooi_toolbox import __version__
 
-GUI_TOOLS = (
-    ("FOH BIDS Crosscheck", "vrlab_foh_bids_crosscheck.exe"),
-    ("Crane BIDS Crosscheck", "vrlab_crane_bids_crosscheck.exe"),
-    ("Longwalk BIDS Crosscheck", "vrlab_longwalk_bids_crosscheck.exe"),
+# Grouped and labelled for display -- crosscheck first since it's the step that has to
+# happen before processing, so the button order matches the order a subject's data
+# actually moves through the two tools.
+GUI_TOOL_GROUPS = (
+    (
+        "Crosscheck",
+        (
+            ("FOH BIDS Crosscheck", "vrlab_foh_bids_crosscheck.exe"),
+            ("Crane BIDS Crosscheck", "vrlab_crane_bids_crosscheck.exe"),
+            ("Longwalk BIDS Crosscheck", "vrlab_longwalk_bids_crosscheck.exe"),
+        ),
+    ),
+    (
+        "Processing",
+        (
+            ("Crane Process Results", "vrlab_crane_process_GUI.exe"),
+            ("Longwalk Process Results", "vrlab_longwalk_process_GUI.exe"),
+        ),
+    ),
 )
 
 CLI_TOOLS = (
@@ -93,11 +108,14 @@ class ToolboxLauncher(QMainWindow):
             icon_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
             layout.addWidget(icon_label)
 
-        layout.addWidget(QLabel("<b>GUI tools</b>"))
-        for label, exe_name in GUI_TOOLS:
-            button = QPushButton(label)
-            button.clicked.connect(lambda _checked=False, exe_name=exe_name: self._launch(exe_name))
-            layout.addWidget(button)
+        for group_label, tools in GUI_TOOL_GROUPS:
+            layout.addWidget(QLabel(f"<b>{group_label}</b>"))
+            for label, exe_name in tools:
+                button = QPushButton(label)
+                button.clicked.connect(
+                    lambda _checked=False, exe_name=exe_name: self._launch(exe_name)
+                )
+                layout.addWidget(button)
 
         # A bordered box that sizes itself to its wrapped content, rather than a bare label
         # whose long comma-separated text would otherwise force the whole window wide.

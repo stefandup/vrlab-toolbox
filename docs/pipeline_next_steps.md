@@ -1438,3 +1438,5 @@ history along (item 26's dead-code history included either way).
    while, but isn't permanent).
 6. Once public, item 20's GitHub Pages deferral is unblocked — add the
    `mkdocs gh-deploy`-equivalent Actions job it already describes as "not needed yet."
+### 30. Crosscheck corrections
+1. For crosscheck: add addtional guards to avoid user processing into their BIDS folder or raw folder. Check that it also launches the file selector in the home folder if possible.

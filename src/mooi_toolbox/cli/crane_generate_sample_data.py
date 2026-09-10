@@ -166,7 +166,9 @@ def main(
         results = [result]
     else:
         logger.info(
-            "Generating dummy crane data into %s from templates in %s", output_folder, template_folder
+            "Generating dummy crane data into %s from templates in %s",
+            output_folder,
+            template_folder,
         )
         with Progress() as progress:
             task = progress.add_task("Generating dummy crane data...", total=None)

@@ -329,7 +329,8 @@ class CraneCandidateExtras(CandidateExtras):
                 return "Could not read this file"
             if not info.missing_columns:
                 return "All expected columns present"
-            return "Missing columns:\n" + "\n".join(f"{CROSS} {column}" for column in info.missing_columns)
+            missing_lines = "\n".join(f"{CROSS} {column}" for column in info.missing_columns)
+            return f"Missing columns:\n{missing_lines}"
 
         return None
 
@@ -350,14 +351,19 @@ class CraneCandidateExtras(CandidateExtras):
                 if info.duration_minutes is not None
                 else "duration unavailable"
             )
-            return f"{channels_line}<br><b>Labels</b> &nbsp; {labels_text} &nbsp;&nbsp; {duration_text}"
+            return (
+                f"{channels_line}<br><b>Labels</b> &nbsp; {labels_text} "
+                f"&nbsp;&nbsp; {duration_text}"
+            )
 
         if scan_type in (BEHAVIOUR_SCAN_TYPE, DEBRIEF_SCAN_TYPE):
             info = self._behaviour_or_debrief_info(scan_type, file)
             if info.columns is None:
                 return "Could not read this file"
             row_word = "trials" if scan_type == BEHAVIOUR_SCAN_TYPE else "row(s)"
-            rows_text = f"{info.n_rows} {row_word}" if info.n_rows is not None else "row count unavailable"
+            rows_text = (
+                f"{info.n_rows} {row_word}" if info.n_rows is not None else "row count unavailable"
+            )
             if not info.missing_columns:
                 return f"{rows_text} &nbsp;&nbsp; all expected columns present"
             missing_text = ", ".join(info.missing_columns)

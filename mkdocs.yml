@@ -11,6 +11,9 @@ theme:
 markdown_extensions:
   - admonition
   - attr_list
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
 
 nav:
   - Home: index.md
