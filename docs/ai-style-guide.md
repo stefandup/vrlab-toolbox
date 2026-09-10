@@ -140,6 +140,27 @@ wrong.
 | Build/packaging scripts | `build.ps1`, `build_mac.sh`, `toolbox_installer.iss` | [ ] |
 | Docs | everything under `docs/`, plus `mkdocs.yml` — already covered by [AI Use Guidelines](ai-use.md)'s docs exception | [ ] |
 
+## Execution exception: dummy-data generation
+
+Everything above this section is about *authorship* — `AGENTS.md`'s
+guardrails otherwise stop an assistant from ever running code itself, even
+in areas cleared for vibe coding, requiring every command to be handed to
+a human to run instead. `vrlab_crane_generate_sample_data` (and the
+equivalent `longwalk`/`foh` sample-data generators) is the one exception:
+because it only ever writes synthetic data into `*_examples/` folders and
+never touches real subject data, an AI assistant may run it directly —
+including the `--bids-folder` conversion step it can trigger in the same
+call — rather than just proposing the command.
+
+That doesn't skip the human step, it moves it: whatever the tool
+generates still needs a human to look at the result (`git diff`/`git
+status` on the `*_examples/` output, and the printed generation summary
+table) before it's trusted for pipeline testing. This exception is scoped
+to dummy-data generation specifically — it doesn't extend to running the
+BIDS-conversion CLIs standalone, the crosscheck tool, or the
+pipeline/processing CLIs (e.g. `vrlab_crane_process`) on that data, which
+all stay under `AGENTS.md`'s ordinary "only suggest commands" rule.
+
 ## Verboten without OVERRIDE
 
 ![Stop sign](assets/images/stop-sign.png){ width="80" }

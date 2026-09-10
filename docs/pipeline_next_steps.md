@@ -1342,3 +1342,99 @@ noted here so they aren't lost, not expanded on for now.
   `input_folder`.)
 - `processing/ecg.py:15,26` — NeuroKit warnings to address on update; combine
   outputs (maybe a dict).
+
+### 28. Rename `mobi_mooi_toolbox`/`mooi_toolbox` to `vrlab_toolbox`, retire "mobi"/"mooi" branding
+
+Not started — scoping conversation only, 2026-09-10 (`git grep -ci` puts it at 445 matches
+across 86 files). The CLI-facing surface is already `vrlab_*`-branded (every
+`[project.scripts]` entry in `pyproject.toml`) — what's left is the package internals,
+packaging metadata, and a handful of filenames still carrying the old names.
+
+**What's actually in scope, in dependency order:**
+
+1. **Package rename** — `src/mooi_toolbox/` → `src/vrlab_toolbox/`, plus every
+   `from mooi_toolbox...`/`import mooi_toolbox` across roughly 50 `.py` files. Mechanical (IDE
+   rename-package or scripted find/replace), but breaks the package until every import is
+   fixed — do this first, in one commit, verified green (full test suite) before anything else
+   depends on it.
+2. **`pyproject.toml`** — `name = "mooi-toolbox"` → `vrlab-toolbox`; all 15
+   `[project.scripts]` right-hand sides (`mooi_toolbox.cli....` → `vrlab_toolbox.cli....`);
+   the `[tool.mooi_toolbox]` config table, including `[tool.mooi_toolbox.trial_intervals.*]`
+   (already dead weight pending `run_lsl_pipeline`'s deletion, per item 21) → `[tool.vrlab_toolbox]`.
+   **Open question:** does anyone have a local config relying on the old table name? Confirm
+   before renaming it out from under them.
+3. **Legacy "mobi" filenames** — `read_mobi_xdf/`, `check_mobi_xdf.py`,
+   `mobi_FOH_process_batch.py`, `mobi_FOH_assess_data.py`, `mobi_spiral_process_batch.py`.
+   **Not a find/replace.** Per discussion: "mobi" originally named the specific mobilab
+   station (the spiral task included), and the code under these files has since generalized to
+   work over LSL with any biosignal platform — keeping "mobi" in the names now actively
+   misdescribes what they do. Rename to something LSL-generic (e.g. `lsl_xdf`,
+   `foh_batch_process`) rather than swapping in `vrlab`.
+4. **Docs sweep** — heaviest by volume (this file, `lab-streaming.md`, `packaging.md`,
+   `README.md`, `mkdocs.yml`), lowest risk — nothing breaks, just needs updating once 1-3 land
+   so docs describe real paths instead of stale ones.
+5. **Packaging/installer/CI** — `build.ps1`, `build_mac.sh`, `toolbox_installer.iss`,
+   `specs/toolbox.spec`, `.github/workflows/release.yml` — installer display name, output
+   filenames, any icon/registry strings.
+6. **`AGENTS.md` itself** — its BYPASS/OVERRIDE file-scope rules reference
+   `src/mooi_toolbox/processing/` by path; needs updating in lockstep with step 1 or the
+   governance doc's own scoping goes stale.
+7. **Outside the repo** — the GitHub repo name and local clone folder
+   (`mobi_mooi_toolbox`) — separate from the above, and breaks the remote URL for any other
+   existing clone until `git remote set-url` is run there too. See item 29 for how this
+   interacts with the public-repo move.
+
+**Open forks, not yet decided:**
+- Rename the `mobi_*` files now, or park until final names are settled (the toolbox "has
+  grown beyond" the mobilab station, per discussion)?
+- Anyone with a local `[tool.mooi_toolbox]` config override that'd silently stop being read?
+- Bundle the repo/folder rename with this pass, or sequence it separately (item 29)?
+
+**Branch/merge workflow, decided 2026-09-10:** do this on a branch (`rename/vrlab-toolbox`
+or similar), one commit per bucket above, full test suite run after each commit, merged to
+`master` once fully green — standard pattern for a mechanical change like this.
+
+**Real wrinkle:** as of this planning session, five other branches exist locally
+(`feature/mobi-foh-assess-data-cli`, `refactor/error-output`, `refactor/foh-pipeline`,
+`refactor/pipeline`, `refactor/trigger-alignment`), plus two more remote-only
+(`foh-marker-validation`, `graphomotor-pipeline-refactor`). The package-rename commit touches
+import lines across roughly 50 files, so merging any of those branches back onto `master`
+*after* the rename lands means re-pointing every `from mooi_toolbox...` line they touched by
+hand — git's rename detection helps but won't fully absorb it. Land the rename branch either
+once those branches are merged, or with the expectation of going back to rebase each one
+afterward — not mid-flight on several at once.
+
+**Scope note for execution:** the package-rename commit touches every file under
+`src/mooi_toolbox/processing/`, which AGENTS.md's BYPASS/OVERRIDE rules put on the "Verboten
+without OVERRIDE" list — even though it's mechanical (import paths only, no logic changes),
+that commit needs `OVERRIDE:` invoked explicitly when the work actually happens, per the
+loop's own scope rules.
+
+### 29. Move the repo from private to public
+
+Not started — decided 2026-09-10, following on from item 28. A GitHub fork was considered and
+ruled out: forking is for giving someone else their own linked copy, and for the same-owner
+case here it buys nothing over renaming directly, while still carrying the full commit
+history along (item 26's dead-code history included either way).
+
+**Decided approach: rename in place, keep history.**
+
+1. Land item 28 (the `mobi`/`mooi` → `vrlab` rename) on the still-private repo, confirmed
+   green.
+2. Audit git *history* (not just the current working tree) for anything that shouldn't go
+   public before flipping visibility — GitHub's secret scanner runs retroactively over all
+   history once a repo goes public, so this is worth doing first rather than reactively.
+   Specific things to check the history of, not just today's content:
+   - `cli/pull_redcap.py` — currently `API_TOKEN = ""`; was a real token ever committed here
+     earlier?
+   - `for_mooi_xdf_processing.ipynb` (repo root, already flagged dead in item 26) — hardcoded
+     absolute local path; check for siblings with the same issue.
+   - `toolbox_installer.iss` / `build.ps1` — any signing-cert references or internal paths.
+3. GitHub Settings → rename the repo itself (`mobi_mooi_toolbox` → `vrlab_toolbox` — GitHub
+   sets up an auto-redirect from the old name).
+4. GitHub Settings → change visibility to public.
+5. Update the local clone folder name and, for any other existing clone, run
+   `git remote set-url` to point at the renamed repo (the auto-redirect covers this for a
+   while, but isn't permanent).
+6. Once public, item 20's GitHub Pages deferral is unblocked — add the
+   `mkdocs gh-deploy`-equivalent Actions job it already describes as "not needed yet."

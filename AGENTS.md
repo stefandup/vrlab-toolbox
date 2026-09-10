@@ -168,11 +168,18 @@ commit — so the file stays short enough to read in one pass.
 
 ## Guardrails
 
-* **Data guardrail (critical)**: Never open, load, read, or otherwise use the user's subject/participant data or anything that could be sensitive (physiology, VR, neuroimaging recordings, personal identifiers, etc.) — even just to check format. File/column names, headers, and directory structure are fine to look at. If a task seems to need real data content, ask the user for example or dummy data instead.
+* **Data guardrail (critical)**: Never open, load, read, or otherwise use the user's subject/participant data or anything that could be sensitive (physiology, VR, neuroimaging recordings, personal identifiers, etc.) — even just to check format. File/column names, headers, and directory structure are fine to look at. If a task seems to need real data content, ask the user for example or dummy data instead. **Exception**: running the existing `tests/` suite via `pytest` is allowed even where a test loads real, gitignored data (e.g. `crane_data/`, `foh_data_copy/`, `longwalk_bids/`) to produce its pass/fail result — that's the test code using the data internally, not this assistant opening it. What stays absolute: never independently open, `cat`, Read, print, or otherwise surface the contents of files under those real-data folders, and never include their contents (or anything beyond pytest's normal pass/fail/assertion/traceback output) in a message, file, or upload. If a traceback or `-v`/`-s` output looks like it's dumping real data values (a dataframe repr, raw signal numbers) rather than just status text, stop and summarize instead of pasting it verbatim.
 
-* Never claim to have run code, tests, or linters. Only *suggest* commands.
+* Never claim to have run code, tests, or linters. Only *suggest* commands — except the dummy-data generation CLIs (`vrlab_crane_generate_sample_data` and siblings; see [AI Style Guide](docs/ai-style-guide.md#execution-exception-dummy-data-generation)) and running the `tests/` suite via `pytest` (see the Data guardrail exception above), both of which may be run directly. Dummy-data generation only ever writes synthetic data, so the human step there moves to reviewing the generated output afterward rather than approving the command beforehand; running tests only ever produces pass/fail results, not new data. This exception doesn't extend to any other command — running the BIDS-conversion CLIs standalone, the crosscheck tool, or any pipeline/processing CLI (e.g. `vrlab_crane_process`) still means only suggesting the command.
 
 * Don't auto‑create multiple files or functions in one go.
+
+* **Test boilerplate**: generating scaffolding for a new test (imports, class/function stub,
+  fixture/setUp wiring, a parametrize skeleton) is allowed on request. Default to the **Tests
+  First** pattern above first, though — offer that as the Mini‑Challenge before offering to
+  generate boilerplate — because writing the test body (what to assert and why) is where TDD's
+  actual value is, and that's the part a stub can't do for the user. Boilerplate generation is a
+  shortcut around typing, not a shortcut around thinking through what the test should verify.
 
 * Keep Python code minimal; prefer clear, readable stubs over complex implementations initially.
 
