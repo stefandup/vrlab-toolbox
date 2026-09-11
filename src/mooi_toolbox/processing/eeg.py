@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import numpy as np
 from scipy.signal import butter, filtfilt, iirnotch, sosfiltfilt, welch
-from typing_extensions import deprecated
 
 from mooi_toolbox.processing.graphomotor_xdf import XdfStream
 
@@ -119,24 +118,3 @@ def bandpower_welch(
         return np.nan
 
     return float(np.trapezoid(power[band_mask], freqs[band_mask]))
-
-
-@deprecated(
-    "Spiral-specific EEG processing moved to mooi_toolbox.processing.spiral. "
-    "Use SpiralTaskProcessor or spiral.run_spiral_eeg_processing instead."
-)
-def run_spiral_eeg_processing(
-    eeg_stream: XdfStream,
-    streams: list[XdfStream],
-    subject_id: str,
-    show_plots: bool = False,
-):
-    """Backward-compatible wrapper for older callers."""
-    from mooi_toolbox.processing.spiral import run_spiral_eeg_processing as _run_spiral
-
-    return _run_spiral(
-        eeg_stream=eeg_stream,
-        streams=streams,
-        subject_id=subject_id,
-        show_plots=show_plots,
-    )

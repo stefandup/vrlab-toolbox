@@ -150,10 +150,9 @@ Needed:
   instead of redeclaring;
 - update `crane_debrief_behaviour.py` to import `EMOTIONS_TESTED` /
   `TRIAL_TYPES` too, deciding on one canonical type (list vs. tuple);
-- remove the now-dead `from mooi_toolbox.processing import crane_behaviour as
-  crane_behaviour` import in `crane_pipeline.py` — nothing in the file
-  references `crane_behaviour.` anymore now that it has its own local copy of
-  `EMOTIONS_TESTED`;
+- ~~remove the now-dead `from mooi_toolbox.processing import crane_behaviour as
+  crane_behaviour` import in `crane_pipeline.py`~~ **Done** — the dead import is gone
+  (was also tracked as item 19, now removed);
 - add a small test asserting debrief and pipeline column names line up with
   the behaviour schema's.
 
@@ -303,10 +302,6 @@ from unrelated edits nearby (noted below) without changing meaning.
   simplify things long-run.
 - `processing/behaviour.py:52` (was `:53`) — decide what to do when multiple
   CSV files are found.
-- `processing/processing_status.py:18-19` — split `data_in` into behav data,
-  physiology data, etc.; might need a builder in the pipeline template. Both
-  now stale — see item 2's update above; safe to delete once someone
-  confirms nothing else was meant by the second line.
 - `processing/trial_intervals.py:446` (moved from the now-deprecated
   `crane_trial_intervals.py`) — needs to update with a `partial` status.
 - `processing/input_data.py:16` — "Add PipelineStatus to config." Likely the
@@ -319,7 +314,9 @@ from unrelated edits nearby (noted below) without changing meaning.
   discovered behaviour file actually belong to the same session/date, rather
   than trusting the filename match — the kind of check that would have
   caught the `PID15868` timestamp-mismatch bug (item 4) before it cascaded,
-  and would also have caught item 13's still-open date-string bug sooner.
+  and would also have caught item 13's date-string bug sooner (now fixed —
+  the item-13 section itself has been dropped, see this doc's own convention
+  of removing resolved items).
 - `processing/trial_intervals.py:19-20` — `MappingProxyType` guard and dunder
   overrides. About hardening the `TrialIntervals` container itself: guard
   against accidental mutation of the sorted interval list, and add
@@ -367,9 +364,10 @@ recorded state before merge still had some subjects not passing — this needs
 re-verification against current `tests/test_crane_pipeline.py` results, and
 is exactly the kind of per-subject check this manual QC tool is meant to
 cover. `align_crane_behav_intervals_with_trigger_intervals` and its
-`get_crane_predicted_trigger_intervals` helper are no longer called anywhere
-in the pipeline and are candidates for deletion once the new path is
-confirmed stable across subjects.
+`get_crane_predicted_trigger_intervals` helper were deleted 2026-09-11 (see item 26) on a
+zero-callers check, ahead of the per-subject stability re-verification this paragraph flags as
+still needed — if that re-verification later surfaces a real regression, these functions'
+history is still in git if a fallback matcher is needed again.
 
 ### 10. Document intentional behaviour change: partial data now survives biopac import failure
 
@@ -458,62 +456,6 @@ Agreed next steps, revisited:
 
 Also confirmed and no longer open: `RawCraneBehaviourData`'s inherited
 `filename_glob` pattern matches real Crane behaviour filenames.
-
-### 13. Date-string extraction in `from_physiology_data` breaks on the data folder's path separator
-
-Found during review of `crane_pipeline.py`/`FindCraneParticipantFilesStrategyStep`, while
-chasing why `tests/test_crane_pipeline.py` couldn't even collect. Two other bugs in the
-same code path were found and fixed first (both now resolved):
-
-- `BiopacDataImportStartegy.input_data_file_format` (`biopac.py`) was `PhysiologyFileFormat.BIOPAC`
-  (`.acq`) even though `load_biopac_data` loads `.mat` files via `scipy.io.loadmat` — fixed to
-  `PhysiologyFileFormat.MATLAB`.
-- The physiology glob in `from_physiology_data` (`input_data.py`) was
-  `f"*{id_in}_{physiology_data_type_in.value}"`, which assumes the id is immediately followed
-  by the extension with nothing in between. Real filenames are
-  `{date}_{id}_CraneOut.{ext}`, so nothing ever matched. Fixed to
-  `f"*_{id_in}_*{physiology_data_type_in.value}"` and confirmed against all fixture IDs in
-  `crane_data/`.
-
-With both of those fixed, collection gets further but still fails:
-
-```
-FileNotFoundError: No file matches for RawCraneBehaviourData for participant 00020
-```
-
-Root cause, `input_data.py`:
-
-```python
-expected_date_string_from_physiology = str(physiology_fn).split("_")[0]
-```
-
-`physiology_fn` is a `Path`; `str(path)` on Windows renders with backslashes
-(`crane_data\2026481120_00020_CraneOut.mat`). Splitting on `"_"` doesn't split on the
-backslash, so the first token is `"crane"` (from `crane_data`) instead of the intended
-date prefix `2026481120`. Confirmed by testing directly: `physiology_fn.name.split("_")[0]`
-gives the correct value; `str(physiology_fn).split("_")[0]` does not. This wrong date string
-then feeds the behaviour-file glob (`{date_string}_{participant_id}_*.csv`), so no behaviour
-CSV is ever found for any participant.
-
-**Update — stale, corrected:** the line itself (`input_data.py:57`) is still unfixed today,
-but the paragraph above overstates its consequence. The actual behaviour-file glob
-(`input_data.py:85-89`) is built with `glob_pattern = behav_data_type.filename_glob.format(date_string=TEMP, ...)`
-where `TEMP = "*"` — a hardcoded wildcard, not `expected_date_string_from_physiology`. That
-variable is only used ~10 lines later to build a diagnostic mismatch warning
-(`behav_date_mismatches`), so the bug never actually blocked file discovery, and does not
-explain any test failure. `tests/test_crane_pipeline.py` collects and mostly passes today (see
-item 16's update).
-
-The bug is still real, though, and worth fixing on its own terms: `expected_date_string_from_physiology`
-evaluates to `"crane"` in this repo (`str(Path("crane_data/2026481120_00020_CraneOut.mat")).split("_")[0]`),
-and the mismatch check (`not str(file).startswith(expected_date_string_from_physiology)`) currently
-never fires as a false positive purely because every real file path here starts with `crane_data\`,
-which also starts with `"crane"` — coincidence, not correctness. Point `data_folder_in` at a path that
-doesn't start with `"crane"` (an absolute path, a different-named folder) and every file would wrongly
-be flagged as a date mismatch; conversely, a real date mismatch that doesn't happen to also fail the
-`"crane"` prefix check would go undetected. Fix: use `physiology_fn.name.split("_")[0]` instead of
-`str(physiology_fn).split("_")[0]`, same as originally diagnosed. Likely overlaps with item 4's
-"don't assume filename conventions hold" and item 12's broader file-discovery cleanup.
 
 ### 14. Write a rename script for participant files with label mismatches
 
@@ -731,14 +673,6 @@ Needed:
   plotting code, so the suite doesn't depend on a working local Tk install;
 - close figures after they're used/asserted-on in tests and in production plotting functions
   (`plt.close(fig)`), rather than leaving them to accumulate for the process lifetime.
-
-### 19. Small note: `crane_pipeline.py`'s `import crane_behaviour as crane_behaviour` is still dead
-
-Confirmed again this REVIEW: `crane_pipeline.py:8` still imports
-`from mooi_toolbox.processing import crane_behaviour as crane_behaviour`, and nothing in the
-file references `crane_behaviour.` — this is the same dead import flagged in item 3, kept here
-only as a pointer since it's easy to miss inside item 3's larger consolidation ask and cheap to
-delete on its own before that lands.
 
 ### 20. Publish project documentation via MkDocs (`docs/` folder), local-only while the repo stays private
 
@@ -1170,42 +1104,23 @@ forth.
 ### 26. Dead/stale tracked files — candidates for removal
 
 Found during a REVIEW-style audit of `git ls-files` against actual imports/callers across
-`src/`, `tests/`, `docs/`, and `pyproject.toml` (2026-08-27). Nothing below has been deleted —
-this is a punch list, not an action taken. Each entry was independently verified (grep for
-every plausible import form, or a direct file-existence check), not taken on a prior doc's
-word alone — a couple of these findings are, in fact, *because* an earlier part of this same
-doc turned out to be stale (see the `run_lsl_pipeline` entry below).
+`src/`, `tests/`, `docs/`, and `pyproject.toml` (2026-08-27). Each entry was independently
+verified (grep for every plausible import form, or a direct file-existence check), not taken
+on a prior doc's word alone — a couple of these findings are, in fact, *because* an earlier
+part of this same doc turned out to be stale (see the `run_lsl_pipeline` entry below).
 
 **High confidence — no callers/references found anywhere in the tree:**
 
-- `src/mooi_toolbox/processing/__pycache__/__init__.cpython-313.pyc` and
-  `src/mooi_toolbox/processing/__pycache__/check_plux_data.cpython-313.pyc` — compiled bytecode
-  cache files that are tracked in git despite `.gitignore` excluding `__pycache__/`. The second
-  one is doubly stale: it's the cache for `check_plux_data.py`, a source module deleted from
-  `src/` back in the "Refactor check_plux_data into focused processing modules" commit — no
-  `.py` file of that name exists anywhere in the tree today, only its leftover `.pyc`.
-- `src/mooi_toolbox/qc/crane_behav_qc.py` — raises `DeprecationWarning` on import ("This file
-  needs to be incorporated into crane behaviour"), every function body is a bare `pass` stub,
-  and nothing imports it anywhere.
-- `src/mooi_toolbox/processing/opensignals.py` (`calculate_sampling_rate`/`plot_sampling_rate`)
-  — zero callers found under `src/` or `tests/`.
-- `crane_trial_intervals.py`'s two `@deprecated` functions,
-  `align_crane_behav_intervals_with_trigger_intervals` and `get_crane_predicted_trigger_intervals`
-  — zero callers; the file's other contents (e.g. `CraneGetTrialIntervalStrategyStep`) are still
-  actively used, so this is a function-level removal within the file, not the whole file. Matches
-  item 9's own note above flagging these as deletion candidates "once the new path is confirmed
-  stable" — independently reconfirmed here.
-- `references/matched_debug_df_testa.parquet` — its only consumer is
-  `get_crane_predicted_trigger_intervals` above, itself dead code with no callers.
-- `src/mooi_toolbox/window_manager/window_layout copy.json` — filename literally contains
-  " copy"; the real, actively-used file is the sibling `window_layout.json` (see `README.md`'s
-  `auto_arrange_windows` section). Unreferenced by any code.
-- `src/mooi_toolbox/window_manager/Automate/x.txt` and
-  `src/mooi_toolbox/window_manager/Automate/Graphomotor/x.txt` — both tracked, both completely
-  empty, unreferenced anywhere — look like accidental editor/`touch` artifacts.
-- `src/mooi_toolbox/processing/eeg.py`'s `run_spiral_eeg_processing` (`@deprecated`, described
-  as a "Backward-compatible wrapper for older callers") — zero callers; the real implementation
-  it wraps lives in, and is called from, `spiral.py` directly.
+**Done 2026-09-11:** the `__pycache__` cache files, `crane_behav_qc.py`, `opensignals.py`,
+`window_layout copy.json`, both `Automate/x.txt` stubs, `eeg.py`'s `run_spiral_eeg_processing`
+wrapper, and `crane_trial_intervals.py`'s two `@deprecated` functions
+(`align_crane_behav_intervals_with_trigger_intervals`, `get_crane_predicted_trigger_intervals`,
+along with their now-orphaned `references/matched_debug_df_testa.parquet` fixture) have all
+been deleted, re-verified zero-callers at deletion time — re-confirming item 9's own
+"once the new path is confirmed stable" caveat on the two `crane_trial_intervals.py` functions
+is worth a second look if any drift/matching issue turns up later, since that stability
+re-verification wasn't repeated here beyond the zero-callers check.
+
 - `foh_pipeline.py`'s `run_lsl_pipeline` and `trial_intervals.py`'s `create_lsl_trial_intervals`
   (both `@deprecated`) — zero real callers anywhere in `src/`. **This means several passages
   earlier in this doc (items 21/24's "Needed" list, e.g. "still wired into ... `mobi_FOH_process.py`")
@@ -1438,5 +1353,3 @@ history along (item 26's dead-code history included either way).
    while, but isn't permanent).
 6. Once public, item 20's GitHub Pages deferral is unblocked — add the
    `mkdocs gh-deploy`-equivalent Actions job it already describes as "not needed yet."
-### 30. Crosscheck corrections
-1. For crosscheck: add addtional guards to avoid user processing into their BIDS folder or raw folder. Check that it also launches the file selector in the home folder if possible.
