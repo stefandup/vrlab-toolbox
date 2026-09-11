@@ -97,6 +97,42 @@ def write_scan_as_tsv(source: Path, destination: Path, scans_tsv_path: Path, acq
     append_scan_row(scans_tsv_path, relative_name, acq_time)
 
 
+def paths_conflict(a: Path, b: Path) -> bool:
+    """True if `a` and `b` are the same folder, or one is nested inside the other -- e.g. a
+    processing output folder that would write into the BIDS folder it reads from, or a raw
+    folder picked as its own BIDS folder. Compares resolved paths so a relative/differently-
+    cased/trailing-slash spelling of the same location is still caught. Shared by the
+    crosscheck GUIs (raw vs. BIDS folder), the process-results viewer (output vs. BIDS
+    folder), and the `vrlab_*_process`/`mobi_FOH_process_batch` CLIs (output vs. input
+    folder).
+    """
+    resolved_a, resolved_b = a.resolve(), b.resolve()
+    return (
+        resolved_a == resolved_b
+        or resolved_a in resolved_b.parents
+        or resolved_b in resolved_a.parents
+    )
+
+
+def is_bids_like_folder(folder: Path) -> bool:
+    """True if `folder` contains at least one `sub-*` subject folder -- the one dataset-
+    agnostic marker of a real BIDS layout. Used to warn a user who's pointed a tool at the
+    wrong kind of folder (e.g. a raw folder that's actually an already-converted BIDS
+    folder, or a processing input folder that isn't BIDS at all).
+    """
+    return folder.is_dir() and any(
+        child.is_dir() and child.name.startswith("sub-") for child in folder.iterdir()
+    )
+
+
+def is_effectively_empty_folder(folder: Path) -> bool:
+    """True if `folder` has nothing in it -- used to warn a user before processing an empty
+    BIDS folder (probably needs the crosscheck tool run first) or pointing the crosscheck
+    tool at an empty raw folder.
+    """
+    return folder.is_dir() and not any(folder.iterdir())
+
+
 def load_json_map(path: Path) -> dict[str, str]:
     if not path.exists():
         return {}

@@ -26,10 +26,11 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
+from matplotlib.axes import Axes
+from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 from PySide6.QtCore import QEvent, QObject, QSettings, Qt, QTimer, QUrl
-from PySide6.QtGui import QColor, QDesktopServices, QFont, QPixmap
+from PySide6.QtGui import QColor, QDesktopServices, QFont, QImage, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -42,6 +43,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QProgressBar,
     QPushButton,
     QScrollArea,
@@ -60,11 +62,17 @@ from mooi_toolbox.gui.qt_common import (
     HOME_BASE_NAME_EXTRA_POINT_INCREASE,
     SETTINGS_ORGANIZATION,
     accent_group_box_stylesheet,
+    default_browse_dir,
     primary_action_stylesheet,
     set_path_display,
     style_name_label,
     style_secondary_label,
     wrap_tooltip,
+)
+from mooi_toolbox.processing.bids import (
+    is_bids_like_folder,
+    is_effectively_empty_folder,
+    paths_conflict,
 )
 from mooi_toolbox.processing.biopac import get_subject_id_from_mat
 from mooi_toolbox.processing.processing_status import ProcessingStatus
@@ -93,7 +101,11 @@ _UNKNOWN_COLOR = "#9aa0a6"
 # than guessed at) so a subject's badge always agrees with what `Processing_Status` itself
 # means, without importing processing_status.py's private `_STATUS_RANK`.
 _STATUS_RANK = list(ProcessingStatus)
-_STATUS_ICON = {
+# Public (not underscore-prefixed): a dataset-specific `build_group_dashboard` (see
+# `ProcessResultsConfig`) reuses this and `worst_status` below to render its own
+# processing-status banner from the same icon/color/ranking this window's subject
+# table already uses, rather than a second copy of the same mapping.
+STATUS_ICON = {
     ProcessingStatus.OK: ("✓", _OK_COLOR),  # check
     ProcessingStatus.CORRECTED: ("◐", _CORRECTED_COLOR),  # half circle
     ProcessingStatus.PARTIAL: ("◐", _WARNING_COLOR),  # half circle
@@ -164,15 +176,25 @@ class ProcessResultsConfig:
     that batch function itself uses to find subjects (e.g.
     `vrlab_crane_process.PHYSIO_GLOB_PATTERN`), reused rather than duplicated so the two
     can't quietly drift apart. `None` skips that discovery entirely.
+
+    `build_group_dashboard`, if given, replaces the Summary Stats tab's generic
+    one-measure-at-a-time bar chart (and its "Measure:" dropdown, which this window
+    hides for the whole tab in that case) with a dataset-specific fixed layout --
+    called as `build_group_dashboard(figure, batch_df, subject_ids)` on every
+    selection change (`subject_ids` is the current selection, or the full roster when
+    nothing's selected), with `figure` already cleared and ready to lay out via
+    `figure.add_gridspec(...)`. `None` keeps today's plain behaviour (the whole figure
+    driven by the "Measure:" dropdown alone).
     """
 
     dataset_name: str
     window_title: str
     csv_glob: str
-    process_bids_folder: (
-        Callable[[Path, Path, ProgressCallback | None, bool], list[str]] | None
-    ) = None
+    process_bids_folder: Callable[[Path, Path, ProgressCallback | None, bool], list[str]] | None = (
+        None
+    )
     bids_physio_glob: str | None = None
+    build_group_dashboard: Callable[[Figure, pd.DataFrame, list[str]], None] | None = None
 
 
 def _find_batch_csv(output_folder: Path, csv_glob: str) -> Path | None:
@@ -187,7 +209,7 @@ def _load_batch_dataframe(csv_path: Path) -> pd.DataFrame:
     return df.drop(columns=[c for c in df.columns if c.startswith("Unnamed")], errors="ignore")
 
 
-def _worst_status(status_text: str) -> ProcessingStatus:
+def worst_status(status_text: str) -> ProcessingStatus:
     """The worst-off `ProcessingStatus` named in a `Processing_Status` cell (e.g.
     "RawBioData=ok LongWalkRawBehaviourData=error") -- same "worst wins" idea as
     `PipelineStatus.merge`, just reading the already-flattened text back out instead of
@@ -291,10 +313,10 @@ def _detect_log_issue(output_folder: Path, subject_id: str) -> tuple[str, str] |
     """Scans `<output_folder>/logs/<subject_id>.log` for WARNING/ERROR/CRITICAL lines --
     an autodetected signal separate from the pipeline's own Processing_Status column (a
     warning logged mid-run doesn't always show up there). Error outranks warning if the
-    log has both; both render red -- not the amber `_colorize_log_html` uses for a
-    WARNING *line* -- so this small table icon stays a single "needs a look" color
-    rather than a second severity scale to learn. None if there's no log file, or
-    nothing to flag.
+    log has both; each keeps its own severity color here too -- the same
+    amber/red split `_colorize_log_html` already uses for a WARNING vs an ERROR
+    *line* -- so a warning-only log doesn't read as urgently as a real error. None if
+    there's no log file, or nothing to flag.
     """
     log_path = output_folder / "logs" / f"{subject_id}.log"
     if not log_path.is_file():
@@ -311,8 +333,29 @@ def _detect_log_issue(output_folder: Path, subject_id: str) -> tuple[str, str] |
     if has_error:
         return ("✗", _ERROR_COLOR)
     if has_warning:
-        return ("❗", _ERROR_COLOR)
+        return ("❗", _WARNING_COLOR)
     return None
+
+
+def draw_bars(axes: Axes, values: pd.Series, rotation: int) -> None:
+    """One bar per `values` entry, each annotated with its own value -- shared between
+    this window's own individual/group bar charts and a dataset's `build_group_dashboard`
+    (see `ProcessResultsConfig`), so both render bars the same way.
+    """
+    bars = axes.bar(values.index.astype(str), values.to_numpy())
+    for bar, value in zip(bars, values.to_numpy(), strict=True):
+        if pd.notna(value):
+            axes.annotate(
+                f"{value:.3g}",
+                (bar.get_x() + bar.get_width() / 2, bar.get_height()),
+                ha="center",
+                va="bottom",
+                fontsize=7,
+            )
+    axes.tick_params(axis="x", labelrotation=rotation)
+    ha = "right" if rotation else "center"
+    for label in axes.get_xticklabels():
+        label.set_ha(ha)
 
 
 class _TabBarWheelFilter(QObject):
@@ -332,12 +375,34 @@ class _TabBarWheelFilter(QObject):
         return False
 
 
-class _ZoomablePlotView(QWidget):
-    """One QC plot with Zoom In/Out/Fit to Window controls above a scrollable image."""
+def figure_to_pixmap(figure: Figure, dpi: int) -> QPixmap:
+    """Renders a matplotlib `Figure` to a `QPixmap` -- lets the Summary Stats tab show
+    a dataset dashboard (or the plain generic chart) through the same
+    `_ZoomablePlotView` the per-subject QC plots use, instead of a separately-behaving
+    live canvas, so both kinds of plot share one Zoom In/Out/Fit to Window model. Never
+    touches disk: `FigureCanvasAgg` (the same rasterizer `FigureCanvasQTAgg` wraps)
+    draws straight into an in-memory RGBA buffer.
+    """
+    figure.set_dpi(dpi)
+    canvas = FigureCanvasAgg(figure)
+    canvas.draw()
+    width, height = canvas.get_width_height()
+    image = QImage(canvas.buffer_rgba(), width, height, QImage.Format.Format_RGBA8888)
+    # .copy() detaches from `canvas`'s buffer, which is only alive as long as `canvas`
+    # (and, transitively, `figure`) stay referenced -- both are otherwise local to
+    # whichever caller built the figure and are free to go out of scope right after.
+    return QPixmap.fromImage(image.copy())
 
-    def __init__(self, png_path: Path):
+
+class _ZoomablePlotView(QWidget):
+    """One plot (a per-subject QC PNG, or a rendered Summary Stats figure -- see
+    `figure_to_pixmap`) with Zoom In/Out/Fit to Window controls above a scrollable
+    image.
+    """
+
+    def __init__(self, pixmap: QPixmap):
         super().__init__()
-        self._pixmap = QPixmap(str(png_path))
+        self._pixmap = pixmap
         self._scale = 1.0
 
         layout = QVBoxLayout(self)
@@ -364,6 +429,21 @@ class _ZoomablePlotView(QWidget):
         self._apply_scale()
         # The viewport has no real size yet at construction time, before this widget's
         # first layout pass -- fits once the event loop actually gets there.
+        QTimer.singleShot(0, self._fit_to_window)
+
+    def showEvent(self, event) -> None:
+        """A background tab's viewport has no real size until it's actually shown, so the
+        constructor's single fit-on-load can land before that -- refitting here as each
+        plot tab becomes current keeps it fitted without needing the button.
+        """
+        super().showEvent(event)
+        QTimer.singleShot(0, self._fit_to_window)
+
+    def resizeEvent(self, event) -> None:
+        """Keeps the plot fitted as the window/splitter is resized, same reasoning as
+        `showEvent` above.
+        """
+        super().resizeEvent(event)
         QTimer.singleShot(0, self._fit_to_window)
 
     def _apply_scale(self) -> None:
@@ -452,8 +532,7 @@ class ProcessResultsWindow(QMainWindow):
         self.activity_log_text.setReadOnly(True)
         self.activity_log_text.setFont(QFont("Courier New"))
         self.activity_log_text.setPlaceholderText(
-            'Select a subject to view its log, or click "Process BIDS Folder" to run '
-            "processing."
+            'Select a subject to view its log, or click "Process BIDS Folder" to run processing.'
         )
         activity_log_layout.addWidget(self.activity_log_text)
         top_row.addWidget(activity_log_group, 1)
@@ -514,8 +593,15 @@ class ProcessResultsWindow(QMainWindow):
 
         self.stats_measure_combo = QComboBox()
         self.stats_measure_combo.currentIndexChanged.connect(self._refresh_stats_tab)
-        self.stats_figure = Figure(figsize=(6, 4))
-        self.stats_canvas = FigureCanvasQTAgg(self.stats_figure)
+        has_dashboard = self.config.build_group_dashboard is not None
+        # A dataset dashboard packs many small subplots into one figure -- rendered at
+        # a generous size/DPI (see `_refresh_stats_tab`) and shown through the same
+        # Zoom In/Out/Fit to Window view the per-subject QC plots use (`figure_to_pixmap`
+        # + `_ZoomablePlotView`), rather than a live matplotlib canvas, so both kinds of
+        # plot default to fitting the tab and share one zoom model.
+        self._stats_figsize = (10, 15) if has_dashboard else (6, 4)
+        self._stats_dpi = 150 if has_dashboard else 100
+        self._stats_plot_view: _ZoomablePlotView | None = None
         stats_widget = QWidget()
         stats_layout = QVBoxLayout(stats_widget)
         self.stats_measure_row_widget = QWidget()
@@ -523,8 +609,15 @@ class ProcessResultsWindow(QMainWindow):
         stats_measure_row.setContentsMargins(0, 0, 0, 0)
         stats_measure_row.addWidget(QLabel("Measure:"))
         stats_measure_row.addWidget(self.stats_measure_combo, 1)
+        # A dataset dashboard is a fixed, comprehensive layout with nowhere sensible to
+        # put a free-choice "pick any column" fallback -- so it never shows this row at
+        # all, rather than a control that's easy to miss doing something far down a
+        # long scrollable figure.
+        self.stats_measure_row_widget.setVisible(not has_dashboard)
         stats_layout.addWidget(self.stats_measure_row_widget)
-        stats_layout.addWidget(self.stats_canvas, 1)
+        self.stats_plot_container = QVBoxLayout()
+        self.stats_plot_container.setContentsMargins(0, 0, 0, 0)
+        stats_layout.addLayout(self.stats_plot_container, 1)
         self.detail_tabs.addTab(stats_widget, "Summary Stats")
 
     def _build_bids_folder_group(self) -> QGroupBox:
@@ -539,9 +632,7 @@ class ProcessResultsWindow(QMainWindow):
 
         button_row = QHBoxLayout()
         browse_button = QPushButton("Browse...")
-        browse_button.setToolTip(
-            "Pick the BIDS folder to process -- must already be crosschecked."
-        )
+        browse_button.setToolTip("Pick the BIDS folder to process -- must already be crosschecked.")
         browse_button.clicked.connect(self._on_browse_bids_folder)
         button_row.addWidget(browse_button)
         self.bids_reveal_button = QPushButton("Reveal")
@@ -571,7 +662,7 @@ class ProcessResultsWindow(QMainWindow):
                 f"Runs vrlab_{self.config.dataset_name}_process on the BIDS folder above, "
                 "writing QC plots, logs, and the group CSV/SAV into the output folder to "
                 "the right -- the same batch step the vrlab_*_process CLI runs, just "
-                "triggered from here. With \"Skip already-processed subjects\" checked, "
+                'triggered from here. With "Skip already-processed subjects" checked, '
                 "this is how newly crosschecked/unprocessed scans get picked up without "
                 "redoing everyone else."
             )
@@ -635,9 +726,20 @@ class ProcessResultsWindow(QMainWindow):
         return group
 
     def _on_browse_bids_folder(self) -> None:
-        folder = QFileDialog.getExistingDirectory(self, "Select BIDS folder")
-        if folder:
-            self.load_bids_folder(Path(folder))
+        start_dir = default_browse_dir(self.bids_folder)
+        folder = QFileDialog.getExistingDirectory(self, "Select BIDS folder", start_dir)
+        if not folder:
+            return
+        candidate = Path(folder)
+        if self.output_folder is not None and paths_conflict(candidate, self.output_folder):
+            QMessageBox.warning(
+                self,
+                "Same as output folder",
+                "The BIDS folder can't be the same as (or contain, or be contained by) "
+                "the output folder above -- pick a different folder to process.",
+            )
+            return
+        self.load_bids_folder(candidate)
 
     def _on_reveal_bids_folder(self) -> None:
         if self.bids_folder is not None and self.bids_folder.is_dir():
@@ -650,6 +752,29 @@ class ProcessResultsWindow(QMainWindow):
         self._settings.setValue(LAST_BIDS_FOLDER_SETTINGS_KEY, str(bids_folder))
         self._update_process_button_enabled()
         self._refresh_roster()
+        self._warn_if_not_bids_folder(bids_folder)
+
+    def _warn_if_not_bids_folder(self, bids_folder: Path) -> None:
+        """Advisory only -- never blocks the pick, just flags a likely mistake (e.g. an
+        empty folder, or one that was never crosschecked into BIDS) before "Process BIDS
+        Folder" is run against it.
+        """
+        if is_effectively_empty_folder(bids_folder):
+            QMessageBox.warning(
+                self,
+                "Empty BIDS folder",
+                "This BIDS folder is empty. If you haven't run the crosscheck tool for "
+                "this dataset yet, do that first -- it's what populates a BIDS folder "
+                "from your raw data.",
+            )
+        elif not is_bids_like_folder(bids_folder):
+            QMessageBox.warning(
+                self,
+                "Doesn't look like a BIDS folder",
+                "This folder doesn't look like a BIDS folder (no sub-* subject folders "
+                "found). Make sure you're pointing this at a converted BIDS folder -- "
+                "run the crosscheck tool first if you haven't yet.",
+            )
 
     def _update_process_button_enabled(self) -> None:
         self.process_button.setEnabled(
@@ -721,9 +846,21 @@ class ProcessResultsWindow(QMainWindow):
         self.activity_log_text.append(escaped)
 
     def _on_browse_output_folder(self) -> None:
-        folder = QFileDialog.getExistingDirectory(self, "Select output folder")
-        if folder:
-            self.load_output_folder(Path(folder))
+        start_dir = default_browse_dir(self.output_folder)
+        folder = QFileDialog.getExistingDirectory(self, "Select output folder", start_dir)
+        if not folder:
+            return
+        candidate = Path(folder)
+        if self.bids_folder is not None and paths_conflict(candidate, self.bids_folder):
+            QMessageBox.warning(
+                self,
+                "Same as BIDS folder",
+                "The output folder can't be the same as (or contain, or be contained by) "
+                "the BIDS folder above -- processing output shouldn't be written into "
+                "your BIDS data. Pick a different folder.",
+            )
+            return
+        self.load_output_folder(candidate)
 
     def _on_refresh(self) -> None:
         if self.output_folder is not None:
@@ -801,8 +938,8 @@ class ProcessResultsWindow(QMainWindow):
     def _subject_status_icon(self, subject_id: str) -> tuple[str, str]:
         if self.batch_df is not None and subject_id in set(self.batch_df["Subject_ID"]):
             row = self.batch_df.loc[self.batch_df["Subject_ID"] == subject_id].iloc[0]
-            status = _worst_status(str(row.get("Processing_Status", "")))
-            return _STATUS_ICON[status]
+            status = worst_status(str(row.get("Processing_Status", "")))
+            return STATUS_ICON[status]
         if self._has_log(subject_id):
             return _NO_CSV_ROW_ICON
         return _NOT_YET_RUN_ICON
@@ -875,6 +1012,12 @@ class ProcessResultsWindow(QMainWindow):
         current_row = self.subject_table.currentRow()
         subject_id = self.subject_table.item(current_row, 0).text() if current_row >= 0 else None
 
+        # Remembers which tab was open by its *label* (e.g. "EDA QC") rather than its
+        # index, so switching to a subject whose plots come back in the same order (or
+        # a different order/count) still reopens on the same plot instead of resetting
+        # to the first tab every time.
+        previous_tab_label = self.detail_tabs.tabText(self.detail_tabs.currentIndex())
+
         while self.detail_tabs.count() > 1:
             self.detail_tabs.removeTab(0)
 
@@ -889,7 +1032,18 @@ class ProcessResultsWindow(QMainWindow):
                     self.detail_tabs.count() - 1, self._build_plot_tab(png_path), tab_label
                 )
 
+        self._restore_detail_tab_selection(previous_tab_label)
         self._show_subject_log(subject_id)
+
+    def _restore_detail_tab_selection(self, tab_label: str) -> None:
+        """Re-selects whichever tab has `tab_label`, if the newly rebuilt tab set still
+        has one -- e.g. this subject also has an "EDA QC" plot. Otherwise leaves
+        whatever Qt already settled on after the rebuild (typically the first tab).
+        """
+        for index in range(self.detail_tabs.count()):
+            if self.detail_tabs.tabText(index) == tab_label:
+                self.detail_tabs.setCurrentIndex(index)
+                return
 
     def _show_subject_log(self, subject_id: str) -> None:
         if self.output_folder is None:
@@ -905,25 +1059,44 @@ class ProcessResultsWindow(QMainWindow):
             self.activity_log_text.setPlainText(f"No log found for {subject_id}.")
 
     def _build_plot_tab(self, png_path: Path) -> QWidget:
-        return _ZoomablePlotView(png_path)
+        return _ZoomablePlotView(QPixmap(str(png_path)))
 
     def _refresh_stats_tab(self) -> None:
-        self.stats_figure.clear()
-        axes = self.stats_figure.add_subplot(111)
         selected = self._selected_subject_ids()
         individual = len(selected) == 1
-        self.stats_measure_row_widget.setVisible(not individual)
+        has_dashboard = self.config.build_group_dashboard is not None
+        self.stats_measure_row_widget.setVisible(not individual and not has_dashboard)
 
-        if self.batch_df is not None:
+        # "constrained" layout (rather than a manual `tight_layout()` call) for a
+        # dataset dashboard -- its many small subplots and full-width panels (rotated
+        # tick labels included) need their spacing/margins recomputed on every draw,
+        # which is exactly what constrained layout does and a single `tight_layout()`
+        # call does not always get right for a layout this dense.
+        figure = Figure(
+            figsize=self._stats_figsize,
+            dpi=self._stats_dpi,
+            layout="constrained" if has_dashboard else None,
+        )
+        if self.batch_df is None:
+            figure.add_subplot(111).set_axis_off()
+        elif self.config.build_group_dashboard is not None:
+            self.config.build_group_dashboard(figure, self.batch_df, selected or self.subject_ids)
+        else:
+            axes = figure.add_subplot(111)
             if individual:
                 self._plot_individual_stats(axes, selected[0])
             else:
                 self._plot_group_stats(axes, selected or self.subject_ids)
-        else:
-            axes.set_axis_off()
+            figure.tight_layout()
 
-        self.stats_figure.tight_layout()
-        self.stats_canvas.draw_idle()
+        self._show_stats_pixmap(figure_to_pixmap(figure, self._stats_dpi))
+
+    def _show_stats_pixmap(self, pixmap: QPixmap) -> None:
+        if self._stats_plot_view is not None:
+            self.stats_plot_container.removeWidget(self._stats_plot_view)
+            self._stats_plot_view.deleteLater()
+        self._stats_plot_view = _ZoomablePlotView(pixmap)
+        self.stats_plot_container.addWidget(self._stats_plot_view)
 
     def _plot_individual_stats(self, axes, subject_id: str) -> None:
         """Individual mode: every numeric measure as one bar each, for the one selected
@@ -935,7 +1108,7 @@ class ProcessResultsWindow(QMainWindow):
             axes.set_axis_off()
             return
         values = pd.to_numeric(matching_rows.iloc[0][numeric_columns], errors="coerce")
-        self._draw_bars(axes, values, rotation=90)
+        draw_bars(axes, values, rotation=90)
         axes.set_title(f"Subject {subject_id}")
 
     def _plot_group_stats(self, axes, subject_ids: list[str]) -> None:
@@ -949,27 +1122,11 @@ class ProcessResultsWindow(QMainWindow):
         subset = self.batch_df[self.batch_df["Subject_ID"].isin(subject_ids)]
         subset = subset.set_index("Subject_ID").reindex(subject_ids)
         values = pd.to_numeric(subset[measure], errors="coerce")
-        self._draw_bars(axes, values, rotation=45)
+        draw_bars(axes, values, rotation=45)
         if len(subject_ids) > 1 and values.notna().any():
             axes.axhline(values.mean(), linestyle="--", color="gray", linewidth=1)
         axes.set_ylabel(measure)
         axes.set_title(measure)
-
-    def _draw_bars(self, axes, values: pd.Series, rotation: int) -> None:
-        bars = axes.bar(values.index.astype(str), values.to_numpy())
-        for bar, value in zip(bars, values.to_numpy(), strict=True):
-            if pd.notna(value):
-                axes.annotate(
-                    f"{value:.3g}",
-                    (bar.get_x() + bar.get_width() / 2, bar.get_height()),
-                    ha="center",
-                    va="bottom",
-                    fontsize=7,
-                )
-        axes.tick_params(axis="x", labelrotation=rotation)
-        ha = "right" if rotation else "center"
-        for label in axes.get_xticklabels():
-            label.set_ha(ha)
 
 
 def run_process_results_app(config: ProcessResultsConfig, settings_app_name: str) -> None:

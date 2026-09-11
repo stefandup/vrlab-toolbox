@@ -5,7 +5,6 @@ from pathlib import Path
 import pandas as pd
 import pandera.pandas as pa
 
-from mooi_toolbox.processing import crane_behaviour as crane_behaviour
 from mooi_toolbox.processing import crane_debrief_behaviour as debrief
 from mooi_toolbox.processing import pipeline
 from mooi_toolbox.processing.biopac import BiopacPhysiologyDataImportStartegy

@@ -52,6 +52,7 @@ from mooi_toolbox.gui.qt_common import (
     HOME_BASE_ACCENT_HOVER_COLOR,
     HOME_BASE_NAME_EXTRA_POINT_INCREASE,
     SETTINGS_ORGANIZATION,
+    default_browse_dir,
     wrap_tooltip,
 )
 from mooi_toolbox.gui.qt_common import accent_group_box_stylesheet as _accent_group_box_stylesheet
@@ -59,6 +60,11 @@ from mooi_toolbox.gui.qt_common import primary_action_stylesheet as _primary_act
 from mooi_toolbox.gui.qt_common import set_path_display as _set_path_display
 from mooi_toolbox.gui.qt_common import style_name_label as _style_name_label
 from mooi_toolbox.gui.qt_common import style_secondary_label as _style_secondary_label
+from mooi_toolbox.processing.bids import (
+    is_bids_like_folder,
+    is_effectively_empty_folder,
+    paths_conflict,
+)
 from mooi_toolbox.processing.bids_crosscheck import (
     SCANS_TSV_DATE_FORMAT,
     SUBJECT_FOLDER_PREFIX,
@@ -117,6 +123,13 @@ LAST_RAW_FOLDER_SETTINGS_KEY = "last_raw_folder"
 # study id itself, which lives inside each BIDS folder via `save_study_id`), so the study id
 # combo box has something to suggest for a brand-new folder that doesn't have one yet.
 KNOWN_STUDY_IDS_SETTINGS_KEY = "known_study_ids"
+# Pre-filled into the Study ID field for a folder that doesn't have one saved yet, instead
+# of leaving it blank -- a blank study id disables Save Crosscheck Data/Auto-save entirely
+# (see `_update_crosscheck_data_buttons_enabled`), so backups silently never happen until a
+# human remembers to type one. This placeholder keeps backups running (into a folder named
+# after it) from the very first load; `_on_study_id_committed` never persists it as a real
+# study id, so it doesn't linger once a real one is typed.
+DEFAULT_STUDY_ID_PLACEHOLDER = "study_name_here"
 # Which group box an `extra_raw_actions` button belongs beside -- see `run_bids_crosscheck_app`'s
 # docstring on `extra_raw_actions`.
 EXTRA_RAW_ACTION_GROUP_RAW = "raw"
@@ -663,9 +676,11 @@ class BidsCrosscheckWindow(QMainWindow):
             wrap_tooltip(
                 "A short id for this study -- saved inside this BIDS folder, so it's "
                 "remembered next time you open it, and used to name its saved crosscheck "
-                "data (see \"Save Crosscheck Data\" below) so that stays identifiable by a "
+                'data (see "Save Crosscheck Data" below) so that stays identifiable by a '
                 "human. Pick an existing one from the dropdown if you're pointing this tool "
-                "at a different copy of a study you've already worked on."
+                f"at a different copy of a study you've already worked on. Starts out as "
+                f"{DEFAULT_STUDY_ID_PLACEHOLDER!r} so backups still happen under that name "
+                "until you type the real one."
             )
         )
         self.study_id_combo.lineEdit().editingFinished.connect(self._on_study_id_committed)
@@ -738,7 +753,7 @@ class BidsCrosscheckWindow(QMainWindow):
                 "it as permanent, or re-run the raw-to-BIDS setup by hand.\n\n"
                 "Picking a candidate alone doesn't remove anything yet -- files stay exactly "
                 "where they are until you click this.\n\n"
-                "Not the same as removing a whole subject -- that's \"Remove from BIDS\" "
+                'Not the same as removing a whole subject -- that\'s "Remove from BIDS" '
                 "below."
             )
         )
@@ -766,8 +781,8 @@ class BidsCrosscheckWindow(QMainWindow):
                 "files this dataset's tool uses) into this app's own local data folder, "
                 "keyed to this BIDS folder -- no folder picker needed. Together with your "
                 "raw folder (already safe -- this tool never touches it), this is enough to "
-                "recreate a fully crosschecked BIDS folder with \"Restore Saved Crosscheck "
-                "Data\" if this BIDS folder is ever lost or corrupted -- everything else in "
+                'recreate a fully crosschecked BIDS folder with "Restore Saved Crosscheck '
+                'Data" if this BIDS folder is ever lost or corrupted -- everything else in '
                 "it is either raw data or re-derivable by re-running this tool."
             )
         )
@@ -777,7 +792,7 @@ class BidsCrosscheckWindow(QMainWindow):
         self.autosave_checkbox = QCheckBox("Auto-save")
         self.autosave_checkbox.setToolTip(
             wrap_tooltip(
-                "Periodically does the same thing as \"Save Crosscheck Data\" above, on its "
+                'Periodically does the same thing as "Save Crosscheck Data" above, on its '
                 "own, without a popup -- results show up in the Activity Log instead. Needs "
                 "a BIDS folder and a study ID set, same as the manual button."
             )
@@ -813,7 +828,7 @@ class BidsCrosscheckWindow(QMainWindow):
         self.restore_crosscheck_data_button.setToolTip(
             wrap_tooltip(
                 "Disaster recovery: puts back any dataset-specific correction files from "
-                "this BIDS folder's saved data (see \"Save Crosscheck Data\"), re-imports "
+                'this BIDS folder\'s saved data (see "Save Crosscheck Data"), re-imports '
                 "this BIDS folder from raw, then automatically replays the saved "
                 "crosscheck.json/excluded_subjects.json so every past pick, tag, and "
                 "correction is reapplied without redoing it by hand. Only for a BIDS folder "
@@ -887,9 +902,21 @@ class BidsCrosscheckWindow(QMainWindow):
         splitter.setSizes([500, 700])
 
     def _on_browse(self) -> None:
-        folder = QFileDialog.getExistingDirectory(self, "Select BIDS folder")
-        if folder:
-            self.load_bids_folder(Path(folder))
+        start_dir = default_browse_dir(self.bids_folder)
+        folder = QFileDialog.getExistingDirectory(self, "Select BIDS folder", start_dir)
+        if not folder:
+            return
+        candidate = Path(folder)
+        if self.raw_folder is not None and paths_conflict(candidate, self.raw_folder):
+            QMessageBox.warning(
+                self,
+                "Same as raw folder",
+                "The BIDS folder can't be the same as (or contain, or be contained by) "
+                "the raw folder above -- pick a different folder to hold the converted "
+                "BIDS data.",
+            )
+            return
+        self.load_bids_folder(candidate)
 
     def load_bids_folder(self, bids_folder: Path) -> None:
         self.bids_folder = bids_folder
@@ -903,16 +930,44 @@ class BidsCrosscheckWindow(QMainWindow):
         self._update_convert_button_enabled()
 
     def _on_browse_raw_folder(self) -> None:
-        folder = QFileDialog.getExistingDirectory(self, "Select raw data folder")
-        if folder:
-            self.raw_folder = Path(folder)
-            _set_path_display(
-                self.raw_folder_path_label, self.raw_folder_name_label, self.raw_folder
+        start_dir = default_browse_dir(self.raw_folder)
+        folder = QFileDialog.getExistingDirectory(self, "Select raw data folder", start_dir)
+        if not folder:
+            return
+        candidate = Path(folder)
+        if self.bids_folder is not None and paths_conflict(candidate, self.bids_folder):
+            QMessageBox.warning(
+                self,
+                "Same as BIDS folder",
+                "The raw folder can't be the same as (or contain, or be contained by) "
+                "the BIDS folder above -- pick a different folder for your raw data.",
             )
-            self._settings.setValue(LAST_RAW_FOLDER_SETTINGS_KEY, str(self.raw_folder))
-            self._update_raw_folder_summary_label()
-            self._update_convert_button_enabled()
-            self._update_override_file_label()
+            return
+        self._warn_if_raw_folder_looks_wrong(candidate)
+        self.raw_folder = candidate
+        _set_path_display(self.raw_folder_path_label, self.raw_folder_name_label, self.raw_folder)
+        self._settings.setValue(LAST_RAW_FOLDER_SETTINGS_KEY, str(self.raw_folder))
+        self._update_raw_folder_summary_label()
+        self._update_convert_button_enabled()
+        self._update_override_file_label()
+
+    def _warn_if_raw_folder_looks_wrong(self, raw_folder: Path) -> None:
+        """Advisory only -- never blocks the pick, just flags a likely mistake before it's
+        acted on (e.g. "Refresh BIDS" run against the wrong folder)."""
+        if is_effectively_empty_folder(raw_folder):
+            QMessageBox.warning(
+                self,
+                "Empty raw folder",
+                "This raw folder is empty -- double check you've picked the right one.",
+            )
+        elif is_bids_like_folder(raw_folder):
+            QMessageBox.warning(
+                self,
+                "Looks like a BIDS folder",
+                "This folder looks like an already-converted BIDS folder (it has sub-* "
+                "subject folders), not a raw data folder -- double check you've picked "
+                "the right one.",
+            )
 
     def _update_raw_folder_summary_label(self) -> None:
         """Total file count under `self.raw_folder`, recursively -- a quick "does this look
@@ -1036,11 +1091,17 @@ class BidsCrosscheckWindow(QMainWindow):
         if self.bids_folder is None:
             return
         self._refresh_study_id_combo_items()
-        self.study_id_combo.setCurrentText(load_study_id(self.bids_folder) or "")
+        self.study_id_combo.setCurrentText(
+            load_study_id(self.bids_folder) or DEFAULT_STUDY_ID_PLACEHOLDER
+        )
         self._update_crosscheck_data_buttons_enabled()
 
     def _on_study_id_committed(self) -> None:
         study_id = self._current_study_id()
+        # Never persist the placeholder itself as a real study id -- it's only there to
+        # keep backups running under its own name until a human types the actual one.
+        if study_id == DEFAULT_STUDY_ID_PLACEHOLDER:
+            return
         if self.bids_folder is not None and study_id:
             save_study_id(self.bids_folder, study_id)
             if study_id not in self._known_study_ids():
@@ -1056,9 +1117,7 @@ class BidsCrosscheckWindow(QMainWindow):
         BIDS, since it re-imports from raw before replaying decisions.
         """
         has_study_id = bool(self._current_study_id())
-        self.save_crosscheck_data_button.setEnabled(
-            self.bids_folder is not None and has_study_id
-        )
+        self.save_crosscheck_data_button.setEnabled(self.bids_folder is not None and has_study_id)
         self.restore_crosscheck_data_button.setEnabled(
             self.raw_converter is not None
             and self.raw_folder is not None
@@ -1082,9 +1141,7 @@ class BidsCrosscheckWindow(QMainWindow):
             return
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.bids_folder)))
 
-    def _on_extra_raw_action(
-        self, callback: Callable[[Path, Path, QWidget], None]
-    ) -> None:
+    def _on_extra_raw_action(self, callback: Callable[[Path, Path, QWidget], None]) -> None:
         if self.raw_folder is None or self.bids_folder is None:
             return
         callback(self.raw_folder, self.bids_folder, self)
@@ -1858,9 +1915,7 @@ class BidsCrosscheckWindow(QMainWindow):
         self._log_activity(f"Saved crosscheck data: copied {len(copied)} file(s) to {destination}.")
 
     def _on_autosave_settings_changed(self) -> None:
-        self._settings.setValue(
-            AUTOSAVE_ENABLED_SETTINGS_KEY, self.autosave_checkbox.isChecked()
-        )
+        self._settings.setValue(AUTOSAVE_ENABLED_SETTINGS_KEY, self.autosave_checkbox.isChecked())
         self._settings.setValue(
             AUTOSAVE_INTERVAL_MINUTES_SETTINGS_KEY, self.autosave_interval_spinbox.value()
         )
@@ -2067,7 +2122,7 @@ class BidsCrosscheckWindow(QMainWindow):
                 filename_button.setToolTip(
                     wrap_tooltip(
                         "Rename this file directly -- fixes any part of it (a wrong "
-                        "task-/acq- entity, a stray \"-dupN\" collision marker, ...) that "
+                        'task-/acq- entity, a stray "-dupN" collision marker, ...) that '
                         "the more specific correction buttons here don't cover."
                     )
                 )
@@ -2199,9 +2254,7 @@ class BidsCrosscheckWindow(QMainWindow):
         if confirm != QMessageBox.StandardButton.Yes:
             return
         try:
-            record_scans_tsv_row_removed(
-                self.bids_folder, subject_id, relative_filename, acq_time
-            )
+            record_scans_tsv_row_removed(self.bids_folder, subject_id, relative_filename, acq_time)
         except BidsCrosscheckError as error:
             QMessageBox.warning(self, "Could not remove row", str(error))
             return
@@ -2310,7 +2363,7 @@ class BidsCrosscheckWindow(QMainWindow):
                 "the raw-to-BIDS setup by hand.\n\n"
                 "Picking a candidate alone doesn't remove anything yet -- files stay "
                 "exactly where they are until you click this.\n\n"
-                "Not the same as removing a whole subject -- that's \"Remove from BIDS\" "
+                'Not the same as removing a whole subject -- that\'s "Remove from BIDS" '
                 "below."
             )
         )
@@ -2324,8 +2377,7 @@ class BidsCrosscheckWindow(QMainWindow):
             refresh_button = QPushButton("Refresh")
             refresh_button.setToolTip(
                 wrap_tooltip(
-                    "Re-read the effective candidate's info from disk, ignoring the cached "
-                    "copy."
+                    "Re-read the effective candidate's info from disk, ignoring the cached copy."
                 )
             )
             refresh_button.clicked.connect(lambda: self._on_refresh_subjects(subject_ids))
@@ -2343,7 +2395,7 @@ class BidsCrosscheckWindow(QMainWindow):
                     "Fills any scans.tsv row that's missing an acquisition date (or has one "
                     "that doesn't parse) using that same subject's own reference date -- e.g. "
                     "an events row appended without one. Never overwrites a row that already "
-                    "has some parseable date, even a disagreeing one; use \"Edit date...\" for "
+                    'has some parseable date, even a disagreeing one; use "Edit date..." for '
                     "that."
                 )
             )
@@ -2767,9 +2819,7 @@ class BidsCrosscheckWindow(QMainWindow):
         # reload_pending=True -- see _on_rename_all_selected for why.
         self._rescan(reload_pending=True)
 
-    def _on_task_tag(
-        self, subject_id: str, scan_type: str, file: Path, tagged: bool
-    ) -> None:
+    def _on_task_tag(self, subject_id: str, scan_type: str, file: Path, tagged: bool) -> None:
         if self.bids_folder is None:
             return
         try:

@@ -147,7 +147,7 @@ class ParticipantConfig:
         if physiology_fn_list:
             physiology_fn = physiology_fn_list[0]
 
-            expected_date_string_from_physiology = str(physiology_fn).split("_")[0]
+            expected_date_string_from_physiology = physiology_fn.name.split("_")[0]
 
             if len(physiology_fn_list) > 1:
                 logger.warning(

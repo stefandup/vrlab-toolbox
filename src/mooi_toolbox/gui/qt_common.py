@@ -5,7 +5,9 @@ a speculative shared base class.
 """
 
 import textwrap
+from pathlib import Path
 
+from PySide6.QtCore import QStandardPaths
 from PySide6.QtWidgets import QLabel
 
 SETTINGS_ORGANIZATION = "MooiToolbox"
@@ -33,6 +35,19 @@ PRIMARY_BUTTON_DISABLED_FG = "#999999"
 HOME_BASE_ACCENT_COLOR = "#5b9bd5"
 HOME_BASE_ACCENT_HOVER_COLOR = "#4a86b5"
 HOME_BASE_NAME_EXTRA_POINT_INCREASE = 2
+
+
+def default_browse_dir(preferred: Path | None = None) -> str:
+    """Starting directory for a folder-picker dialog -- `preferred` (e.g. the already-
+    selected folder for that same picker) if it still exists, else the user's home folder.
+    Avoids Qt's own fallback (the process's current working directory), which for a
+    packaged app is the install/AppData folder -- exactly where a student would otherwise
+    risk creating a "BIDS folder" or "raw folder" by mistake instead of somewhere sensible
+    under their own home folder.
+    """
+    if preferred is not None and preferred.is_dir():
+        return str(preferred)
+    return QStandardPaths.writableLocation(QStandardPaths.StandardLocation.HomeLocation)
 
 
 def wrap_tooltip(text: str, width: int = TOOLTIP_WRAP_WIDTH) -> str:

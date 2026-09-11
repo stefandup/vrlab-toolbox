@@ -12,6 +12,11 @@ from rich.progress import Progress
 
 from mooi_toolbox import mobi_logging
 from mooi_toolbox.processing import lsl
+from mooi_toolbox.processing.bids import (
+    is_bids_like_folder,
+    is_effectively_empty_folder,
+    paths_conflict,
+)
 from mooi_toolbox.processing.foh_pipeline import run_pipeline
 from mooi_toolbox.processing.plot_utils import save_plot
 
@@ -193,6 +198,22 @@ def main(input_folder: Path, output_folder: Path, verbose: bool, rerun: bool):
     (written into `output_folder` the first time it's processed) -- pass --rerun to
     reprocess everyone found instead.
     """
+    if paths_conflict(input_folder, output_folder):
+        raise click.UsageError(
+            "output_folder can't be the same as (or contain, or be contained by) "
+            "input_folder -- pick a separate folder for processing output."
+        )
+    if is_effectively_empty_folder(input_folder):
+        raise click.UsageError(
+            f"{input_folder} is empty. If you haven't run the crosscheck tool for this "
+            "dataset yet (vrlab_foh_bids_crosscheck.exe), do that first -- it's what "
+            "converts raw data into a BIDS folder."
+        )
+    if not is_bids_like_folder(input_folder):
+        raise click.UsageError(
+            f"{input_folder} doesn't look like a BIDS folder (no sub-* subject folders "
+            "found) -- input_folder must be a BIDS-formatted folder."
+        )
     run_batch(input_folder, output_folder, skip_existing=not rerun)
 
 
