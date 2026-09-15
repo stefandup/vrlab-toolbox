@@ -15,7 +15,7 @@ from rich.progress import Progress
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from vrlab_toolbox import mobi_logging
+from vrlab_toolbox import vrlab_logging
 from vrlab_toolbox.processing import biopac
 from vrlab_toolbox.processing.bids import (
     is_bids_like_folder,
@@ -96,7 +96,7 @@ def run_batch(
     """
     log_folder = Path.joinpath(output_folder, "logs")
     log_folder.mkdir(parents=True, exist_ok=True)
-    mobi_logging.init(__file__, log_dir_in=log_folder)
+    vrlab_logging.init(__file__, log_dir_in=log_folder)
     participant_data_out = None
 
     logger.info("Looking into input folder: %s. Output folder: %s", input_folder, output_folder)
@@ -155,7 +155,7 @@ def run_batch(
                     existing_csv_path.name,
                 )
 
-            mobi_logging.log_section(logger, f"Subject {subject_id}")
+            vrlab_logging.log_section(logger, f"Subject {subject_id}")
             logger.info("Trying to read file %s", biopac_mat_fn)
 
             try:

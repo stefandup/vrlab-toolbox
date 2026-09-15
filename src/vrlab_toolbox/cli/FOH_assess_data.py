@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.progress import Progress
 from rich.table import Table
 
-from vrlab_toolbox import mobi_logging
+from vrlab_toolbox import vrlab_logging
 from vrlab_toolbox.processing import lsl
 
 logger = logging.getLogger(__name__)
@@ -209,5 +209,5 @@ def main(data_folder: Path, output_csv: Path | None, verbose: bool, include_old:
 
 
 if __name__ == "__main__":
-    mobi_logging.init(__file__)
+    vrlab_logging.init(__file__)
     main()

@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from vrlab_toolbox.cli.check_mobi_xdf import check_xdf as get_and_check_xdf
+from vrlab_toolbox.cli.check_xdf import check_xdf as get_and_check_xdf
 from vrlab_toolbox.processing import lsl
 
 logger = logging.getLogger(__name__)

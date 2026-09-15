@@ -6,7 +6,7 @@ from rich.console import Console
 from rich.progress import Progress
 from rich.table import Table
 
-from vrlab_toolbox import mobi_logging
+from vrlab_toolbox import vrlab_logging
 from vrlab_toolbox.processing.crane_bids import convert_crane_to_bids, print_conversion_summary
 from vrlab_toolbox.processing.crane_dummy_data import (
     DUMMY_DATA_LOG_FILENAME,
@@ -201,5 +201,5 @@ def main(
 
 
 if __name__ == "__main__":
-    mobi_logging.init(__file__)
+    vrlab_logging.init(__file__)
     main()

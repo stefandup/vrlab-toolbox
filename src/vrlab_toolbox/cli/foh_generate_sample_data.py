@@ -6,7 +6,7 @@ from rich.console import Console
 from rich.progress import Progress
 from rich.table import Table
 
-from vrlab_toolbox import mobi_logging
+from vrlab_toolbox import vrlab_logging
 from vrlab_toolbox.processing.foh_dummy_data import (
     DUMMY_DATA_LOG_FILENAME,
     ERROR_TYPES,
@@ -78,5 +78,5 @@ def main(output_folder: Path, n_clean: int, with_errors: bool, seed: int | None)
 
 
 if __name__ == "__main__":
-    mobi_logging.init(__file__)
+    vrlab_logging.init(__file__)
     main()

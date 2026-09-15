@@ -26,7 +26,7 @@ import click
 from rich.console import Console
 from rich.table import Table
 
-from vrlab_toolbox import mobi_logging
+from vrlab_toolbox import vrlab_logging
 from vrlab_toolbox.processing.bids_crosscheck import (
     SUBJECT_FOLDER_PREFIX,
     existing_subject_ids,
@@ -124,5 +124,5 @@ def main(raw_folder: Path, bids_folder: Path, verbose: bool) -> None:
 
 
 if __name__ == "__main__":
-    mobi_logging.init(__file__)
+    vrlab_logging.init(__file__)
     main()

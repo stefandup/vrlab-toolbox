@@ -9,7 +9,7 @@ from pathlib import Path
 
 import click
 
-from vrlab_toolbox import mobi_logging
+from vrlab_toolbox import vrlab_logging
 from vrlab_toolbox.processing.crane_bids import convert_crane_to_bids, print_conversion_summary
 
 EXAMPLES_EPILOG = """
@@ -49,5 +49,5 @@ def main(
 
 
 if __name__ == "__main__":
-    mobi_logging.init(__file__)
+    vrlab_logging.init(__file__)
     main()

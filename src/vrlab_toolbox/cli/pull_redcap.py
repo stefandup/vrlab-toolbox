@@ -3,7 +3,7 @@ from pathlib import Path
 
 import click
 
-from vrlab_toolbox import mobi_logging
+from vrlab_toolbox import vrlab_logging
 from vrlab_toolbox.processing.crane_redcap import clean_crane_redcap_data
 from vrlab_toolbox.processing.redcap import get_token, pull_report
 
@@ -33,5 +33,5 @@ def main(output_folder: Path):
 
 
 if __name__ == "__main__":
-    mobi_logging.init(__file__)
+    vrlab_logging.init(__file__)
     main()

@@ -10,7 +10,7 @@ import pandas as pd
 import pyreadstat
 from rich.progress import Progress
 
-from vrlab_toolbox import mobi_logging
+from vrlab_toolbox import vrlab_logging
 from vrlab_toolbox.processing import lsl
 from vrlab_toolbox.processing.bids import (
     is_bids_like_folder,
@@ -69,7 +69,7 @@ def run_batch(input_folder: Path, output_folder: Path, skip_existing: bool = Fal
     """
     log_folder = Path.joinpath(output_folder, "logs")
     log_folder.mkdir(parents=True, exist_ok=True)
-    mobi_logging.init(__file__, log_dir_in=log_folder)
+    vrlab_logging.init(__file__, log_dir_in=log_folder)
     logger.info(f"Looking into input folder: {input_folder}. Output folder: {output_folder}")
 
     out_fn = os.path.join(output_folder, "FOH_process_batch_out")
@@ -118,7 +118,7 @@ def run_batch(input_folder: Path, output_folder: Path, skip_existing: bool = Fal
                     existing_csv_path.name,
                 )
 
-            mobi_logging.log_section(logger, f"Subject {subject_id}")
+            vrlab_logging.log_section(logger, f"Subject {subject_id}")
             try:
                 pipeline_output = run_pipeline(subject_id, input_folder, output_folder)
                 participant_data_out = pipeline_output.subject_df_out

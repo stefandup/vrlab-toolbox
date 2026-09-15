@@ -8,7 +8,6 @@ from typing import Protocol, TypeVar, cast
 import pandera.pandas as pa
 from matplotlib.figure import Figure
 
-from vrlab_toolbox.mobi_logging import LOG_DATE_FORMAT, LOG_FORMAT
 from vrlab_toolbox.processing.behaviour import RawBehaviourData
 from vrlab_toolbox.processing.biodata import RawBioData
 from vrlab_toolbox.processing.input_data import ParticipantConfig, PhysiologyFileFormat
@@ -18,6 +17,7 @@ from vrlab_toolbox.processing.output_data import PipelineOutputData
 # TODO: This could potentially form part of pipeline as a class override?
 from vrlab_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
 from vrlab_toolbox.processing.trial_intervals import TrialIntervals
+from vrlab_toolbox.vrlab_logging import LOG_DATE_FORMAT, LOG_FORMAT
 
 
 @contextmanager

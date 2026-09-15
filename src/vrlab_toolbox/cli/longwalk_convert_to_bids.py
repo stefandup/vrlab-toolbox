@@ -9,7 +9,7 @@ from pathlib import Path
 
 import click
 
-from vrlab_toolbox import mobi_logging
+from vrlab_toolbox import vrlab_logging
 from vrlab_toolbox.processing.longwalk_bids import (
     convert_longwalk_to_bids,
     print_longwalk_conversion_summary,
@@ -52,5 +52,5 @@ def main(
 
 
 if __name__ == "__main__":
-    mobi_logging.init(__file__)
+    vrlab_logging.init(__file__)
     main()

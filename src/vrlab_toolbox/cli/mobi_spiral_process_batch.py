@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from rich.progress import Progress
 
-from vrlab_toolbox import mobi_logging
+from vrlab_toolbox import vrlab_logging
 from vrlab_toolbox.processing.graphomotor_pipeline import run_pipeline
 from vrlab_toolbox.processing.graphomotor_xdf import find_subject_ids
 from vrlab_toolbox.processing.plot_utils import save_plot
@@ -242,7 +242,7 @@ def main(
                 advance=1,
             )
 
-            mobi_logging.log_section(
+            vrlab_logging.log_section(
                 logger,
                 f"Subject {subject_id}",
             )
@@ -446,5 +446,5 @@ def main(
 
 
 if __name__ == "__main__":
-    mobi_logging.init(__file__)
+    vrlab_logging.init(__file__)
     main()
