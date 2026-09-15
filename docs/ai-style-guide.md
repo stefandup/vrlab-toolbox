@@ -228,6 +228,14 @@ up, though, not the mechanism itself: it's whatever's left over once
 `vibe_list.md` is subtracted, so this paragraph can go stale without
 breaking anything, unlike a maintained deny-list would.
 
+## Restricted folders
+
+Separate from authorship style: [`.ai_restricted`](https://github.com/stefandup/mobi-mooi-toolbox/blob/master/.ai_restricted)
+(repo root) is a human-maintained, `.gitignore`-style list of folders no AI
+assistant may read or write — typically example/sample data the user doesn't
+want an AI touching. Absolute, and not affected by BYPASS or OVERRIDE — see
+`AGENTS.md`'s restricted-folders guardrail.
+
 ## Using this page
 
 Point any AI assistant here before it looks at anything else in this

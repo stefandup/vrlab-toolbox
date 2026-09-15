@@ -34,6 +34,17 @@ $InstallerPath = Join-Path $BuildOutput "installer"
 $VenvPython = Join-Path $PSScriptRoot ".venv\Scripts\python.exe"
 $Python = if (Test-Path $VenvPython) { $VenvPython } else { "python" }
 
+# $ErrorActionPreference = "Stop" only turns *PowerShell* errors into terminating ones --
+# it does nothing for a native command's exit code. Without this check, a failed
+# `pip install`/`pyinstaller`/`ISCC.exe` call just prints its error and the script sails on
+# to the next step as if it had succeeded -- in -Full's case, silently packaging whatever
+# stale build_output/dist a *previous* successful build left behind into a "new" installer.
+function Assert-Success($What) {
+    if ($LASTEXITCODE -ne 0) {
+        throw "$What failed with exit code $LASTEXITCODE"
+    }
+}
+
 function Show-Help {
     @"
 Usage: .\build.ps1 -Full | -Exe | -Inno
@@ -59,6 +70,7 @@ No option given: prints this help and exits without building anything.
 
 function Build-Exes {
     & $Python -m pip install -e . --no-deps
+    Assert-Success "pip install -e ."
     # --noconfirm: skip PyInstaller's interactive "output directory ... will be REMOVED!
     # Continue? (y/N)" prompt when $DistPath\mooi_toolbox already exists from a previous
     # build -- this script has no stdin to answer it with, so without this flag it just
@@ -66,10 +78,19 @@ function Build-Exes {
     # would have unsaved work.
     & $Python -m PyInstaller --noconfirm --workpath $WorkPath --distpath $DistPath `
         (Join-Path $PSScriptRoot "specs\toolbox.spec")
+    Assert-Success "PyInstaller build"
 }
 
 function Build-Installer {
-    $version = (git describe --tags --always).Trim()
+    # Read the version back from the venv's installed package metadata -- the exact same
+    # source PyInstaller's copy_metadata already baked into the exe -- rather than
+    # recomputing it independently via `git describe`. The two can disagree: setuptools_scm's
+    # default scheme reports the *next* pre-release version between tags (e.g.
+    # "0.7.6.dev3+g7e4b7ce93" three commits after v0.7.5), while `git describe --tags
+    # --always` reports the *previous* tag plus a distance ("v0.7.5-3-g7e4b7ce") -- same
+    # commit, two different-looking version strings, which made a freshly built installer
+    # look stale next to the venv it was built from.
+    $version = "v" + (& $Python -c "from importlib.metadata import version; print(version('mooi-toolbox'))").Trim()
 
     $bundleDir = Join-Path $DistPath "mooi_toolbox"
     if (-not (Test-Path $bundleDir)) {
@@ -92,6 +113,7 @@ function Build-Installer {
     }
 
     & $iscc (Join-Path $PSScriptRoot "toolbox_installer.iss") "/DMyAppVersion=$version"
+    Assert-Success "ISCC.exe"
 }
 
 if ($Full) {

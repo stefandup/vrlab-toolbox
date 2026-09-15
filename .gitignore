@@ -27,6 +27,7 @@ spss_scripts/
 /build_output/
 crane_examples/*
 longwalk_examples/*
+foh_examples/
 redcap_data/
 foh_data_copy/
 build_log.txt

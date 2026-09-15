@@ -126,6 +126,16 @@ In your own AI tool, this maps onto `AGENTS.md`'s **BYPASS** (scoped to
 the cleared list) and **OVERRIDE** (for the rest — the "genuinely
 unavoidable" case above, not a way around it) commands.
 
+## Restricted folders
+
+A separate, absolute rule from everything above: some folders (typically
+example/sample data) are entirely off-limits to AI assistants, not a
+vibe-coding judgment call. See
+[`.ai_restricted`](https://github.com/stefandup/mobi-mooi-toolbox/blob/master/.ai_restricted)
+(repo root) and `AGENTS.md`'s restricted-folders guardrail — a
+human-maintained list an assistant must never read from, write to, or edit,
+regardless of BYPASS or OVERRIDE.
+
 ## Setting this up in your own AI tool
 
 This repo's own `AGENTS.md` (repo root) encodes this operating mode for AI

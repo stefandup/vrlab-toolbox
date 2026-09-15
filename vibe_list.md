@@ -30,6 +30,6 @@ wrong.
 | Crosscheck (backend + GUI) | `src/mooi_toolbox/processing/bids_crosscheck.py`; `src/mooi_toolbox/gui/bids_crosscheck_common.py`, `crane_bids_crosscheck_gui.py`, `foh_bids_crosscheck_gui.py`, `longwalk_bids_crosscheck_gui.py` | [ ] |
 | Process results viewer (GUI) | `src/mooi_toolbox/gui/qt_common.py`, `process_results_common.py`, `crane_process_results_gui.py`, `longwalk_process_results_gui.py` — read-only viewer over a `vrlab_*_process` output folder, same GUI-layer shape as crosscheck | [ ] |
 | Toolbox launcher (GUI) | `src/mooi_toolbox/gui/toolbox_launcher.py` | [ ] |
-| Build/packaging scripts | `build.ps1`, `build_mac.sh`, `toolbox_installer.iss` | [ ] |
+| Build/packaging scripts | `build.ps1`, `build_mac.sh`, `toolbox_installer.iss`, `specs/*.spec` | [ ] |
 | Docs | everything under `docs/`, plus `mkdocs.yml` — already covered by [AI Use Guidelines](docs/ai-use.md)'s docs exception | [ ] |
 <!-- --8<-- [end:table] -->

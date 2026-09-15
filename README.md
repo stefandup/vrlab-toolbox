@@ -129,6 +129,23 @@ crane_generate_sample_data examples/crane_templates examples \
 See the docs site's Testing page for the full list of supported
 `--reference-error-type` values and how this differs from `--with-errors`.
 
+#### FOH sample data
+
+FOH's raw recording is a single `.xdf` (Lab Streaming Layer) file rather than
+a `.mat`/`.csv` pair, so its generator builds recordings from scratch instead
+of cloning a template:
+
+```bash
+foh_generate_sample_data foh_examples --with-errors --seed 42
+```
+
+Writes straight into the already-BIDS-shaped layout FOH's recording software
+produces (`sub-XXX/ses-S001/beh/...`) -- no separate BIDS conversion step, so
+`foh_examples` can be pointed at directly by `vrlab_foh_batch_process` or the
+FOH crosscheck GUI. `--with-errors` adds one participant per known scenario
+(missing streams, a sampling-rate mismatch, incomplete target trials, ...).
+See the docs site's Testing page for what each one is for.
+
 ---
 
 ## Current functionality

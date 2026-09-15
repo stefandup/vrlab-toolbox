@@ -1,0 +1,17 @@
+# .ai_restricted
+#
+# Plain-text list of folders that AI coding assistants must never read from or
+# write to -- one folder path per line, relative to the repo root, the same
+# style as .gitignore. Use this for example/sample data folders you don't want
+# an AI assistant to access, even just to check format.
+#
+# This file is itself covered by the same restriction: an AI assistant may
+# read it to know what's listed, but must never create, edit, or delete it.
+# Only a human maintains this file. This restriction is absolute -- it cannot
+# be lifted by BYPASS or OVERRIDE (see AGENTS.md).
+#
+# Add folders below, one per line:
+
+long_walk_data\
+crane_data\
+foh_data_copy\

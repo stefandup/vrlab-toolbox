@@ -16,12 +16,7 @@ TOOLS = [
     ("vrlab_crane_bids_crosscheck", os.path.join("gui", "crane_bids_crosscheck_gui.py"), False, []),
     ("vrlab_crane_convert_to_bids", os.path.join("cli", "crane_convert_to_bids.py"), True, []),
     ("vrlab_crane_generate_sample_data", os.path.join("cli", "crane_generate_sample_data.py"), True, []),
-    (
-        "vrlab_crane_process",
-        os.path.join("cli", "vrlab_crane_process.py"),
-        True,
-        [(os.path.join(REPO_ROOT, "references", "matched_debug_df_testa.parquet"), "references")],
-    ),
+    ("vrlab_crane_process", os.path.join("cli", "vrlab_crane_process.py"), True, []),
     (
         "vrlab_crane_process_GUI",
         os.path.join("gui", "crane_process_results_gui.py"),

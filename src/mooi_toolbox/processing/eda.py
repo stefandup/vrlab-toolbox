@@ -6,6 +6,7 @@ from typing import TypedDict
 
 import matplotlib.pyplot as plt
 import neurokit2 as nk
+import numpy as np
 import pandas as pd
 import pandera.pandas as pa
 from matplotlib.figure import Figure
@@ -53,7 +54,7 @@ class nkEDAProcessingResult(TypedDict):
     """
 
     total_time_min: float
-    eda_cleaned: pd.Series
+    eda_cleaned: np.ndarray
     eda_decomposed: pd.DataFrame
     eda_peaks_info: tuple[pd.DataFrame, dict]
 
@@ -89,6 +90,8 @@ class ProcessEdaPhysiologyDataStrategyStep:
 
         scr_df = run_eda_intervals(biodata_in.raw_data["EDA"], trial_interval_data.intervals)
         scr_df_corrected = correct_order(scr_df)
+        # TODO: can trials be meaned? Or post processed elegantly?
+        # scr_df_corrected_mean = crane_mean_trials(scr_df_corrected)
         eda_pipeline_out = EdaPhysiologyOutputData(config_in.subject_id)
         eda_pipeline_out.append_dataframe(scr_df_corrected, {})
         eda_pipeline_out.figure_data_out["eda_qc"] = run_eda_qc(
@@ -112,7 +115,7 @@ def run_nk_eda_processing(
     eda_raw_series_df: pd.Series,
     clean_method: str = "biosppy",
     peak_detect_method: str = "vanhalem2020",
-    sampling_rate: float = 1000,
+    sampling_rate: int = 1000,
 ) -> nkEDAProcessingResult:
     """
     Wrap neurokit2 toolbox EDA functions on one set of timeseries data and return values as a
@@ -121,7 +124,7 @@ def run_nk_eda_processing(
     """
     try:
         total_time_min: float = (len(eda_raw_series_df) / sampling_rate) / 60
-        eda_cleaned = nk.eda_clean(
+        eda_cleaned: np.ndarray = nk.eda_clean(
             eda_raw_series_df, sampling_rate=sampling_rate, method=clean_method
         )  # type: ignore
         eda_decomposed = nk.eda_phasic(eda_cleaned, sampling_rate=sampling_rate)  # type: ignore
@@ -319,3 +322,13 @@ def correct_order(df_in: pd.DataFrame) -> pd.DataFrame:
     df_out.columns = corrected_cols
 
     return df_out
+
+
+# TODO: can/should this be generalized?
+def crane_mean_trials(df_in: pd.DataFrame) -> pd.DataFrame:
+    scr_mean_trials = pd.DataFrame()
+    scr_mean_trials["NonStressBlock_NonSlipTrial_SCR_per_min"] = df_in.filter(
+        regex=r"^NonStressBlock_NonSlipTrial_(!?Training).*_SCR_per_min.*$"
+    ).mean(axis=1)
+
+    return pd.DataFrame()

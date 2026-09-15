@@ -237,6 +237,64 @@ participants already there.
     trigger) in a single synthetic file. Each call rebuilds fresh from the
     template rather than stacking onto a previous mutation.
 
+## The `foh_examples` folder
+
+`foh_examples/` is FOH's counterpart to `crane_data`/`examples` above -- but shaped
+differently, because FOH's raw recording is a single multi-stream `.xdf` file (Lab
+Streaming Layer), not a `.mat`/`.csv` pair. `src/mooi_toolbox/processing/foh_dummy_data.py`
+builds synthetic recordings **from scratch** (like `longwalk_dummy_data.py`, not
+`crane_dummy_data.py`'s clone-and-perturb-a-template approach) via a small private XDF
+writer, since `pyxdf` can only read `.xdf` files, not write them.
+
+The four streams it writes (`OpenSignals`, `VR_markers`, `VR_trial_events`, `FOH_target`),
+their column names, the `VR_trial` event vocabulary, and the `FOH_target` CSV row shape are
+all modelled on a real, de-identified example recording a human inspected and cleared for
+this purpose -- session durations are compressed well below a real recording's length purely
+to keep generated files small and fast to build; the event *sequence* and the
+baseline/stress/recovery *ratios* follow the reference recording.
+
+Like `crane_examples`/`longwalk_examples`, `foh_examples/` is gitignored -- generate it
+locally rather than expecting it in a fresh clone.
+
+### Generate it yourself
+
+```bash
+foh_generate_sample_data foh_examples --seed 42
+```
+
+Writes straight into the already-BIDS-shaped layout FOH's recording software produces
+(`sub-XXX/ses-S001/beh/..._task-foh_run-001_beh.xdf`) -- there's no separate raw-to-BIDS
+conversion step for FOH the way there is for crane/longwalk, so `foh_examples` can be pointed
+at directly by `vrlab_foh_batch_process` or the FOH crosscheck GUI.
+
+Add `--with-errors` to also generate one participant per known scenario:
+
+```python
+ERROR_TYPES = (
+    "missing_physiology",
+    "missing_behaviour",
+    "missing_target",
+    "missing_baseline_start_marker",
+    "srate_mismatch",
+    "incomplete_target_trials",
+)
+```
+
+Each reproduces a specific, documented effect -- see `SCENARIO_DESCRIPTIONS` in
+`foh_dummy_data.py` (also written into `foh_examples/dummy_data_log.txt` on every run) for
+what each one is for. `missing_physiology` and `missing_target` are worth calling out
+specifically: they reproduce genuine gaps in the current pipeline's error handling where a
+missing stream raises an uncaught `KeyError` instead of being caught and flagged like every
+other scenario here -- `tests/test_foh_dummy_data.py` asserts that's exactly what happens,
+so a future fix to that handling has a failing test ready to turn green instead of needing
+one written from scratch.
+
+!!! note "Going further"
+    `tests/test_foh_pipeline.py` still has a `TestFOHPipelineRealData` class reading from a
+    real, gitignored `foh_data_copy/foh_bids_test` folder -- kept alongside the new
+    self-contained `TestFOHPipelineDummyData` class rather than replacing it, the same way
+    crane keeps both a dummy-data test class and a real-data one.
+
 ## Test-Driven Development (TDD), briefly
 
 TDD means writing a **failing test first** — one that describes what the

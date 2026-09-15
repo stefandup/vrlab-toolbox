@@ -15,6 +15,7 @@ dependencies = {file = ["requirements.txt"]}
 vrlab_crane_convert_to_bids = "mooi_toolbox.cli.crane_convert_to_bids:main"
 vrlab_crane_generate_sample_data = "mooi_toolbox.cli.crane_generate_sample_data:main"
 vrlab_foh_import_to_bids = "mooi_toolbox.cli.foh_import_to_bids:main"
+vrlab_foh_generate_sample_data = "mooi_toolbox.cli.foh_generate_sample_data:main"
 vrlab_check_xdf = "mooi_toolbox.cli.check_mobi_xdf:main"
 vrlab_foh_assess_data = "mooi_toolbox.cli.mobi_FOH_assess_data:main"
 vrlab_foh_bids_crosscheck = "mooi_toolbox.gui.foh_bids_crosscheck_gui:main"

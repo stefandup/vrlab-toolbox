@@ -157,7 +157,11 @@ library.
 `build.ps1` doesn't stop at building exes — after `specs/toolbox.spec`
 builds, it also:
 
-1. Resolves a version string via `git describe --tags --always`.
+1. Resolves a version string by reading `mooi-toolbox`'s installed package
+   metadata back out of the venv (`importlib.metadata.version(...)` via the
+   same interpreter used for the PyInstaller build) -- the same version
+   PyInstaller's `copy_metadata` already baked into the exe, so the
+   installer can't disagree with what's actually running inside it.
 2. Copies `build_output/dist/mooi_toolbox/*` into a fresh
    `build_output/toolbox/` folder.
 3. Compiles `toolbox_installer.iss` (an [Inno Setup](https://jrsoftware.org/isinfo.php)
