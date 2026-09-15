@@ -9,11 +9,11 @@ import pandas as pd
 
 matplotlib.use("Agg")
 
-from mooi_toolbox.processing.biodata import RawBioData
-from mooi_toolbox.processing.crane_behaviour import RawCraneBehaviourData
-from mooi_toolbox.processing.crane_bids import convert_crane_to_bids
-from mooi_toolbox.processing.crane_debrief_behaviour import RawDebriefBehaviourData
-from mooi_toolbox.processing.crane_dummy_data import (
+from vrlab_toolbox.processing.biodata import RawBioData
+from vrlab_toolbox.processing.crane_behaviour import RawCraneBehaviourData
+from vrlab_toolbox.processing.crane_bids import convert_crane_to_bids
+from vrlab_toolbox.processing.crane_debrief_behaviour import RawDebriefBehaviourData
+from vrlab_toolbox.processing.crane_dummy_data import (
     DUMMY_GROUP_DEBRIEF_FN,
     REFERENCE_ERROR_TYPES,
     characterize_reference_trigger_pattern,
@@ -23,9 +23,9 @@ from mooi_toolbox.processing.crane_dummy_data import (
     generate_dummy_participant,
     generate_dummy_participant_matching_reference,
 )
-from mooi_toolbox.processing.crane_pipeline import run_pipeline
-from mooi_toolbox.processing.processing_status import ProcessingStatus
-from mooi_toolbox.processing.trial_intervals import TrialIntervals
+from vrlab_toolbox.processing.crane_pipeline import run_pipeline
+from vrlab_toolbox.processing.processing_status import ProcessingStatus
+from vrlab_toolbox.processing.trial_intervals import TrialIntervals
 
 # Templates currently live under crane_examples/crane_templates on disk, not the sample_data/
 # path this constant previously pointed at (that folder doesn't exist in this checkout).

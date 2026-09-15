@@ -7,22 +7,22 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from mooi_toolbox.cli.longwalk_convert_to_bids import main as run_longwalk_convert_to_bids
-from mooi_toolbox.processing import longwalk_bids
-from mooi_toolbox.processing.biopac import BiopacPhysiologyDataImportStartegy
-from mooi_toolbox.processing.eda import (
+from vrlab_toolbox.cli.longwalk_convert_to_bids import main as run_longwalk_convert_to_bids
+from vrlab_toolbox.processing import longwalk_bids
+from vrlab_toolbox.processing.biopac import BiopacPhysiologyDataImportStartegy
+from vrlab_toolbox.processing.eda import (
     EdaPhysiologyOutputData,
     ProcessEdaPhysiologyDataStrategyStep,
 )
-from mooi_toolbox.processing.input_data import ParticipantConfig, PhysiologyFileFormat
-from mooi_toolbox.processing.longwalk_behaviour import (
+from vrlab_toolbox.processing.input_data import ParticipantConfig, PhysiologyFileFormat
+from vrlab_toolbox.processing.longwalk_behaviour import (
     LongWalkBehaviouralOutputData,
     LongWalkImportRawBehaviourDataStrategy,
     LongWalkRawBehaviourData,
     ProcessLongWalkBehaviourDataWithIntervalsStrategyStep,
 )
-from mooi_toolbox.processing.longwalk_pipeline import run_pipeline
-from mooi_toolbox.processing.longwalk_trial_intervals import LongWalkGetTrialIntervalStrategyStep
+from vrlab_toolbox.processing.longwalk_pipeline import run_pipeline
+from vrlab_toolbox.processing.longwalk_trial_intervals import LongWalkGetTrialIntervalStrategyStep
 
 
 def _touch(path: Path) -> Path:

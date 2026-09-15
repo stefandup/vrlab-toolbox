@@ -1,0 +1,166 @@
+import logging
+from dataclasses import dataclass
+from pathlib import Path
+
+import pandas as pd
+import pandera.pandas as pa
+
+from vrlab_toolbox.processing import crane_debrief_behaviour as debrief
+from vrlab_toolbox.processing import pipeline
+from vrlab_toolbox.processing.biopac import BiopacPhysiologyDataImportStartegy
+from vrlab_toolbox.processing.crane_behaviour import (
+    ImportCraneBehaviourDataStrategyStep,
+    ProcessCraneBehaviourDataStrategyStep,
+)
+from vrlab_toolbox.processing.crane_debrief_behaviour import (
+    ImportCraneDebriefDataProcessStrategyStep,
+    ProcessCraneDebriefBehaviourDataStrategyStep,
+)
+from vrlab_toolbox.processing.crane_trial_intervals import CraneGetTrialIntervalStrategyStep
+from vrlab_toolbox.processing.eda import ProcessEdaPhysiologyDataStrategyStep
+from vrlab_toolbox.processing.input_data import ParticipantConfig
+from vrlab_toolbox.processing.output_data import (
+    PipelineOutputData,
+    build_base_pipeline_output_schema,
+)
+
+logger = logging.getLogger(__name__)
+
+EMOTIONS_TESTED = [
+    "Boredom",
+    "Dissatisfaction",
+    "Joy",
+    "Sadness",
+    "Satisfaction",
+    "Confused",
+    "Anger",
+]
+
+BLOCK_TYPES = ("NonStressBlock", "StressBlock")
+TRIAL_TYPES = ("SlipTrial", "NonSlipTrial")
+BEHAVIOUR_OUTPUT_METRICS = (
+    "nausea_avg",
+    "dizziness_avg",
+    "stressed_avg",
+    "dropped_total",
+    "nr_frustration_barrels",
+    "nr_error_slips",
+    "nr_slips",
+    "nr_no_reason_slips",
+    "nr_forced_slips",
+    "avg_velocity",
+    "target_score",
+    *(f"{emotion}_proportion" for emotion in EMOTIONS_TESTED),
+)
+
+DEBRIEF_OUTPUT_METRICS = tuple(debrief.emotion_cols)
+
+
+def _optional_float_column() -> pa.Column:
+    return pa.Column(float, nullable=True, coerce=True, required=False)
+
+
+# Schema builds more or less automatically based on the constants set.
+def build_crane_participant_output_schema() -> pa.DataFrameSchema:
+    """Create schema for the wide participant output produced by this pipeline."""
+    behaviour_columns = {
+        f"{metric}_{block_type}_{trial_type}": _optional_float_column()
+        for metric in BEHAVIOUR_OUTPUT_METRICS
+        for block_type in BLOCK_TYPES
+        for trial_type in TRIAL_TYPES
+    }
+
+    debrief_columns = {
+        f"Debrief_{metric}_{trial_type}": _optional_float_column()
+        for metric in DEBRIEF_OUTPUT_METRICS
+        for trial_type in TRIAL_TYPES
+    }
+
+    physiology_columns = {
+        r"^.+_SCR_per_min$": pa.Column(
+            float,
+            nullable=True,
+            coerce=True,
+            required=False,
+            regex=True,
+        )
+    }
+
+    return build_base_pipeline_output_schema(
+        {**behaviour_columns, **debrief_columns, **physiology_columns}
+    )
+
+
+class FindCraneParticipantFilesStrategyStep:
+    physiology_data_type = BiopacPhysiologyDataImportStartegy.input_data_file_format
+    behaviour_data_types = [
+        ProcessCraneBehaviourDataStrategyStep.input_data_type,
+        ProcessCraneDebriefBehaviourDataStrategyStep.input_data_type,
+    ]
+
+    def run(
+        self, participant_id_in: str, data_folder_in: Path, output_folder_in: Path | None = None
+    ) -> ParticipantConfig:
+
+        return ParticipantConfig.from_bids_data(
+            id_in=participant_id_in,
+            physiology_data_type_in=self.physiology_data_type,
+            data_folder_in=data_folder_in,
+            behaviour_data_types_in=self.behaviour_data_types,
+            output_folder_in=output_folder_in,
+        )
+
+
+@dataclass
+class CranePipelineOutputData(PipelineOutputData):
+    def validate_participant_output(self) -> pd.DataFrame:
+        return build_crane_participant_output_schema().validate(self.subject_df_out)
+
+
+def run_pipeline(
+    participant_id_in: str, data_folder_in: Path, output_folder_in: Path | None = None
+) -> CranePipelineOutputData:
+    """Run the crane behaviour/physiology pipeline for a single participant.
+
+    `data_folder_in` must be a BIDS-formatted folder. This assumes the data has
+    already been through the crosscheck tool (`gui/crane_bids_crosscheck_gui.py`)
+    so duplicate runs and id/date corrections are resolved before processing.
+    """
+
+    import_behav_steps = pipeline.SequentialBehaviourImportSteps(
+        steps=[ImportCraneBehaviourDataStrategyStep(), ImportCraneDebriefDataProcessStrategyStep()]
+    )
+    process_behav_steps = pipeline.SequentialBehaviourProcessingSteps(
+        steps=[
+            ProcessCraneBehaviourDataStrategyStep(),
+            ProcessCraneDebriefBehaviourDataStrategyStep(),
+        ]
+    )
+    import_physiology_steps = pipeline.SequentialPhysiolgyImportSteps(
+        steps=[BiopacPhysiologyDataImportStartegy()]
+    )
+    process_physiology_steps = pipeline.SequentialPhysiologyProcessingSteps(
+        steps=[ProcessEdaPhysiologyDataStrategyStep()]
+    )
+
+    crane_pipeline = pipeline.PipelineTemplate(
+        find_participant_strategy_step=FindCraneParticipantFilesStrategyStep(),
+        sequential_physiology_import_steps=import_physiology_steps,
+        sequential_behaviour_data_import_steps=import_behav_steps,
+        get_intervals_strategy=CraneGetTrialIntervalStrategyStep(),
+        sequential_behaviour_processing_steps=process_behav_steps,
+        sequential_physiology_processing_steps=process_physiology_steps,
+    )
+
+    participant_config, participant_pipeline_data_out = crane_pipeline.run(
+        participant_id_in,
+        data_folder_in,
+        output_folder_in,
+    )
+    # TODO: This needs a classmethod to avoid future errors when implementing pipeline
+    crane_pipeline_output_data = CranePipelineOutputData(participant_config.subject_id)
+    crane_pipeline_output_data.subject_df_out = participant_pipeline_data_out.subject_df_out
+    crane_pipeline_output_data.status = participant_pipeline_data_out.status
+    crane_pipeline_output_data.figure_data_out = participant_pipeline_data_out.figure_data_out
+
+    return crane_pipeline_output_data
