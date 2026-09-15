@@ -1,7 +1,7 @@
-; Mooi Toolbox installer.
+; VRLab Toolbox installer.
 ; Built by build.ps1, which invokes: ISCC.exe toolbox_installer.iss /DMyAppVersion=<version>
 
-#define MyAppName "Mooi Toolbox"
+#define MyAppName "VRLab Toolbox"
 #ifndef MyAppVersion
   #define MyAppVersion "0.0.0-dev"
 #endif
@@ -23,10 +23,10 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-DefaultDirName={localappdata}\Programs\MooiToolbox
+DefaultDirName={localappdata}\Programs\VRLabToolbox
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
-OutputBaseFilename=MooiToolboxSetup-{#MyAppVersion}
+OutputBaseFilename=VRLabToolboxSetup-{#MyAppVersion}
 ; Relative to this script's own directory (the repo root) -- keeps every build artifact
 ; under one gitignored build_output/ tree instead of a top-level Output/ folder.
 OutputDir=build_output\installer

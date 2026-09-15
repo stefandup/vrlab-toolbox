@@ -19,7 +19,7 @@ install` on the machine that runs it.
 
 Every buildable command is bundled by one single PyInstaller "spec file" —
 `specs/toolbox.spec` — rather than one spec per tool. It loops over a plain
-`TOOLS` list (`(exe_name, script path relative to src/mooi_toolbox, console
+`TOOLS` list (`(exe_name, script path relative to src/vrlab_toolbox, console
 window?, extra datas)` per tool, covering both CLI tools and the two
 PySide6 crosscheck GUIs plus the launcher below) and runs one `Analysis` +
 `EXE` per entry, but feeds every tool's outputs into a single shared
@@ -39,12 +39,12 @@ TOOLS = [
 ]
 
 for name, script, console, extra_datas in TOOLS:
-    a = Analysis([os.path.join(SRC_ROOT, script)], datas=[*extra_datas, *copy_metadata("mooi-toolbox")], ...)
+    a = Analysis([os.path.join(SRC_ROOT, script)], datas=[*extra_datas, *copy_metadata("vrlab-toolbox")], ...)
     pyz = PYZ(a.pure)
     exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name=name, console=console, ...)
     collect_args.extend([exe, a.binaries, a.zipfiles, a.datas])
 
-COLLECT(*collect_args, name="mooi_toolbox")
+COLLECT(*collect_args, name="vrlab_toolbox")
 ```
 
 A few things worth knowing:
@@ -54,7 +54,7 @@ A few things worth knowing:
   a full copy of the shared scientific-Python stack (numpy, scipy, mne,
   PySide6, …). Feeding all eleven tools' `EXE`/`binaries`/`datas` into one
   `COLLECT` instead means identical dependency files are only written to
-  disk once, under a single `build_output/dist/mooi_toolbox/` folder — see
+  disk once, under a single `build_output/dist/vrlab_toolbox/` folder — see
   [The installer](#the-installer) below.
 - **`REPO_ROOT = os.path.join(SPECPATH, "..")`** — `SPECPATH` is a variable
   PyInstaller injects automatically, set to the spec file's own directory.
@@ -66,9 +66,9 @@ A few things worth knowing:
   — a reference data file some processing code reads at runtime; without
   listing it here explicitly, PyInstaller wouldn't know to bundle it (only
   actual Python imports are detected automatically).
-- **`copy_metadata("mooi-toolbox")`** — bundles this package's installed
+- **`copy_metadata("vrlab-toolbox")`** — bundles this package's installed
   metadata (version, name, …) into every tool. This is specifically because
-  `@click.version_option(package_name="mooi-toolbox")` looks up the
+  `@click.version_option(package_name="vrlab-toolbox")` looks up the
   installed package's version via `importlib.metadata` at runtime — and a
   frozen exe doesn't have a normal `site-packages/` layout unless you tell
   PyInstaller to keep this piece of it.
@@ -79,7 +79,7 @@ A few things worth knowing:
 
 ## The toolbox launcher
 
-`src/mooi_toolbox/gui/toolbox_launcher.py` (console-script
+`src/vrlab_toolbox/gui/toolbox_launcher.py` (console-script
 `vrlab_toolbox_launcher`) is a small PySide6 window with one button per GUI
 tool — currently "FOH BIDS Crosscheck" and "Crane BIDS Crosscheck" — each of
 which just `subprocess.Popen`s that tool's exe from the launcher's own
@@ -135,8 +135,8 @@ folders.
 
 ```bash
 # macOS/Linux — build_mac.sh
-pyinstaller --onefile src/mooi_toolbox/cli/vrlab_crane_process.py
-pyinstaller --onefile src/mooi_toolbox/cli/mobi_FOH_assess_data.py
+pyinstaller --onefile src/vrlab_toolbox/cli/vrlab_crane_process.py
+pyinstaller --onefile src/vrlab_toolbox/cli/mobi_FOH_assess_data.py
 ```
 
 The output lands in `build_output/dist/`. If PyInstaller complains about an
@@ -157,17 +157,17 @@ library.
 `build.ps1` doesn't stop at building exes — after `specs/toolbox.spec`
 builds, it also:
 
-1. Resolves a version string by reading `mooi-toolbox`'s installed package
+1. Resolves a version string by reading `vrlab-toolbox`'s installed package
    metadata back out of the venv (`importlib.metadata.version(...)` via the
    same interpreter used for the PyInstaller build) -- the same version
    PyInstaller's `copy_metadata` already baked into the exe, so the
    installer can't disagree with what's actually running inside it.
-2. Copies `build_output/dist/mooi_toolbox/*` into a fresh
+2. Copies `build_output/dist/vrlab_toolbox/*` into a fresh
    `build_output/toolbox/` folder.
 3. Compiles `toolbox_installer.iss` (an [Inno Setup](https://jrsoftware.org/isinfo.php)
    script, in the workspace root) with `ISCC.exe`, producing
-   `build_output\installer\MooiToolboxSetup-<version>.exe`, e.g.
-   `MooiToolboxSetup-v1.2.0.exe` (`OutputDir`/`OutputBaseFilename` in
+   `build_output\installer\VRLabToolboxSetup-<version>.exe`, e.g.
+   `VRLabToolboxSetup-v1.2.0.exe` (`OutputDir`/`OutputBaseFilename` in
    `toolbox_installer.iss`'s `[Setup]` section — `MyAppVersion` is passed
    in via `/DMyAppVersion=<version>`, resolved in step 1 above).
 
@@ -175,7 +175,7 @@ builds, it also:
 (`PrivilegesRequired=lowest`) — appropriate for lab machines where installing
 software as an administrator often isn't an option:
 
-- Installs to `{localappdata}\Programs\MooiToolbox`, a location any user can
+- Installs to `{localappdata}\Programs\VRLabToolbox`, a location any user can
   write to.
 - Adds that folder to the current user's `PATH` (`HKEY_CURRENT_USER\Environment`,
   not the system-wide `HKLM` one) via a small Pascal Script block, and
@@ -197,7 +197,7 @@ software as an administrator often isn't an option:
   doesn't (e.g. a renamed or dropped tool's stale `.exe`) -- the explicit uninstall-first step
   avoids that buildup instead.
 
-`toolbox_installer.iss` produces a single `MooiToolboxSetup-<version>.exe`
+`toolbox_installer.iss` produces a single `VRLabToolboxSetup-<version>.exe`
 — no disk spanning, so there's no separate `.bin` payload file to keep
 track of or lose. If the combined toolbox ever grows past Inno's ~2 GB single-file
 limit, `DiskSpanning=yes` (with `DiskSliceSize=max`) would need to come
@@ -251,7 +251,7 @@ jobs:
       - run: pyinstaller --workpath build_output/work --distpath build_output/dist specs/toolbox.spec
       - run: |
           New-Item -ItemType Directory -Path build_output/toolbox | Out-Null
-          Copy-Item build_output\dist\mooi_toolbox\* build_output\toolbox -Recurse
+          Copy-Item build_output\dist\vrlab_toolbox\* build_output\toolbox -Recurse
       - run: choco install innosetup -y
       - run: |
           $version = "${{ github.ref_name }}" -replace '^v',''

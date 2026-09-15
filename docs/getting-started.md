@@ -40,13 +40,13 @@ To get it:
    the end of the repo URL).
 2. Pick the release you want — usually the latest one at the top.
 3. Under **Assets**, download the installer (named e.g.
-   `MooiToolboxSetup-v1.2.0.exe` — the version number matches the release
+   `VRLabToolboxSetup-v1.2.0.exe` — the version number matches the release
    you picked) and run it.
 
 The installer puts every tool's `.exe` in one folder, adds that folder to
 your `PATH` automatically (current user only — no admin rights needed), and
 adds a desktop shortcut — look for this icon
-![Mobi Mooi Toolbox icon](assets/images/vrlab_icon.ico){ width="24" } — to a
+![VRLab Toolbox icon](assets/images/vrlab_icon.ico){ width="24" } — to a
 launcher with a button for each GUI tool (see [FOH
 Crosscheck](foh-crosscheck.md) and [Crane
 Crosscheck](crane-crosscheck.md)). Once it's done, open a **new** terminal

@@ -1,9 +1,9 @@
 import unittest
 from pathlib import Path
 
-from mooi_toolbox.processing.bids import BidsEventsData
-from mooi_toolbox.processing.crane_behaviour import RawCraneBehaviourData
-from mooi_toolbox.processing.crane_pipeline import FindCraneParticipantFilesStrategyStep
+from vrlab_toolbox.processing.bids import BidsEventsData
+from vrlab_toolbox.processing.crane_behaviour import RawCraneBehaviourData
+from vrlab_toolbox.processing.crane_pipeline import FindCraneParticipantFilesStrategyStep
 
 data_folder = Path("crane_data")
 example_correct_bids_events_file_fn = Path(r"references\\example_events.tsv")

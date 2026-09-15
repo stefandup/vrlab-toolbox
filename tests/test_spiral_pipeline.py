@@ -4,8 +4,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from mooi_toolbox.cli.mobi_spiral_process_batch import clean_final_output
-from mooi_toolbox.processing.graphomotor_xdf import (
+from vrlab_toolbox.cli.mobi_spiral_process_batch import clean_final_output
+from vrlab_toolbox.processing.graphomotor_xdf import (
     add_qc_flags,
     choose_best_xdfs,
     get_pen_drawing_window,

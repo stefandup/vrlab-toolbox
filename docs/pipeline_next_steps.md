@@ -596,7 +596,7 @@ found while chasing a runtime crash caused by this fix landing.
 
 Found immediately after item 16's fixes landed: with the `UnboundLocalError`
 crashes gone, the pipeline runs further and hits a new crash at the
-trial-interval step ([pipeline.py:361-377](../src/mooi_toolbox/processing/pipeline.py#L361-L377)).
+trial-interval step ([pipeline.py:361-377](../src/vrlab_toolbox/processing/pipeline.py#L361-L377)).
 When either physiology or behaviour data is missing from its store,
 `raw_biodata_for_intervals` / `raw_behav_data_for_intervals` are deliberately
 set to `None` a few lines above (lines 344, 354) — but `self.get_interval_strategy.run(...)`
@@ -1015,7 +1015,7 @@ vanished from the dialog with no way to address it. Confirmed against real data 
 exact symptom, but the dialog's new occurrence-aware row listing hasn't been separately
 walked through step by step.
 
-Needed — launch the GUI (`python -m mooi_toolbox.gui.crane_bids_crosscheck_gui`, or however this
+Needed — launch the GUI (`python -m vrlab_toolbox.gui.crane_bids_crosscheck_gui`, or however this
 is normally invoked) against a raw folder containing a deliberately mis-named file and a pair of
 `(1)`/`(2)`-suffixed files, and check:
 
@@ -1140,7 +1140,7 @@ re-verification wasn't repeated here beyond the zero-callers check.
 
 **Medium confidence — worth a human check before acting:**
 
-- `src/mooi_toolbox/window_manager/Automate/TestController.py`, `automation_layer.py`,
+- `src/vrlab_toolbox/window_manager/Automate/TestController.py`, `automation_layer.py`,
   `session_controller.py`, `signal_checker.py` (the top-level `Automate/` folder, not the
   `Automate/Graphomotor/` subfolder) — no tracked launcher script invokes any of these, unlike
   `Automate/Graphomotor/graphomotor_gui.py` (launched by the tracked `Start_Graphomotor.bat`).
@@ -1148,10 +1148,10 @@ re-verification wasn't repeated here beyond the zero-callers check.
   and `automation_layer.py` shares most function names with that folder's version — reads as an
   earlier generation of the same automation tooling, superseded by `Graphomotor/`. Needs lab
   context to confirm nothing outside this repo still launches it directly.
-- `src/mooi_toolbox/cli/pull_redcap.py` — no `main()` (runs top-level code on import), a
+- `src/vrlab_toolbox/cli/pull_redcap.py` — no `main()` (runs top-level code on import), a
   hardcoded empty `API_TOKEN = ""`, not registered in `pyproject.toml`, not mentioned in
   `README.md`/`docs/`. Reads as an unfinished/abandoned one-off script.
-- `src/mooi_toolbox/cli/mobi_spiral_process_batch.py` — has a real, working `click`-based
+- `src/vrlab_toolbox/cli/mobi_spiral_process_batch.py` — has a real, working `click`-based
   `main()` and imports live pipeline code (`spiral.py`), but unlike every other `cli/*.py` file
   with a `main()`, it isn't registered in `pyproject.toml`'s `[project.scripts]`. Could be
   intentional WIP rather than dead — confirm with whoever's been working on the Spiral pipeline.
@@ -1260,10 +1260,24 @@ noted here so they aren't lost, not expanded on for now.
 
 ### 28. Rename `mobi_mooi_toolbox`/`mooi_toolbox` to `vrlab_toolbox`, retire "mobi"/"mooi" branding
 
-Not started — scoping conversation only, 2026-09-10 (`git grep -ci` puts it at 445 matches
-across 86 files). The CLI-facing surface is already `vrlab_*`-branded (every
-`[project.scripts]` entry in `pyproject.toml`) — what's left is the package internals,
-packaging metadata, and a handful of filenames still carrying the old names.
+**Progress, 2026-09-15:** buckets 1-2 (package rename, `pyproject.toml`) landed first; buckets
+4-5 (docs sweep, packaging/installer/CI) landed next, including deciding the retired
+"Mobi"/"Mooi" display name → **VRLab Toolbox** (`mkdocs.yml`'s `site_name`,
+`toolbox_installer.iss`'s app name/install folder/output filename, and matching README/docs
+mentions). Bucket 6 (`AGENTS.md`'s own path references) landed under `OVERRIDE`. Bucket 3
+(legacy "mobi" filenames) mostly landed via a Pylance rename — `check_mobi_xdf.py` →
+`check_xdf.py`, `mobi_FOH_assess_data.py` → `FOH_assess_data.py`, `mobi_FOH_process_batch.py` →
+`FOH_process.py` (the console-script name itself also dropped "_batch": `vrlab_foh_batch_process`
+→ `vrlab_foh_process`, chased through every place that referenced it), `mobi_logging.py` →
+`vrlab_logging.py`; `mobi_spiral_process_batch.py` not yet renamed. Bucket 7's GitHub-side half
+is done too — the repo itself is renamed (`mobi-mooi-toolbox` → `vrlab-toolbox`) and this
+clone's remote URL updated. Still outstanding: the local clone-folder rename itself (an
+OS-level step only a human can do to their own working directory), and doing the same
+`git remote set-url` on any other existing clone.
+
+Originally scoped 2026-09-10 (`git grep -ci` put it at 445 matches across 86 files at the time).
+The CLI-facing surface is already `vrlab_*`-branded (every `[project.scripts]` entry in
+`pyproject.toml`).
 
 **What's actually in scope, in dependency order:**
 
@@ -1332,24 +1346,42 @@ ruled out: forking is for giving someone else their own linked copy, and for the
 case here it buys nothing over renaming directly, while still carrying the full commit
 history along (item 26's dead-code history included either way).
 
-**Decided approach: rename in place, keep history.**
+**Step 2's history audit — done, 2026-09-15:**
+- `cli/pull_redcap.py` — checked `API_TOKEN` across every historical revision of the file:
+  always `""`. No real token was ever committed.
+- `toolbox_installer.iss` / `build.ps1` — checked full history for signing-cert/`.pfx`/password
+  references: none found.
+- `for_mooi_xdf_processing.ipynb` — confirmed gone from the working tree (deleted in `208046d`,
+  2026-09-01) but still present across 7 earlier commits. A targeted search of its historical
+  content for path-shaped strings only (not a full read — its cell outputs could carry real
+  data, which stays off-limits per the data guardrail) turned up the local Windows username
+  (`stefan`) baked into some output paths, plus two participant IDs in `.xdf` filenames
+  (`sub-FOH_test`, `sub-TestZuk`) that turned out to be researchers' own pilot recordings, not
+  study participant data. Reviewed and judged non-critical — **not purged from history.**
+  Considered `git filter-repo --path for_mooi_xdf_processing.ipynb --invert-paths` but ruled
+  it out as disproportionate: the file entered history in one of the repo's very first commits,
+  so purging it would rewrite every commit on every branch (6 local + 2 remote-only at the
+  time), forcing a force-push of all of them and a fresh re-clone for anyone else with a copy
+  of the repo — too much disruption for a username and researcher names in dead notebook
+  output.
 
 1. Land item 28 (the `mobi`/`mooi` → `vrlab` rename) on the still-private repo, confirmed
    green.
-2. Audit git *history* (not just the current working tree) for anything that shouldn't go
+2. ~~Audit git *history* (not just the current working tree) for anything that shouldn't go
    public before flipping visibility — GitHub's secret scanner runs retroactively over all
-   history once a repo goes public, so this is worth doing first rather than reactively.
-   Specific things to check the history of, not just today's content:
-   - `cli/pull_redcap.py` — currently `API_TOKEN = ""`; was a real token ever committed here
-     earlier?
-   - `for_mooi_xdf_processing.ipynb` (repo root, already flagged dead in item 26) — hardcoded
-     absolute local path; check for siblings with the same issue.
-   - `toolbox_installer.iss` / `build.ps1` — any signing-cert references or internal paths.
-3. GitHub Settings → rename the repo itself (`mobi_mooi_toolbox` → `vrlab_toolbox` — GitHub
-   sets up an auto-redirect from the old name).
+   history once a repo goes public, so this is worth doing first rather than reactively.~~
+   **Done** — see above.
+3. ~~GitHub Settings → rename the repo itself (`mobi-mooi-toolbox` → `vrlab-toolbox` — GitHub
+   sets up an auto-redirect from the old name).~~ **Done, 2026-09-15.** Turned out separable
+   from step 4 below — renaming a still-private repo doesn't trigger anything, so this landed
+   ahead of the public-visibility flip rather than bundled with it. This clone's remote URL is
+   already updated to match; the doc-side `github.com/stefandup/mobi-mooi-toolbox` links
+   (`ai-style-guide.md`, `ai-use.md`) and the `mobi_mooi_toolbox` folder-name mentions in
+   `README.md` are updated too.
 4. GitHub Settings → change visibility to public.
-5. Update the local clone folder name and, for any other existing clone, run
-   `git remote set-url` to point at the renamed repo (the auto-redirect covers this for a
-   while, but isn't permanent).
+5. **Partly done:** any other existing clone still needs `git remote set-url` to point at the
+   renamed repo (the auto-redirect covers this for a while, but isn't permanent). The local
+   clone folder itself (this machine's `mobi_mooi_toolbox` → `vrlab_toolbox`) is still pending —
+   an OS-level rename only doable from outside a running session that's working inside it.
 6. Once public, item 20's GitHub Pages deferral is unblocked — add the
    `mkdocs gh-deploy`-equivalent Actions job it already describes as "not needed yet."

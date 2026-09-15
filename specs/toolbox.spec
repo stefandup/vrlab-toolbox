@@ -7,12 +7,12 @@ import os
 from PyInstaller.utils.hooks import copy_metadata
 
 REPO_ROOT = os.path.join(SPECPATH, "..")
-SRC_ROOT = os.path.join(REPO_ROOT, "src", "mooi_toolbox")
+SRC_ROOT = os.path.join(REPO_ROOT, "src", "vrlab_toolbox")
 ICON = os.path.join(REPO_ROOT, "assets", "vrlab_icon.ico")
 
-# (exe_name, script path relative to src/mooi_toolbox, console window?, extra datas)
+# (exe_name, script path relative to src/vrlab_toolbox, console window?, extra datas)
 TOOLS = [
-    ("vrlab_check_xdf", os.path.join("cli", "check_mobi_xdf.py"), True, []),
+    ("vrlab_check_xdf", os.path.join("cli", "check_xdf.py"), True, []),
     ("vrlab_crane_bids_crosscheck", os.path.join("gui", "crane_bids_crosscheck_gui.py"), False, []),
     ("vrlab_crane_convert_to_bids", os.path.join("cli", "crane_convert_to_bids.py"), True, []),
     ("vrlab_crane_generate_sample_data", os.path.join("cli", "crane_generate_sample_data.py"), True, []),
@@ -23,8 +23,8 @@ TOOLS = [
         False,
         [],
     ),
-    ("vrlab_foh_assess_data", os.path.join("cli", "mobi_FOH_assess_data.py"), True, []),
-    ("vrlab_foh_batch_process", os.path.join("cli", "mobi_FOH_process_batch.py"), True, []),
+    ("vrlab_foh_assess_data", os.path.join("cli", "FOH_assess_data.py"), True, []),
+    ("vrlab_foh_process", os.path.join("cli", "FOH_process.py"), True, []),
     ("vrlab_foh_bids_crosscheck", os.path.join("gui", "foh_bids_crosscheck_gui.py"), False, []),
     ("vrlab_foh_import_to_bids", os.path.join("cli", "foh_import_to_bids.py"), True, []),
     (
@@ -67,7 +67,7 @@ for name, script, console, extra_datas in TOOLS:
         [os.path.join(SRC_ROOT, script)],
         pathex=[],
         binaries=[],
-        datas=[*extra_datas, *copy_metadata("mooi-toolbox")],
+        datas=[*extra_datas, *copy_metadata("vrlab-toolbox")],
         hiddenimports=[],
         hookspath=[],
         hooksconfig={},
@@ -106,5 +106,5 @@ COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name="mooi_toolbox",
+    name="vrlab_toolbox",
 )

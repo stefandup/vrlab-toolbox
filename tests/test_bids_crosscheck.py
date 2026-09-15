@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from mooi_toolbox.processing.bids_crosscheck import (
+from vrlab_toolbox.processing.bids_crosscheck import (
     BidsCrosscheckError,
     DatasetConfig,
     ScanTypeConfig,
@@ -340,9 +340,7 @@ class TestRecordScansTsvRowRemoved(unittest.TestCase):
         shutil.rmtree(self.bids_folder, ignore_errors=True)
 
     def test_removes_the_matching_row(self):
-        record_scans_tsv_row_removed(
-            self.bids_folder, "001", "sub-001_ses-01_events.tsv", ""
-        )
+        record_scans_tsv_row_removed(self.bids_folder, "001", "sub-001_ses-01_events.tsv", "")
 
         rows = list_scans_tsv_rows(self.bids_folder, "001")
         self.assertEqual(len(rows), 2)
@@ -372,9 +370,7 @@ class TestRecordScansTsvRowRemoved(unittest.TestCase):
             record_scans_tsv_row_removed(self.bids_folder, "002", "anything.tsv", "")
 
     def test_decision_records_the_removed_row(self):
-        record_scans_tsv_row_removed(
-            self.bids_folder, "001", "sub-001_ses-01_events.tsv", ""
-        )
+        record_scans_tsv_row_removed(self.bids_folder, "001", "sub-001_ses-01_events.tsv", "")
 
         decisions = load_decisions(self.bids_folder)
         key = "001_scans_tsv_row:sub-001_ses-01_events.tsv:2"
@@ -385,9 +381,7 @@ class TestRecordScansTsvRowRemoved(unittest.TestCase):
         )
 
     def test_revert_all_decisions_restores_the_row(self):
-        record_scans_tsv_row_removed(
-            self.bids_folder, "001", "sub-001_ses-01_events.tsv", ""
-        )
+        record_scans_tsv_row_removed(self.bids_folder, "001", "sub-001_ses-01_events.tsv", "")
 
         revert_all_decisions(self.bids_folder)
 
@@ -427,9 +421,7 @@ class TestRecordIdCorrection(unittest.TestCase):
         record_id_correction(self.bids_folder, "001", "014")
 
         decision = load_decisions(self.bids_folder)["001"][-1]
-        self.assertIn(
-            "sub-001/20240101_sub-001_physiology.acq", decision["renamed_files"]
-        )
+        self.assertIn("sub-001/20240101_sub-001_physiology.acq", decision["renamed_files"])
         for renamed in decision["renamed_files"]:
             self.assertNotIn("\\", renamed)
 
@@ -768,17 +760,13 @@ class TestRecordTaskTag(unittest.TestCase):
         # Real FOH raw recordings can already carry their own task- entity (e.g. the
         # collection software's own "task-Default") -- must be replaced in place, not left
         # sitting next to a second, colliding task-foh token.
-        file = _touch(
-            self.bids_folder / "sub-002" / "sub-002_ses-S001_task-Default_run-1_eeg.xdf"
-        )
+        file = _touch(self.bids_folder / "sub-002" / "sub-002_ses-S001_task-Default_run-1_eeg.xdf")
 
         destination = record_task_tag(
             self.bids_folder, "002", "physiology", file, task="foh", suffix="beh", acq="lsl"
         )
 
-        self.assertEqual(
-            destination.name, "sub-002_ses-S001_task-foh_acq-lsl_run-1_beh.xdf"
-        )
+        self.assertEqual(destination.name, "sub-002_ses-S001_task-foh_acq-lsl_run-1_beh.xdf")
 
     def test_rejects_a_filename_with_no_run_token(self):
         file = _touch(self.bids_folder / "sub-002" / "sub-002_physiology.xdf")
@@ -803,9 +791,7 @@ class TestRecordTaskTag(unittest.TestCase):
         legacy = _touch(self.bids_folder / "sub-003" / "sub-003_TASK-FOH_run-1_eeg.xdf")
 
         with self.assertRaises(BidsCrosscheckError):
-            record_task_tag(
-                self.bids_folder, "003", "physiology", legacy, task="foh", suffix="beh"
-            )
+            record_task_tag(self.bids_folder, "003", "physiology", legacy, task="foh", suffix="beh")
 
         self.assertTrue(legacy.exists())  # untouched
 

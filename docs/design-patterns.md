@@ -132,7 +132,7 @@ how `tests/test_crane_pipeline.py` does it:
 
 ```python
 from pathlib import Path
-from mooi_toolbox.processing.crane_pipeline import FindCraneParticipantFilesStrategyStep
+from vrlab_toolbox.processing.crane_pipeline import FindCraneParticipantFilesStrategyStep
 
 data_folder = Path("crane_data")
 participant_config = FindCraneParticipantFilesStrategyStep().run("00020", data_folder)
@@ -527,9 +527,9 @@ doing its job. Run three real strategies back to back, feeding one's output
 into the next, no `PipelineTemplate` involved:
 
 ```python
-from mooi_toolbox.processing.biopac import BiopacDataImportStartegy
-from mooi_toolbox.processing.crane_behaviour import ImportCraneBehaviourDataStrategyStep
-from mooi_toolbox.processing.crane_trial_intervals import CraneGetTrialIntervalStrategyStep
+from vrlab_toolbox.processing.biopac import BiopacDataImportStartegy
+from vrlab_toolbox.processing.crane_behaviour import ImportCraneBehaviourDataStrategyStep
+from vrlab_toolbox.processing.crane_trial_intervals import CraneGetTrialIntervalStrategyStep
 
 raw_bio_data = BiopacDataImportStartegy().run(participant_config)
 raw_behav_data = ImportCraneBehaviourDataStrategyStep().run(participant_config)
@@ -578,7 +578,7 @@ experiment: build your `Sequential*Steps` containers out of your own
 strategy steps, hand them to `PipelineTemplate`, call `.run()`.
 
 ```python
-from mooi_toolbox.processing import pipeline
+from vrlab_toolbox.processing import pipeline
 
 def run_pipeline(participant_id_in, data_folder_in, output_folder_in=None):
     my_pipeline = pipeline.PipelineTemplate(

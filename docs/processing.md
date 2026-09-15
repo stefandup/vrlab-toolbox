@@ -52,7 +52,7 @@ column per measure.
 ## FOH
 
 ```bash
-vrlab_foh_batch_process <input_folder> <output_folder>
+vrlab_foh_process <input_folder> <output_folder>
 ```
 
 Searches `input_folder` recursively for every `.xdf` recording and
@@ -62,7 +62,7 @@ processes each one it finds, writing the combined result to
 Add `--verbose` for more detailed log output while it runs:
 
 ```bash
-vrlab_foh_batch_process local_lsl_data local_lsl_data/output --verbose
+vrlab_foh_process local_lsl_data local_lsl_data/output --verbose
 ```
 
 ### FOH's output files

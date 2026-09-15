@@ -85,7 +85,7 @@ This installs the toolbox itself in **editable mode** — code changes are
 picked up immediately, no reinstalling needed — and pulls in everything
 listed in `requirements.txt` along with it (`pyproject.toml` points at that
 file as the dependency list). It's also what makes the command-line tools
-(e.g. `vrlab_crane_process`), and `import mooi_toolbox` in scripts,
+(e.g. `vrlab_crane_process`), and `import vrlab_toolbox` in scripts,
 available in your environment.
 
 !!! note "Going further"

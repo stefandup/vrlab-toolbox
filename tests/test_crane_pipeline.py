@@ -7,32 +7,32 @@ import matplotlib
 import numpy as np
 from click.testing import CliRunner
 
-from mooi_toolbox.cli.vrlab_crane_process import main as run_batch
+from vrlab_toolbox.cli.vrlab_crane_process import main as run_batch
 
 matplotlib.use("Agg")
-from mooi_toolbox.processing.biodata import RawBioData
-from mooi_toolbox.processing.biopac import BiopacPhysiologyDataImportStartegy
-from mooi_toolbox.processing.crane_behaviour import (
+from vrlab_toolbox.processing.biodata import RawBioData
+from vrlab_toolbox.processing.biopac import BiopacPhysiologyDataImportStartegy
+from vrlab_toolbox.processing.crane_behaviour import (
     ImportCraneBehaviourDataStrategyStep,
     ProcessCraneBehaviourDataStrategyStep,
     RawCraneBehaviourData,
     build_crane_raw_behav_file_schema,
 )
-from mooi_toolbox.processing.crane_bids import convert_crane_to_bids
-from mooi_toolbox.processing.crane_debrief_behaviour import RawDebriefBehaviourData
-from mooi_toolbox.processing.crane_dummy_data import (
+from vrlab_toolbox.processing.crane_bids import convert_crane_to_bids
+from vrlab_toolbox.processing.crane_debrief_behaviour import RawDebriefBehaviourData
+from vrlab_toolbox.processing.crane_dummy_data import (
     discover_template_pairs,
     generate_dummy_debrief_workbook,
     generate_dummy_participant,
 )
-from mooi_toolbox.processing.crane_pipeline import (
+from vrlab_toolbox.processing.crane_pipeline import (
     FindCraneParticipantFilesStrategyStep,
     run_pipeline,
 )
-from mooi_toolbox.processing.crane_trial_intervals import CraneGetTrialIntervalStrategyStep
-from mooi_toolbox.processing.input_data import ParticipantConfig
-from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
-from mooi_toolbox.processing.trial_intervals import TrialIntervals
+from vrlab_toolbox.processing.crane_trial_intervals import CraneGetTrialIntervalStrategyStep
+from vrlab_toolbox.processing.input_data import ParticipantConfig
+from vrlab_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
+from vrlab_toolbox.processing.trial_intervals import TrialIntervals
 
 # Real, gitignored data used only by the "real data" tests below -- those fail on any machine
 # without this folder present, by design (no synthetic equivalent exists yet for these PIDs).

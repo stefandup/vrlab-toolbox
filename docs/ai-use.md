@@ -131,7 +131,7 @@ unavoidable" case above, not a way around it) commands.
 A separate, absolute rule from everything above: some folders (typically
 example/sample data) are entirely off-limits to AI assistants, not a
 vibe-coding judgment call. See
-[`.ai_restricted`](https://github.com/stefandup/mobi-mooi-toolbox/blob/master/.ai_restricted)
+[`.ai_restricted`](https://github.com/stefandup/vrlab-toolbox/blob/master/.ai_restricted)
 (repo root) and `AGENTS.md`'s restricted-folders guardrail — a
 human-maintained list an assistant must never read from, write to, or edit,
 regardless of BYPASS or OVERRIDE.

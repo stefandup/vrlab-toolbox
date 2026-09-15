@@ -9,19 +9,19 @@ import pyxdf
 
 matplotlib.use("Agg")
 
-from mooi_toolbox.processing.biodata import RawBioData
-from mooi_toolbox.processing.foh_behaviour import ImportFohBehaviourDataStrategyStep
-from mooi_toolbox.processing.foh_dummy_data import (
+from vrlab_toolbox.processing.biodata import RawBioData
+from vrlab_toolbox.processing.foh_behaviour import ImportFohBehaviourDataStrategyStep
+from vrlab_toolbox.processing.foh_dummy_data import (
     DUMMY_DATA_LOG_FILENAME,
     ERROR_TYPES,
     generate_dummy_foh_dataset,
     generate_dummy_foh_participant,
 )
-from mooi_toolbox.processing.foh_pipeline import run_pipeline
-from mooi_toolbox.processing.foh_target_behaviour import ImportFohTargetBehaviourDataStrategyStep
-from mooi_toolbox.processing.input_data import ParticipantConfig, PhysiologyFileFormat
-from mooi_toolbox.processing.lsl import FohLslPhysiologyDataImportStrategy
-from mooi_toolbox.processing.processing_status import ProcessingStatus
+from vrlab_toolbox.processing.foh_pipeline import run_pipeline
+from vrlab_toolbox.processing.foh_target_behaviour import ImportFohTargetBehaviourDataStrategyStep
+from vrlab_toolbox.processing.input_data import ParticipantConfig, PhysiologyFileFormat
+from vrlab_toolbox.processing.lsl import FohLslPhysiologyDataImportStrategy
+from vrlab_toolbox.processing.processing_status import ProcessingStatus
 
 # Same relative-difference threshold the FOH crosscheck GUI uses (see
 # gui/foh_bids_crosscheck_gui.py's SRATE_MISMATCH_THRESHOLD) -- kept as a literal here rather

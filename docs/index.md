@@ -1,8 +1,8 @@
 # Welcome
 
-![Mobi Mooi Toolbox icon](assets/images/vrlab_icon.ico){ width="96" }
+![VRLab Toolbox icon](assets/images/vrlab_icon.ico){ width="96" }
 
-The Mobi Mooi Toolbox turns raw recordings — physiology signals, VR event
+The VRLab Toolbox turns raw recordings — physiology signals, VR event
 logs, and questionnaire answers — into one clean, per-participant data file
 that's ready for analysis, by running every participant's data through the
 same fixed sequence of steps: find files, import, process, combine, and

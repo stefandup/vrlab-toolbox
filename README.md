@@ -1,4 +1,4 @@
-# mobi_mooi_toolbox
+# vrlab_toolbox
 
 **Private project.** This repo holds a set of submodules and utilities that we develop for internal use. Later we can choose which parts to extract or publish in separate public repositories.
 
@@ -14,8 +14,8 @@ From there:
 
 ```bash
 cd ~
-git clone <repo-url> mobi_mooi_toolbox
-cd mobi_mooi_toolbox
+git clone <repo-url> vrlab_toolbox
+cd vrlab_toolbox
 ```
 
 (Get `<repo-url>` from this repo's GitHub page — the green "Code" button.)
@@ -32,14 +32,14 @@ Once cloned, pull in everyone else's latest committed changes any time with:
 git pull
 ```
 
-Run this from inside the `mobi_mooi_toolbox` folder. See the docs site's Testing page for more git basics, and For Contributors for branching/merging.
+Run this from inside the `vrlab_toolbox` folder. See the docs site's Testing page for more git basics, and For Contributors for branching/merging.
 
 ### Just want to run the compiled `.exe`, not the full source?
 
 Three routes end up with the toolbox's commands available as typed commands, and they get onto your **`PATH`** (the list of folders your terminal searches when you type a command name) differently:
 
 - **Clone + `pip install -e .`** (the [Setup](#setup) section below) — once your virtual environment is active, every command (`vrlab_crane_process`, `vrlab_foh_assess_data`, etc.) just works. That's because activating a venv automatically adds its own `Scripts/`(Windows)/`bin/`(macOS/Linux) folder — where `pip install` put the commands — onto your `PATH` for you. Nothing to configure by hand.
-- **The Mooi Toolbox installer** (`MooiToolboxSetup.exe`, attached to this repo's GitHub Releases — built with PyInstaller + Inno Setup, no Python install needed — see the docs site's Building & Releasing page for how) — installs every tool into one folder, adds that folder to your `PATH` automatically (current user only, no admin rights needed), and puts a desktop shortcut on your desktop for a launcher with a button per GUI tool. CLIs still run from a terminal, exactly like the commands used throughout this README, once you've opened a **new** terminal window after installing.
+- **The VRLab Toolbox installer** (`VRLabToolboxSetup.exe`, attached to this repo's GitHub Releases — built with PyInstaller + Inno Setup, no Python install needed — see the docs site's Building & Releasing page for how) — installs every tool into one folder, adds that folder to your `PATH` automatically (current user only, no admin rights needed), and puts a desktop shortcut on your desktop for a launcher with a button per GUI tool. CLIs still run from a terminal, exactly like the commands used throughout this README, once you've opened a **new** terminal window after installing.
 - **A single standalone `.exe`** downloaded on its own (also attached to each Release, for when you only need one tool) — this one **isn't** on your `PATH` automatically like the installer above. You either run it by typing its full path every time, or add its containing folder to `PATH` yourself:
 
   **Windows, using the GUI (no PowerShell needed):**
@@ -65,7 +65,7 @@ Three routes end up with the toolbox's commands available as typed commands, and
 
 ## Setup
 
-From the project root, install the package in editable mode so imports like `mooi_toolbox` work in scripts and notebooks:
+From the project root, install the package in editable mode so imports like `vrlab_toolbox` work in scripts and notebooks:
 
 ```bash
 pip install -e .
@@ -141,7 +141,7 @@ foh_generate_sample_data foh_examples --with-errors --seed 42
 
 Writes straight into the already-BIDS-shaped layout FOH's recording software
 produces (`sub-XXX/ses-S001/beh/...`) -- no separate BIDS conversion step, so
-`foh_examples` can be pointed at directly by `vrlab_foh_batch_process` or the
+`foh_examples` can be pointed at directly by `vrlab_foh_process` or the
 FOH crosscheck GUI. `--with-errors` adds one participant per known scenario
 (missing streams, a sampling-rate mismatch, incomplete target trials, ...).
 See the docs site's Testing page for what each one is for.
@@ -150,7 +150,7 @@ See the docs site's Testing page for what each one is for.
 
 ## Current functionality
 
-The toolbox currently supports internal MOBI/MOOI workflows around VR physiology and behavioural data processing.
+The toolbox currently supports internal VRLab workflows around VR physiology and behavioural data processing.
 
 Main areas:
 
@@ -173,39 +173,23 @@ The processing code is still being actively refactored. See `docs/pipeline_next_
 Use this first when checking whether an `.xdf` file contains the expected LSL streams.
 
 ```bash
-mobi_check_xdf path/to/sub-P00018_ses-S001_task-Default_run-001_eeg.xdf
+vrlab_check_xdf path/to/sub-P00018_ses-S001_task-Default_run-001_eeg.xdf
 ```
 
 With stream details:
 
 ```bash
-mobi_check_xdf path/to/file.xdf --verbose
+vrlab_check_xdf path/to/file.xdf --verbose
 ```
 
 If no file is supplied, the command uses the default XDF path configured in `pyproject.toml`.
-
-### Process one FOH XDF recording
-
-Run the FOH pipeline for a single `.xdf` file and save the QC plot to the output folder.
-
-```bash
-mobi_foh_process path/to/file.xdf path/to/output_folder
-```
-
-With verbose output:
-
-```bash
-mobi_foh_process path/to/file.xdf path/to/output_folder --verbose
-```
-
-If the output folder is omitted, the script derives an `_out` folder from the XDF path.
 
 ### Batch-process FOH XDF recordings
 
 Process all `.xdf` files found recursively under an input folder.
 
 ```bash
-mobi_foh_batch_process local_lsl_data local_lsl_data/_out
+vrlab_foh_process local_lsl_data local_lsl_data/_out
 ```
 
 If the output folder is omitted, the script writes to `<input_folder>_out`.
@@ -286,10 +270,10 @@ The codebase is organized into submodules (e.g. `window_manager`, `processing`, 
 
 Important package areas:
 
-- `src/mooi_toolbox/cli/` - command-line entry points.
-- `src/mooi_toolbox/processing/` - physiology, behaviour, interval, and pipeline code.
-- `src/mooi_toolbox/read_mobi_xdf/` - XDF stream loading helpers.
-- `src/mooi_toolbox/window_manager/` - window layout and lab automation utilities.
+- `src/vrlab_toolbox/cli/` - command-line entry points.
+- `src/vrlab_toolbox/processing/` - physiology, behaviour, interval, and pipeline code.
+- `src/vrlab_toolbox/read_mobi_xdf/` - XDF stream loading helpers.
+- `src/vrlab_toolbox/window_manager/` - window layout and lab automation utilities.
 
 ---
 
@@ -298,10 +282,10 @@ Important package areas:
 This project includes PyInstaller spec files (in `specs/`) for building every
 toolbox command — CLI and GUI — as a standalone executable, plus a launcher
 GUI and an Inno Setup script that bundles all of them into one
-`MooiToolboxSetup.exe` installer.
+`VRLabToolboxSetup.exe` installer.
 
 The useful part is portability: the built executables in
-`build_output/dist/mooi_toolbox/` can be copied to another folder, including
+`build_output/dist/vrlab_toolbox/` can be copied to another folder, including
 a folder on your `PATH`, without copying the rest of this project's source
 code. See the docs site's Building & Releasing page for *why* PyInstaller
 specifically, what the spec file bundles, how the installer works, how
@@ -318,7 +302,7 @@ On Windows, run `.\build.ps1 -Full` (in PowerShell). It builds
 `specs/toolbox.spec`, gathers the resulting exes into a
 `build_output/toolbox/` folder, and — if [Inno Setup 6](https://jrsoftware.org/isinfo.php)
 is installed — compiles `toolbox_installer.iss` into
-`build_output\installer\MooiToolboxSetup.exe`. Running `.\build.ps1` with no
+`build_output\installer\VRLabToolboxSetup.exe`. Running `.\build.ps1` with no
 flag just prints usage and builds nothing. `.\build.ps1 -Exe` builds just the
 exes (no Inno Setup needed at all); once that's succeeded, `.\build.ps1
 -Inno` recompiles just the installer (e.g. after editing
@@ -354,7 +338,7 @@ the old backport should not break normal imports such as
 
 ## Window manager: `auto_arrange_windows.py`
 
-Lives under `src/mooi_toolbox/window_manager/`. It is meant as an **automated and easily adjustable** way to manage window positions **across multiple monitors**: define which windows to control via a JSON file, save a layout, then reapply it anytime.
+Lives under `src/vrlab_toolbox/window_manager/`. It is meant as an **automated and easily adjustable** way to manage window positions **across multiple monitors**: define which windows to control via a JSON file, save a layout, then reapply it anytime.
 
 It has two modes:
 
@@ -404,13 +388,13 @@ You **edit `titles` manually** with the window names you want to control. The sc
 
 ```bash
 # Save current layout to default window_layout.json
-python -m mooi_toolbox.window_manager.auto_arrange_windows save
+python -m vrlab_toolbox.window_manager.auto_arrange_windows save
 
 # Save to a custom config file
-python -m mooi_toolbox.window_manager.auto_arrange_windows save --config my_layout.json
+python -m vrlab_toolbox.window_manager.auto_arrange_windows save --config my_layout.json
 ```
 
-Run from the project root (or from `src/mooi_toolbox/window_manager/` if your default path is there). Ensure the JSON file already has the correct **`titles`** for the windows you want to capture, or create the file with a `titles` array and run save once so the file is created.
+Run from the project root (or from `src/vrlab_toolbox/window_manager/` if your default path is there). Ensure the JSON file already has the correct **`titles`** for the windows you want to capture, or create the file with a `titles` array and run save once so the file is created.
 
 ### Apply
 
@@ -423,10 +407,10 @@ Run from the project root (or from `src/mooi_toolbox/window_manager/` if your de
 
 ```bash
 # Apply layout from default window_layout.json
-python -m mooi_toolbox.window_manager.auto_arrange_windows apply
+python -m vrlab_toolbox.window_manager.auto_arrange_windows apply
 
 # Apply from a custom config file
-python -m mooi_toolbox.window_manager.auto_arrange_windows apply --config my_layout.json
+python -m vrlab_toolbox.window_manager.auto_arrange_windows apply --config my_layout.json
 ```
 
 ### Workflow summary
