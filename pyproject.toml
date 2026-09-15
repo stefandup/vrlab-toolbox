@@ -3,7 +3,7 @@ requires = ["setuptools>=61", "setuptools_scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mooi-toolbox"
+name = "vrlab-toolbox"
 dynamic = ["version"]
 
 [tool.setuptools_scm]
@@ -12,49 +12,26 @@ dynamic = ["version"]
 dependencies = {file = ["requirements.txt"]}
 
 [project.scripts]
-vrlab_crane_convert_to_bids = "mooi_toolbox.cli.crane_convert_to_bids:main"
-vrlab_crane_generate_sample_data = "mooi_toolbox.cli.crane_generate_sample_data:main"
-vrlab_foh_import_to_bids = "mooi_toolbox.cli.foh_import_to_bids:main"
-vrlab_foh_generate_sample_data = "mooi_toolbox.cli.foh_generate_sample_data:main"
-vrlab_check_xdf = "mooi_toolbox.cli.check_mobi_xdf:main"
-vrlab_foh_assess_data = "mooi_toolbox.cli.mobi_FOH_assess_data:main"
-vrlab_foh_bids_crosscheck = "mooi_toolbox.gui.foh_bids_crosscheck_gui:main"
-vrlab_foh_batch_process = "mooi_toolbox.cli.mobi_FOH_process_batch:main"
-vrlab_plot_target_data = "mooi_toolbox.cli.plot_subject_target_scr_bars:main"
-vrlab_crane_bids_crosscheck = "mooi_toolbox.gui.crane_bids_crosscheck_gui:main"
-vrlab_crane_process = "mooi_toolbox.cli.vrlab_crane_process:main"
-vrlab_crane_process_GUI = "mooi_toolbox.gui.crane_process_results_gui:main"
-vrlab_longwalk_convert_to_bids = "mooi_toolbox.cli.longwalk_convert_to_bids:main"
-vrlab_longwalk_generate_sample_data = "mooi_toolbox.cli.longwalk_generate_sample_data:main"
-vrlab_longwalk_bids_crosscheck = "mooi_toolbox.gui.longwalk_bids_crosscheck_gui:main"
-vrlab_longwalk_process = "mooi_toolbox.cli.vrlab_longwalk_process:main"
-vrlab_longwalk_process_GUI = "mooi_toolbox.gui.longwalk_process_results_gui:main"
-vrlab_toolbox_launcher = "mooi_toolbox.gui.toolbox_launcher:main"
+vrlab_crane_convert_to_bids = "vrlab_toolbox.cli.crane_convert_to_bids:main"
+vrlab_crane_generate_sample_data = "vrlab_toolbox.cli.crane_generate_sample_data:main"
+vrlab_foh_import_to_bids = "vrlab_toolbox.cli.foh_import_to_bids:main"
+vrlab_foh_generate_sample_data = "vrlab_toolbox.cli.foh_generate_sample_data:main"
+vrlab_foh_assess_data = "vrlab_toolbox.cli.mobi_FOH_assess_data:main"
+vrlab_foh_bids_crosscheck = "vrlab_toolbox.gui.foh_bids_crosscheck_gui:main"
+vrlab_foh_batch_process = "vrlab_toolbox.cli.mobi_FOH_process_batch:main"
+vrlab_plot_target_data = "vrlab_toolbox.cli.plot_subject_target_scr_bars:main"
+vrlab_crane_bids_crosscheck = "vrlab_toolbox.gui.crane_bids_crosscheck_gui:main"
+vrlab_crane_process = "vrlab_toolbox.cli.vrlab_crane_process:main"
+vrlab_crane_process_GUI = "vrlab_toolbox.gui.crane_process_results_gui:main"
+vrlab_longwalk_convert_to_bids = "vrlab_toolbox.cli.longwalk_convert_to_bids:main"
+vrlab_longwalk_generate_sample_data = "vrlab_toolbox.cli.longwalk_generate_sample_data:main"
+vrlab_longwalk_bids_crosscheck = "vrlab_toolbox.gui.longwalk_bids_crosscheck_gui:main"
+vrlab_longwalk_process = "vrlab_toolbox.cli.vrlab_longwalk_process:main"
+vrlab_longwalk_process_GUI = "vrlab_toolbox.gui.longwalk_process_results_gui:main"
+vrlab_toolbox_launcher = "vrlab_toolbox.gui.toolbox_launcher:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.mooi_toolbox]
-default_path = "local_lsl_data" #CurrentStudy folder
-default_xdf_folder = "eeg"
-default_session = "001"
-default_xdf_task = "Default"
-default_subject = "P00018"
-eda_opensignals_data_label = "EDA0"
-eda_biopac_data_label = "EDA"
-
-[tool.mooi_toolbox.trial_intervals.baseline]
-start = { stream = "VR_markers", column = "Markers", event = 10 }
-start_fallback = { stream = "VR_trial_events", column = "VR_trial", event = "RaiseSafetyPlatform", offset_seconds = -300 }
-end = { stream = "VR_trial_events", column = "VR_trial", event = "RaiseSafetyPlatform" }
-
-[tool.mooi_toolbox.trial_intervals.stress]
-start = { stream = "VR_trial_events", column = "VR_trial", event = "RaiseMainPlatform" }
-end = { stream = "VR_trial_events", column = "VR_trial", event = "MainPlatformAtMin" }
-
-[tool.mooi_toolbox.trial_intervals.recovery]
-start = { stream = "VR_trial_events", column = "VR_trial", event = "MainPlatformAtMin" }
-end = { stream = "VR_trial_events", column = "VR_trial", event = "RunFOHQuestions" }
 
 [tool.ruff]
 line-length = 100

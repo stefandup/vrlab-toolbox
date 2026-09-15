@@ -7,7 +7,7 @@ import requests
 REDCAP_URL = "https://redcap.sun.ac.za/api/"
 REPORT_ID = 14932
 
-KEYRING_SERVICE = "mooi-toolbox-redcap"
+KEYRING_SERVICE = "vrlab-toolbox-redcap"
 KEYRING_USERNAME = "api-token"
 
 
@@ -18,7 +18,7 @@ def get_token() -> str:
     if not token:
         raise RuntimeError(
             "No REDCap API token found. "
-            "Store it first with: keyring set mooi-toolbox-redcap api-token"
+            "Store it first with: keyring set vrlab-toolbox-redcap api-token"
         )
 
     return token

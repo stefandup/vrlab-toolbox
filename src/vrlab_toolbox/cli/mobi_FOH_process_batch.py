@@ -175,7 +175,7 @@ def run_batch(input_folder: Path, output_folder: Path, skip_existing: bool = Fal
 
 
 @click.command()
-@click.version_option(package_name="mooi-toolbox")
+@click.version_option(package_name="vrlab-toolbox")
 @click.argument(
     "input_folder", type=click.Path(exists=True, dir_okay=True, path_type=Path), required=True
 )

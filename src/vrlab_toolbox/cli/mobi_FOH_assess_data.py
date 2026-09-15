@@ -158,7 +158,7 @@ def save_assessment_csv(results: list[XdfAssessment], output_csv: Path) -> None:
 
 
 @click.command(epilog=EXAMPLES_EPILOG)
-@click.version_option(package_name="mooi-toolbox")
+@click.version_option(package_name="vrlab-toolbox")
 @click.argument(
     "data_folder", type=click.Path(exists=True, file_okay=False, path_type=Path), required=True
 )

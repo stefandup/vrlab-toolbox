@@ -25,7 +25,7 @@ Examples:
 
 
 @click.command(epilog=EXAMPLES_EPILOG)
-@click.version_option(package_name="mooi-toolbox")
+@click.version_option(package_name="vrlab-toolbox")
 @click.argument(
     "input_folder", type=click.Path(exists=True, dir_okay=True, path_type=Path), required=True
 )

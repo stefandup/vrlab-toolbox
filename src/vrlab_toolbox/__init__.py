@@ -1,3 +1,3 @@
 from importlib.metadata import version
 
-__version__ = version("mooi-toolbox")
+__version__ = version("vrlab-toolbox")

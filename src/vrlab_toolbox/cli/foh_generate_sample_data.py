@@ -36,7 +36,7 @@ Examples:
 
 
 @click.command(epilog=EXAMPLES_EPILOG)
-@click.version_option(package_name="mooi-toolbox")
+@click.version_option(package_name="vrlab-toolbox")
 @click.argument("output_folder", type=click.Path(path_type=Path), required=True)
 @click.option(
     "--n-clean", default=5, show_default=True, help="Number of well-formed dummy participants"

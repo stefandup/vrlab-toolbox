@@ -1,22 +1,20 @@
-import os
 from datetime import datetime
+from pathlib import Path
 
 import click
 import pyxdf
 from rich import print
 
-from vrlab_toolbox.config import get_default_xdf
 
+def check_xdf(xdf_fn: Path, verbose=False):
 
-def check_mobi_xdf(xdf_fn=None, verbose=False):
-
-    if not xdf_fn:
-        xdf_fn = get_default_xdf()
+    if xdf_fn is None:
+        raise FileNotFoundError
 
     # expected_streams = config.getlist("expected_streams","required")
     # expected_stream_nr = len(expected_streams)
 
-    print(f"Loading xdf at {os.path.basename(xdf_fn)}...")
+    print(f"Loading xdf at {xdf_fn}...")
 
     streams, header = pyxdf.load_xdf(xdf_fn)
     dt = datetime.fromisoformat(header["info"]["datetime"][0])
@@ -48,12 +46,12 @@ def check_mobi_xdf(xdf_fn=None, verbose=False):
 
 
 @click.command()
-@click.version_option(package_name="mooi-toolbox")
+@click.version_option(package_name="vrlab-toolbox")
 @click.argument("xdf_fn", type=click.Path(exists=True, dir_okay=True), required=False)
 @click.option("--verbose", is_flag=True, help="Give verbose output")
 def main(xdf_fn, verbose):
 
-    return check_mobi_xdf(xdf_fn=xdf_fn, verbose=verbose)
+    return check_xdf(xdf_fn=xdf_fn, verbose=verbose)
 
 
 if __name__ == "__main__":
