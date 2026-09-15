@@ -16,7 +16,7 @@ exactly where that *whether* line falls today — see [Cleared for Vibe
 Coding](#cleared-for-vibe-coding) below — since `AGENTS.md`'s
 BYPASS/OVERRIDE commands need one canonical list to point at rather than
 a description duplicated across pages. That canonical list is
-[`vibe_list.md`](https://github.com/stefandup/mobi-mooi-toolbox/blob/master/vibe_list.md)
+[`vibe_list.md`](https://github.com/stefandup/vrlab-toolbox/blob/master/vibe_list.md)
 at the repo root, a plain file in the
 `.gitignore`/`CODEOWNERS` mold; this page transcludes its table rather
 than keeping a second copy.
@@ -118,7 +118,7 @@ logic this project exists to teach, but a handful of modules are
 format/plumbing work — BIDS conversion, dummy-data generation, the
 crosscheck feature — with the same low-teaching-value shape as the GUI
 layer, not the pipeline foundation itself. The table below — transcluded
-from [`vibe_list.md`](https://github.com/stefandup/mobi-mooi-toolbox/blob/master/vibe_list.md)
+from [`vibe_list.md`](https://github.com/stefandup/vrlab-toolbox/blob/master/vibe_list.md)
 at the repo root, the single place it's actually maintained — is the file-level record of where that line
 falls today. In `AGENTS.md`, this list is what **BYPASS** is scoped to;
 everything *not* on it is default-deny (see [Verboten without
@@ -167,7 +167,7 @@ A second exception to the same run-nothing-yourself default (see above):
 an AI assistant may run the project's configured checkers — `ruff check`,
 `ruff format`/`--check`, `pyright`/Pylance — directly, and apply the fixes
 they suggest, against any file listed in
-[`vibe_list.md`](https://github.com/stefandup/mobi-mooi-toolbox/blob/master/vibe_list.md).
+[`vibe_list.md`](https://github.com/stefandup/vrlab-toolbox/blob/master/vibe_list.md).
 That's not a new authorship permission; it's the same one BYPASS already
 grants for those files, just applied to catching what a first pass
 missed, so there's no extra approval step beyond the one the file's
@@ -197,7 +197,7 @@ by this exception and still means only suggesting the command.
 ![Stop sign](assets/images/stop-sign.png){ width="80" }
 
 This isn't a second list to maintain — it's **everything not named** in
-[`vibe_list.md`](https://github.com/stefandup/mobi-mooi-toolbox/blob/master/vibe_list.md)'s
+[`vibe_list.md`](https://github.com/stefandup/vrlab-toolbox/blob/master/vibe_list.md)'s
 [Cleared for vibe coding](#cleared-for-vibe-coding) table above, anywhere in the repo, not
 just `src/vrlab_toolbox/processing/`. Default-deny: a file doesn't need
 adding to a table here to become off-limits for AI authorship under
@@ -230,7 +230,7 @@ breaking anything, unlike a maintained deny-list would.
 
 ## Restricted folders
 
-Separate from authorship style: [`.ai_restricted`](https://github.com/stefandup/mobi-mooi-toolbox/blob/master/.ai_restricted)
+Separate from authorship style: [`.ai_restricted`](https://github.com/stefandup/vrlab-toolbox/blob/master/.ai_restricted)
 (repo root) is a human-maintained, `.gitignore`-style list of folders no AI
 assistant may read or write — typically example/sample data the user doesn't
 want an AI touching. Absolute, and not affected by BYPASS or OVERRIDE — see

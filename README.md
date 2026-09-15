@@ -1,4 +1,4 @@
-# mobi_mooi_toolbox
+# vrlab_toolbox
 
 **Private project.** This repo holds a set of submodules and utilities that we develop for internal use. Later we can choose which parts to extract or publish in separate public repositories.
 
@@ -14,8 +14,8 @@ From there:
 
 ```bash
 cd ~
-git clone <repo-url> mobi_mooi_toolbox
-cd mobi_mooi_toolbox
+git clone <repo-url> vrlab_toolbox
+cd vrlab_toolbox
 ```
 
 (Get `<repo-url>` from this repo's GitHub page — the green "Code" button.)
@@ -32,7 +32,7 @@ Once cloned, pull in everyone else's latest committed changes any time with:
 git pull
 ```
 
-Run this from inside the `mobi_mooi_toolbox` folder. See the docs site's Testing page for more git basics, and For Contributors for branching/merging.
+Run this from inside the `vrlab_toolbox` folder. See the docs site's Testing page for more git basics, and For Contributors for branching/merging.
 
 ### Just want to run the compiled `.exe`, not the full source?
 

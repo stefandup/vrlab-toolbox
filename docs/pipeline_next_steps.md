@@ -1261,13 +1261,19 @@ noted here so they aren't lost, not expanded on for now.
 ### 28. Rename `mobi_mooi_toolbox`/`mooi_toolbox` to `vrlab_toolbox`, retire "mobi"/"mooi" branding
 
 **Progress, 2026-09-15:** buckets 1-2 (package rename, `pyproject.toml`) landed first; buckets
-4-5 (docs sweep, packaging/installer/CI) landed in this pass, including deciding the retired
+4-5 (docs sweep, packaging/installer/CI) landed next, including deciding the retired
 "Mobi"/"Mooi" display name → **VRLab Toolbox** (`mkdocs.yml`'s `site_name`,
 `toolbox_installer.iss`'s app name/install folder/output filename, and matching README/docs
-mentions). Buckets 3 (legacy "mobi" filenames), 6 (`AGENTS.md`'s own path references), and 7
-(GitHub repo/local clone-folder rename, tracked separately as item 29) are still outstanding —
-`mobi_mooi_toolbox` mentions throughout this file and `README.md` intentionally still match the
-real, not-yet-renamed repo name until item 29 lands.
+mentions). Bucket 6 (`AGENTS.md`'s own path references) landed under `OVERRIDE`. Bucket 3
+(legacy "mobi" filenames) mostly landed via a Pylance rename — `check_mobi_xdf.py` →
+`check_xdf.py`, `mobi_FOH_assess_data.py` → `FOH_assess_data.py`, `mobi_FOH_process_batch.py` →
+`FOH_process.py` (the console-script name itself also dropped "_batch": `vrlab_foh_batch_process`
+→ `vrlab_foh_process`, chased through every place that referenced it), `mobi_logging.py` →
+`vrlab_logging.py`; `mobi_spiral_process_batch.py` not yet renamed. Bucket 7's GitHub-side half
+is done too — the repo itself is renamed (`mobi-mooi-toolbox` → `vrlab-toolbox`) and this
+clone's remote URL updated. Still outstanding: the local clone-folder rename itself (an
+OS-level step only a human can do to their own working directory), and doing the same
+`git remote set-url` on any other existing clone.
 
 Originally scoped 2026-09-10 (`git grep -ci` put it at 445 matches across 86 files at the time).
 The CLI-facing surface is already `vrlab_*`-branded (every `[project.scripts]` entry in
@@ -1365,11 +1371,17 @@ history along (item 26's dead-code history included either way).
    public before flipping visibility — GitHub's secret scanner runs retroactively over all
    history once a repo goes public, so this is worth doing first rather than reactively.~~
    **Done** — see above.
-3. GitHub Settings → rename the repo itself (`mobi_mooi_toolbox` → `vrlab_toolbox` — GitHub
-   sets up an auto-redirect from the old name).
+3. ~~GitHub Settings → rename the repo itself (`mobi-mooi-toolbox` → `vrlab-toolbox` — GitHub
+   sets up an auto-redirect from the old name).~~ **Done, 2026-09-15.** Turned out separable
+   from step 4 below — renaming a still-private repo doesn't trigger anything, so this landed
+   ahead of the public-visibility flip rather than bundled with it. This clone's remote URL is
+   already updated to match; the doc-side `github.com/stefandup/mobi-mooi-toolbox` links
+   (`ai-style-guide.md`, `ai-use.md`) and the `mobi_mooi_toolbox` folder-name mentions in
+   `README.md` are updated too.
 4. GitHub Settings → change visibility to public.
-5. Update the local clone folder name and, for any other existing clone, run
-   `git remote set-url` to point at the renamed repo (the auto-redirect covers this for a
-   while, but isn't permanent).
+5. **Partly done:** any other existing clone still needs `git remote set-url` to point at the
+   renamed repo (the auto-redirect covers this for a while, but isn't permanent). The local
+   clone folder itself (this machine's `mobi_mooi_toolbox` → `vrlab_toolbox`) is still pending —
+   an OS-level rename only doable from outside a running session that's working inside it.
 6. Once public, item 20's GitHub Pages deferral is unblocked — add the
    `mkdocs gh-deploy`-equivalent Actions job it already describes as "not needed yet."
