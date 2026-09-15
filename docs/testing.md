@@ -265,7 +265,7 @@ foh_generate_sample_data foh_examples --seed 42
 Writes straight into the already-BIDS-shaped layout FOH's recording software produces
 (`sub-XXX/ses-S001/beh/..._task-foh_run-001_beh.xdf`) -- there's no separate raw-to-BIDS
 conversion step for FOH the way there is for crane/longwalk, so `foh_examples` can be pointed
-at directly by `vrlab_foh_batch_process` or the FOH crosscheck GUI.
+at directly by `vrlab_foh_process` or the FOH crosscheck GUI.
 
 Add `--with-errors` to also generate one participant per known scenario:
 

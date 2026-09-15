@@ -12,7 +12,7 @@ ICON = os.path.join(REPO_ROOT, "assets", "vrlab_icon.ico")
 
 # (exe_name, script path relative to src/vrlab_toolbox, console window?, extra datas)
 TOOLS = [
-    ("vrlab_check_xdf", os.path.join("cli", "check_mobi_xdf.py"), True, []),
+    ("vrlab_check_xdf", os.path.join("cli", "check_xdf.py"), True, []),
     ("vrlab_crane_bids_crosscheck", os.path.join("gui", "crane_bids_crosscheck_gui.py"), False, []),
     ("vrlab_crane_convert_to_bids", os.path.join("cli", "crane_convert_to_bids.py"), True, []),
     ("vrlab_crane_generate_sample_data", os.path.join("cli", "crane_generate_sample_data.py"), True, []),
@@ -23,8 +23,8 @@ TOOLS = [
         False,
         [],
     ),
-    ("vrlab_foh_assess_data", os.path.join("cli", "mobi_FOH_assess_data.py"), True, []),
-    ("vrlab_foh_batch_process", os.path.join("cli", "mobi_FOH_process_batch.py"), True, []),
+    ("vrlab_foh_assess_data", os.path.join("cli", "FOH_assess_data.py"), True, []),
+    ("vrlab_foh_process", os.path.join("cli", "FOH_process.py"), True, []),
     ("vrlab_foh_bids_crosscheck", os.path.join("gui", "foh_bids_crosscheck_gui.py"), False, []),
     ("vrlab_foh_import_to_bids", os.path.join("cli", "foh_import_to_bids.py"), True, []),
     (

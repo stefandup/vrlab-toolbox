@@ -54,7 +54,7 @@ CLI_TOOLS = (
     "vrlab_crane_generate_sample_data",
     "vrlab_crane_process",
     "vrlab_foh_assess_data",
-    "vrlab_foh_batch_process",
+    "vrlab_foh_process",
     "vrlab_foh_import_to_bids",
     "vrlab_longwalk_convert_to_bids",
     "vrlab_longwalk_process",
@@ -81,7 +81,7 @@ def _toolbox_dir() -> Path:
 def _icon_path() -> Path:
     if getattr(sys, "frozen", False):
         return _toolbox_dir() / ICON_ASSET_RELATIVE_PATH
-    # src/mooi_toolbox/gui/toolbox_launcher.py -> repo root is three parents up.
+    # src/vrlab_toolbox/gui/toolbox_launcher.py -> repo root is three parents up.
     return Path(__file__).resolve().parents[3] / ICON_ASSET_RELATIVE_PATH
 
 

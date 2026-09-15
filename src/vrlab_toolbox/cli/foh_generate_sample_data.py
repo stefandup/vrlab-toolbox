@@ -54,7 +54,7 @@ def main(output_folder: Path, n_clean: int, with_errors: bool, seed: int | None)
 
     Writes straight into the already-BIDS-shaped layout FOH's own recording software
     produces (`sub-XXX/ses-S001/beh/..._task-foh_run-001_beh.xdf`) -- the same layout
-    ParticipantConfig.from_lsl_data and vrlab_foh_batch_process expect, so output_folder can
+    ParticipantConfig.from_lsl_data and vrlab_foh_process expect, so output_folder can
     be pointed at directly, with no separate conversion step.
     """
     output_folder.mkdir(parents=True, exist_ok=True)

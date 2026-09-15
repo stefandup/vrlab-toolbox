@@ -141,7 +141,7 @@ foh_generate_sample_data foh_examples --with-errors --seed 42
 
 Writes straight into the already-BIDS-shaped layout FOH's recording software
 produces (`sub-XXX/ses-S001/beh/...`) -- no separate BIDS conversion step, so
-`foh_examples` can be pointed at directly by `vrlab_foh_batch_process` or the
+`foh_examples` can be pointed at directly by `vrlab_foh_process` or the
 FOH crosscheck GUI. `--with-errors` adds one participant per known scenario
 (missing streams, a sampling-rate mismatch, incomplete target trials, ...).
 See the docs site's Testing page for what each one is for.
@@ -189,7 +189,7 @@ If no file is supplied, the command uses the default XDF path configured in `pyp
 Process all `.xdf` files found recursively under an input folder.
 
 ```bash
-vrlab_foh_batch_process local_lsl_data local_lsl_data/_out
+vrlab_foh_process local_lsl_data local_lsl_data/_out
 ```
 
 If the output folder is omitted, the script writes to `<input_folder>_out`.
