@@ -1340,19 +1340,31 @@ ruled out: forking is for giving someone else their own linked copy, and for the
 case here it buys nothing over renaming directly, while still carrying the full commit
 history along (item 26's dead-code history included either way).
 
-**Decided approach: rename in place, keep history.**
+**Step 2's history audit — done, 2026-09-15:**
+- `cli/pull_redcap.py` — checked `API_TOKEN` across every historical revision of the file:
+  always `""`. No real token was ever committed.
+- `toolbox_installer.iss` / `build.ps1` — checked full history for signing-cert/`.pfx`/password
+  references: none found.
+- `for_mooi_xdf_processing.ipynb` — confirmed gone from the working tree (deleted in `208046d`,
+  2026-09-01) but still present across 7 earlier commits. A targeted search of its historical
+  content for path-shaped strings only (not a full read — its cell outputs could carry real
+  data, which stays off-limits per the data guardrail) turned up the local Windows username
+  (`stefan`) baked into some output paths, plus two participant IDs in `.xdf` filenames
+  (`sub-FOH_test`, `sub-TestZuk`) that turned out to be researchers' own pilot recordings, not
+  study participant data. Reviewed and judged non-critical — **not purged from history.**
+  Considered `git filter-repo --path for_mooi_xdf_processing.ipynb --invert-paths` but ruled
+  it out as disproportionate: the file entered history in one of the repo's very first commits,
+  so purging it would rewrite every commit on every branch (6 local + 2 remote-only at the
+  time), forcing a force-push of all of them and a fresh re-clone for anyone else with a copy
+  of the repo — too much disruption for a username and researcher names in dead notebook
+  output.
 
 1. Land item 28 (the `mobi`/`mooi` → `vrlab` rename) on the still-private repo, confirmed
    green.
-2. Audit git *history* (not just the current working tree) for anything that shouldn't go
+2. ~~Audit git *history* (not just the current working tree) for anything that shouldn't go
    public before flipping visibility — GitHub's secret scanner runs retroactively over all
-   history once a repo goes public, so this is worth doing first rather than reactively.
-   Specific things to check the history of, not just today's content:
-   - `cli/pull_redcap.py` — currently `API_TOKEN = ""`; was a real token ever committed here
-     earlier?
-   - `for_mooi_xdf_processing.ipynb` (repo root, already flagged dead in item 26) — hardcoded
-     absolute local path; check for siblings with the same issue.
-   - `toolbox_installer.iss` / `build.ps1` — any signing-cert references or internal paths.
+   history once a repo goes public, so this is worth doing first rather than reactively.~~
+   **Done** — see above.
 3. GitHub Settings → rename the repo itself (`mobi_mooi_toolbox` → `vrlab_toolbox` — GitHub
    sets up an auto-redirect from the old name).
 4. GitHub Settings → change visibility to public.
