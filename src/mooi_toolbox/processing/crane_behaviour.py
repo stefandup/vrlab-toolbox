@@ -192,6 +192,14 @@ class ImportCraneBehaviourDataStrategyStep:
 
 
 class ProcessCraneBehaviourDataStrategyStep:
+    """
+    Emotion proportions per condition.
+
+    For each BlockType x TrialType bucket, count how many trials had each
+    EmotionFeedback value, then divide by the bucket's total trial count.
+    Result: 7 proportions per bucket (one per emotion), summing to 1.
+    """
+
     input_data_type: type[RawCraneBehaviourData] = RawCraneBehaviourData
 
     def run(
