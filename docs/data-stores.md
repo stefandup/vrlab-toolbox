@@ -65,8 +65,8 @@ class RawBehaviourDataStore:
 ### Try it yourself: `has()`, `get()`, and the `ValueError`
 
 ```python
-from mooi_toolbox.processing.pipeline import RawBehaviourDataStore
-from mooi_toolbox.processing.crane_behaviour import RawCraneBehaviourData
+from vrlab_toolbox.processing.pipeline import RawBehaviourDataStore
+from vrlab_toolbox.processing.crane_behaviour import RawCraneBehaviourData
 
 store = RawBehaviourDataStore()
 print(store.has(RawCraneBehaviourData))   # False — nothing added yet
@@ -110,7 +110,7 @@ chain checking names anywhere.
 ### Try it yourself: add two different types, fetch each back independently
 
 ```python
-from mooi_toolbox.processing.crane_debrief_behaviour import RawDebriefBehaviourData
+from vrlab_toolbox.processing.crane_debrief_behaviour import RawDebriefBehaviourData
 
 # (using real, already-imported data — see design-patterns.md's
 #  "run a single strategy directly" section for how to produce these)

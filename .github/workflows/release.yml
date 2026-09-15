@@ -30,7 +30,7 @@ jobs:
       - name: Assemble toolbox folder
         run: |
           New-Item -ItemType Directory -Path build_output/toolbox | Out-Null
-          Copy-Item build_output\dist\mooi_toolbox\* build_output\toolbox -Recurse
+          Copy-Item build_output\dist\vrlab_toolbox\* build_output\toolbox -Recurse
 
       - name: Install Inno Setup
         run: choco install innosetup -y
@@ -39,7 +39,7 @@ jobs:
         run: |
           # Keeps the "v" prefix (github.ref_name is the raw tag, e.g. "v0.7.2") so the
           # installer filename matches build.ps1's local `git describe --tags` naming, which
-          # also keeps it -- e.g. MooiToolboxSetup-v0.7.2.exe either way.
+          # also keeps it -- e.g. VRLabToolboxSetup-v0.7.2.exe either way.
           $version = "${{ github.ref_name }}"
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" toolbox_installer.iss "/DMyAppVersion=$version"
 

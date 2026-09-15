@@ -6,7 +6,7 @@ around it.
 
 ## What this toolbox does
 
-The Mobi Mooi Toolbox turns raw recordings — physiology signals, VR event
+The VRLab Toolbox turns raw recordings — physiology signals, VR event
 logs, and questionnaire answers — into one clean, per-participant data file
 that's ready for analysis. It does this with a **pipeline**: a fixed
 sequence of steps (find files → import → process → combine → save) that
@@ -22,7 +22,7 @@ in your editor, containing everything below:
 | `pyproject.toml` | The project's main settings file: build info, the CLI commands (`[project.scripts]`), and config for tools like `ruff` and `pytest`. |
 | `requirements.txt` | The exact package versions needed to **run** the toolbox. This is what you install first. |
 | `requirements-dev.txt` | Extra tools only needed for **developing** the toolbox (not for just running it) — currently `pyright`, `ruff`, `mkdocs`, `mkdocs-material`. |
-| `src/mooi_toolbox/` | All the toolbox's Python code. |
+| `src/vrlab_toolbox/` | All the toolbox's Python code. |
 | `tests/` | The automated test suite (see [Testing](testing.md)). |
 | `docs/` | This documentation site. |
 
@@ -50,7 +50,7 @@ build/packaging config — one file instead of the older scattered
   [Getting Started](getting-started.md)).
 - **`[project.scripts]`** — declares each CLI command as
   `command_name = "python.module.path:function"`, e.g.
-  `vrlab_crane_process = "mooi_toolbox.cli.vrlab_crane_process:main"`. This
+  `vrlab_crane_process = "vrlab_toolbox.cli.vrlab_crane_process:main"`. This
   is what turns a plain Python function into a command you can type on its
   own.
 
@@ -96,7 +96,7 @@ produces a `site/` folder (already git-ignored; see [Testing](testing.md#quick-g
     runs `mkdocs build` and publishes the result automatically, so the site
     stays in sync with `docs/` without a manual step.
 
-## Inside `src/mooi_toolbox/`
+## Inside `src/vrlab_toolbox/`
 
 | Folder | What lives there |
 | --- | --- |
@@ -206,7 +206,7 @@ interval-matching step, it has its own `fallback_strategy`:
 
 ## The command-line tools
 
-CLI scripts live in `src/mooi_toolbox/cli/` (e.g. `vrlab_crane_process.py`).
+CLI scripts live in `src/vrlab_toolbox/cli/` (e.g. `vrlab_crane_process.py`).
 They're deliberately kept **thin**: read input, loop over files, call into
 `processing/`, save the result. All the real decision-making lives in
 `processing/`, not in the CLI. Two reasons:

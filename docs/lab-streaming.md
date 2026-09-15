@@ -48,7 +48,7 @@ alignment is mostly already done by the time you load the file.
 | `processing/foh_pipeline.py` | The FOH experiment's pipeline — wires the strategy steps below into the shared `PipelineTemplate`, the same way `crane_pipeline.py` does for Crane. |
 
 !!! note "Going further"
-    Per [Code Organization](code-organization.md#inside-src-mooi_toolbox),
+    Per [Code Organization](code-organization.md#inside-src-vrlab_toolbox),
     `read_mobi_xdf/` is planned to move into `processing/`, living next to
     `biopac.py` — both are just physiology-file loaders for different
     formats, and don't need to live in a separate top-level folder.
@@ -234,10 +234,10 @@ input, no `PipelineTemplate` involved:
 ```python
 from pathlib import Path
 
-from mooi_toolbox.processing.foh_behaviour import ImportFohBehaviourDataStrategyStep
-from mooi_toolbox.processing.foh_pipeline import FindFohParticipantFilesStrategyStep
-from mooi_toolbox.processing.foh_trial_intervals import FohGetTrialIntervalStrategyStep
-from mooi_toolbox.processing.lsl import FohLslPhysiologyDataImportStrategy
+from vrlab_toolbox.processing.foh_behaviour import ImportFohBehaviourDataStrategyStep
+from vrlab_toolbox.processing.foh_pipeline import FindFohParticipantFilesStrategyStep
+from vrlab_toolbox.processing.foh_trial_intervals import FohGetTrialIntervalStrategyStep
+from vrlab_toolbox.processing.lsl import FohLslPhysiologyDataImportStrategy
 
 data_folder = Path("foh_data")
 participant_config = FindFohParticipantFilesStrategyStep().run("P001", data_folder)

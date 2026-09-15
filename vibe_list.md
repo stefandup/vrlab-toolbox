@@ -32,4 +32,6 @@ wrong.
 | Toolbox launcher (GUI) | `src/vrlab_toolbox/gui/toolbox_launcher.py` | [ ] |
 | Build/packaging scripts | `build.ps1`, `build_mac.sh`, `toolbox_installer.iss`, `specs/*.spec` | [ ] |
 | Docs | everything under `docs/`, plus `mkdocs.yml` — already covered by [AI Use Guidelines](docs/ai-use.md)'s docs exception | [ ] |
+| Root README | `README.md` | [ ] |
+| CI workflows | `.github/workflows/*.yml` | [ ] |
 <!-- --8<-- [end:table] -->

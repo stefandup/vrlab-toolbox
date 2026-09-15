@@ -7,10 +7,10 @@ import os
 from PyInstaller.utils.hooks import copy_metadata
 
 REPO_ROOT = os.path.join(SPECPATH, "..")
-SRC_ROOT = os.path.join(REPO_ROOT, "src", "mooi_toolbox")
+SRC_ROOT = os.path.join(REPO_ROOT, "src", "vrlab_toolbox")
 ICON = os.path.join(REPO_ROOT, "assets", "vrlab_icon.ico")
 
-# (exe_name, script path relative to src/mooi_toolbox, console window?, extra datas)
+# (exe_name, script path relative to src/vrlab_toolbox, console window?, extra datas)
 TOOLS = [
     ("vrlab_check_xdf", os.path.join("cli", "check_mobi_xdf.py"), True, []),
     ("vrlab_crane_bids_crosscheck", os.path.join("gui", "crane_bids_crosscheck_gui.py"), False, []),
@@ -67,7 +67,7 @@ for name, script, console, extra_datas in TOOLS:
         [os.path.join(SRC_ROOT, script)],
         pathex=[],
         binaries=[],
-        datas=[*extra_datas, *copy_metadata("mooi-toolbox")],
+        datas=[*extra_datas, *copy_metadata("vrlab-toolbox")],
         hiddenimports=[],
         hookspath=[],
         hooksconfig={},
@@ -106,5 +106,5 @@ COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name="mooi_toolbox",
+    name="vrlab_toolbox",
 )

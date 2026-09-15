@@ -118,14 +118,14 @@ to hand you a `crane_data/` folder.
 
 The data isn't handwritten — two steps produce it. First,
 `generate_dummy_dataset()` in
-`src/mooi_toolbox/processing/crane_dummy_data.py` builds the raw, flat
+`src/vrlab_toolbox/processing/crane_dummy_data.py` builds the raw, flat
 layout, starting from the two real-*shaped*-but-not-real template files in
 `examples/crane_templates/` (`*_CraneOut.csv` + matching `.mat`). For each
 requested participant it copies a template, then randomises the numbers
 that matter (ratings, outcome counts, physiology noise) with a seeded
 `numpy` random generator — seeded, so the same call always produces
 byte-identical output. Second, `convert_crane_to_bids()` in
-`src/mooi_toolbox/cli/crane_convert_to_bids.py` copies that raw layout into
+`src/vrlab_toolbox/cli/crane_convert_to_bids.py` copies that raw layout into
 the real `sub-XXX/ses-01/beh/...` BIDS structure (see
 `docs/bids_converter_plan.md` for the naming decisions behind it) —
 `examples/crane_bids_dummy/` is that BIDS output, and the one the test
@@ -241,7 +241,7 @@ participants already there.
 
 `foh_examples/` is FOH's counterpart to `crane_data`/`examples` above -- but shaped
 differently, because FOH's raw recording is a single multi-stream `.xdf` file (Lab
-Streaming Layer), not a `.mat`/`.csv` pair. `src/mooi_toolbox/processing/foh_dummy_data.py`
+Streaming Layer), not a `.mat`/`.csv` pair. `src/vrlab_toolbox/processing/foh_dummy_data.py`
 builds synthetic recordings **from scratch** (like `longwalk_dummy_data.py`, not
 `crane_dummy_data.py`'s clone-and-perturb-a-template approach) via a small private XDF
 writer, since `pyxdf` can only read `.xdf` files, not write them.

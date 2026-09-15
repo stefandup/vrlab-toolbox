@@ -18,7 +18,7 @@ $ToolboxPath = Join-Path $BuildOutput "toolbox"
 # toolbox_installer.iss's OutputDir also points here (relative to that script's own directory,
 # which is always the repo root regardless of who invokes ISCC -- this script or release.yml).
 # Tracked here too so Build-Installer can clear it before each compile -- installer filenames
-# now carry the version (MooiToolboxSetup-<version>.exe), so unlike ignoreversion file copies,
+# now carry the version (VRLabToolboxSetup-<version>.exe), so unlike ignoreversion file copies,
 # stale exes from older versions won't just get overwritten in place; they'd otherwise pile up.
 $InstallerPath = Join-Path $BuildOutput "installer"
 
@@ -53,12 +53,12 @@ Usage: .\build.ps1 -Full | -Exe | -Inno
           build_output/toolbox/, then compile the installer.
 
   -Exe    Only build specs/toolbox.spec from source into
-          build_output/dist/mooi_toolbox/. Skips assembling
+          build_output/dist/vrlab_toolbox/. Skips assembling
           build_output/toolbox/ and compiling the installer -- use this
           when you just want the exes (e.g. iterating on tool code) without
           needing Inno Setup installed at all.
 
-  -Inno   Skip the PyInstaller build. Reuses build_output/dist/mooi_toolbox/
+  -Inno   Skip the PyInstaller build. Reuses build_output/dist/vrlab_toolbox/
           from a previous build, reassembles build_output/toolbox/, and
           (re)compiles toolbox_installer.iss. Fast -- use this after a -Full
           or -Exe build already succeeded and only the Inno Setup script
@@ -72,7 +72,7 @@ function Build-Exes {
     & $Python -m pip install -e . --no-deps
     Assert-Success "pip install -e ."
     # --noconfirm: skip PyInstaller's interactive "output directory ... will be REMOVED!
-    # Continue? (y/N)" prompt when $DistPath\mooi_toolbox already exists from a previous
+    # Continue? (y/N)" prompt when $DistPath\vrlab_toolbox already exists from a previous
     # build -- this script has no stdin to answer it with, so without this flag it just
     # blocks. Safe here: $DistPath is build output this script owns, never a place a human
     # would have unsaved work.
@@ -90,9 +90,9 @@ function Build-Installer {
     # --always` reports the *previous* tag plus a distance ("v0.7.5-3-g7e4b7ce") -- same
     # commit, two different-looking version strings, which made a freshly built installer
     # look stale next to the venv it was built from.
-    $version = "v" + (& $Python -c "from importlib.metadata import version; print(version('mooi-toolbox'))").Trim()
+    $version = "v" + (& $Python -c "from importlib.metadata import version; print(version('vrlab-toolbox'))").Trim()
 
-    $bundleDir = Join-Path $DistPath "mooi_toolbox"
+    $bundleDir = Join-Path $DistPath "vrlab_toolbox"
     if (-not (Test-Path $bundleDir)) {
         throw "$bundleDir not found -- run '.\build.ps1 -Full' or '-Exe' first."
     }

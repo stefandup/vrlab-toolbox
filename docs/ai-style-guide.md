@@ -199,7 +199,7 @@ by this exception and still means only suggesting the command.
 This isn't a second list to maintain — it's **everything not named** in
 [`vibe_list.md`](https://github.com/stefandup/mobi-mooi-toolbox/blob/master/vibe_list.md)'s
 [Cleared for vibe coding](#cleared-for-vibe-coding) table above, anywhere in the repo, not
-just `src/mooi_toolbox/processing/`. Default-deny: a file doesn't need
+just `src/vrlab_toolbox/processing/`. Default-deny: a file doesn't need
 adding to a table here to become off-limits for AI authorship under
 `AGENTS.md`'s ordinary BYPASS command — it's off-limits the moment it's
 absent from `vibe_list.md`. Reaching for **OVERRIDE** instead doesn't
@@ -208,7 +208,7 @@ already allows for, and the same [four rules of vibe
 coding](ai-use.md#the-four-rules-of-vibe-coding) still apply to whatever
 lands.
 
-In practice, today, that's almost entirely `src/mooi_toolbox/processing/`'s
+In practice, today, that's almost entirely `src/vrlab_toolbox/processing/`'s
 pipeline orchestration (`crane_pipeline.py`, `foh_pipeline.py`,
 `longwalk_pipeline.py`, `mobi_core_pipeline.py`, `graphomotor_pipeline.py`,
 `pipeline.py`), signal processing (`biopac.py`, `ecg.py`, `eda.py`,

@@ -1,4 +1,4 @@
-site_name: Mobi Mooi Toolbox
+site_name: VRLab Toolbox
 docs_dir: docs
 site_dir: build_output/docs_site
 theme:

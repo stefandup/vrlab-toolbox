@@ -193,8 +193,8 @@ that calls `run_bids_crosscheck_app`. `crane_bids_crosscheck_gui.py` is the
 minimal template (no `CandidateExtras` override):
 
 ```python
-from mooi_toolbox.gui.bids_crosscheck_common import CandidateExtras, run_bids_crosscheck_app
-from mooi_toolbox.processing.bids_crosscheck import DatasetConfig, ScanTypeConfig
+from vrlab_toolbox.gui.bids_crosscheck_common import CandidateExtras, run_bids_crosscheck_app
+from vrlab_toolbox.processing.bids_crosscheck import DatasetConfig, ScanTypeConfig
 
 CRANE_DATASET_CONFIG = DatasetConfig(
     dataset_name="crane",

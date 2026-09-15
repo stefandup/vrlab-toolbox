@@ -77,7 +77,7 @@ You can build one directly, with made-up values, to get a feel for the
 shape — no recording data needed:
 
 ```python
-from mooi_toolbox.processing.trial_intervals import TrialIntervals
+from vrlab_toolbox.processing.trial_intervals import TrialIntervals
 
 my_intervals = TrialIntervals(
     intervals={
@@ -99,7 +99,7 @@ meaningful names yet — exactly the situation right after detecting raw
 trigger pulses, before anything's matched to behaviour:
 
 ```python
-from mooi_toolbox.processing.trial_intervals import TrialIntervals
+from vrlab_toolbox.processing.trial_intervals import TrialIntervals
 
 raw_pairs = [(0.0, 60.0), (60.0, 120.0), (120.0, 180.0)]
 unlabelled = TrialIntervals.from_raw_interval_pairs(raw_pairs)
@@ -197,8 +197,8 @@ class PipelineStatus:
 ```
 
 ```python
-from mooi_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
-from mooi_toolbox.processing.crane_behaviour import RawCraneBehaviourData
+from vrlab_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
+from vrlab_toolbox.processing.crane_behaviour import RawCraneBehaviourData
 
 status = PipelineStatus()
 status.set(RawCraneBehaviourData, ProcessingStatus.OK)
