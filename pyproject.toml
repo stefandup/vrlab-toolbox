@@ -29,6 +29,7 @@ vrlab_longwalk_bids_crosscheck = "vrlab_toolbox.gui.longwalk_bids_crosscheck_gui
 vrlab_longwalk_process = "vrlab_toolbox.cli.vrlab_longwalk_process:main"
 vrlab_longwalk_process_GUI = "vrlab_toolbox.gui.longwalk_process_results_gui:main"
 vrlab_toolbox_launcher = "vrlab_toolbox.gui.toolbox_launcher:main"
+vrlab_check_xdf = "vrlab_toolbox.cli.check_mobi_xdf:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
