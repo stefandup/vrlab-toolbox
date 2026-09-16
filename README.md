@@ -253,14 +253,18 @@ files.
 
 ## Documentation
 
-This README covers setup and command-line usage. For a fuller, browsable guide — why the toolbox exists, getting started, how the code is organized, the design patterns behind the pipeline, testing, and more — see the docs site in `docs/`, built with [MkDocs](https://www.mkdocs.org/):
+This README covers setup and command-line usage. For a fuller, browsable guide — why the toolbox exists, getting started, how the code is organized, the design patterns behind the pipeline, testing, and more — see the docs site, built with [MkDocs](https://www.mkdocs.org/):
+
+**📖 [stefandup.github.io/vrlab-toolbox](https://stefandup.github.io/vrlab-toolbox/)**
+
+It redeploys automatically on every push to `master` that touches `docs/` or `mkdocs.yml`. To preview changes locally before pushing:
 
 ```bash
 pip install -r requirements-dev.txt
 mkdocs serve
 ```
 
-Then open `http://127.0.0.1:8000/` in a browser. It's local-only for now (see the docs site's Code Organization page for why); there's no public link yet.
+Then open `http://127.0.0.1:8000/` in a browser.
 
 ---
 
