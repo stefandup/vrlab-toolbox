@@ -16,11 +16,18 @@
       "height": 600
     },
     {
-      "title": "Graphomotor Protocol",
-      "left": -8,
-      "top": -31,
-      "width": 1936,
-      "height": 1100
+      "title": "DSI-Streamer",
+      "left": -1916,
+      "top": 510,
+      "width": 890,
+      "height": 482
+    },
+    {
+      "title": "dsi2lsl",
+      "left": -1457,
+      "top": 719,
+      "width": 444,
+      "height": 309
     },
     {
       "title": "Neon",
@@ -33,9 +40,9 @@
   "titles": [
     "Lab Recorder",
     "OpenSignals (r)evolution",
+    "DSI-Streamer",
+    "dsi2lsl",
     "Graphomotor Protocol",
-    "Neon",
-    "neon-gui",
-    "mobi-neon"
+    "Neon"
   ]
 }

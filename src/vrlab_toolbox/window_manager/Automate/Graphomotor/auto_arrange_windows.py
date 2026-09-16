@@ -15,7 +15,6 @@ def get_all_windows():
     def callback(hwnd, _):
         if win32gui.IsWindowVisible(hwnd):
             title = win32gui.GetWindowText(hwnd)
-
             if title.strip():
                 windows.append((hwnd, title))
 
@@ -24,9 +23,7 @@ def get_all_windows():
 
 
 def find_window(title_search: str):
-    windows = get_all_windows()
-
-    for hwnd, title in windows:
+    for hwnd, title in get_all_windows():
         if title_search.lower() in title.lower():
             print(f"[FOUND] {title}")
             return hwnd
@@ -51,6 +48,8 @@ def save_layout(config_path: Path):
         "titles": [
             "Lab Recorder",
             "OpenSignals (r)evolution",
+            "DSI-Streamer",
+            "dsi2lsl",
             "Graphomotor Protocol",
             "Neon",
         ],
@@ -58,12 +57,10 @@ def save_layout(config_path: Path):
 
     for title in payload["titles"]:
         hwnd = find_window(title)
-
         if hwnd is None:
             continue
 
         rect = win32gui.GetWindowRect(hwnd)
-
         payload["windows"].append(
             {
                 "title": title,
@@ -74,11 +71,7 @@ def save_layout(config_path: Path):
             }
         )
 
-    config_path.write_text(
-        json.dumps(payload, indent=2),
-        encoding="utf-8",
-    )
-
+    config_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     print(f"[OK] Layout saved to: {config_path}")
 
 
@@ -86,53 +79,36 @@ def apply_layout(config_path: Path):
     if not config_path.exists():
         raise FileNotFoundError(config_path)
 
-    payload = json.loads(
-        config_path.read_text(encoding="utf-8")
-    )
+    payload = json.loads(config_path.read_text(encoding="utf-8"))
 
-    for item in payload["windows"]:
+    for item in payload.get("windows", []):
         title = item["title"]
-
         hwnd = find_window(title)
-
         if hwnd is None:
             continue
 
         bring_to_front(hwnd)
-
         win32gui.MoveWindow(
             hwnd,
-            item["left"],
-            item["top"],
-            item["width"],
-            item["height"],
+            int(item["left"]),
+            int(item["top"]),
+            int(item["width"]),
+            int(item["height"]),
             True,
         )
-
         print(f"[OK] Moved: {title}")
 
 
 def main():
     parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "mode",
-        choices=["save", "apply"],
-    )
-
-    parser.add_argument(
-        "--config",
-        type=str,
-        default="graphomotor_window_layout.json",
-    )
-
+    parser.add_argument("mode", choices=["save", "apply"])
+    parser.add_argument("--config", type=str, default="graphomotor_window_layout.json")
     args = parser.parse_args()
 
     config_path = Path(args.config)
 
     if args.mode == "save":
         save_layout(config_path)
-
     elif args.mode == "apply":
         apply_layout(config_path)
 

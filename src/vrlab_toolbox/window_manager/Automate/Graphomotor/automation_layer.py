@@ -28,26 +28,28 @@ def close_opensignals_error() -> bool:
 
 
 def clear_existing_opensignals_errors() -> None:
-    for _ in range(2):
+    for _ in range(3):
         found = close_opensignals_error()
         time.sleep(0.3)
-
         if not found:
             break
 
 
 def setup_opensignals() -> None:
+    """Configure OpenSignals LSL + continuous mode and press Record."""
     try:
         import pyautogui
 
         pyautogui.PAUSE = 0.35
 
-        app = Application(backend="uia").connect(
-            title="OpenSignals (r)evolution"
-        )
-        win = app.window(title="OpenSignals (r)evolution")
+        app = Application(backend="uia").connect(title_re=".*OpenSignals.*")
+        win = app.window(title_re=".*OpenSignals.*")
 
         print("[INFO] Connected to OpenSignals")
+        try:
+            win.restore()
+        except Exception:
+            pass
         win.set_focus()
         time.sleep(1.5)
 
@@ -66,6 +68,8 @@ def setup_opensignals() -> None:
         pyautogui.moveTo(*SETTINGS_BTN, duration=0.15)
         pyautogui.click()
         time.sleep(2.0)
+
+        clear_existing_opensignals_errors()
 
         print("[INFO] Clicking Integration tab...")
         pyautogui.moveTo(*INTEGRATION_TAB, duration=0.15)
@@ -86,11 +90,14 @@ def setup_opensignals() -> None:
         pyautogui.press("enter")
         time.sleep(1.5)
 
+        clear_existing_opensignals_errors()
+
         print("[INFO] Clicking Record...")
         pyautogui.moveTo(*RECORD_BTN, duration=0.15)
         pyautogui.click()
-
         time.sleep(2)
+
+        clear_existing_opensignals_errors()
 
         print("[OK] OpenSignals automated by coordinates")
 

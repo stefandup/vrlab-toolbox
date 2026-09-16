@@ -22,12 +22,9 @@ class OpenSignalsHealthChecker:
     """
     Live checker for OpenSignals LSL data.
 
-    Based on the lab-PC test:
-        OpenSignals has 3 channels at 1000 Hz
+    OpenSignals has 3 channels at 1000 Hz in the lab setup:
         EDA = sample[0]
         ECG = sample[2]
-
-    This checks the actual incoming samples, not only whether LabRecorder sees the stream.
     """
 
     def __init__(
@@ -53,7 +50,6 @@ class OpenSignalsHealthChecker:
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
             return
-
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
@@ -65,10 +61,6 @@ class OpenSignalsHealthChecker:
         return bool(self._thread and self._thread.is_alive())
 
     def wait_for_good_signal(self, timeout_sec: float = 30.0) -> bool:
-        """
-        Wait until both EDA and ECG are healthy, or until timeout.
-        Useful before starting LabRecorder.
-        """
         start = time.time()
         while time.time() - start < timeout_sec:
             status = self.latest_status
@@ -140,8 +132,7 @@ class OpenSignalsHealthChecker:
         last_sample_time: Optional[float] = None
 
         while time.time() < deadline and not self._stop_event.is_set():
-            sample, timestamp = inlet.pull_sample(timeout=0.5)
-
+            sample, _timestamp = inlet.pull_sample(timeout=0.5)
             if not sample:
                 continue
 
@@ -173,7 +164,6 @@ class OpenSignalsHealthChecker:
             )
 
         age = time.time() - last_sample_time
-
         eda_ok, eda_msg = self._check_eda(eda_values)
         ecg_ok, ecg_msg = self._check_ecg(ecg_values)
 
@@ -206,8 +196,6 @@ class OpenSignalsHealthChecker:
         signal_range = self._safe_range(values)
         signal_sd = self._safe_stdev(values)
 
-        # EDA is slow, so use lenient thresholds.
-        # Your test showed range around 10,000 over 10 sec, so this is conservative.
         if signal_range < 5 and signal_sd < 1:
             return False, "EDA: flat/frozen"
 
@@ -220,11 +208,9 @@ class OpenSignalsHealthChecker:
         signal_range = self._safe_range(values)
         signal_sd = self._safe_stdev(values)
 
-        # Your test showed ECG range about 2.8, so this catches flat/disconnected signal.
         if signal_range < 0.05 or signal_sd < 0.005:
             return False, "ECG: flat/frozen"
 
-        # Very large constant-ish values often mean saturation or bad contact.
         if signal_range > 20:
             return False, "ECG: possible clipping/saturation"
 
@@ -242,7 +228,6 @@ def print_status(status: SignalStatus) -> None:
 if __name__ == "__main__":
     checker = OpenSignalsHealthChecker(on_status=print_status)
     checker.start()
-
     print("Checking OpenSignals continuously. Press Ctrl+C to stop.")
     try:
         while True:
