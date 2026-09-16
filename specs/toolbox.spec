@@ -52,6 +52,7 @@ TOOLS = [
         [],
     ),
     ("vrlab_plot_target_data", os.path.join("cli", "plot_subject_target_scr_bars.py"), True, []),
+    ("vrlab_redcap_pull", os.path.join("gui", "redcap_pull_gui.py"), False, []),
     (
         "vrlab_toolbox_launcher",
         os.path.join("gui", "toolbox_launcher.py"),
