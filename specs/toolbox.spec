@@ -24,7 +24,13 @@ TOOLS = [
         [],
     ),
     ("vrlab_foh_assess_data", os.path.join("cli", "FOH_assess_data.py"), True, []),
-    ("vrlab_foh_process", os.path.join("cli", "FOH_process.py"), True, []),
+    ("vrlab_foh_process", os.path.join("cli", "vrlab_foh_process.py"), True, []),
+    (
+        "vrlab_foh_process_GUI",
+        os.path.join("gui", "foh_process_results_gui.py"),
+        False,
+        [],
+    ),
     ("vrlab_foh_bids_crosscheck", os.path.join("gui", "foh_bids_crosscheck_gui.py"), False, []),
     ("vrlab_foh_import_to_bids", os.path.join("cli", "foh_import_to_bids.py"), True, []),
     (

@@ -181,7 +181,10 @@ class ProcessResultsConfig:
     yet ("not yet processed", see `_discover_bids_subject_ids`) -- the same glob pattern
     that batch function itself uses to find subjects (e.g.
     `vrlab_crane_process.PHYSIO_GLOB_PATTERN`), reused rather than duplicated so the two
-    can't quietly drift apart. `None` skips that discovery entirely.
+    can't quietly drift apart. `None` skips that discovery entirely. `bids_subject_id_from_path`
+    is the matching per-file subject-id parser for that glob -- defaults to
+    `get_subject_id_from_mat` (crane/longwalk's biopac `.mat` files), pass
+    `lsl.get_subject_id` for an `.xdf`-based dataset like FOH instead.
 
     `build_group_dashboard`, if given, replaces the Summary Stats tab's generic
     one-measure-at-a-time bar chart (and its "Measure:" dropdown, which this window
@@ -208,6 +211,7 @@ class ProcessResultsConfig:
         None
     )
     bids_physio_glob: str | None = None
+    bids_subject_id_from_path: Callable[[Path], str] = get_subject_id_from_mat
     build_group_dashboard: Callable[[Figure, pd.DataFrame, list[str]], None] | None = None
     dashboard_overhead_lines: Callable[[pd.DataFrame, list[str]], list[str]] | None = None
 
@@ -267,15 +271,18 @@ def _discover_subject_ids(
     return sorted(csv_subject_ids | log_subject_ids | bids_subject_ids, key=str.casefold)
 
 
-def _discover_bids_subject_ids(bids_folder: Path, physio_glob: str) -> set[str]:
+def _discover_bids_subject_ids(
+    bids_folder: Path, physio_glob: str, subject_id_from_path: Callable[[Path], str]
+) -> set[str]:
     """Every subject with a physiology recording under `bids_folder`, found by the same
     glob + filename-parsing a batch function's own subject-discovery loop uses (see
-    `ProcessResultsConfig.bids_physio_glob`) -- so a subject that's been crosschecked but
-    never processed still shows up (see `_discover_subject_ids`), without this window
-    reimplementing that discovery logic itself. `get_subject_id_from_mat` only ever
-    parses the filename string, so there's nothing here that can fail per-file.
+    `ProcessResultsConfig.bids_physio_glob`/`bids_subject_id_from_path`) -- so a subject
+    that's been crosschecked but never processed still shows up (see
+    `_discover_subject_ids`), without this window reimplementing that discovery logic
+    itself. `subject_id_from_path` only ever parses the filename string, so there's
+    nothing here that can fail per-file.
     """
-    return {get_subject_id_from_mat(mat_path) for mat_path in bids_folder.rglob(physio_glob)}
+    return {subject_id_from_path(path) for path in bids_folder.rglob(physio_glob)}
 
 
 def _discover_plot_paths(output_folder: Path, subject_id: str) -> dict[str, Path]:
@@ -926,7 +933,11 @@ class ProcessResultsWindow(QMainWindow):
         """
         csv_subject_ids = set(self.batch_df["Subject_ID"]) if self.batch_df is not None else set()
         bids_subject_ids = (
-            _discover_bids_subject_ids(self.bids_folder, self.config.bids_physio_glob)
+            _discover_bids_subject_ids(
+                self.bids_folder,
+                self.config.bids_physio_glob,
+                self.config.bids_subject_id_from_path,
+            )
             if self.bids_folder is not None and self.config.bids_physio_glob is not None
             else set()
         )

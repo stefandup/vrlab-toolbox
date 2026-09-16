@@ -1,6 +1,6 @@
 # vrlab_toolbox
 
-**Private project.** This repo holds a set of submodules and utilities that we develop for internal use. Later we can choose which parts to extract or publish in separate public repositories.
+This repo holds a set of submodules and utilities developed for VRLab workflows, released publicly under a noncommercial license — see [License](#license) below.
 
 ---
 
@@ -422,8 +422,23 @@ python -m vrlab_toolbox.window_manager.auto_arrange_windows apply --config my_la
 
 ---
 
-## TODO
+## License
 
-- Handle VR restarts more robustly so LSL reconnects and picks the stream up again after the VR app is restarted.
-- Consider adding a dedicated restart button for the VR/LSL workflow instead of relying on manual restart steps.
-- Consider moving launcher scripts to Python and using `subprocess` so process startup, restart, and reconnection logic are easier to manage in one place.
+VRLab Toolbox is available for noncommercial use under the
+[PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0).
+
+Copyright Stellenbosch University.
+
+See [`LICENSE.md`](LICENSE.md) for details.
+
+## Citation
+
+If you use VRLab Toolbox in published research, please cite the software:
+
+> du Plessis, S. *VRLab Toolbox*. Stellenbosch University.
+> https://github.com/stefandup/vrlab_toolbox
+
+Citation metadata is also provided in [`CITATION.cff`](CITATION.cff).
+
+---
+

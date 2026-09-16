@@ -43,6 +43,7 @@ GUI_TOOL_GROUPS = (
         "Processing",
         (
             ("Crane Process Results", "vrlab_crane_process_GUI.exe"),
+            ("FOH Process Results", "vrlab_foh_process_GUI.exe"),
             ("Longwalk Process Results", "vrlab_longwalk_process_GUI.exe"),
         ),
     ),

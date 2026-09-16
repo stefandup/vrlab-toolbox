@@ -7,7 +7,7 @@ from pathlib import Path
 from automation_layer import setup_opensignals, setup_labrecorder
 
 
-BASE_DIR = Path(r"C:\Users\MoBI-Midtown")
+BASE_DIR = Path.home()
 
 LABRECORDER_EXE = BASE_DIR / "LabRecorder" / "LabRecorder.exe"
 DSI_STREAMER_EXE = BASE_DIR / "Desktop" / "Software" / "DSI-Streamer-v.1.08.120" / "DSI-Streamer-v.1.08.120.exe"

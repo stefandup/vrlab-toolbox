@@ -1,12 +1,14 @@
 import json
 import logging
 import os
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
 import click
 import matplotlib.pyplot as plt
 import pandas as pd
+import pandera.pandas as pa
 import pyreadstat
 from rich.progress import Progress
 
@@ -17,20 +19,24 @@ from vrlab_toolbox.processing.bids import (
     is_effectively_empty_folder,
     paths_conflict,
 )
-from vrlab_toolbox.processing.foh_pipeline import run_pipeline
+from vrlab_toolbox.processing.foh_pipeline import (
+    build_foh_participant_output_schema,
+    run_pipeline,
+)
 from vrlab_toolbox.processing.plot_utils import save_plot
 
 logger = logging.getLogger(__name__)
 
-# Matches any recording under a BIDS folder -- the same pattern `run_batch` globs for
-# below, named/exposed the same way vrlab_crane_process.py's PHYSIO_GLOB_PATTERN is, for
-# a future FOH process-results GUI to reuse without duplicating it.
-XDF_GLOB_PATTERN = "*.xdf"
+# Matches any recording under a BIDS folder -- exposed here (the same way
+# vrlab_crane_process.py's PHYSIO_GLOB_PATTERN is) so a caller (e.g. the FOH
+# process-results GUI, see foh_process_results_gui.py) can discover the same subject
+# roster from the BIDS folder itself without duplicating this string.
+PHYSIO_GLOB_PATTERN = "*.xdf"
 
 # Written into `output_folder` by `run_batch` -- {subject_id: "<when last processed>"},
 # see `_load_processed_subjects`/`_save_processed_subjects`. Lets a re-run skip a subject
-# that's already been processed (`main`'s `--rerun` flag flips this off) instead of
-# always reprocessing everyone.
+# that's already been processed (the GUI's "Skip already-processed subjects" checkbox;
+# see `run_batch`'s `skip_existing` parameter) instead of always reprocessing everyone.
 PROCESSED_SUBJECTS_FILENAME = "processed_subjects.json"
 
 
@@ -52,10 +58,23 @@ def _save_processed_subjects(output_folder: Path, processed: dict[str, str]) -> 
         json.dump(processed, processed_file, indent=2, sort_keys=True)
 
 
-def run_batch(input_folder: Path, output_folder: Path, skip_existing: bool = False) -> Path | None:
+def run_batch(
+    input_folder: Path,
+    output_folder: Path,
+    progress_callback: Callable[[int, int, str], None] | None = None,
+    skip_existing: bool = False,
+) -> Path | None:
     """Batch-processes every FOH LSL recording found under `input_folder`, writing QC
     plots and per-subject/batch logs into `output_folder`, then the group CSV/SAV
     output. Returns the path to the batch CSV, or None if nothing was processed.
+
+    `progress_callback`, if given, is called once per subject as
+    `progress_callback(index, total, subject_id)`, *in addition to* (not instead of)
+    the `rich.Progress` terminal bar below -- that bar has nowhere to draw when this
+    runs inside a windowed (console-less) GUI process, which is exactly when a caller
+    needs this callback instead. Plain callable, no Qt import here: the FOH
+    process-results GUI's "Process BIDS Folder" button (`foh_process_results_gui.py`)
+    is the one that turns this into a progress bar, not this function.
 
     `skip_existing`, if true, skips any subject already recorded in
     `PROCESSED_SUBJECTS_FILENAME` -- reusing their row from the *existing* batch CSV
@@ -66,11 +85,14 @@ def run_batch(input_folder: Path, output_folder: Path, skip_existing: bool = Fal
     default via its own `--rerun` flag, so the CLI skips already-processed subjects
     unless told otherwise, while this function itself stays neutral for any other
     caller that doesn't pass the argument explicitly.
+
+    Shared by the `vrlab_foh_process` CLI below and that GUI button -- both call this
+    same function rather than one wrapping the other.
     """
     log_folder = Path.joinpath(output_folder, "logs")
     log_folder.mkdir(parents=True, exist_ok=True)
     vrlab_logging.init(__file__, log_dir_in=log_folder)
-    logger.info(f"Looking into input folder: {input_folder}. Output folder: {output_folder}")
+    logger.info("Looking into input folder: %s. Output folder: %s", input_folder, output_folder)
 
     out_fn = os.path.join(output_folder, "FOH_process_batch_out")
     existing_csv_path = Path(out_fn + ".csv")
@@ -89,11 +111,13 @@ def run_batch(input_folder: Path, output_folder: Path, skip_existing: bool = Fal
 
     root = input_folder
     out_file_parts = []
-    xdf_fns = list(root.rglob(XDF_GLOB_PATTERN))
-    with Progress() as progress:
-        task = progress.add_task("Processing subjects", total=len(xdf_fns))
+    xdf_fns = list(root.rglob(PHYSIO_GLOB_PATTERN))
+    total_subjects = len(xdf_fns)
 
-        for xdf_fn in xdf_fns:
+    with Progress() as progress:
+        task = progress.add_task("Processing subjects", total=total_subjects)
+
+        for index, xdf_fn in enumerate(xdf_fns, start=1):
             subject_id = lsl.get_subject_id(xdf_fn)
 
             progress.update(
@@ -101,6 +125,8 @@ def run_batch(input_folder: Path, output_folder: Path, skip_existing: bool = Fal
                 description=f"Processing subject {subject_id}",
                 advance=1,
             )
+            if progress_callback is not None:
+                progress_callback(index, total_subjects, subject_id)
 
             if skip_existing and subject_id in processed_subjects and existing_df is not None:
                 existing_rows = existing_df.loc[existing_df["Subject_ID"] == subject_id]
@@ -145,8 +171,7 @@ def run_batch(input_folder: Path, output_folder: Path, skip_existing: bool = Fal
 
                 out_file_parts.append(participant_data_out)
                 processed_subjects[subject_id] = datetime.now().strftime("%Y-%m-%d %H:%M")
-                logger.info(f"Done FOH pipeline for subject {subject_id}")
-            # TODO Exceptions can be narrowed here
+                logger.info("Done FOH pipeline for subject %s", subject_id)
             except (FileNotFoundError, ValueError, KeyError, TypeError) as error:
                 logger.warning(
                     "Skipping subject %s because processing failed: %s", subject_id, error
@@ -154,22 +179,32 @@ def run_batch(input_folder: Path, output_folder: Path, skip_existing: bool = Fal
                 continue
     _save_processed_subjects(output_folder, processed_subjects)
 
-    # TODO TEST
-    if len(out_file_parts) == 0:
+    if not out_file_parts:
         logger.warning("No files were successfully processed.")
         return None
 
     out_df = pd.concat(out_file_parts, axis=0)
+
+    try:
+        out_df_validated = build_foh_participant_output_schema().validate(out_df)
+    except pa.errors.SchemaError as e:
+        logger.error(
+            "Error validating final output file: %s", e.failure_cases.to_string(index=False)
+        )
+        raise
+
     out_df.to_csv(out_fn + ".csv", index=False)
 
+    logger.info("Successfully validated final output file")
+
     pyreadstat.write_sav(
-        out_df,
+        out_df_validated,
         out_fn + ".sav",
         variable_format={"Subject_ID": "A20"},
         variable_measure={"Subject_ID": "nominal"},
     )
 
-    logger.info(f"Saved output to {out_fn}")
+    logger.info("Saved output to %s", out_fn)
 
     return Path(out_fn + ".csv")
 

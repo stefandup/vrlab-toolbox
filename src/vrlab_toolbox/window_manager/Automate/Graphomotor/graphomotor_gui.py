@@ -23,7 +23,7 @@ from automation_layer import setup_opensignals
 from signal_checker import OpenSignalsHealthChecker
 
 
-BASE_DIR = Path(r"C:\Users\MoBI-Midtown")
+BASE_DIR = Path.home()
 
 LABRECORDER_EXE = BASE_DIR / "LabRecorder" / "LabRecorder.exe"
 OPENSIGNALS_EXE = Path(r"C:\Plux\OpenSignals (r)evolution\OpenSignals.exe")
@@ -44,10 +44,10 @@ OPENSIGNALS_POSITION_TOLERANCE = 45
 
 MINDLOGGER_RELAY_SCRIPT = BASE_DIR / "Desktop" / "Mindlogger-lsl" / "mindlogger_relay.py"
 
-GRAPHOMOTOR_DIR = Path(r"C:\Users\MoBI-Midtown\graphomotor_CMI_mooi\src\graphomotor_protocol")
+GRAPHOMOTOR_DIR = BASE_DIR / "graphomotor_CMI_mooi" / "src" / "graphomotor_protocol"
 GRAPHOMOTOR_SCRIPT = GRAPHOMOTOR_DIR / "graphomotor_older_mooi.py"
 
-WINDOW_MX_DIR = Path(r"C:\Users\MoBI-Midtown\Automate\Graphomotor\Code")
+WINDOW_MX_DIR = BASE_DIR / "Automate" / "Graphomotor" / "Code"
 AUTO_ARRANGE_SCRIPT = WINDOW_MX_DIR / "auto_arrange_windows.py"
 WINDOW_LAYOUT_JSON = WINDOW_MX_DIR / "graphomotor_window_layout.json"
 
@@ -860,7 +860,7 @@ class GraphomotorGUI:
             "Help: BAT file",
             "Use this .bat file:\n\n"
             '@echo off\n'
-            'cd /d "C:\\Users\\MoBI-Midtown\\Automate\\Graphomotor\\Code"\n'
+            'cd /d "%USERPROFILE%\\Automate\\Graphomotor\\Code"\n'
             'py graphomotor_gui.py\n'
             'pause\n\n'
             "The cd /d line is important. It makes the GUI start from the correct folder.",
