@@ -218,11 +218,7 @@ class OpenSignalsHealthChecker:
 
 
 def print_status(status: SignalStatus) -> None:
-    age = (
-        "unknown"
-        if status.last_sample_age_sec is None
-        else f"{status.last_sample_age_sec:.1f}s"
-    )
+    age = "unknown" if status.last_sample_age_sec is None else f"{status.last_sample_age_sec:.1f}s"
     print(
         f"{status.stream_message} | {status.eda_message} | {status.ecg_message} | last sample age: {age}",
         flush=True,

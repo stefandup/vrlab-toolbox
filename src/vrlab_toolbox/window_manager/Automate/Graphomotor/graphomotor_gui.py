@@ -22,19 +22,13 @@ from pywinauto import Application, Desktop
 from automation_layer import setup_opensignals
 from signal_checker import OpenSignalsHealthChecker
 
-BASE_DIR = Path(r"C:\Users\MoBI-Midtown")
 
+BASE_DIR = Path.home()
 LABRECORDER_EXE = BASE_DIR / "LabRecorder" / "LabRecorder.exe"
 OPENSIGNALS_EXE = Path(r"C:\Plux\OpenSignals (r)evolution\OpenSignals.exe")
 
 # DSI EEG apps
-DSI_STREAMER_EXE = (
-    BASE_DIR
-    / "Desktop"
-    / "Software"
-    / "DSI-Streamer-v.1.08.120"
-    / "DSI-Streamer-v.1.08.120.exe"
-)
+DSI_STREAMER_EXE = BASE_DIR / "Desktop" / "Software" / "DSI-Streamer-v.1.08.120" / "DSI-Streamer-v.1.08.120.exe"
 DSI_LSL_GUI_SHORTCUT = BASE_DIR / "Desktop" / "dsi2lslgui - Shortcut.lnk"
 
 # DSI Streamer coordinates: connect headset, then open electrode diagnostic quality screen.
@@ -85,16 +79,12 @@ NEON_STOP_RECORDING_BUTTON = (-197, 304)
 
 OPENSIGNALS_POSITION_TOLERANCE = 45
 
-MINDLOGGER_RELAY_SCRIPT = (
-    BASE_DIR / "Desktop" / "Mindlogger-lsl" / "mindlogger_relay.py"
-)
+MINDLOGGER_RELAY_SCRIPT = BASE_DIR / "Desktop" / "Mindlogger-lsl" / "mindlogger_relay.py"
 
-GRAPHOMOTOR_DIR = Path(
-    r"C:\Users\MoBI-Midtown\graphomotor_CMI_mooi\src\graphomotor_protocol"
-)
+GRAPHOMOTOR_DIR = BASE_DIR / "graphomotor_CMI_mooi" / "src" / "graphomotor_protocol"
 GRAPHOMOTOR_SCRIPT = GRAPHOMOTOR_DIR / "graphomotor_older_mooi.py"
 
-WINDOW_MX_DIR = Path(r"C:\Users\MoBI-Midtown\Automate\Graphomotor\Code")
+WINDOW_MX_DIR = BASE_DIR / "Automate" / "Graphomotor" / "Code"
 AUTO_ARRANGE_SCRIPT = WINDOW_MX_DIR / "auto_arrange_windows.py"
 WINDOW_LAYOUT_JSON = WINDOW_MX_DIR / "graphomotor_window_layout.json"
 
@@ -194,9 +184,7 @@ class BigChecklistDialog:
     ) -> None:
         self.parent = parent
         self.result = False
-        self.vars: dict[str, tk.BooleanVar] = {
-            key: tk.BooleanVar(value=False) for key, _ in items
-        }
+        self.vars: dict[str, tk.BooleanVar] = {key: tk.BooleanVar(value=False) for key, _ in items}
 
         self.win = tk.Toplevel(parent)
         self.win.title(title)
@@ -485,14 +473,9 @@ class BigChoiceDialog:
             fg="white",
             padx=28,
             pady=16,
-        ).pack(
-            side="left", expand=True, fill="x", padx=(12 if secondary_text else 0, 0)
-        )
+        ).pack(side="left", expand=True, fill="x", padx=(12 if secondary_text else 0, 0))
 
-        self.win.protocol(
-            "WM_DELETE_WINDOW",
-            lambda: self.choose("secondary" if secondary_text else "primary"),
-        )
+        self.win.protocol("WM_DELETE_WINDOW", lambda: self.choose("secondary" if secondary_text else "primary"))
         self.win.lift()
         self.win.focus_force()
 
@@ -504,7 +487,6 @@ class BigChoiceDialog:
         self.parent.wait_window(self.win)
         return self.result or "primary"
 
-
 class GraphomotorGUI:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
@@ -515,12 +497,8 @@ class GraphomotorGUI:
         self.participant_id_var = tk.StringVar(value="")
         self.status_var = tk.StringVar(value="Ready.")
         self.progress_var = tk.DoubleVar(value=0)
-        self.warning_var = tk.StringVar(
-            value="Follow the instruction in the yellow box."
-        )
-        self.next_instruction_var = tk.StringVar(
-            value="Enter participant ID, then press START SETUP."
-        )
+        self.warning_var = tk.StringVar(value="Follow the instruction in the yellow box.")
+        self.next_instruction_var = tk.StringVar(value="Enter participant ID, then press START SETUP.")
         self.next_button_text_var = tk.StringVar(value="NEXT")
         self.current_phase = "start_setup"
         self.busy = False
@@ -556,9 +534,7 @@ class GraphomotorGUI:
         self.prep_ready_event = threading.Event()
         self.prep_vars: dict[str, tk.BooleanVar] = {}
         self.prep_ready_button: tk.Button | None = None
-        self.prep_status_var = tk.StringVar(
-            value="Tick all items before the EEG connection starts."
-        )
+        self.prep_status_var = tk.StringVar(value="Tick all items before the EEG connection starts.")
         self.prep_keepalive_job: str | None = None
         self.prep_confirmed = False
 
@@ -630,9 +606,7 @@ class GraphomotorGUI:
             width=18,
             justify="center",
         ).pack(anchor="center", ipady=12, pady=(0, 35))
-        self.participant_id_var.trace_add(
-            "write", lambda *_: self.update_next_button_state()
-        )
+        self.participant_id_var.trace_add("write", lambda *_: self.update_next_button_state())
 
         buttons = tk.Frame(card, bg="#182430")
         buttons.pack(fill="x", padx=55, pady=(0, 45))
@@ -677,14 +651,7 @@ class GraphomotorGUI:
         self.status_var.set("Ready.")
 
         self.advanced_frame = tk.Frame(outer, bg=APP_BG)
-        self.log_text = tk.Text(
-            self.advanced_frame,
-            height=7,
-            wrap="word",
-            font=("Consolas", 12),
-            bg="white",
-            fg="black",
-        )
+        self.log_text = tk.Text(self.advanced_frame, height=7, wrap="word", font=("Consolas", 12), bg="white", fg="black")
         self.log_text.pack(fill="both", expand=True, pady=(8, 0))
 
         bottom = tk.Frame(outer, bg=APP_BG)
@@ -762,13 +729,7 @@ class GraphomotorGUI:
         self.root.update_idletasks()
 
     def set_step(self, key: str, state: str, text: str) -> None:
-        symbol = {
-            "todo": "☐",
-            "busy": "⏳",
-            "done": "✅",
-            "warn": "⚠",
-            "error": "❌",
-        }.get(state, "☐")
+        symbol = {"todo": "☐", "busy": "⏳", "done": "✅", "warn": "⚠", "error": "❌"}.get(state, "☐")
         self.steps[key].set(f"{symbol} {text}")
         self.root.update_idletasks()
 
@@ -819,40 +780,22 @@ class GraphomotorGUI:
         self.root.update_idletasks()
 
     # Big WAIT overlay and signal warning screens
-    def _get_monitor_geometry(
-        self, prefer_secondary: bool = False
-    ) -> tuple[int, int, int, int]:
+    def _get_monitor_geometry(self, prefer_secondary: bool = False) -> tuple[int, int, int, int]:
         try:
             from screeninfo import get_monitors
 
             monitors = get_monitors()
             if monitors:
                 monitors = sorted(monitors, key=lambda m: (m.x, m.y))
-                selected = (
-                    monitors[-1]
-                    if prefer_secondary and len(monitors) > 1
-                    else monitors[0]
-                )
-                return (
-                    int(selected.x),
-                    int(selected.y),
-                    int(selected.width),
-                    int(selected.height),
-                )
+                selected = monitors[-1] if prefer_secondary and len(monitors) > 1 else monitors[0]
+                return int(selected.x), int(selected.y), int(selected.width), int(selected.height)
         except Exception:
             pass
 
         self.root.update_idletasks()
-        return (
-            0,
-            0,
-            int(self.root.winfo_screenwidth()),
-            int(self.root.winfo_screenheight()),
-        )
+        return 0, 0, int(self.root.winfo_screenwidth()), int(self.root.winfo_screenheight())
 
-    def _set_topmost_fullscreen(
-        self, win: tk.Toplevel, prefer_secondary: bool = False
-    ) -> None:
+    def _set_topmost_fullscreen(self, win: tk.Toplevel, prefer_secondary: bool = False) -> None:
         x, y, w, h = self._get_monitor_geometry(prefer_secondary=prefer_secondary)
         win.overrideredirect(True)
         win.attributes("-topmost", True)
@@ -870,16 +813,10 @@ class GraphomotorGUI:
         normal WAIT calls keep the eyes-closed instruction visible instead of
         replacing it or restarting anything.
         """
-
         def _show() -> None:
             display_message = message
-            if (
-                getattr(self, "eyes_closed_message_visible", False)
-                and message.strip() == "WAIT"
-            ):
-                display_message = (
-                    "WAIT\n\nPARTICIPANT KEEPS EYES CLOSED\nUNTIL SETUP IS DONE"
-                )
+            if getattr(self, "eyes_closed_message_visible", False) and message.strip() == "WAIT":
+                display_message = "WAIT\n\nPARTICIPANT KEEPS EYES CLOSED\nUNTIL SETUP IS DONE"
 
             self.wait_overlay_text_var.set(display_message)
 
@@ -933,9 +870,7 @@ class GraphomotorGUI:
     def show_eyes_closed_timer(self) -> None:
         """Stable eyes-closed screen. No countdown, so it cannot restart or confuse users."""
         self.eyes_closed_message_visible = True
-        self.show_wait_overlay(
-            "WAIT\n\nPARTICIPANT KEEPS EYES CLOSED\nUNTIL SETUP IS DONE"
-        )
+        self.show_wait_overlay("WAIT\n\nPARTICIPANT KEEPS EYES CLOSED\nUNTIL SETUP IS DONE")
 
     def update_eyes_closed_timer(self) -> None:
         # Kept only so older calls do not break. The timer was removed on purpose.
@@ -944,6 +879,7 @@ class GraphomotorGUI:
     def hide_eyes_closed_timer(self) -> None:
         self.eyes_closed_message_visible = False
         self.show_wait_overlay("WAIT")
+
 
     def show_device_prep_checklist(self) -> None:
         """Simple required checklist before DSI connects."""
@@ -1017,12 +953,7 @@ class GraphomotorGUI:
             list_frame.pack(fill="both", expand=True, pady=(5, 8))
 
             for number, key, label, is_red in items:
-                row = tk.Frame(
-                    list_frame,
-                    bg="white",
-                    highlightthickness=2,
-                    highlightbackground="#e5e7eb",
-                )
+                row = tk.Frame(list_frame, bg="white", highlightthickness=2, highlightbackground="#e5e7eb")
                 row.pack(fill="x", pady=6)
 
                 tk.Label(
@@ -1101,11 +1032,7 @@ class GraphomotorGUI:
         def _keep_alive() -> None:
             self.prep_keepalive_job = None
             try:
-                if (
-                    self.prep_window is not None
-                    and self.prep_window.winfo_exists()
-                    and not self.prep_ready_event.is_set()
-                ):
+                if self.prep_window is not None and self.prep_window.winfo_exists() and not self.prep_ready_event.is_set():
                     self.prep_window.deiconify()
                     self.prep_window.attributes("-topmost", True)
                     self.prep_window.lift()
@@ -1131,12 +1058,8 @@ class GraphomotorGUI:
             self.prep_ready_button.config(state="normal", bg=GREEN, fg="white")
             self.prep_status_var.set("Ready. Press the green button ONCE only.")
         else:
-            self.prep_ready_button.config(
-                state="disabled", bg=DISABLED_BG, fg="#333333"
-            )
-            self.prep_status_var.set(
-                "Tick every item. EEG will not connect until this is confirmed."
-            )
+            self.prep_ready_button.config(state="disabled", bg=DISABLED_BG, fg="#333333")
+            self.prep_status_var.set("Tick every item. EEG will not connect until this is confirmed.")
 
     def confirm_prep_ready(self) -> None:
         # Immediately change the screen so the user knows they clicked successfully.
@@ -1145,42 +1068,27 @@ class GraphomotorGUI:
         self.prep_status_var.set("Confirmed. Do not press again.")
         self.stop_prep_keepalive()
         if self.prep_ready_button is not None:
-            self.prep_ready_button.config(
-                text="CONFIRMED - WAIT", state="disabled", bg=GREEN, fg="white"
-            )
+            self.prep_ready_button.config(text="CONFIRMED - WAIT", state="disabled", bg=GREEN, fg="white")
         self.show_wait_overlay("WAIT")
 
     def wait_for_prep_ready_before_dsi_connect(self) -> None:
         """Block the worker thread until the researcher confirms the prep checklist."""
-        self.set_next_instruction(
-            "Confirm the GET THESE READY checklist before EEG connects."
-        )
-        self.log(
-            "Waiting for device preparation checklist before clicking DSI Connect..."
-        )
+        self.set_next_instruction("Confirm the GET THESE READY checklist before EEG connects.")
+        self.log("Waiting for device preparation checklist before clicking DSI Connect...")
         while not self.prep_ready_event.is_set():
             try:
                 if self.prep_window is not None and self.prep_window.winfo_exists():
-                    self.root.after(
-                        0,
-                        lambda: (
-                            self.prep_window.deiconify(),
-                            self.prep_window.attributes("-topmost", True),
-                            self.prep_window.lift(),
-                        ),
-                    )
+                    self.root.after(0, lambda: (self.prep_window.deiconify(), self.prep_window.attributes("-topmost", True), self.prep_window.lift()))
             except Exception:
                 pass
             time.sleep(0.25)
 
     def close_prep_checklist(self) -> None:
         self.stop_prep_keepalive()
-
         def _close() -> None:
             if self.prep_window is not None and self.prep_window.winfo_exists():
                 self.prep_window.destroy()
             self.prep_window = None
-
         self.root.after(0, _close)
 
     def show_signal_alert(self) -> None:
@@ -1263,9 +1171,7 @@ class GraphomotorGUI:
     # iPad / MindLogger live-data checker
     # ------------------------------------------------------------------
 
-    def show_ipad_alert(
-        self, detail: str = "No live iPad drawing data detected."
-    ) -> None:
+    def show_ipad_alert(self, detail: str = "No live iPad drawing data detected.") -> None:
         """Full-screen warning shown only after task recording has started."""
         if time.time() < self.ipad_alert_snoozed_until:
             return
@@ -1367,9 +1273,7 @@ class GraphomotorGUI:
         The DISMISS button only hides the warning for 1 minute. Monitoring continues in
         the background and the warning will return after that if data is still missing.
         """
-        self.log(
-            "iPad live-data checker will start 60 seconds after LabRecorder started."
-        )
+        self.log("iPad live-data checker will start 60 seconds after LabRecorder started.")
 
         if self.ipad_monitor_stop.wait(IPAD_CHECK_DELAY_AFTER_LABRECORDER_SEC):
             return
@@ -1385,9 +1289,7 @@ class GraphomotorGUI:
 
                     streams = resolve_byprop("name", IPAD_STREAM_NAME, timeout=2.0)
                     if not streams:
-                        self.show_ipad_alert(
-                            "No MindLogger stream was found in LabRecorder/LSL."
-                        )
+                        self.show_ipad_alert("No MindLogger stream was found in LabRecorder/LSL.")
                         time.sleep(2)
                         continue
 
@@ -1411,9 +1313,7 @@ class GraphomotorGUI:
                         self.hide_ipad_alert()
                 else:
                     if last_sample_time == 0:
-                        self.show_ipad_alert(
-                            "MindLogger stream exists, but no live drawing samples arrived yet."
-                        )
+                        self.show_ipad_alert("MindLogger stream exists, but no live drawing samples arrived yet.")
                     elif time.time() - last_sample_time > IPAD_SAMPLE_TIMEOUT_SEC:
                         self.show_ipad_alert(
                             f"MindLogger live data stopped for more than {IPAD_SAMPLE_TIMEOUT_SEC} seconds."
@@ -1475,10 +1375,10 @@ class GraphomotorGUI:
         messagebox.showinfo(
             "Help: BAT file",
             "Use this .bat file:\n\n"
-            "@echo off\n"
-            'cd /d "C:\\Users\\MoBI-Midtown\\Automate\\Graphomotor\\Code"\n'
-            "py graphomotor_gui.py\n"
-            "pause\n\n"
+            '@echo off\n'
+            'cd /d "%USERPROFILE%\\Automate\\Graphomotor\\Code"\n'
+            'py graphomotor_gui.py\n'
+            'pause\n\n'
             "The cd /d line is important. It makes the GUI start from the correct folder.",
         )
 
@@ -1551,7 +1451,7 @@ class GraphomotorGUI:
             bg="white",
             fg="#111111",
             justify="center",
-        ).pack(fill="x", pady=(0, 4))
+         ).pack(fill="x", pady=(0, 4))
 
         tk.Label(
             outer,
@@ -1560,7 +1460,7 @@ class GraphomotorGUI:
             bg="white",
             fg="#111111",
             justify="center",
-        ).pack(fill="x", pady=(0, 8))
+         ).pack(fill="x", pady=(0, 8))
 
         steps = tk.Frame(outer, bg="white")
         steps.pack(fill="both", expand=True)
@@ -1569,12 +1469,7 @@ class GraphomotorGUI:
             bg = "#b00000" if red else "white"
             fg = "white" if red else "#111111"
             border = "#b00000" if red else "#e5e7eb"
-            row = tk.Frame(
-                steps,
-                bg=bg,
-                highlightthickness=4 if red else 2,
-                highlightbackground=border,
-            )
+            row = tk.Frame(steps, bg=bg, highlightthickness=4 if red else 2, highlightbackground=border)
             row.pack(fill="x", pady=4)
             tk.Label(
                 row,
@@ -1637,9 +1532,7 @@ class GraphomotorGUI:
         self.processes.append(proc)
         return True
 
-    def focus_window_by_title(
-        self, title_re: str, app_name: str, timeout_seconds: int = 20
-    ) -> bool:
+    def focus_window_by_title(self, title_re: str, app_name: str, timeout_seconds: int = 20) -> bool:
         """Bring a window to the front using pywinauto, without mouse coordinates."""
         start_time = time.time()
         while time.time() - start_time < timeout_seconds:
@@ -1660,9 +1553,7 @@ class GraphomotorGUI:
                     return True
             except Exception:
                 time.sleep(1)
-        self.log(
-            f"Could not bring {app_name} to front within {timeout_seconds} seconds."
-        )
+        self.log(f"Could not bring {app_name} to front within {timeout_seconds} seconds.")
         return False
 
     def kill_process_by_name(self, process_name: str) -> None:
@@ -1678,9 +1569,7 @@ class GraphomotorGUI:
             pass
 
         # PowerShell fallback catches cases where image names differ slightly.
-        stem = (
-            process_name[:-4] if process_name.lower().endswith(".exe") else process_name
-        )
+        stem = process_name[:-4] if process_name.lower().endswith(".exe") else process_name
         safe_stem = stem.replace("'", "''")
         ps_command = (
             "Get-CimInstance Win32_Process | "
@@ -1689,14 +1578,7 @@ class GraphomotorGUI:
         )
         try:
             subprocess.call(
-                [
-                    "powershell",
-                    "-NoProfile",
-                    "-ExecutionPolicy",
-                    "Bypass",
-                    "-Command",
-                    ps_command,
-                ],
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_command],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 shell=False,
@@ -1747,14 +1629,7 @@ class GraphomotorGUI:
         )
         try:
             subprocess.call(
-                [
-                    "powershell",
-                    "-NoProfile",
-                    "-ExecutionPolicy",
-                    "Bypass",
-                    "-Command",
-                    ps_command,
-                ],
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_command],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 shell=False,
@@ -1765,9 +1640,7 @@ class GraphomotorGUI:
         time.sleep(2.0)
         self.log(f"Finished DSI cleanup attempt for {DSI2LSL_COM_PORT}.")
 
-    def wait_for_com_port_to_be_free(
-        self, com_port: str = DSI2LSL_COM_PORT, timeout_sec: float = 10.0
-    ) -> bool:
+    def wait_for_com_port_to_be_free(self, com_port: str = DSI2LSL_COM_PORT, timeout_sec: float = 10.0) -> bool:
         """Try opening the serial port briefly. If pyserial is unavailable, use Windows mode command."""
         start = time.time()
         last_error = "unknown"
@@ -1776,7 +1649,6 @@ class GraphomotorGUI:
             # Best check when pyserial is installed.
             try:
                 import serial
-
                 ser = serial.Serial(com_port, baudrate=115200, timeout=0.2)
                 ser.close()
                 self.log(f"{com_port} is free.")
@@ -1795,11 +1667,7 @@ class GraphomotorGUI:
                     timeout=3,
                 )
                 output = (completed.stdout + completed.stderr).lower()
-                if (
-                    completed.returncode == 0
-                    and "not available" not in output
-                    and "access is denied" not in output
-                ):
+                if completed.returncode == 0 and "not available" not in output and "access is denied" not in output:
                     self.log(f"{com_port} responded to Windows MODE check.")
                     return True
                 if output.strip():
@@ -1816,9 +1684,7 @@ class GraphomotorGUI:
     def require_com7_free_or_manual_fix(self) -> None:
         """Hard cleanup + clear manual fallback if COM7 is still locked."""
         for attempt in range(1, 4):
-            self.set_next_instruction(
-                f"Cleaning old EEG COM7 connection, attempt {attempt}/3. Do not press anything."
-            )
+            self.set_next_instruction(f"Cleaning old EEG COM7 connection, attempt {attempt}/3. Do not press anything.")
             self.show_wait_overlay(f"WAIT\nCLEARING OLD EEG COM7\nATTEMPT {attempt}/3")
             time.sleep(0.4)
             self.release_dsi_com_port()
@@ -1858,9 +1724,7 @@ class GraphomotorGUI:
         self.release_dsi_com_port()
         if not self.wait_for_com_port_to_be_free(DSI2LSL_COM_PORT, timeout_sec=12):
             self.hide_wait_overlay()
-            raise RuntimeError(
-                "COM7 is still busy after manual unplug/replug. Restart the lab PC or check Device Manager."
-            )
+            raise RuntimeError("COM7 is still busy after manual unplug/replug. Restart the lab PC or check Device Manager.")
 
     def setup_dsi_eeg(self) -> None:
         """
@@ -1891,9 +1755,7 @@ class GraphomotorGUI:
         except Exception as exc:
             self.log(f"Window layout warning before DSI Streamer clicks: {exc}")
 
-        self.focus_window_by_title(
-            ".*DSI-Streamer.*", "DSI Streamer", timeout_seconds=20
-        )
+        self.focus_window_by_title(".*DSI-Streamer.*", "DSI Streamer", timeout_seconds=20)
         time.sleep(1)
 
         # Critical safety/user-flow point: do not click Connect until the researcher confirms the checklist.
@@ -1941,13 +1803,9 @@ class GraphomotorGUI:
         if choice != "primary":
             self.show_wait_overlay("WAIT")
             self.set_step("dsi", "warn", "EEG quality not confirmed")
-            self.set_next_instruction(
-                "EEG quality was not confirmed. Closing setup safely."
-            )
+            self.set_next_instruction("EEG quality was not confirmed. Closing setup safely.")
             self.close_all_apps()
-            raise RuntimeError(
-                "EEG quality was not confirmed. Setup was stopped safely. Fix the headset, then start again."
-            )
+            raise RuntimeError("EEG quality was not confirmed. Setup was stopped safely. Fix the headset, then start again.")
 
         # Show WAIT immediately after the quality confirmation closes so the user does not
         # think they must press another button during the pause.
@@ -1962,9 +1820,7 @@ class GraphomotorGUI:
         self.require_com7_free_or_manual_fix()
 
         if not self.start_optional_file(DSI_LSL_GUI_SHORTCUT, "DSI2LSL"):
-            raise FileNotFoundError(
-                f"DSI2LSL shortcut not found: {DSI_LSL_GUI_SHORTCUT}"
-            )
+            raise FileNotFoundError(f"DSI2LSL shortcut not found: {DSI_LSL_GUI_SHORTCUT}")
 
         time.sleep(4)
         try:
@@ -2004,9 +1860,7 @@ class GraphomotorGUI:
 
     def start_powershell_command(self, command: str) -> subprocess.Popen:
         self.log(f"Running: {command}")
-        proc = subprocess.Popen(
-            ["powershell", "-NoExit", "-Command", command], shell=False
-        )
+        proc = subprocess.Popen(["powershell", "-NoExit", "-Command", command], shell=False)
         self.processes.append(proc)
         return proc
 
@@ -2017,15 +1871,11 @@ class GraphomotorGUI:
             raise FileNotFoundError(f"Neon script not found: {NEON_SCRIPT}")
 
         self.log("Launching Neon GUI...")
-        proc = subprocess.Popen(
-            [str(NEON_PYTHON), str(NEON_SCRIPT)], cwd=str(NEON_DIR), shell=False
-        )
+        proc = subprocess.Popen([str(NEON_PYTHON), str(NEON_SCRIPT)], cwd=str(NEON_DIR), shell=False)
         self.processes.append(proc)
         self.neon_started_by_gui = True
 
-    def ensure_window_open(
-        self, title_re: str, app_name: str, timeout_seconds: int = 25
-    ) -> bool:
+    def ensure_window_open(self, title_re: str, app_name: str, timeout_seconds: int = 25) -> bool:
         start_time = time.time()
         while time.time() - start_time < timeout_seconds:
             try:
@@ -2066,29 +1916,17 @@ class GraphomotorGUI:
             except Exception:
                 pass
             time.sleep(1)
-        self.log(
-            "Could not find a Neon window by title. Will still use saved absolute coordinates."
-        )
+        self.log("Could not find a Neon window by title. Will still use saved absolute coordinates.")
         return False
 
     def apply_saved_window_layout(self) -> None:
         if not AUTO_ARRANGE_SCRIPT.exists():
-            raise FileNotFoundError(
-                f"Window layout script not found: {AUTO_ARRANGE_SCRIPT}"
-            )
+            raise FileNotFoundError(f"Window layout script not found: {AUTO_ARRANGE_SCRIPT}")
         if not WINDOW_LAYOUT_JSON.exists():
-            raise FileNotFoundError(
-                f"Window layout JSON not found: {WINDOW_LAYOUT_JSON}"
-            )
+            raise FileNotFoundError(f"Window layout JSON not found: {WINDOW_LAYOUT_JSON}")
         self.log("Applying saved window layout...")
         completed = subprocess.run(
-            [
-                "python",
-                str(AUTO_ARRANGE_SCRIPT),
-                "apply",
-                "--config",
-                str(WINDOW_LAYOUT_JSON),
-            ],
+            ["python", str(AUTO_ARRANGE_SCRIPT), "apply", "--config", str(WINDOW_LAYOUT_JSON)],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -2097,20 +1935,19 @@ class GraphomotorGUI:
         if completed.stdout.strip():
             self.log(completed.stdout.strip())
         if completed.returncode != 0:
-            raise RuntimeError(
-                completed.stderr.strip() or "Window layout apply failed."
-            )
+            raise RuntimeError(completed.stderr.strip() or "Window layout apply failed.")
         time.sleep(1.2)
 
     def paste_text_exact(self, text: str) -> None:
-        import pyautogui
-        import pyperclip
-        import time
+     import pyautogui
+     import pyperclip
+     import time
 
-        pyperclip.copy(text)
-        time.sleep(0.1)
-        pyautogui.hotkey("ctrl", "v")
-        time.sleep(0.1)
+     pyperclip.copy(text)
+     time.sleep(0.1)
+     pyautogui.hotkey("ctrl", "v")
+     time.sleep(0.1)  
+
 
     def automate_neon_start(self, participant_id: str) -> str:
         """Type recording name, connect device, start recording."""
@@ -2118,9 +1955,7 @@ class GraphomotorGUI:
 
         recording_name = self.build_recording_name(participant_id)
         self.set_step("neon", "busy", f"4. Starting Neon recording: {recording_name}")
-        self.set_next_instruction(
-            "Next: Neon is being controlled automatically. DO NOT MOVE THE MOUSE."
-        )
+        self.set_next_instruction("Next: Neon is being controlled automatically. DO NOT MOVE THE MOUSE.")
         self.show_mouse_warning()
 
         # Give Neon time to fully render, apply layout, focus it, then click.
@@ -2165,9 +2000,7 @@ class GraphomotorGUI:
             import pyautogui
 
             self.log("Stopping Neon recording first...")
-            self.set_next_instruction(
-                "Next: Stopping Neon first. DO NOT MOVE THE MOUSE."
-            )
+            self.set_next_instruction("Next: Stopping Neon first. DO NOT MOVE THE MOUSE.")
             self.show_mouse_warning()
             try:
                 self.apply_saved_window_layout()
@@ -2190,9 +2023,7 @@ class GraphomotorGUI:
         last_error: Exception | None = None
         while time.time() - start_time < timeout_seconds:
             try:
-                app = Application(backend="uia").connect(
-                    title_re=".*OpenSignals.*", timeout=2
-                )
+                app = Application(backend="uia").connect(title_re=".*OpenSignals.*", timeout=2)
                 win = app.window(title_re=".*OpenSignals.*")
                 if win.exists(timeout=2):
                     try:
@@ -2207,9 +2038,7 @@ class GraphomotorGUI:
             except Exception as exc:
                 last_error = exc
                 time.sleep(1)
-        raise RuntimeError(
-            f"OpenSignals window was not found. Last error: {last_error}"
-        )
+        raise RuntimeError(f"OpenSignals window was not found. Last error: {last_error}")
 
     def get_window_rect_tuple(self, win) -> tuple[int, int, int, int]:
         rect = win.rectangle()
@@ -2226,9 +2055,7 @@ class GraphomotorGUI:
             return None
 
         def mentions_opensignals(d: dict) -> bool:
-            return any(
-                isinstance(v, str) and "opensignals" in v.lower() for v in d.values()
-            )
+            return any(isinstance(v, str) and "opensignals" in v.lower() for v in d.values())
 
         def extract_rect(d: dict) -> tuple[int, int, int, int] | None:
             if all(k in d for k in ("x", "y", "width", "height")):
@@ -2236,12 +2063,7 @@ class GraphomotorGUI:
             if all(k in d for k in ("left", "top", "width", "height")):
                 return int(d["left"]), int(d["top"]), int(d["width"]), int(d["height"])
             if all(k in d for k in ("left", "top", "right", "bottom")):
-                left, top, right, bottom = (
-                    int(d["left"]),
-                    int(d["top"]),
-                    int(d["right"]),
-                    int(d["bottom"]),
-                )
+                left, top, right, bottom = int(d["left"]), int(d["top"]), int(d["right"]), int(d["bottom"])
                 return left, top, right - left, bottom - top
             for key in ("rect", "rectangle", "geometry", "position", "window_rect"):
                 if isinstance(d.get(key), dict):
@@ -2269,49 +2091,30 @@ class GraphomotorGUI:
 
         return walk(data)
 
-    def opensignals_matches_saved_layout(
-        self, expected_rect: tuple[int, int, int, int] | None
-    ) -> bool:
+    def opensignals_matches_saved_layout(self, expected_rect: tuple[int, int, int, int] | None) -> bool:
         win = self.connect_opensignals_window(timeout_seconds=10)
         actual_rect = self.get_window_rect_tuple(win)
-        self.log(
-            f"Current OpenSignals position: x={actual_rect[0]}, y={actual_rect[1]}, width={actual_rect[2]}, height={actual_rect[3]}"
-        )
+        self.log(f"Current OpenSignals position: x={actual_rect[0]}, y={actual_rect[1]}, width={actual_rect[2]}, height={actual_rect[3]}")
         if expected_rect is None:
-            self.log(
-                "No exact OpenSignals coordinates parsed. Continuing because OpenSignals is visible."
-            )
+            self.log("No exact OpenSignals coordinates parsed. Continuing because OpenSignals is visible.")
             return True
-        return all(
-            abs(a - e) <= OPENSIGNALS_POSITION_TOLERANCE
-            for a, e in zip(actual_rect, expected_rect)
-        )
+        return all(abs(a - e) <= OPENSIGNALS_POSITION_TOLERANCE for a, e in zip(actual_rect, expected_rect))
 
     def ensure_opensignals_ready(self) -> None:
-        self.set_step(
-            "opensignals",
-            "busy",
-            "5. Checking OpenSignals and applying saved layout...",
-        )
+        self.set_step("opensignals", "busy", "5. Checking OpenSignals and applying saved layout...")
         self.set_progress(56, "Checking OpenSignals window automatically...")
-        found = self.ensure_window_open(
-            title_re=".*OpenSignals.*", app_name="OpenSignals", timeout_seconds=30
-        )
+        found = self.ensure_window_open(title_re=".*OpenSignals.*", app_name="OpenSignals", timeout_seconds=30)
         if not found:
             self.log("OpenSignals was not visible. Trying to launch it again.")
             self.start_file(OPENSIGNALS_EXE)
-            found = self.ensure_window_open(
-                title_re=".*OpenSignals.*", app_name="OpenSignals", timeout_seconds=35
-            )
+            found = self.ensure_window_open(title_re=".*OpenSignals.*", app_name="OpenSignals", timeout_seconds=35)
         if not found:
             raise RuntimeError("OpenSignals could not be opened automatically.")
 
         expected_rect = self.load_opensignals_rect_from_layout()
         layout_ok = False
         for attempt in range(1, 4):
-            self.set_progress(
-                56 + attempt, f"Applying saved window layout attempt {attempt}/3..."
-            )
+            self.set_progress(56 + attempt, f"Applying saved window layout attempt {attempt}/3...")
             self.apply_saved_window_layout()
             self.root.deiconify()
             self.root.attributes("-fullscreen", True)
@@ -2322,18 +2125,10 @@ class GraphomotorGUI:
                 break
             time.sleep(0.8)
         if not layout_ok:
-            raise RuntimeError(
-                "OpenSignals is open, but it does not match the saved window layout after 3 attempts."
-            )
+            raise RuntimeError("OpenSignals is open, but it does not match the saved window layout after 3 attempts.")
 
-    def confirm_ecg_eda_spikes_before_labrecorder(
-        self, context: str = "refresh"
-    ) -> bool:
-        next_action = (
-            "SELECT ALL and START LabRecorder"
-            if context == "select_all"
-            else "press UPDATE in LabRecorder"
-        )
+    def confirm_ecg_eda_spikes_before_labrecorder(self, context: str = "refresh") -> bool:
+        next_action = "SELECT ALL and START LabRecorder" if context == "select_all" else "press UPDATE in LabRecorder"
         self.root.deiconify()
         self.root.attributes("-fullscreen", True)
         self.root.attributes("-topmost", True)
@@ -2361,17 +2156,10 @@ class GraphomotorGUI:
 
     def setup_labrecorder_refresh(self, participant_id: str) -> None:
         win = self.connect_labrecorder()
-        participant_edit = win.child_window(
-            auto_id="MainWindow.centralwidget.scrollArea.qt_scrollarea_viewport.scrollAreaWidgetContents.lineEdit_participant",
-            control_type="Edit",
-        )
+        participant_edit = win.child_window(auto_id="MainWindow.centralwidget.scrollArea.qt_scrollarea_viewport.scrollAreaWidgetContents.lineEdit_participant", control_type="Edit")
         participant_edit.set_edit_text(participant_id)
         time.sleep(0.5)
-        win.child_window(
-            title="Update",
-            auto_id="MainWindow.centralwidget.groupBox_streams.refreshButton",
-            control_type="Button",
-        ).click_input()
+        win.child_window(title="Update", auto_id="MainWindow.centralwidget.groupBox_streams.refreshButton", control_type="Button").click_input()
         time.sleep(2)
 
     def get_labrecorder_text(self) -> str:
@@ -2403,9 +2191,7 @@ class GraphomotorGUI:
             self.log(f"Missing streams: {', '.join(missing)}")
             return False, missing
         if self.neon_bypassed:
-            self.log(
-                "All required non-Neon streams found. Neon was explicitly bypassed."
-            )
+            self.log("All required non-Neon streams found. Neon was explicitly bypassed.")
         else:
             self.log("All required streams found.")
         return True, []
@@ -2417,21 +2203,13 @@ class GraphomotorGUI:
             win = app.window(title="Lab Recorder")
             win.set_focus()
             time.sleep(0.8)
-            stop_button = win.child_window(
-                title="Stop",
-                auto_id="MainWindow.centralwidget.groupBox_recording.stopButton",
-                control_type="Button",
-            )
+            stop_button = win.child_window(title="Stop", auto_id="MainWindow.centralwidget.groupBox_recording.stopButton", control_type="Button")
             if stop_button.exists(timeout=2):
                 stop_button.click_input()
                 time.sleep(2)
-                self.log(
-                    "LabRecorder Stop button clicked. Recording should be finalized."
-                )
+                self.log("LabRecorder Stop button clicked. Recording should be finalized.")
             else:
-                self.log(
-                    "LabRecorder Stop button was not available. It may already be stopped."
-                )
+                self.log("LabRecorder Stop button was not available. It may already be stopped.")
         except Exception as e:
             self.log(f"Could not stop LabRecorder automatically: {e}")
 
@@ -2445,14 +2223,7 @@ class GraphomotorGUI:
         )
         try:
             subprocess.call(
-                [
-                    "powershell",
-                    "-NoProfile",
-                    "-ExecutionPolicy",
-                    "Bypass",
-                    "-Command",
-                    ps_command,
-                ],
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_command],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 shell=False,
@@ -2480,7 +2251,6 @@ class GraphomotorGUI:
             windows = []
 
         import re as _re
-
         for pattern in WINDOW_TITLE_PATTERNS_TO_CLOSE:
             rx = _re.compile(pattern, _re.IGNORECASE)
             for win in windows:
@@ -2508,6 +2278,7 @@ class GraphomotorGUI:
             except Exception:
                 pass
 
+
     def hide_start_button_after_first_click(self) -> None:
         if self.next_button is not None:
             try:
@@ -2524,7 +2295,6 @@ class GraphomotorGUI:
 
     def hide_start_button_after_press(self) -> None:
         """Remove START from the screen immediately after the researcher presses it."""
-
         def _hide() -> None:
             try:
                 if self.next_button is not None and self.next_button.winfo_ismapped():
@@ -2532,25 +2302,17 @@ class GraphomotorGUI:
                     self.start_button_hidden = True
             except Exception:
                 pass
-
         self.root.after(0, _hide)
 
     def show_start_button_for_new_participant(self) -> None:
         """Show START again only after a full reset for a new participant."""
-
         def _show() -> None:
             try:
-                if (
-                    self.next_button is not None
-                    and not self.next_button.winfo_ismapped()
-                ):
-                    self.next_button.pack(
-                        side="left", expand=True, fill="x", padx=(0, 16)
-                    )
+                if self.next_button is not None and not self.next_button.winfo_ismapped():
+                    self.next_button.pack(side="left", expand=True, fill="x", padx=(0, 16))
                     self.start_button_hidden = False
             except Exception:
                 pass
-
         self.root.after(0, _show)
 
     def thread_next_action(self) -> None:
@@ -2566,9 +2328,7 @@ class GraphomotorGUI:
         elif phase == "start_task":
             threading.Thread(target=self.start_task, daemon=True).start()
         elif phase == "new_participant":
-            threading.Thread(
-                target=self.restart_for_next_participant, daemon=True
-            ).start()
+            threading.Thread(target=self.restart_for_next_participant, daemon=True).start()
 
     def thread_exit_program(self) -> None:
         threading.Thread(target=self.exit_program, daemon=True).start()
@@ -2583,9 +2343,7 @@ class GraphomotorGUI:
 
             self.set_step("participant", "done", f"Participant ID: {pid}")
             self.set_step("device", "busy", "Device preparation checklist open")
-            self.set_next_instruction(
-                "Tick the GET THESE READY checklist while the software opens."
-            )
+            self.set_next_instruction("Tick the GET THESE READY checklist while the software opens.")
             self.show_device_prep_checklist()
 
             self.set_step("apps", "busy", "Opening apps")
@@ -2603,15 +2361,11 @@ class GraphomotorGUI:
             time.sleep(1.0)
 
             self.set_progress(34, "Opening iPad relay...")
-            self.start_powershell_command(
-                f"cd '{MINDLOGGER_RELAY_SCRIPT.parent}'; uv run '{MINDLOGGER_RELAY_SCRIPT}'"
-            )
+            self.start_powershell_command(f"cd '{MINDLOGGER_RELAY_SCRIPT.parent}'; uv run '{MINDLOGGER_RELAY_SCRIPT}'")
             time.sleep(1)
 
             self.set_progress(42, "Opening Graphomotor...")
-            self.start_powershell_command(
-                f"cd '{GRAPHOMOTOR_DIR}'; python '{GRAPHOMOTOR_SCRIPT}'"
-            )
+            self.start_powershell_command(f"cd '{GRAPHOMOTOR_DIR}'; python '{GRAPHOMOTOR_SCRIPT}'")
             time.sleep(2)
 
             self.set_step("apps", "done", "Apps opened")
@@ -2627,10 +2381,7 @@ class GraphomotorGUI:
             self.root.lift()
             self.root.focus_force()
 
-            self.set_progress(
-                54,
-                "Preparing DSI Streamer. Waiting for checklist before EEG connects...",
-            )
+            self.set_progress(54, "Preparing DSI Streamer. Waiting for checklist before EEG connects...")
             self.setup_dsi_eeg()
             self.set_step("device", "done", "Devices confirmed")
             time.sleep(0.5)
@@ -2710,9 +2461,7 @@ class GraphomotorGUI:
                 self.add_session_warning(
                     "EDA: continued with a poor/flat signal after the setup check."
                 )
-                self.set_step(
-                    "device", "warn", "EDA poor/flat - continued by researcher"
-                )
+                self.set_step("device", "warn", "EDA poor/flat - continued by researcher")
                 self.log("Continuing with poor EDA. ECG must still be moving.")
                 break
 
@@ -2748,9 +2497,7 @@ class GraphomotorGUI:
             self.close_prep_checklist()
             self.signal_checker.stop()
             self.set_progress(0, f"Setup error: {e}")
-            self.set_next_instruction(
-                "Fix the error. Then close and restart the setup when ready."
-            )
+            self.set_next_instruction("Fix the error. Then close and restart the setup when ready.")
             messagebox.showerror("Setup Error", str(e))
         finally:
             self.set_busy(False)
@@ -2774,19 +2521,13 @@ class GraphomotorGUI:
 
             if not ok:
                 neon_missing = [stream for stream in missing if stream in NEON_STREAMS]
-                other_missing = [
-                    stream for stream in missing if stream not in NEON_STREAMS
-                ]
+                other_missing = [stream for stream in missing if stream not in NEON_STREAMS]
 
                 # Neon is optional only after the researcher explicitly chooses to bypass it.
                 if neon_missing:
-                    self.set_step(
-                        "streams", "warn", f"Missing Neon: {', '.join(neon_missing)}"
-                    )
+                    self.set_step("streams", "warn", f"Missing Neon: {', '.join(neon_missing)}")
                     self.set_progress(75, "Neon stream missing.")
-                    self.set_next_instruction(
-                        "Fix Neon and retry, or explicitly continue without Neon."
-                    )
+                    self.set_next_instruction("Fix Neon and retry, or explicitly continue without Neon.")
 
                     neon_text = "\n".join(f"• {stream}" for stream in neon_missing)
                     extra_text = ""
@@ -2804,7 +2545,7 @@ class GraphomotorGUI:
                             "Missing Neon stream(s):\n\n"
                             + neon_text
                             + "\n\nCheck that the Neon glasses and phone are on and connected. "
-                            "If needed, reconnect/start Neon, then retry."
+                              "If needed, reconnect/start Neon, then retry."
                             + extra_text
                             + "\n\nIf Neon cannot be recovered, you may continue without eye tracking."
                         ),
@@ -2823,11 +2564,7 @@ class GraphomotorGUI:
                     self.add_session_warning(
                         "Neon: continued without eye tracking because Neon stream(s) were not detected."
                     )
-                    self.set_step(
-                        "neon",
-                        "warn",
-                        "Neon unavailable - continued without eye tracking",
-                    )
+                    self.set_step("neon", "warn", "Neon unavailable - continued without eye tracking")
                     self.log("Researcher explicitly chose to continue without Neon.")
 
                     # If another required stream is also missing, re-check now that
@@ -2843,17 +2580,13 @@ class GraphomotorGUI:
                 if not ok:
                     self.set_step("streams", "warn", f"Missing: {', '.join(missing)}")
                     self.set_progress(75, "Still missing streams.")
-                    self.set_next_instruction(
-                        "Fix the missing stream, then press CHECK STREAMS AGAIN in the popup."
-                    )
+                    self.set_next_instruction("Fix the missing stream, then press CHECK STREAMS AGAIN in the popup.")
                     missing_text = "\n".join(f"• {s}" for s in missing)
                     choice = BigChoiceDialog(
                         self.root,
                         "Streams missing",
                         "STREAMS MISSING",
-                        "Missing:\n\n"
-                        + missing_text
-                        + "\n\nFix the device/app, then check again.",
+                        "Missing:\n\n" + missing_text + "\n\nFix the device/app, then check again.",
                         primary_text="CHECK STREAMS AGAIN",
                         secondary_text="CANCEL",
                         bg="#7a0000",
@@ -2865,17 +2598,13 @@ class GraphomotorGUI:
                     return
 
             if self.neon_bypassed:
-                self.set_step(
-                    "streams", "warn", "Required streams found; Neon bypassed"
-                )
+                self.set_step("streams", "warn", "Required streams found; Neon bypassed")
             else:
                 self.set_step("streams", "done", "All streams found")
             self.set_step("ipad", "done", "iPad submitted")
             self.set_step("task", "busy", "Ready to start task")
             self.set_progress(95, "Ready to start task.")
-            self.set_next_instruction(
-                "All streams found. Press START TASK in the popup."
-            )
+            self.set_next_instruction("All streams found. Press START TASK in the popup.")
 
             active_streams = self.get_required_streams_for_session()
             stream_text = "\n".join(f"✓ {s}" for s in active_streams)
@@ -2886,16 +2615,13 @@ class GraphomotorGUI:
                 ready_heading = "ALL STREAMS FOUND"
 
             if self.eda_bypassed:
-                stream_text += (
-                    "\n⚠ EDA quality: poor/flat signal accepted for this participant"
-                )
+                stream_text += "\n⚠ EDA quality: poor/flat signal accepted for this participant"
 
             choice = BigChoiceDialog(
                 self.root,
                 "Ready",
                 ready_heading,
-                stream_text
-                + "\n\nPress START TASK to start LabRecorder and show Graphomotor.",
+                stream_text + "\n\nPress START TASK to start LabRecorder and show Graphomotor.",
                 primary_text="START TASK NOW",
                 secondary_text="CHECK AGAIN",
                 bg=APP_BG,
@@ -2927,39 +2653,22 @@ class GraphomotorGUI:
             ok, missing = self.check_required_streams()
             if not ok:
                 self.set_step("task", "warn", "Cannot start yet. Streams missing.")
-                self.set_next_instruction(
-                    "Streams are missing. Fix them, then check streams again."
-                )
+                self.set_next_instruction("Streams are missing. Fix them, then check streams again.")
                 self.set_phase("check_streams", "CHECK STREAMS")
-                messagebox.showwarning(
-                    "Cannot Start Task", "Missing streams:\n\n" + "\n".join(missing)
-                )
+                messagebox.showwarning("Cannot Start Task", "Missing streams:\n\n" + "\n".join(missing))
                 return
             self.show_wait_overlay("WAIT")
             win = self.connect_labrecorder()
             self.log("Selecting all LabRecorder streams...")
-            win.child_window(
-                title="Select All",
-                auto_id="MainWindow.centralwidget.groupBox_streams.selectAllButton",
-                control_type="Button",
-            ).click_input()
+            win.child_window(title="Select All", auto_id="MainWindow.centralwidget.groupBox_streams.selectAllButton", control_type="Button").click_input()
             time.sleep(0.8)
             self.log("Starting LabRecorder recording...")
-            win.child_window(
-                title="Start",
-                auto_id="MainWindow.centralwidget.groupBox_recording.startButton",
-                control_type="Button",
-            ).click_input()
+            win.child_window(title="Start", auto_id="MainWindow.centralwidget.groupBox_recording.startButton", control_type="Button").click_input()
             if not self.verify_labrecorder_started():
                 self.set_step("task", "error", "LabRecorder not confirmed")
-                self.set_next_instruction(
-                    "Check LabRecorder manually, then try START TASK again."
-                )
+                self.set_next_instruction("Check LabRecorder manually, then try START TASK again.")
                 self.set_phase("start_task", "NEXT: START TASK")
-                messagebox.showerror(
-                    "LabRecorder Not Confirmed",
-                    "Start was clicked, but recording was not confirmed. Check LabRecorder manually.",
-                )
+                messagebox.showerror("LabRecorder Not Confirmed", "Start was clicked, but recording was not confirmed. Check LabRecorder manually.")
                 return
             self.hide_wait_overlay()
             self.recording_is_running = True
@@ -2967,27 +2676,19 @@ class GraphomotorGUI:
             self.start_ipad_monitor_after_labrecorder()
             self.set_step("task", "done", "Task started")
             self.set_step("cleanup", "busy", "Waiting for task to finish")
-            self.set_progress(
-                100, "LabRecorder recording confirmed. Showing Graphomotor."
-            )
-            self.set_next_instruction(
-                "Graphomotor is running. Finish the task. The GUI will close recordings safely."
-            )
+            self.set_progress(100, "LabRecorder recording confirmed. Showing Graphomotor.")
+            self.set_next_instruction("Graphomotor is running. Finish the task. The GUI will close recordings safely.")
             self.set_phase("task_running", "TASK RUNNING")
             self.root.attributes("-topmost", False)
             self.root.iconify()
-            app = Application(backend="uia").connect(
-                title_re=".*Graphomotor Protocol.*"
-            )
+            app = Application(backend="uia").connect(title_re=".*Graphomotor Protocol.*")
             graph_win = app.window(title_re=".*Graphomotor Protocol.*")
             graph_win.set_focus()
             self.start_cleanup_watcher()
         except Exception as e:
             self.hide_wait_overlay()
             self.set_progress(0, f"Start task error: {e}")
-            self.set_next_instruction(
-                "Fix the task start error, then try START TASK again."
-            )
+            self.set_next_instruction("Fix the task start error, then try START TASK again.")
             self.set_phase("start_task", "NEXT: START TASK")
             messagebox.showerror("Start Task Error", str(e))
         finally:
@@ -2997,17 +2698,13 @@ class GraphomotorGUI:
         if self.cleanup_started:
             return
         self.cleanup_started = True
-        threading.Thread(
-            target=self.wait_for_graphomotor_and_cleanup, daemon=True
-        ).start()
+        threading.Thread(target=self.wait_for_graphomotor_and_cleanup, daemon=True).start()
 
     def wait_for_graphomotor_and_cleanup(self) -> None:
         self.log("Waiting for Graphomotor window to close...")
         while True:
             try:
-                Application(backend="uia").connect(
-                    title_re=".*Graphomotor Protocol.*", timeout=2
-                )
+                Application(backend="uia").connect(title_re=".*Graphomotor Protocol.*", timeout=2)
                 time.sleep(2)
             except Exception:
                 break
@@ -3047,9 +2744,7 @@ class GraphomotorGUI:
         self.status_var.set("Ready for next participant.")
         self.progress_var.set(0)
         self.warning_var.set("")
-        self.set_next_instruction(
-            "Done. Enter the next participant ID and press START."
-        )
+        self.set_next_instruction("Done. Enter the next participant ID and press START.")
         self.show_start_button_for_new_participant()
         self.set_phase("start_setup", "START")
         self.show_start_button_for_new_participant()
@@ -3073,9 +2768,7 @@ class GraphomotorGUI:
 
         # 1) Stop recordings in the safe order.
         if self.neon_bypassed:
-            self.log(
-                "Neon was bypassed for this participant; skipping Neon Stop Recording click."
-            )
+            self.log("Neon was bypassed for this participant; skipping Neon Stop Recording click.")
         else:
             self.log("Stopping Neon before LabRecorder...")
             try:
@@ -3092,9 +2785,7 @@ class GraphomotorGUI:
         time.sleep(1)
 
         # 2) Close visible windows by title first.
-        self.log(
-            "Closing OpenSignals, LabRecorder, DSI2LSL, DSI Streamer, Neon, Graphomotor, and terminal windows..."
-        )
+        self.log("Closing OpenSignals, LabRecorder, DSI2LSL, DSI Streamer, Neon, Graphomotor, and terminal windows...")
         try:
             self.close_graphomotor_windows()
         except Exception:
@@ -3148,9 +2839,7 @@ class GraphomotorGUI:
 
     def restart_for_next_participant(self) -> None:
         try:
-            self.set_next_instruction(
-                "Restarting: closing leftover apps and resetting the checklist..."
-            )
+            self.set_next_instruction("Restarting: closing leftover apps and resetting the checklist...")
             self.set_progress(0, "Restarting for next participant...")
             self.close_all_apps()
             time.sleep(1)

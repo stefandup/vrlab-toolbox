@@ -9,6 +9,7 @@ from pathlib import Path
 from tkinter import messagebox, simpledialog
 import tkinter as tk
 
+
 REQUIRED_PACKAGES = [
     ("pywinauto", "pywinauto"),
     ("win32gui", "pywin32"),
@@ -22,15 +23,13 @@ def package_installed(import_name: str) -> bool:
 
 
 def install_package(package_name: str) -> None:
-    subprocess.check_call(
-        [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            package_name,
-        ]
-    )
+    subprocess.check_call([
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        package_name,
+    ])
 
 
 def check_and_install_packages() -> None:
@@ -52,7 +51,7 @@ def check_and_install_packages() -> None:
         "Missing packages",
         "Some required packages are missing:\n\n"
         f"{names}\n\n"
-        "Press YES to install them now.",
+        "Press YES to install them now."
     )
 
     if not ok:
@@ -63,7 +62,8 @@ def check_and_install_packages() -> None:
 
     messagebox.showinfo(
         "Packages installed",
-        "Packages installed successfully.\n\n" "The program will now continue.",
+        "Packages installed successfully.\n\n"
+        "The program will now continue."
     )
 
     root.destroy()
@@ -74,25 +74,32 @@ check_and_install_packages()
 from pywinauto import Desktop
 from automation_layer import setup_opensignals
 
-BASE_DIR = Path(r"C:\Users\MoBI-Midtown")
+
+BASE_DIR = Path.home()
 
 LABRECORDER_EXE = BASE_DIR / "LabRecorder" / "LabRecorder.exe"
 
-OPENSIGNALS_EXE = Path(r"C:\Plux\OpenSignals (r)evolution\OpenSignals.exe")
+OPENSIGNALS_EXE = Path(
+    r"C:\Plux\OpenSignals (r)evolution\OpenSignals.exe"
+)
 
 NEON_GUI_DIR = BASE_DIR / "neon-gui"
 
-GRAPHOMOTOR_DIR = Path(
-    r"C:\Users\MoBI-Midtown\graphomotor_CMI_mooi\src\graphomotor_protocol"
+GRAPHOMOTOR_DIR = BASE_DIR / "graphomotor_CMI_mooi" / "src" / "graphomotor_protocol"
+
+GRAPHOMOTOR_SCRIPT = (
+    GRAPHOMOTOR_DIR / "graphomotor_older_mooi.py"
 )
 
-GRAPHOMOTOR_SCRIPT = GRAPHOMOTOR_DIR / "graphomotor_older_mooi.py"
+WINDOW_MX_DIR = BASE_DIR / "Automate" / "Graphomotor" / "Code"
 
-WINDOW_MX_DIR = Path(r"C:\Users\MoBI-Midtown\Automate\Graphomotor\Code")
+AUTO_ARRANGE_SCRIPT = (
+    WINDOW_MX_DIR / "auto_arrange_windows.py"
+)
 
-AUTO_ARRANGE_SCRIPT = WINDOW_MX_DIR / "auto_arrange_windows.py"
-
-WINDOW_LAYOUT_JSON = WINDOW_MX_DIR / "graphomotor_window_layout.json"
+WINDOW_LAYOUT_JSON = (
+    WINDOW_MX_DIR / "graphomotor_window_layout.json"
+)
 
 # Neon Scene Camera Recorder coordinates.
 # These are the coordinates you gave:
@@ -108,7 +115,10 @@ def get_participant_id() -> str:
     root = tk.Tk()
     root.withdraw()
 
-    participant_id = simpledialog.askstring("Participant ID", "Enter participant ID:")
+    participant_id = simpledialog.askstring(
+        "Participant ID",
+        "Enter participant ID:"
+    )
 
     root.destroy()
 
@@ -139,7 +149,9 @@ def wait_for_window(title_contains: str, timeout: int = 30):
 
     while time.time() < end_time:
         try:
-            win = Desktop(backend="uia").window(title_re=f".*{title_contains}.*")
+            win = Desktop(backend="uia").window(
+                title_re=f".*{title_contains}.*"
+            )
 
             if win.exists(timeout=1):
                 print(f"[FOUND] Window: {title_contains}")
@@ -178,7 +190,7 @@ def setup_neon_recording(recording_name: str) -> None:
         messagebox.showwarning(
             "Neon not found",
             "Could not find the Neon Scene Camera Recorder window.\n\n"
-            "Please start Neon manually and then start recording manually.",
+            "Please start Neon manually and then start recording manually."
         )
         return
 
@@ -268,7 +280,7 @@ def setup_labrecorder_filename_and_start(recording_name: str) -> None:
             "LabRecorder filename",
             "Could not automatically enter the LabRecorder filename.\n\n"
             f"Please enter this manually:\n\n{recording_name}\n\n"
-            "Then press OK here and the script will try to press Start.",
+            "Then press OK here and the script will try to press Start."
         )
 
     print("[INFO] Starting LabRecorder recording...")
@@ -299,7 +311,7 @@ def setup_labrecorder_filename_and_start(recording_name: str) -> None:
         messagebox.showwarning(
             "LabRecorder Start",
             "Could not automatically press Start in LabRecorder.\n\n"
-            "Please press Start manually now.",
+            "Please press Start manually now."
         )
 
 
@@ -340,11 +352,13 @@ class GraphomotorSessionLauncher:
     def launch_neon(self) -> None:
         """
         Launch Neon the same way as the older working launcher:
-        cd into C:\\Users\\MoBI-Midtown\\neon-gui, then run uv run main.py.
+        cd into <home>/neon-gui, then run uv run main.py.
         """
         print("[INFO] Opening Neon Scene Camera Recorder...")
 
-        self.start_powershell_command(f"cd '{NEON_GUI_DIR}'; uv run main.py")
+        self.start_powershell_command(
+            f"cd '{NEON_GUI_DIR}'; uv run main.py"
+        )
 
         print("[WAIT] Waiting for Neon Scene Camera Recorder to open...")
 
@@ -368,9 +382,7 @@ class GraphomotorSessionLauncher:
 
         if not neon_found:
             print("[WARN] Neon did not appear within 45 seconds.")
-            print(
-                "[WARN] Continuing anyway. Check the Neon PowerShell window for errors."
-            )
+            print("[WARN] Continuing anyway. Check the Neon PowerShell window for errors.")
 
     def launch_apps(self) -> None:
         print("[INFO] Opening LabRecorder...")
@@ -389,7 +401,8 @@ class GraphomotorSessionLauncher:
 
         print("[INFO] Opening Graphomotor...")
         self.start_powershell_command(
-            f"cd '{GRAPHOMOTOR_DIR}'; " f"python '{GRAPHOMOTOR_SCRIPT}'"
+            f"cd '{GRAPHOMOTOR_DIR}'; "
+            f"python '{GRAPHOMOTOR_SCRIPT}'"
         )
 
     def wait_for_apps(self, seconds: int = 8) -> None:
@@ -399,16 +412,21 @@ class GraphomotorSessionLauncher:
     def apply_window_layout(self) -> None:
         if not AUTO_ARRANGE_SCRIPT.exists():
             print(
-                f"[WARN] auto_arrange_windows.py not found: " f"{AUTO_ARRANGE_SCRIPT}"
+                f"[WARN] auto_arrange_windows.py not found: "
+                f"{AUTO_ARRANGE_SCRIPT}"
             )
             return
 
         if not WINDOW_LAYOUT_JSON.exists():
-            print(f"[WARN] Layout JSON not found: " f"{WINDOW_LAYOUT_JSON}")
+            print(
+                f"[WARN] Layout JSON not found: "
+                f"{WINDOW_LAYOUT_JSON}"
+            )
             return
 
         command = (
-            f"python '{AUTO_ARRANGE_SCRIPT}' " f"apply --config '{WINDOW_LAYOUT_JSON}'"
+            f"python '{AUTO_ARRANGE_SCRIPT}' "
+            f"apply --config '{WINDOW_LAYOUT_JSON}'"
         )
 
         print("[INFO] Applying saved window layout...")
