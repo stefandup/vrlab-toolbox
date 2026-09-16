@@ -40,6 +40,7 @@ vrlab_longwalk_process = "vrlab_toolbox.cli.vrlab_longwalk_process:main"
 vrlab_longwalk_process_GUI = "vrlab_toolbox.gui.longwalk_process_results_gui:main"
 vrlab_toolbox_launcher = "vrlab_toolbox.gui.toolbox_launcher:main"
 vrlab_check_xdf = "vrlab_toolbox.cli.check_xdf:main"
+vrlab_redcap_pull = "vrlab_toolbox.gui.redcap_pull_gui:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
