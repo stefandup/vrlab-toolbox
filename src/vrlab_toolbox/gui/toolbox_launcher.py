@@ -47,6 +47,12 @@ GUI_TOOL_GROUPS = (
             ("Longwalk Process Results", "vrlab_longwalk_process_GUI.exe"),
         ),
     ),
+    (
+        "Data",
+        [
+            ("REDCap Pull", "vrlab_redcap_pull.exe"),
+        ],
+    ),
 )
 
 CLI_TOOLS = (
