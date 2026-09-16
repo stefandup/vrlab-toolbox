@@ -1,0 +1,1668 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../pipeline_next_steps/">
+      
+      
+        <link rel="next" href="../clock_drift_error/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/vrlab_icon.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Milestones - VRLab Toolbox</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#crane-pipeline-milestones" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="VRLab Toolbox" class="md-header__button md-logo" aria-label="VRLab Toolbox" data-md-component="logo">
+      
+  <img src="../assets/images/vrlab_icon.ico" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            VRLab Toolbox
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Milestones
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="VRLab Toolbox" class="md-nav__button md-logo" aria-label="VRLab Toolbox" data-md-component="logo">
+      
+  <img src="../assets/images/vrlab_icon.ico" alt="logo">
+
+    </a>
+    VRLab Toolbox
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why This Toolbox Exists
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For Users
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    For Users
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    1. Prepare Your Data
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    1. Prepare Your Data
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crosschecking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crosschecking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../foh-crosscheck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FOH Crosscheck
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane-crosscheck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crane Crosscheck
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2. Process Your Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3. Check Your Output
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    3. Check Your Output
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../eda/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    EDA & SCRs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../foh-output/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FOH Output Checks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interval-qc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crane Output Checks (Interval QC)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For Contributors
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    For Contributors
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-use/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Use Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dev-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../code-organization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Organization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../golden-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Golden Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline-concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lab-streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lab Streaming (LSL/XDF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core-classes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Data Classes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids-crosscheck-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Crosscheck Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitHub Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building & Releasing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project Notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline_next_steps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Next Steps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Milestones
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Milestones
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-this-file-grows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How this file grows
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../clock_drift_error/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clock Drift Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane_interactive_qc_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interactive QC Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids_crosscheck_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Crosscheck Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids_converter_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Converter Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-style-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Style Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-this-file-grows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How this file grows
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="crane-pipeline-milestones">Crane Pipeline Milestones</h1>
+<p>Running log of architectural/skill milestones in this repo, for REVIEW mode
+(see <code>AGENTS.md</code>) to compare current work against. Not a full changelog —
+only entries that mark a real shift in approach (new pattern, new tooling,
+new discipline), so progress over months is visible at a glance.</p>
+<table>
+<thead>
+<tr>
+<th>Date</th>
+<th>Commit</th>
+<th>Milestone</th>
+<th>Why it matters</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-03-11</td>
+<td><code>70e2d40</code></td>
+<td>First EDA/XDF processing script (<code>check_plux_data.py</code>)</td>
+<td>Flat exploratory script: hardcoded paths, <code>print()</code> diagnostics, no tests, no modules. The baseline to measure everything else against.</td>
+</tr>
+<tr>
+<td>2026-04-14</td>
+<td><code>a6a8d52</code></td>
+<td>Refactor check_plux_data into focused processing modules</td>
+<td>First split from one script into separate processing modules.</td>
+</tr>
+<tr>
+<td>2026-04-16</td>
+<td><code>fa18788</code> / <code>c55501b</code></td>
+<td>Added basic logging, then improved it</td>
+<td><code>print()</code> → <code>logging</code> module. Diagnostics become structured and filterable.</td>
+</tr>
+<tr>
+<td>2026-06-10</td>
+<td><code>fa5e52d</code></td>
+<td>Added basic unit test to crane pipeline</td>
+<td>First test in the crane path — testing becomes part of the workflow, not an afterthought.</td>
+</tr>
+<tr>
+<td>2026-06-19</td>
+<td><code>d444a5c</code></td>
+<td>Implemented status class</td>
+<td>Processing outcomes become a typed <code>Status</code>/<code>PipelineStatus</code> object instead of ad-hoc bools/strings.</td>
+</tr>
+<tr>
+<td>2026-07-01</td>
+<td><code>189389a</code></td>
+<td>Added template and strategy base classes. Refactored key data types</td>
+<td>Strategy/Template pattern introduced — the architectural turning point from "pipeline as a sequence of function calls" to "pipeline as composable, typed steps."</td>
+</tr>
+<tr>
+<td>2026-07-06</td>
+<td><code>1b700df</code> / <code>11177da</code></td>
+<td>Added Ruff settings, initial ruff reformat</td>
+<td>Static analysis and consistent formatting adopted project-wide.</td>
+</tr>
+<tr>
+<td>2026-07-17</td>
+<td><code>032d3dd</code></td>
+<td>First implementation of <code>pipeline.py</code> for crane. Tests passed</td>
+<td>First green run of the new pipeline architecture end-to-end.</td>
+</tr>
+<tr>
+<td>2026-07-22</td>
+<td><code>2d91140</code></td>
+<td>Tidied up a bit. Added deprecation warnings</td>
+<td><code>@deprecated</code> used to retire flawed logic explicitly instead of silently deleting or leaving it live — keeps the migration honest.</td>
+</tr>
+<tr>
+<td>2026-07-24</td>
+<td><code>4ca8143</code> (WIP tip at last REVIEW)</td>
+<td>Logging added; pipeline runs through alignment; edge-case tests in place but 3 still failing</td>
+<td>Most recent REVIEW checkpoint. Trigger/behaviour alignment refactored to return real <code>PipelineStatus</code> (was previously a stub); remaining gaps are documented edge cases (<code>PID4572</code>, <code>PID16230</code>, <code>PID9188</code>), not silent failures.</td>
+</tr>
+<tr>
+<td>2026-07-24</td>
+<td><code>cc639d9</code> (WIP tip)</td>
+<td>Placeholder <code>pass</code> tests replaced with real assertions; <code>align_biopac_trigger_drift_from_behav_file</code> stopped discarding its own result</td>
+<td>The 6 edge-case tests that were silent <code>pass</code> stubs now assert and fail loudly where the algorithm genuinely can't yet handle the subject's data — test red is now signal, not a gap in coverage. Also added a <code>remove_crane_delayed_start</code> heuristic and switched <code>fill_in_gaps</code> to return a new sorted <code>TrialIntervals</code> instead of mutating in place.</td>
+</tr>
+<tr>
+<td>2026-07-28</td>
+<td><code>669645e</code></td>
+<td><code>PipelineStatus</code> rewritten to type-keyed tracking; two <code>UnboundLocalError</code> classes of bug root-caused and fixed via captured-output-type-before-<code>try</code>; <code>None</code>-input guard added instead of widening an <code>except</code> tuple; dead code (<code>CraneDebriefOutputData</code>) deleted rather than left to rot</td>
+<td>The two <code>SequentialBehaviourImportSteps</code>/<code>SequentialPhysiolgyImportSteps</code> bugs and the <code>AttributeError</code>-swallowing fix show a specific, reusable diagnostic move — noticing that catching a broad exception type is "working by luck," not by design — and choosing the narrower, more correct fix over the shortcut, even after the shortcut already made tests pass. All three previously-<code>@unittest.skip</code>ped tests are unskipped and green.</td>
+</tr>
+</tbody>
+</table>
+<p>| 2026-07-30 | <code>af1d483</code> (WIP tip) | LSL/FOH begins moving onto shared raw-data contracts | <code>LslPhysiologyDataImportStrategy</code> now returns <code>RawBioData</code>, and raw physiology labels are normalized at the contract boundary; this shows the pipeline architecture starting to become reusable toolbox infrastructure rather than Crane-only structure. |
+| 2026-08-07 | <code>f720a47</code> (WIP tip) | Batch CLI (<code>mobi_FOH_process_batch.py</code>) migrated from deprecated <code>run_lsl_pipeline</code> to <code>run_pipeline</code>/<code>PipelineTemplate</code>; <code>test_basic_foh_pipeline</code> strengthened from a single truthiness check to per-datatype status + figure assertions | First real entry point proving the FOH <code>PipelineTemplate</code> end-to-end through an actual CLI, not just direct unit tests. <code>mobi_FOH_process.py</code> (the single-file CLI) was deliberately left on the deprecated path rather than migrated in the same commit — matches this project's own "one structural issue at a time" working rule, not an oversight. |</p>
+<p>| 2026-08-14 | <code>192385f</code> (WIP tip) | BIDS Crosscheck tool built end-to-end: <code>bids_crosscheck.py</code> module (atomic JSON writes, cross-platform case-insensitive collision handling, full audit trail of renames/junking/reverts), a shared PySide6 GUI driving both a Crane and a FOH variant, and 810 lines of passing tests | The design doc referenced by a prior REVIEW (<code>bids_crosscheck_plan.md</code>) is now real, working infrastructure, not just a plan. Architecturally significant beyond the tool itself: <code>ParticipantConfig.from_lsl_data</code> (<code>input_data.py</code>) now <em>raises</em> on zero or multiple matching physiology files instead of silently guessing "last one" — safe only because the crosscheck tool now guarantees exactly one file per subject/scan-type upstream. That's a whole-system contract change reasoned from a sibling tool's guarantees, not a local fix. |
+| 2026-08-24 | <code>a5dfd37</code> (PR #5) | First outside contribution merged: a student (<code>suzeschulenburg</code>) adds the graphomotor/spiral pipeline (<code>spiral.py</code>, <code>graphomotor_pipeline.py</code>, <code>graphomotor_qc.py</code>, <code>graphomotor_xdf.py</code>, 382 lines of passing tests) and a standalone <code>pull_redcap.py</code> puller | First real multi-contributor workflow, not just solo commits — and the first evidence of what needs to be taught explicitly rather than absorbed from the codebase: the pipeline code picks up the project's own conventions well (dataclasses, type hints, logging, decomposed modules, self-written tests), but <code>pull_redcap.py</code> is a flat top-level script with <code>print()</code>-debugging, no <code>main()</code>/click wrapper, and a committed <code>API_TOKEN = ""</code> placeholder — a credential-shaped landmine if ever filled in and committed live. Both PRs (#5, #6) were merged by the <code>28866630</code> account, not reviewed/merged by <code>stefan</code> — worth tightening given the mixed quality. |
+| 2026-08-28 | WIP tip (uncommitted) | Packaging grows from "build one exe" into a real distribution pipeline: all 11 PyInstaller specs moved into <code>specs/</code> and rewritten around <code>REPO_ROOT = SPECPATH/..</code> so they're relocatable regardless of invocation directory; a new <code>vrlab_toolbox_launcher.py</code> PySide6 window fronts every GUI tool; <code>toolbox_installer.iss</code> (Inno Setup) bundles all built exes into one no-admin, per-user installer that manages its own <code>PATH</code> entry; <code>build.ps1</code> and <code>release.yml</code> rewritten in lockstep to drive the same sequence locally and in CI | First time the project reasons about <em>deployment</em> as a system rather than "does this one script produce an exe": explicit no-admin rationale for lab machines, <code>DiskSpanning</code> pre-empting a size limit before it's hit, <code>WM_SETTINGCHANGE</code> broadcast so PATH updates apply without a logoff, and docs (<code>packaging.md</code>) that name the remaining gap (<code>build_mac.sh</code> still only builds two tools, plainly) rather than paper over it. |
+| 2026-08-28 | <code>b5e71e0</code> (WIP tip) | REVIEW confirms test-backed triage after the packaging push: full suite now isolates one live FOH batch regression while Crane/BIDS/packaging work stays broadly coherent with the docs | Shows a more competent maintenance loop: compare docs to code, run the suite, distinguish real red tests from stale notes, and preserve a short punch list instead of rewriting architecture on impulse. |
+| 2026-09-01 | <code>3a7fe55</code> (WIP tip) | Root-caused the installer's silent upgrade-overwrite failure with two real bugs, not one guess: <code>GetUninstallString</code>'s registry key was missing the braces Inno actually wraps its <code>AppId</code> in (always querying a key that could never exist), then <code>RemoveQuotes</code> mangling <code>QuietUninstallString</code>'s trailing <code>/SILENT</code> into the exe path once the first bug was fixed. Confirmed via temporary <code>MsgBox</code> instrumentation in <code>[Code]</code> rather than re-guessing, then removed once both were verified fixed. Installer filenames and <code>AppVersion</code> now carry the git tag (<code>MooiToolboxSetup-v0.7.2.exe</code>), aligned between <code>build.ps1</code> and <code>release.yml</code> | Shows debugging a black-box (Pascal Script inside a compiled installer) by adding your own instrumentation and reading the evidence back, instead of pattern-matching to the first plausible cause — the first fix (registry key) looked complete but wasn't; only the second debug run surfaced the quoting bug underneath it. |
+| 2026-09-01 | <code>f596c44</code> (HEAD) | Crosscheck decisions storage rewritten from one-entry-per-key to full history-per-key (<code>_append_decision</code>/<code>_latest_decision</code>, transparent old-shape migration in <code>load_decisions</code>), unlocking per-subject "Restore from raw..." and a <code>revert_all_decisions</code> that now walks a whole correction chain instead of only its latest step; paired with a new disaster-recovery pair (<code>backup_decisions</code>/<code>rebuild_from_raw</code>) that replays a backed-up <code>crosscheck.json</code> onto a fresh raw re-import pass-by-pass until nothing more resolves. Crane's raw-filename and debrief-record_id ambiguity (a "(N)" duplicate-copy marker, two subjects sharing one literal <code>record_id</code>) is now surfaced to a human instead of guessed either way. REVIEW's own full-suite run (8 failed / 133 passed / 3 skipped) caught a real regression from this window: <code>crane_debrief_behaviour.py</code> dropped the <code>High_at_start_end</code> column from both schema and dummy-data generator, but the checked-in <code>examples/crane_bids_dummy/</code> fixture was never regenerated to match, so pandera's now-actually-enforced validation (<code>get_group_debrief_data</code> previously computed and discarded its own <code>.validate()</code> result -- a real bug <code>e8e012b</code> fixed) rejects the stale extra column across 5 dummy-data tests; a 6th failure against real committed data (<code>sub-00011</code>) is that same enforcement correctly catching a genuinely incomplete debrief export, not a code bug; a 7th is a one-line test-authoring gap (missing <code>sub-002/</code> folder in a new backup test); the 8th (<code>test_crane_batch_processing</code>, FOH) is the same pre-existing failure <code>b5e71e0</code>'s REVIEW already isolated, not new. | Shows the payoff of making pandera validation actually run (previously silent no-op): it immediately started catching a real stale-fixture regression and a real incomplete-data subject in the same run it was fixed in -- the fixture-regen step just hadn't caught up yet, which is a process gap (verify after a schema trim), not a design flaw. |</p>
+<h2 id="how-this-file-grows">How this file grows</h2>
+<p>After each REVIEW, append one new row: date, commit hash (or "WIP tip" if
+uncommitted), a short milestone label, and a one-line note on what it
+demonstrates skill-wise. Keep entries to real shifts in approach, not every
+commit — this file is meant to stay short enough to read in one pass years
+from now.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../pipeline_next_steps/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Next Steps">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Next Steps
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../clock_drift_error/" class="md-footer__link md-footer__link--next" aria-label="Next: Clock Drift Notes">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Clock Drift Notes
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.footer"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

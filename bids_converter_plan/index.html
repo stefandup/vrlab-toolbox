@@ -1,0 +1,1795 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../bids_crosscheck_plan/">
+      
+      
+        <link rel="next" href="../ai-style-guide/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/vrlab_icon.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>BIDS Converter Plan - VRLab Toolbox</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#bids-converter-plan" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="VRLab Toolbox" class="md-header__button md-logo" aria-label="VRLab Toolbox" data-md-component="logo">
+      
+  <img src="../assets/images/vrlab_icon.ico" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            VRLab Toolbox
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              BIDS Converter Plan
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="VRLab Toolbox" class="md-nav__button md-logo" aria-label="VRLab Toolbox" data-md-component="logo">
+      
+  <img src="../assets/images/vrlab_icon.ico" alt="logo">
+
+    </a>
+    VRLab Toolbox
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why This Toolbox Exists
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For Users
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    For Users
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    1. Prepare Your Data
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    1. Prepare Your Data
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crosschecking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crosschecking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../foh-crosscheck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FOH Crosscheck
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane-crosscheck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crane Crosscheck
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2. Process Your Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3. Check Your Output
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    3. Check Your Output
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../eda/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    EDA & SCRs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../foh-output/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FOH Output Checks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interval-qc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crane Output Checks (Interval QC)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For Contributors
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    For Contributors
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-use/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Use Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dev-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../code-organization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Organization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../golden-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Golden Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline-concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lab-streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lab Streaming (LSL/XDF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core-classes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Data Classes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids-crosscheck-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Crosscheck Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitHub Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building & Releasing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project Notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline_next_steps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Next Steps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane_milestones/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Milestones
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../clock_drift_error/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clock Drift Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane_interactive_qc_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interactive QC Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids_crosscheck_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Crosscheck Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Converter Plan
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Converter Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#known-constraints-from-related-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known constraints from related work
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#todo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TODO
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#out-of-scope-for-now" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Out of scope for now
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-style-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Style Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#known-constraints-from-related-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known constraints from related work
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#todo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TODO
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#out-of-scope-for-now" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Out of scope for now
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="bids-converter-plan">BIDS Converter Plan</h1>
+<h2 id="overview">Overview</h2>
+<p><code>bids_crosscheck_plan.md</code>'s crosscheck tool assumes a populated BIDS folder
+already exists to point it at. This page tracks that earlier step —
+raw-to-BIDS conversion — which now exists for both datasets (see the updates
+below), each living in its own <code>cli/</code> module rather than being an external,
+outside-this-repo tool. <code>pipeline_next_steps.md</code> item 22 flags "move toward
+BIDS" as a direction for the import layer, but that's about
+<code>ParticipantConfig</code> reading from timepoint folders, not about producing a
+BIDS folder in the first place.</p>
+<p><strong>Update: crane's converter now exists</strong> — <code>cli/crane_convert_to_bids.py</code>
+(<code>convert_crane_to_bids()</code>), copy-only and incremental (skips subjects
+already present in the output folder), integrated directly into
+<code>gui/crane_bids_crosscheck_gui.py</code> via a "Convert to BIDS..." button (raw
+folder + BIDS folder + an optional debrief-workbook override selector, all
+in the crosscheck window itself — see <code>bids_crosscheck_common.py</code>'s generic
+<code>raw_converter</code>/<code>override_file_label</code> hooks, which FOH doesn't use and gets
+no UI for). The debrief design idea below is implemented as described: each
+subject gets their own extracted row, written <code>..._acq-debrief_run-001_beh.tsv</code>
+(tab-delimited, not the whole shared workbook). <strong>Update: FOH's importer now exists too</strong> — <code>cli/foh_import_to_bids.py</code>
+(<code>import_foh_raw_to_bids()</code>), wired into <code>gui/foh_bids_crosscheck_gui.py</code> the
+same way as crane's, via the same generic <code>raw_converter</code> hook. Unlike
+crane's, it's a plain recursive copy, not a real conversion: FOH's raw
+recording software already writes each subject's <code>.xdf</code> files straight into
+a real <code>sub-XXX/ses-.../eeg/</code> BIDS layout at the point of recording (see
+<a href="../foh-crosscheck/#2-point-it-at-your-raw-folder-and-import">FOH Crosscheck</a>),
+so there's no filename reshaping or per-subject-id parsing to do — just
+<code>existing_subject_ids()</code> (moved into <code>processing/bids_crosscheck.py</code> so both
+importers share it) to decide which <code>sub-XXX/</code> folders are new, then
+<code>shutil.copytree()</code> for each. No debrief-equivalent complexity, so it skips
+the <code>override_file_label</code>/<code>extra_raw_action</code> hooks crane's wiring uses.</p>
+<p><strong>TODO: schema-validate the debrief workbook input.</strong> The converter
+currently reads whatever the REDCAP export happens to contain and does
+best-effort header/dtype normalization (case-insensitive column matching, a
+dash-insensitive PID id fix, forced text dtype for Subject_ID) rather than
+validating the shape up front. REDCAP exports are human-triggered, and
+someone taking liberties with the export options (wrong columns, wrong
+format) is exactly the kind of thing a schema check — reusing or adapting
+<code>crane_debrief_behaviour.crane_raw_debrief_file_schema</code> — would catch with a
+clear error instead of a silent downstream mismatch (see the real incident:
+83 subjects came back "no debrief row found" before the dtype bug was
+found). Not done yet: needs a real design pass on what "invalid enough to
+reject" means for a converter that's meant to dump, not decide — a schema
+strict enough to catch real mistakes but not so strict it rejects
+legitimate export variations needs actual thought, not a quick add.</p>
+<p><strong>Decision: the dummy-data generator stays a separate, dev-only CLI tool --
+not part of the crosscheck GUI.</strong> <code>crane_generate_sample_data</code>
+(<code>crane_dummy_data.py</code>) exists purely to produce synthetic data for local
+development and testing; it has nothing to do with reviewing real
+participant data, which is what the crosscheck window is for. A "Generate
+dummy data..." button was briefly wired into the crosscheck window's raw-folder
+actions and then removed again -- worth noting so it doesn't get
+re-added by mistake later. Along the way this surfaced a real point of
+confusion worth recording: the crosscheck window's "Last conversion" panel
+only reflects conversions run <em>from that window's own "Refresh BIDS" button,
+in the current session</em> -- generating data or converting via the standalone
+CLIs (<code>crane_generate_sample_data</code>, <code>crane_convert_to_bids</code>) and then pointing
+the crosscheck window at the result leaves the panel reading "No conversion
+run yet.", correctly, since no conversion happened through the window itself.
+That's expected, not a bug.</p>
+<p><strong>Update: <code>crane_generate_sample_data</code> can now also convert what it
+generates.</strong> A new optional <code>--bids-folder</code> flag runs the freshly-generated
+raw data straight through <code>crane_convert_to_bids.convert_crane_to_bids</code>,
+printing both the "Generated crane dummy data" and "Crane raw -&gt; BIDS
+conversion" tables in one call -- e.g.
+<code>crane_generate_sample_data examples/crane_templates examples --with-errors --seed 42 --bids-folder examples/crane_bids_dummy</code>
+(<code>examples/crane_bids_dummy</code> is the actual folder <code>tests/test_crane_pipeline.py</code>
+now reads from -- see docs/testing.md).
+<code>output_folder</code> (the plain raw CraneOut folder) is always written regardless
+of whether <code>--bids-folder</code> is given; the BIDS folder is purely additive. See
+the README's "Generate sample data" section and docs/testing.md for the
+user-facing writeup.</p>
+<p><strong>Update: crane naming moved to real BIDS conventions (no date in filenames).</strong>
+A student reviewing the output pointed out the filenames weren't real BIDS
+(<code>{date}_sub-XXX_run-001_{suffix}.ext</code>, date first) -- real BIDS never puts a
+date in a scan filename; per-scan acquisition dates belong in a
+<code>sub-XXX/ses-01/sub-XXX_ses-01_scans.tsv</code> sidecar instead (<code>filename</code>,
+<code>acq_time</code> columns, one row per file). Decided:</p>
+<ul>
+<li>New layout: <code>sub-XXX/ses-01/beh/sub-XXX_ses-01_task-crane_acq-&lt;label&gt;_run-001_{suffix}.ext</code>,
+  plus <code>sub-XXX/ses-01/sub-XXX_ses-01_scans.tsv</code> listing every file underneath
+  with its date.</li>
+<li><code>ses-01</code> is a fixed placeholder, same spirit as <code>run-001</code> -- crane has no
+  real multi-session concept today, so no session-detection logic was added.</li>
+<li>Suffixes: <code>physiology</code> -&gt; <code>physio</code> (real BIDS suffix, <code>.mat</code>, raw copy),
+  <code>behaviour</code> -&gt; <code>events</code> (real BIDS suffix for per-trial task/timing data --
+  reformatted from the raw <code>.csv</code> to true tab-delimited <code>.tsv</code> on copy, since
+  BIDS requires <code>.tsv</code> for <code>_events</code>), <code>debrief</code> -&gt; <code>beh</code> (real BIDS suffix
+  for genuinely behavioural, non-timing data -- the REDCAP post-task
+  questionnaire; already tab-delimited, so this was a pure suffix rename).
+  Every filename also carries an <code>acq-&lt;label&gt;</code> entity
+  (<code>acq-physiology</code>/<code>acq-behaviour</code>/<code>acq-debrief</code>) naming which raw source it
+  came from, since behaviour and debrief now share both a <code>.tsv</code> extension
+  and (as of this rename) real BIDS suffixes that alone don't disambiguate
+  them from a same-named file of a different scan type. <strong>Decided
+  2026-08-27</strong> -- see <code>cli/crane_convert_to_bids.py</code>'s module docstring for
+  the full reasoning; previously <code>behaviour</code> was <code>_beh</code> and <code>debrief</code> was
+  <code>_debrief_events</code> (not a real BIDS suffix), which had the two swapped
+  relative to what they actually contain.</li>
+<li><code>acq_time</code> values are carried through as-is (same as the old filename date
+  prefix was) -- not normalized to true ISO8601, since they aren't reliably
+  parseable as real calendar dates (inconsistent length/format across raw
+  filenames).</li>
+<li>The crosscheck GUI's "Correct date..." button now edits the matching
+  <code>scans.tsv</code> row for crane instead of renaming the file, gated through a new
+  <code>DatasetConfig.dates_in_scans_tsv</code> flag -- FOH keeps today's filename-rename
+  behavior unchanged. <code>record_id_correction</code>, <code>record_task_correction</code>, and
+  <code>remove_task_correction</code> (bids_crosscheck.py) were also updated to keep
+  <code>scans.tsv</code>'s <code>filename</code> column in sync whenever they rename a file, so the
+  sidecar doesn't go stale.</li>
+<li><strong>Crane's "Tag as crane" step was removed entirely</strong> (<code>CraneCandidateExtras</code>
+  no longer overrides <code>task_correction_available</code>, so it falls back to
+  <code>False</code>). It only ever existed for UI parity with FOH's workflow, not
+  because crane's raw filenames carried non-BIDS junk needing cleanup -- FOH's
+  tagging exists to replace free text the <em>raw collection software</em> tacks on
+  after the run token (<code>..._eeg_philani.xdf</code> -&gt; <code>..._foh.xdf</code>). Crane's
+  converter already writes real BIDS suffixes (<code>_physio</code>/<code>_events</code>/
+  <code>_beh</code>) itself, so there's nothing left to clean up -- and tagging
+  would instead have <em>destroyed</em> that distinction, since <code>record_task_correction</code>
+  replaces everything after <code>run-&lt;NNN&gt;</code> with one generic label, the same for
+  all three scan types. Duplicate-picking (<code>record_selected_run</code>) and
+  <code>set_crosschecked</code> already cover "this is the confirmed file" without
+  touching the filename, so nothing was lost by dropping it.</li>
+</ul>
+<h2 id="known-constraints-from-related-work">Known constraints from related work</h2>
+<ul>
+<li><strong>The converter should dump, not decide.</strong> <code>bids_crosscheck_plan.md</code>'s
+  whole premise is a converter that "dumps every matching file into the
+  BIDS folder, duplicates included," with a human resolving duplicates
+  afterward. A converter that already picked canonical runs itself would
+  make the crosscheck tool partly redundant — keep that division of labor
+  deliberate rather than let the converter creep into picking winners.</li>
+<li><strong>FOH:</strong> the raw recording software's own naming convention (<code>sub-XXX/</code>
+  layout, real BIDS filenames from the start) was real precedent worth
+  inspecting before designing anything crane-side, rather than inventing a
+  scheme from nothing -- see the "FOH's importer now exists too" update
+  above for where that ended up.</li>
+<li><strong>Crane:</strong> ~~no naming convention decided yet~~ <strong>Decided</strong> — see the
+  "crane naming moved to real BIDS conventions" update above; the crosscheck
+  tool's <code>CRANE_DATASET_CONFIG</code> glob patterns (<code>gui/crane_bids_crosscheck_gui.py</code>)
+  now match the converter's real output rather than being guesses.</li>
+<li><strong>Debrief file, design idea:</strong> ~~not decided~~ <strong>Decided and implemented</strong> —
+  the converter extracts just the matching subject's row from the shared
+  REDCAP workbook and writes it as its own per-subject <code>..._acq-debrief_run-001_beh.tsv</code>
+  file (<code>load_debrief_export</code>/<code>convert_crane_to_bids</code> in
+  <code>cli/crane_convert_to_bids.py</code>), exactly the small-per-subject-file
+  alternative discussed below rather than duplicating the whole workbook.</li>
+</ul>
+<h2 id="todo">TODO</h2>
+<ul>
+<li><strong>Re-implement/re-verify raw-to-BIDS conversion for both FOH and crane once
+  their real pipelines change.</strong> Noted 2026-08-27 by the project owner while
+  finalizing the crane debrief/behaviour suffix swap above — a reminder that
+  today's <code>crane_convert_to_bids.py</code>/<code>foh_import_to_bids.py</code> naming will need
+  a fresh implementation pass on both sides later, not a scoped task right
+  now.</li>
+</ul>
+<h2 id="out-of-scope-for-now">Out of scope for now</h2>
+<ul>
+<li>Actual implementation — this is a scoping placeholder, not a design.</li>
+<li>Whether crane and FOH end up sharing one converter or stay separate
+  (the crosscheck tool itself deliberately stayed one-tool-per-dataset;
+  the converter doesn't have to follow the same split).</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../bids_crosscheck_plan/" class="md-footer__link md-footer__link--prev" aria-label="Previous: BIDS Crosscheck Plan">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                BIDS Crosscheck Plan
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../ai-style-guide/" class="md-footer__link md-footer__link--next" aria-label="Next: AI Style Guide">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                AI Style Guide
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.footer"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

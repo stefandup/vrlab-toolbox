@@ -1,0 +1,2418 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../pipeline-concepts/">
+      
+      
+        <link rel="next" href="../pipeline-rules/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/vrlab_icon.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Design Patterns - VRLab Toolbox</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#design-patterns" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="VRLab Toolbox" class="md-header__button md-logo" aria-label="VRLab Toolbox" data-md-component="logo">
+      
+  <img src="../assets/images/vrlab_icon.ico" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            VRLab Toolbox
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Design Patterns
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="VRLab Toolbox" class="md-nav__button md-logo" aria-label="VRLab Toolbox" data-md-component="logo">
+      
+  <img src="../assets/images/vrlab_icon.ico" alt="logo">
+
+    </a>
+    VRLab Toolbox
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why This Toolbox Exists
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For Users
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    For Users
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    1. Prepare Your Data
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    1. Prepare Your Data
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crosschecking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crosschecking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../foh-crosscheck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FOH Crosscheck
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane-crosscheck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crane Crosscheck
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2. Process Your Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3. Check Your Output
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    3. Check Your Output
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../eda/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    EDA & SCRs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../foh-output/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FOH Output Checks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interval-qc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crane Output Checks (Interval QC)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For Contributors
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    For Contributors
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-use/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Use Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dev-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../code-organization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Organization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../golden-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Golden Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline-concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Patterns
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#template-method-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Template Method Pattern
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strategy
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Strategy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#same-contract-different-experiment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Same contract, different experiment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#try-it-yourself-run-a-single-strategy-directly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Try it yourself: run a single strategy directly
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#required-vs-optional-data-splitting-a-strategy-protocol-in-two" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Required vs. optional data: splitting a Strategy Protocol in two
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-second-strategy-on-the-gui-side-candidateextras" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A second Strategy, on the GUI side: CandidateExtras
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#composite-the-sequentialsteps-classes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Composite: the Sequential*Steps classes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#input-and-output-contracts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Input and output contracts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Input and output contracts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-this-actually-looks-like" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What this actually looks like
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#one-participant-at-a-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One participant at a time
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#try-it-yourself-chain-strategies-through-the-contracts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Try it yourself: chain strategies through the contracts
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#going-further" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Going further
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#write-your-own-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Write your own pipeline
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lab-streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lab Streaming (LSL/XDF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core-classes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Data Classes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids-crosscheck-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Crosscheck Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitHub Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building & Releasing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project Notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline_next_steps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Next Steps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane_milestones/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Milestones
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../clock_drift_error/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clock Drift Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane_interactive_qc_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interactive QC Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids_crosscheck_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Crosscheck Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids_converter_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Converter Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-style-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Style Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#template-method-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Template Method Pattern
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Strategy
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Strategy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#same-contract-different-experiment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Same contract, different experiment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#try-it-yourself-run-a-single-strategy-directly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Try it yourself: run a single strategy directly
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#required-vs-optional-data-splitting-a-strategy-protocol-in-two" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Required vs. optional data: splitting a Strategy Protocol in two
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-second-strategy-on-the-gui-side-candidateextras" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A second Strategy, on the GUI side: CandidateExtras
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#composite-the-sequentialsteps-classes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Composite: the Sequential*Steps classes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#input-and-output-contracts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Input and output contracts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Input and output contracts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-this-actually-looks-like" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What this actually looks like
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#one-participant-at-a-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One participant at a time
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#try-it-yourself-chain-strategies-through-the-contracts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Try it yourself: chain strategies through the contracts
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#going-further" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Going further
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#write-your-own-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Write your own pipeline
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="design-patterns">Design Patterns</h1>
+<p>A <strong>design pattern</strong> is a named, reusable solution to a coding problem that
+keeps coming up — a shared vocabulary, not special syntax or a library you
+import. Almost all the pattern names used in Python (and most other
+object-oriented languages) trace back to one book: <em>Design Patterns:
+Elements of Reusable Object-Oriented Software</em> by Erich Gamma, Richard Helm,
+Ralph Johnson &amp; John Vlissides (1994) — often just called "the Gang of
+Four" or "GoF" book.</p>
+<p><a href="../pipeline-concepts/">Pipeline Concepts</a> gave the short version with a toy
+example. This page goes deeper, with real code from this repository. The
+<a href="../ai-style-guide/">AI Style Guide</a> lists these same patterns — Strategy
+contracts, Pandera boundary validation — as the ones to reuse rather than
+replace with something new.</p>
+<h2 id="template-method-pattern">Template Method Pattern</h2>
+<p><strong>Idea:</strong> fix the <em>order</em> steps happen in; let each individual step's
+behaviour vary.</p>
+<p><code>PipelineTemplate</code> (<code>processing/pipeline.py</code>) is built around one <code>run()</code>
+method whose overall shape never changes:</p>
+<pre><code class="language-python">class PipelineTemplate:
+    def __init__(
+        self,
+        find_participant_strategy_step,
+        sequential_physiology_import_steps,
+        sequential_behaviour_data_import_steps,
+        sequential_behaviour_processing_steps,
+        get_intervals_strategy,
+        sequential_physiology_processing_steps,
+    ) -&gt; None:
+        self.find_participant_strategy_step = find_participant_strategy_step
+        self.sequential_physiology_import_steps = sequential_physiology_import_steps
+        self.sequential_behaviour_data_import_steps = sequential_behaviour_data_import_steps
+        self.sequential_behaviour_processing_steps = sequential_behaviour_processing_steps
+        self.sequential_physiology_steps = sequential_physiology_processing_steps
+        self.get_interval_strategy = get_intervals_strategy
+
+    def run(self, participant_id_in, data_folder_in, output_folder_in=None):
+        participant_config = self.find_participant_strategy_step.run(...)
+        # ... import behaviour, process behaviour, import physiology,
+        #     build intervals, process physiology, combine, save — always
+        #     in this order, for every experiment.
+</code></pre>
+<p>The order (find files → import behaviour → process behaviour → import
+physiology → …) is fixed by this one method. What actually happens at each
+step is supplied from <em>outside</em> — six objects passed into <code>__init__</code>. That's
+the next pattern.</p>
+<h2 id="strategy">Strategy</h2>
+<p><strong>Idea:</strong> a small, interchangeable piece of behaviour that follows a shared
+contract, so it can be swapped without changing the code that calls it.</p>
+<p><code>pipeline.py</code> defines each contract as a <code>typing.Protocol</code>, e.g.:</p>
+<pre><code class="language-python">class ImportBehaviourDataStrategyStep(Protocol[BehaviourDataType]):
+    behaviour_output_type: type[BehaviourDataType]
+
+    def run(self, config_in: ParticipantConfig) -&gt; BehaviourDataType: ...
+</code></pre>
+<div class="admonition note">
+<p class="admonition-title">Going further</p>
+<p><code>Protocol</code> means <strong>structural</strong> typing: a class satisfies this contract
+just by <em>having</em> a matching <code>run()</code> method and attribute — it doesn't
+need to inherit from <code>ImportBehaviourDataStrategyStep</code> at all. This is
+Python's own spin on Strategy: the GoF book assumes languages where you
+inherit from a shared interface; Python can check the shape instead
+("if it has <code>run()</code>, it fits").</p>
+</div>
+<p>Here's a real strategy that satisfies a similar contract, unmodified,
+from <code>crane_pipeline.py</code>:</p>
+<pre><code class="language-python">class FindCraneParticipantFilesStrategyStep:
+    physiology_data_type = BiopacDataImportStartegy.input_data_file_format
+    behaviour_data_types = [
+        ProcessCraneBehaviourDataStrategyStep.input_data_type,
+        ProcessCraneDebriefBehaviourDataStrategyStep.input_data_type,
+    ]
+
+    def run(self, participant_id_in, data_folder_in, output_folder_in=None):
+        return ParticipantConfig.from_physiology_data(
+            id_in=participant_id_in,
+            physiology_data_type_in=self.physiology_data_type,
+            data_folder_in=data_folder_in,
+            behaviour_data_types_in=self.behaviour_data_types,
+            output_folder_in=output_folder_in,
+        )
+</code></pre>
+<p><code>PipelineTemplate</code> calls <code>.run()</code> on whatever it's given here — it never
+needs to know this specific class exists.</p>
+<h3 id="same-contract-different-experiment">Same contract, different experiment</h3>
+<p>FOH's equivalent, <code>FindFohParticipantFilesStrategyStep</code>
+(<code>foh_pipeline.py</code>), satisfies the exact same shape while doing something
+different internally — matching one <code>.xdf</code> file instead of a <code>.mat</code> file
+plus behaviour CSVs (see <a href="../lab-streaming/#finding-a-participants-files-participantconfigfrom_lsl_data">Lab Streaming</a>
+for the LSL-specific matching rules):</p>
+<pre><code class="language-python">class FindFohParticipantFilesStrategyStep:
+    physiology_data_type = FohLslPhysiologyDataImportStrategy.input_data_file_format
+
+    def run(self, participant_id_in, data_folder_in, output_folder_in=None):
+        return ParticipantConfig.from_lsl_data(
+            id_in=participant_id_in,
+            physiology_data_type_in=self.physiology_data_type,
+            data_folder_in=data_folder_in,
+            output_folder_in=output_folder_in,
+        )
+</code></pre>
+<p><code>PipelineTemplate</code> doesn't need an <code>if experiment == "crane"</code> anywhere —
+both classes just have a matching <code>run()</code>, which is the whole point of
+Strategy: swap which object gets passed in, not the code that calls it.</p>
+<h3 id="try-it-yourself-run-a-single-strategy-directly">Try it yourself: run a single strategy directly</h3>
+<p>Because every strategy step is just an object with a <code>run()</code> method, you
+can call any one of them on its own — no <code>PipelineTemplate</code> involved —
+useful for exploring or debugging one stage in isolation. This is exactly
+how <code>tests/test_crane_pipeline.py</code> does it:</p>
+<pre><code class="language-python">from pathlib import Path
+from vrlab_toolbox.processing.crane_pipeline import FindCraneParticipantFilesStrategyStep
+
+data_folder = Path(&quot;crane_data&quot;)
+participant_config = FindCraneParticipantFilesStrategyStep().run(&quot;00020&quot;, data_folder)
+</code></pre>
+<p><code>participant_config</code> is a <code>ParticipantConfig</code> — the input contract from
+the <a href="#input-and-output-contracts">next section</a> — ready to be passed into
+any other strategy step.</p>
+<h3 id="required-vs-optional-data-splitting-a-strategy-protocol-in-two">Required vs. optional data: splitting a Strategy Protocol in two</h3>
+<p><code>pipeline.py</code> actually defines <em>two</em> Protocols for processing behaviour
+data — <code>ProcessBehaviourDataStrategyStep</code> and
+<code>ProcessBehaviourDataWithIntervalsStrategyStep</code> — rather than one Protocol
+whose <code>run()</code> takes <code>trial_intervals_in: TrialIntervals | None</code>:</p>
+<pre><code class="language-python">class ProcessBehaviourDataStrategyStep(Protocol[BehaviourDataType]):
+    input_data_type: type[BehaviourDataType]
+
+    def run(
+        self, config_in: ParticipantConfig, raw_behaviour_data_in: BehaviourDataType
+    ) -&gt; PipelineOutputData: ...
+
+
+class ProcessBehaviourDataWithIntervalsStrategyStep(Protocol[BehaviourDataType]):
+    input_data_type: type[BehaviourDataType]
+
+    def run(
+        self,
+        config_in: ParticipantConfig,
+        raw_behaviour_data_in: BehaviourDataType,
+        trial_intervals_in: TrialIntervals,
+    ) -&gt; PipelineOutputData: ...
+</code></pre>
+<p>A single Protocol with an <code>Optional</code> parameter would work at runtime, but
+it pushes a <code>None</code>-check into every implementation that actually needs
+intervals, and lets a step that <em>requires</em> intervals be built and called
+without them — the mistake only surfaces when <code>run()</code> executes, not when
+the type checker looks at it.</p>
+<p>Splitting the Protocol instead makes "needs intervals" part of the type:</p>
+<ul>
+<li><strong><code>ProcessBehaviourDataStrategyStep</code></strong> — never touches trial intervals
+  (e.g. a step that summarises raw survey answers as a whole).</li>
+<li><strong><code>ProcessBehaviourDataWithIntervalsStrategyStep</code></strong> — takes a <em>required</em>
+  <code>trial_intervals_in: TrialIntervals</code> (e.g. a step that slices behaviour
+  data into per-trial windows). There is no valid way to call one of these
+  without real intervals, so nothing downstream has to defend against a
+  missing value.</li>
+</ul>
+<p>Restaurant analogy: a <code>PlateStarter</code> step that just plates a starter has
+no use for a table's seating time; a <code>ServeMainCourse</code> step that must be
+timed against the table being seated should require
+<code>seating_time: datetime</code>, not <code>datetime | None</code> with an "oh, it's <code>None</code>,
+skip" branch copy-pasted into every course that needs timing.</p>
+<div class="admonition note">
+<p class="admonition-title">Open gap</p>
+<p><code>SequentialBehaviourProcessingSteps.run()</code> currently only iterates
+<code>self.steps</code>, not <code>self.steps_with_trial_intervals</code> — so right now
+<code>ProcessBehaviourDataWithIntervalsStrategyStep</code> is defined but not yet
+wired into the pipeline run loop.</p>
+</div>
+<h3 id="a-second-strategy-on-the-gui-side-candidateextras">A second Strategy, on the GUI side: <code>CandidateExtras</code></h3>
+<p>Everything above is the pipeline. The same pattern shows up again in a
+completely different part of the codebase: the crosscheck GUI shared by
+every dataset (see <a href="../bids-crosscheck-architecture/">BIDS Crosscheck:
+Architecture</a>).</p>
+<p><code>BidsCrosscheckWindow</code> (<code>gui/bids_crosscheck_common.py</code>) draws the same
+subject list and detail panel for FOH and crane alike, but only FOH knows
+how to read an <code>.xdf</code> file's recording date, stream presence, or a
+sampling-rate mismatch — crane's physiology files look nothing like it.
+Rather than an <code>if dataset == "foh":</code> branch inside the window, that
+knowledge lives entirely behind one small class of hook methods, each with
+a harmless default:</p>
+<pre><code class="language-python">class CandidateExtras:
+    &quot;&quot;&quot;Hook for dataset-specific per-candidate UI. Crane uses the no-op default.&quot;&quot;&quot;
+
+    def describe(self, scan_type: str, file: Path) -&gt; str | None:
+        return None
+
+    def has_warning(self, scan_type: str, file: Path) -&gt; bool:
+        return False
+
+    def refresh(self, scan_type: str, file: Path) -&gt; None:
+        return None
+
+    # ... six more hooks, same shape: a default that does nothing
+</code></pre>
+<p><code>FohCandidateExtras</code> (<code>gui/foh_bids_crosscheck_gui.py</code>) subclasses it and
+overrides the hooks it actually has something to say about:</p>
+<pre><code class="language-python">class FohCandidateExtras(CandidateExtras):
+    def describe(self, scan_type: str, file: Path) -&gt; str | None:
+        if scan_type != FOH_DATASET_CONFIG.task_tag_scan_type:
+            return None
+        info = self._candidate_info(file)
+        # ... build &quot;2026-02-21   13 min   Streams: 4/4 ✓&quot; from `info`
+        return &quot; &amp;nbsp;&amp;nbsp; &quot;.join(parts)
+
+    def has_warning(self, scan_type: str, file: Path) -&gt; bool:
+        info = self._candidate_info(file)
+        if _srate_mismatch(info):
+            return True
+        if info.streams.get(OPENSIGNALS_STREAM) and not all(info.opensignals_channels.values()):
+            return True
+        return False
+</code></pre>
+<p><code>BidsCrosscheckWindow</code> calls those hooks the same way <code>PipelineTemplate</code>
+calls a strategy step's <code>run()</code> above: through <code>self.extras</code>, never
+knowing or caring which concrete class it's holding:</p>
+<pre><code class="language-python">extra_html = self.extras.describe(scan_type, subject_scan.files[0])
+...
+if self._has_candidate_warning(subject_id, scan_type):
+    icon += WARNING_ICON  # self.extras.has_warning(...) underneath
+</code></pre>
+<p>Crane's actual entry point, <code>crane_bids_crosscheck_gui.py</code>, hands the
+window an unmodified <code>CandidateExtras()</code>:</p>
+<pre><code class="language-python">run_bids_crosscheck_app(
+    CRANE_DATASET_CONFIG, &quot;Crane BIDS Crosscheck&quot;, CandidateExtras(),
+    settings_app_name=&quot;CraneBidsCrosscheck&quot;,
+)
+</code></pre>
+<p>Swap that for <code>FohCandidateExtras()</code> and the window's own code doesn't
+change at all — the same swap-the-object-not-the-caller trick as
+<code>FindCraneParticipantFilesStrategyStep</code> vs. <code>FindFohParticipantFilesStrategyStep</code>
+above.</p>
+<div class="admonition note">
+<p class="admonition-title">Two variations worth noticing, next to the pipeline's version</p>
+<ul>
+<li><strong>Inheritance instead of <code>Protocol</code>.</strong> The pipeline's strategies use
+  <code>Protocol</code> because every real strategy step must supply genuine
+  behaviour — there's no sensible "do nothing" <code>run()</code>. <code>CandidateExtras</code>
+  uses ordinary subclassing instead, because here "do nothing" <em>is</em>
+  sensible: most hooks are fine returning <code>None</code>/<code>False</code> until a
+  dataset actually needs them. Same pattern, different Python
+  mechanism — pick whichever fits the contract you're writing.</li>
+<li><strong>The base class doubling as its own default strategy.</strong> Crane
+  doesn't subclass <code>CandidateExtras</code> at all — it passes the base class
+  itself, instantiated, unmodified, and every hook call quietly does
+  nothing. A concrete "do-nothing" implementation of a shared
+  interface, used specifically so calling code never needs an
+  <code>if extras is not None</code> check, has its own name: <strong>Null Object</strong>. It
+  isn't one of the original 23 patterns in the 1994 GoF book — it was
+  catalogued a few years later, by Bobby Woolf, in <em>Pattern Languages
+  of Program Design 3</em> (1997) — but it's a close, commonly-paired
+  cousin of Strategy, and it's exactly what's happening here.</li>
+</ul>
+</div>
+<h2 id="composite-the-sequentialsteps-classes">Composite: the <code>Sequential*Steps</code> classes</h2>
+<p><strong>Idea:</strong> let a <em>group</em> of objects be used the same way as a single object.</p>
+<p>Sometimes one stage needs more than one strategy step — Crane imports both
+crane-task behaviour <em>and</em> debrief behaviour, for instance. Rather than
+<code>PipelineTemplate</code> having to loop over a list itself (and know how to
+handle each item's success/failure), that looping is wrapped in its own
+class that exposes the <em>same</em> <code>run()</code> shape as a single strategy:</p>
+<pre><code class="language-python">@dataclass
+class SequentialBehaviourImportSteps:
+    raw_behaviour_data_Store: RawBehaviourDataStore = field(default_factory=RawBehaviourDataStore)
+    steps: Sequence[ImportBehaviourDataStrategyStep] = field(default_factory=list)
+
+    def run(self, config_in: ParticipantConfig):
+        pipeline_status = PipelineStatus()
+        for step in self.steps:
+            try:
+                pipeline_raw_behav_data = step.run(config_in=config_in)
+                self.raw_behaviour_data_Store.add(pipeline_raw_behav_data)
+                pipeline_status.set(step.behaviour_output_type, ProcessingStatus.OK)
+            except (ValueError, FileNotFoundError) as e:
+                pipeline_status.set(step.behaviour_output_type, ProcessingStatus.ERROR)
+        return (self.raw_behaviour_data_Store, pipeline_status)
+</code></pre>
+<p><code>PipelineTemplate.run()</code> calls <code>sequential_behaviour_data_import_steps.run(...)</code>
+without caring whether it wraps one step or five — that's the point of
+Composite: a <em>group</em> of strategies, itself shaped like a single strategy.</p>
+<p>This is also what keeps <code>PipelineTemplate</code> general-purpose rather than
+Crane-specific. There are four of these <code>Sequential*Steps</code> classes in
+<code>pipeline.py</code> — one per stage that might need more than one strategy:</p>
+<table>
+<thead>
+<tr>
+<th>Class</th>
+<th>Wraps a list of...</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SequentialBehaviourImportSteps</code></td>
+<td><code>ImportBehaviourDataStrategyStep</code></td>
+</tr>
+<tr>
+<td><code>SequentialBehaviourProcessingSteps</code></td>
+<td><code>ProcessBehaviourDataStrategyStep</code></td>
+</tr>
+<tr>
+<td><code>SequentialPhysiolgyImportSteps</code></td>
+<td><code>ImportBioDataStrategyStep</code></td>
+</tr>
+<tr>
+<td><code>SequentialPhysiologyProcessingSteps</code></td>
+<td><code>ProcessPhysiologyDataStrategyStep</code></td>
+</tr>
+</tbody>
+</table>
+<p>Crane happens to pass <strong>two</strong> steps into <code>SequentialBehaviourImportSteps</code>
+(crane behaviour + debrief) but only <strong>one</strong> into
+<code>SequentialPhysiolgyImportSteps</code> (Biopac). <code>PipelineTemplate</code> doesn't need
+an <code>if</code> statement anywhere to handle that difference — both cases look
+identical from its point of view: "a thing with a <code>run()</code> method." A future
+experiment that needs three physiology import steps instead of one wouldn't
+need any change to <code>PipelineTemplate</code> either — just a longer <code>steps=[...]</code>
+list.</p>
+<h2 id="input-and-output-contracts">Input and output contracts</h2>
+<p>A <strong>contract</strong> here just means: a fixed shape of data that every step
+agrees to accept and return, so steps can be swapped, chained, and combined
+without knowing about each other's internals. Three classes carry these
+contracts through the whole pipeline:</p>
+<ul>
+<li><strong><code>ParticipantConfig</code></strong> (<code>input_data.py</code>) — the universal <em>input</em>. Every
+  strategy step's <code>run()</code> takes this (or data derived from it). See
+  <a href="../pipeline-rules/">Pipeline Rules</a> for what goes into building one.</li>
+<li><strong><code>RawBioData</code></strong> (<code>biodata.py</code>) / <strong><code>RawBehaviourData</code></strong> and friends
+  (<code>behaviour.py</code>) — the <em>intermediate</em> contract between import steps and
+  processing steps. Whatever format the source file was in (<code>.mat</code>, <code>.csv</code>,
+  <code>.xdf</code>, …), an import step must hand back something shaped like this, so
+  a processing step never needs to know or care which importer produced it.</li>
+<li><strong><code>PipelineOutputData</code></strong> (<code>output_data.py</code>) — the universal <em>output</em>.
+  Every processing step returns one of these, however different their
+  actual computations are (behaviour scoring vs. EDA peak-counting look
+  nothing alike internally).</li>
+</ul>
+<p><code>RawBioData</code> enforces its contract at <em>construction time</em>, not just via a
+type hint — it's validated with a <a href="https://pandera.readthedocs.io/">Pandera</a>
+schema the moment it's built:</p>
+<pre><code class="language-python">@dataclass(frozen=True)
+class RawBioData:
+    raw_data: dict[str, pd.DataFrame] = field(default_factory=dict)
+
+    def __post_init__(self):
+        validated_data: dict[str, pd.DataFrame] = {}
+        for label, df in self.raw_data.items():
+            validated_data[label] = raw_bio_data_schema.validate(df)
+        object.__setattr__(self, &quot;raw_data&quot;, validated_data)
+</code></pre>
+<p>If an import step tries to hand back data that doesn't fit the contract
+(e.g. missing a <code>time_stamps</code> column), this raises immediately — the
+contract violation is caught right where the bad data was produced, not
+somewhere downstream where it'd be harder to trace.</p>
+<p><code>raw_bio_data_schema</code> is a <strong><a href="https://pandera.readthedocs.io/">Pandera</a></strong>
+schema — Pandera is a library for declaring what shape a <code>pandas</code>
+DataFrame should have (which columns, what type, nullable or not, custom
+checks) and then checking real data against that declaration with
+<code>schema.validate(df)</code>, which raises a clear, specific error if the data
+doesn't match. This project uses it wherever a dataframe crosses a
+boundary — after loading raw data, before/after processing, on the final
+output — rather than trusting every dataframe implicitly and finding out
+something was wrong three functions later, from a confusing error. Other
+schemas you'll run into: <code>build_base_pipeline_output_schema</code> (below),
+<code>build_crane_participant_output_schema</code> (<code>crane_pipeline.py</code>, the full
+Crane output row), and <code>build_eda_physiology_output_schema</code> (<code>eda.py</code>).</p>
+<p><strong>Why bother with this, in plain terms:</strong></p>
+<ol>
+<li><strong>Clarity.</strong> Everyone working on a step — now or in six months — can
+   look at a schema and know exactly what data it's supposed to hold,
+   instead of guessing from example files.</li>
+<li><strong>The pipeline works, and fails loudly when it shouldn't.</strong> Steps can
+   be swapped and chained (see <a href="#try-it-yourself-chain-strategies-through-the-contracts">Try it yourself</a>
+   below) <em>because</em> they all agree on the same shape. If a step ever
+   breaks that agreement, Pandera raises immediately, with a specific
+   error, instead of the pipeline quietly producing something wrong.</li>
+<li><strong>Downstream software cares about types.</strong> SPSS, Stata, and (later) R
+   are strict about column types on import. Catching a type problem here,
+   before export, means the export step just works instead of failing —
+   or worse, silently mis-typing a column — on the SPSS side.</li>
+<li><strong>Safety net for data that's technically valid but still wrong.</strong>
+   Right column, right type, still garbled — e.g. a timestamp column
+   that's the right dtype but all zeros, or a value pasted into the wrong
+   row. A <code>Check</code> in a Pandera schema can catch this kind of thing too
+   (not just "is this a float column", but "are these floats within a
+   sane range"), so bad-but-well-typed data doesn't sail through
+   unnoticed.</li>
+<li><strong>Faster debugging.</strong> Because validation happens at the boundary where
+   data is produced, the error points at the step that made the bad data
+   — not the step three calls later that happened to trip over it.</li>
+</ol>
+<h3 id="what-this-actually-looks-like">What this actually looks like</h3>
+<p>Using the synthetic <code>DUMMY000</code> participant's raw, pre-BIDS output in
+<code>examples/</code> (see <a href="../testing/#the-examples-folder">Testing</a> for where that
+data comes from, and how it now also gets converted to BIDS), here's what
+actually flows through these two contracts.</p>
+<p><code>RawCraneBehaviourData.raw_behav_df</code> — straight from
+<code>examples/2026100_DUMMY000_CraneOut.csv</code>, one row per trial:</p>
+<pre><code>   TrialNr  TrialStartTime  TrialEndTime       BlockType     TrialType
+0        1        4.999999     65.011109  NonStressBlock  NonSlipTrial
+1        2       94.066658    154.077774  NonStressBlock     SlipTrial
+2        3      204.444427    264.455536  NonStressBlock  NonSlipTrial
+3        4      290.155548    350.166657  NonStressBlock     SlipTrial
+4        5      377.555542    437.566651  NonStressBlock  NonSlipTrial
+</code></pre>
+<p><code>RawBioData.raw_data["EDA"]</code> — one of three channels (<code>ECG</code>, <code>Trigger</code>,
+<code>EDA</code>), pulled out of the same participant's <code>.mat</code> file, each its own
+DataFrame:</p>
+<pre><code>   time_stamps       EDA
+0       0.0000  1.686899
+1       0.0005  1.689124
+2       0.0010  1.689590
+3       0.0015  1.691005
+4       0.0020  1.688195
+</code></pre>
+<p>Same shape, different source file — exactly the point of the contract:
+whichever import step produced either of these, a processing step
+downstream only ever needs to know it's a <code>pd.DataFrame</code> with these
+columns, not which file format it came from.</p>
+<p><code>PipelineOutputData</code> carries the matching <em>output</em> contract — always a
+one-row <code>subject_df_out</code> DataFrame, a <code>status</code> (<code>PipelineStatus</code>), and any
+QC <code>figure_data_out</code>:</p>
+<pre><code class="language-python">@dataclass
+class PipelineOutputData:
+    subject_id: str
+    subject_df_out: pd.DataFrame = field(init=False)
+    figure_data_out: dict[str, Figure] = field(default_factory=dict, init=False)
+    validation_schema: pa.DataFrameSchema = field(default_factory=build_base_pipeline_output_schema)
+    status: PipelineStatus = field(default_factory=PipelineStatus, init=False)
+
+    def merge(self, other: &quot;PipelineOutputData&quot;) -&gt; &quot;PipelineOutputData&quot;:
+        ...  # combine two steps' output into one row, one status, one set of figures
+</code></pre>
+<p>Because every processing step returns the <em>same shape</em> of object, <code>.merge()</code>
+can combine a behaviour step's output with a physiology step's output
+without either step knowing the other exists — that's the contract doing
+its job.</p>
+<h3 id="one-participant-at-a-time">One participant at a time</h3>
+<p>Easy to misread <code>.merge()</code> as combining <em>multiple participants'</em> rows
+together — it doesn't. <code>PipelineTemplate.run()</code> (<code>pipeline.py</code>), and every
+strategy step, <code>ParticipantConfig</code>, and <code>PipelineOutputData</code> in this whole
+page, all operate on <strong>exactly one participant, one row, per call</strong>.
+<code>.merge()</code> combines different <em>steps'</em> output columns for that <em>same</em>
+participant — behaviour columns next to physiology columns, side by side —
+not different participants' rows stacked on top of each other. The actual
+<code>append_dataframe</code> method <code>.merge()</code> calls underneath is explicit about
+this, right down to the axis it concatenates on and a check that enforces
+it:</p>
+<pre><code class="language-python">combined_df = pd.concat([existing_df_reset, data_in_reset], axis=1)  # side by side, same row
+...
+if not len(combined_df) == 1:
+    raise ValueError(&quot;Output data must contain exactly one row.&quot;)
+</code></pre>
+<p>Combining <em>multiple participants'</em> rows into one file happens <strong>only at
+the CLI level</strong>, after <code>run_pipeline()</code> has already returned — e.g.
+<code>vrlab_crane_process.py</code> collects each participant's one-row
+<code>subject_df_out</code> in a list across its loop, then:</p>
+<pre><code class="language-python">participant_df_out = pd.concat(out_file_parts, axis=0)  # stacked, one row per participant
+</code></pre>
+<p>Same <code>pd.concat</code> function, opposite <code>axis</code> — worth knowing the difference:
+<code>axis=1</code> glues columns together side by side (what <code>.merge()</code> does, within
+one participant); <code>axis=0</code> stacks rows on top of each other (what the CLI
+does, across participants). See
+<a href="../processing/#cranes-output-files">Process Your Data</a> for where that
+combined file actually comes from.</p>
+<h3 id="try-it-yourself-chain-strategies-through-the-contracts">Try it yourself: chain strategies through the contracts</h3>
+<p>Each strategy step's output is the next one's input — that's the contract
+doing its job. Run three real strategies back to back, feeding one's output
+into the next, no <code>PipelineTemplate</code> involved:</p>
+<pre><code class="language-python">from vrlab_toolbox.processing.biopac import BiopacDataImportStartegy
+from vrlab_toolbox.processing.crane_behaviour import ImportCraneBehaviourDataStrategyStep
+from vrlab_toolbox.processing.crane_trial_intervals import CraneGetTrialIntervalStrategyStep
+
+raw_bio_data = BiopacDataImportStartegy().run(participant_config)
+raw_behav_data = ImportCraneBehaviourDataStrategyStep().run(participant_config)
+
+trial_intervals, interval_figure, interval_status = (
+    CraneGetTrialIntervalStrategyStep().run(raw_bio_data, raw_behav_data)
+)
+</code></pre>
+<p><code>raw_bio_data</code> and <code>raw_behav_data</code> are <code>RawBioData</code> / <code>RawBehaviourData</code> —
+the intermediate contract above — which is exactly why
+<code>CraneGetTrialIntervalStrategyStep</code> can accept them without knowing which
+concrete importer produced either one.</p>
+<h2 id="going-further">Going further</h2>
+<ul>
+<li><em>Design Patterns: Elements of Reusable Object-Oriented Software</em>, Gamma,
+  Helm, Johnson &amp; Vlissides (1994) — the original source for all three
+  names above.</li>
+<li>Real Python's <a href="https://realpython.com/tutorials/design-patterns/">design patterns tutorials</a>
+  cover the same patterns with smaller, runnable examples.</li>
+<li><strong>Read <code>processing/pipeline.py</code> yourself.</strong> Every <code>Protocol</code> (a contract),
+  every <code>Sequential*Steps</code> class (a composite), and <code>PipelineTemplate</code>
+  itself (the template) live in that one file. Once you can point at the
+  lines implementing each pattern above, you've got the architecture.</li>
+<li><strong>Read <code>gui/bids_crosscheck_common.py</code> and <code>gui/foh_bids_crosscheck_gui.py</code>
+  yourself, too.</strong> Same Strategy pattern as <code>pipeline.py</code>, applied to a
+  completely different part of the codebase — a good check that you've
+  actually internalized the <em>shape</em>, not just this one file's names.</li>
+<li>On the Python side specifically: <code>Protocol</code> and the dunder-method-based
+  contracts Python uses throughout (<code>__len__</code>, <code>__eq__</code>, <code>__iter__</code>, …) are
+  covered in depth in <em>Fluent Python</em> by Luciano Ramalho (O'Reilly). There's
+  a live example of exactly this in this codebase: <code>TrialIntervals</code>
+  (<code>trial_intervals.py</code>) already has <code>__len__</code> (so <code>len(my_intervals)</code>
+  works — see <a href="../core-classes/#trialintervals">Core Data Classes</a>),
+  and gets <code>__eq__</code> for free from <code>@dataclass</code>. What's still missing —
+  tracked as an open TODO — is <code>__iter__</code>/<code>__getitem__</code>, so you still have
+  to write <code>my_intervals.intervals.items()</code> to loop over one, rather than
+  <code>for name, (start, end) in my_intervals:</code> directly. A real spot where
+  that book's material on the Python data model would apply directly.</li>
+</ul>
+<h2 id="write-your-own-pipeline">Write your own pipeline</h2>
+<p><code>crane_pipeline.py</code>'s <code>run_pipeline()</code> is the template to copy for a new
+experiment: build your <code>Sequential*Steps</code> containers out of your own
+strategy steps, hand them to <code>PipelineTemplate</code>, call <code>.run()</code>.</p>
+<pre><code class="language-python">from vrlab_toolbox.processing import pipeline
+
+def run_pipeline(participant_id_in, data_folder_in, output_folder_in=None):
+    my_pipeline = pipeline.PipelineTemplate(
+        find_participant_strategy_step=MyFindParticipantFilesStep(),
+        sequential_physiology_import_steps=pipeline.SequentialPhysiolgyImportSteps(
+            steps=[MyPhysiologyImportStep()]
+        ),
+        sequential_behaviour_data_import_steps=pipeline.SequentialBehaviourImportSteps(
+            steps=[MyImportBehaviourStep()]
+        ),
+        get_intervals_strategy=MyGetTrialIntervalStep(),
+        sequential_behaviour_processing_steps=pipeline.SequentialBehaviourProcessingSteps(
+            steps=[MyProcessBehaviourStep()]
+        ),
+        sequential_physiology_processing_steps=pipeline.SequentialPhysiologyProcessingSteps(
+            steps=[MyPhysiologyProcessStep()]
+        ),
+    )
+    _, output_data = my_pipeline.run(participant_id_in, data_folder_in, output_folder_in)
+    return output_data
+</code></pre>
+<p>Every <code>My...Step()</code> above just needs to satisfy the matching
+<a href="#strategy">Strategy</a> <code>Protocol</code> — right <code>run()</code> signature, right contract
+type in and out. <code>PipelineTemplate</code> itself never changes.</p>
+<p>This isn't just hypothetical — <code>foh_pipeline.py</code>'s <code>run_pipeline()</code> is a
+second, real instance of exactly this same <code>PipelineTemplate</code> shape, built
+for a different experiment with a different physiology source:</p>
+<pre><code class="language-python">foh_pipeline = pipeline.PipelineTemplate(
+    find_participant_strategy_step=FindFohParticipantFilesStrategyStep(),
+    get_intervals_strategy=FohGetTrialIntervalStrategyStep(),
+    sequential_behaviour_data_import_steps=import_behav_steps,
+    sequential_behaviour_processing_steps=process_behav_steps,
+    sequential_physiology_import_steps=pipeline.SequentialPhysiolgyImportSteps(
+        steps=[FohLslPhysiologyDataImportStrategy()]
+    ),
+    sequential_physiology_processing_steps=pipeline.SequentialPhysiologyProcessingSteps(
+        steps=[ProcessEdaPhysiologyDataStrategyStep()]
+    ),
+)
+</code></pre>
+<p>Two things worth noticing, side by side with Crane's version above: the
+physiology import step is swapped (<code>FohLslPhysiologyDataImportStrategy</code>
+instead of <code>BiopacDataImportStartegy</code>) because the two experiments record
+physiology completely differently — one <code>.mat</code> file, one <code>.xdf</code> file — but
+<code>ProcessEdaPhysiologyDataStrategyStep</code> is the <em>same</em> object in both
+pipelines, unmodified, because both import steps agree on handing back the
+same <code>RawBioData</code> contract. See <a href="../lab-streaming/">Lab Streaming</a> for the
+FOH/LSL side of this in full, including a chained, <code>PipelineTemplate</code>-free
+walkthrough of these same strategy steps.</p>
+<hr />
+<p><strong>Next: <a href="../testing/">Testing</a></strong> — see how these strategy steps get tested
+individually.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../pipeline-concepts/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Pipeline Concepts">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Pipeline Concepts
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../pipeline-rules/" class="md-footer__link md-footer__link--next" aria-label="Next: Pipeline Rules">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Pipeline Rules
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.footer"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

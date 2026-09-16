@@ -1,0 +1,2406 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../crosschecking/">
+      
+      
+        <link rel="next" href="../crane-crosscheck/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/vrlab_icon.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>FOH Crosscheck - VRLab Toolbox</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#foh-crosscheck" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="VRLab Toolbox" class="md-header__button md-logo" aria-label="VRLab Toolbox" data-md-component="logo">
+      
+  <img src="../assets/images/vrlab_icon.ico" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            VRLab Toolbox
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              FOH Crosscheck
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="VRLab Toolbox" class="md-nav__button md-logo" aria-label="VRLab Toolbox" data-md-component="logo">
+      
+  <img src="../assets/images/vrlab_icon.ico" alt="logo">
+
+    </a>
+    VRLab Toolbox
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why This Toolbox Exists
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For Users
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    For Users
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    1. Prepare Your Data
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    1. Prepare Your Data
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crosschecking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crosschecking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FOH Crosscheck
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FOH Crosscheck
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-this-matters-for-foh-data-specifically" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why this matters for FOH data specifically
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-do-a-crosscheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to do a crosscheck
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How to do a crosscheck">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-open-the-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Open the tool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-point-it-at-your-raw-folder-and-import" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Point it at your raw folder and import
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-point-it-at-your-bids-folder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Point it at your BIDS folder
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-read-the-subject-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Read the subject list
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-click-a-subject-to-see-its-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Click a subject to see its details
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-pick-the-right-recording" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Pick the right recording
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-check-the-recording-detail-before-saving" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Check the recording detail before saving
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#8-save-your-decision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Save your decision
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#9-mark-a-subject-as-reviewed-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Mark a subject as reviewed (optional)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#10-look-at-the-files-yourself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Look at the files yourself
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#11-fix-an-obviously-wrong-date-or-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Fix an obviously wrong date or ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#12-tag-files-with-real-bids-tags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. Tag files with real BIDS tags
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#13-remove-a-subject-from-bids" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13. Remove a subject from BIDS
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#14-restore-a-subjects-duplicate-pick" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        14. Restore a subject's duplicate pick
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#backing-up-and-rebuilding-after-a-lost-bids-folder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backing up, and rebuilding after a lost BIDS folder
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#working-with-several-subjects-at-once" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Working with several subjects at once
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#crane-has-its-own-version-of-this-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Crane has its own version of this tool
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane-crosscheck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crane Crosscheck
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2. Process Your Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3. Check Your Output
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    3. Check Your Output
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../eda/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    EDA & SCRs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../foh-output/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FOH Output Checks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interval-qc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crane Output Checks (Interval QC)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For Contributors
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    For Contributors
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-use/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Use Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dev-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../code-organization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Organization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../golden-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Golden Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline-concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lab-streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lab Streaming (LSL/XDF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core-classes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Data Classes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids-crosscheck-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Crosscheck Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitHub Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building & Releasing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project Notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline_next_steps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Next Steps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane_milestones/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Milestones
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../clock_drift_error/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clock Drift Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane_interactive_qc_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interactive QC Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids_crosscheck_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Crosscheck Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids_converter_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Converter Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-style-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Style Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-this-matters-for-foh-data-specifically" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why this matters for FOH data specifically
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-do-a-crosscheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to do a crosscheck
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How to do a crosscheck">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-open-the-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Open the tool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-point-it-at-your-raw-folder-and-import" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Point it at your raw folder and import
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-point-it-at-your-bids-folder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Point it at your BIDS folder
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-read-the-subject-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Read the subject list
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-click-a-subject-to-see-its-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Click a subject to see its details
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-pick-the-right-recording" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Pick the right recording
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-check-the-recording-detail-before-saving" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Check the recording detail before saving
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#8-save-your-decision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Save your decision
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#9-mark-a-subject-as-reviewed-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Mark a subject as reviewed (optional)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#10-look-at-the-files-yourself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Look at the files yourself
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#11-fix-an-obviously-wrong-date-or-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Fix an obviously wrong date or ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#12-tag-files-with-real-bids-tags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        12. Tag files with real BIDS tags
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#13-remove-a-subject-from-bids" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13. Remove a subject from BIDS
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#14-restore-a-subjects-duplicate-pick" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        14. Restore a subject's duplicate pick
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#backing-up-and-rebuilding-after-a-lost-bids-folder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backing up, and rebuilding after a lost BIDS folder
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#working-with-several-subjects-at-once" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Working with several subjects at once
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#crane-has-its-own-version-of-this-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Crane has its own version of this tool
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="foh-crosscheck">FOH Crosscheck</h1>
+<p>This is step 1: before your data can be <a href="../processing/">processed</a>, your
+raw recordings need to be converted into BIDS and crosschecked. This page
+is for anyone using the FOH Crosscheck tool to do that — no coding
+background needed. If you haven't already, read
+<a href="../crosschecking/">Crosschecking</a> first — it covers what crosschecking
+means and why it matters in general; this page picks up from there with
+what's specific to FOH and the actual walkthrough.</p>
+<div class="admonition info">
+<p class="admonition-title">The raw folder is never changed — not once, not ever</p>
+<p>Worth repeating here: nothing on this page ever writes to, renames, or
+deletes anything in your <strong>raw folder</strong>. See
+<a href="../crosschecking/#what-is-crosschecking">Crosschecking</a> for the full
+explanation of why that's safe.</p>
+</div>
+<h2 id="why-this-matters-for-foh-data-specifically">Why this matters for FOH data specifically</h2>
+<p>FOH sessions are recorded live, with real participants, real equipment, and
+real interruptions — a recording might get restarted after a false start, a
+laptop might reconnect mid-session and create a second file, or a test
+recording might end up saved in the same folder as the real one. None of
+that is unusual, and none of it is something a computer program can safely
+sort out on its own — it takes a person who can look at when a recording
+happened, how long it ran, and what it actually contains, and make the
+call.</p>
+<p>Left undone, this kind of ambiguity doesn't cause an obvious error later —
+it causes <em>silent</em> problems: an analysis quietly running on a test file, or
+on an earlier, incomplete attempt, with no error message anywhere to catch
+it. Crosschecking front-loads that judgment call once, on purpose, instead
+of leaving it to chance.</p>
+<h2 id="how-to-do-a-crosscheck">How to do a crosscheck</h2>
+<div class="admonition tip">
+<p class="admonition-title">Not sure what a button or icon does?</p>
+<p>Hover your cursor over any icon or button in the tool — a short tooltip
+explains what it does before you click it.</p>
+</div>
+<h3 id="1-open-the-tool">1. Open the tool</h3>
+<p>With the toolbox installed (see <a href="../getting-started/">Getting
+Started</a> if you haven't done this yet), open a terminal
+and type:</p>
+<pre><code class="language-bash">vrlab_foh_bids_crosscheck
+</code></pre>
+<p>The tool remembers the last BIDS folder you had open, so after your first
+time using it, it'll usually open straight to where you left off.</p>
+<h3 id="2-point-it-at-your-raw-folder-and-import">2. Point it at your raw folder and import</h3>
+<p>FOH recordings arrive from the recording software already named and laid
+out the real BIDS way (<code>sub-XXX/ses-.../eeg/sub-XXX_ses-..._eeg.xdf</code>,
+possibly with an <code>_old1</code>, <code>_old2</code>, ... suffix if a session was
+restarted) — but that's still <strong>raw</strong> data: nobody's looked at it yet,
+duplicates and all, and it hasn't been through the crosscheck decisions
+below. To keep that raw data untouched while you work, this tool always
+crosschecks a separate <strong>BIDS folder</strong>, and copies new subjects into it
+from your <strong>raw folder</strong> on request rather than working on the raw
+folder directly.</p>
+<p>Click <strong>Browse...</strong> next to <strong>Raw folder</strong> and select the folder your
+recordings actually land in, then click <strong>Refresh BIDS</strong>. This copies
+every subject not already in your BIDS folder across, whole and
+untouched — files already imported are never re-copied, overwritten, or
+even looked at again, so a crosscheck decision you've already made (a
+pick, a tag, a correction) can never be clobbered by re-running this.
+Nothing in the raw folder is ever changed or deleted by this step. The
+<strong>Last conversion</strong> panel below the subject details shows exactly what
+the last click did — which subjects were added, which were already
+there and skipped.</p>
+<p>Safe to click any time, including repeatedly (e.g. once more recordings
+have come in) — there's no harm in clicking it and finding nothing new.</p>
+<p>Once a raw folder is picked, <strong>Reveal Raw Folder</strong> next to it opens that
+folder in your system's file browser (Explorer on Windows, Finder on
+macOS) — handy if you want to look at what's actually in there yourself.</p>
+<h3 id="3-point-it-at-your-bids-folder">3. Point it at your BIDS folder</h3>
+<p>If nothing loads automatically, click <strong>Browse...</strong> at the top and select
+your FOH BIDS folder — the destination folder from step 2 above, not the
+raw one. This is the folder every step from here on actually works with.
+<strong>Reveal BIDS Folder</strong> next to it opens that folder in your system's file
+browser, the same as <strong>Reveal Raw Folder</strong> does for the raw one.</p>
+<p>The tool also makes sure a <code>.bidsignore</code> file at the top of that folder
+lists its own files — <code>crosscheck.json</code>, <code>crosscheck_pending.json</code>,
+<code>excluded_subjects.json</code>, and its cached recording info — appending to
+<code>.bidsignore</code> if one already exists (without touching anything else in
+it) or creating one if not, so a BIDS validator doesn't flag them as
+unexpected.</p>
+<h3 id="4-read-the-subject-list">4. Read the subject list</h3>
+<p>Above the list, a summary line gives you the folder's overall state at a
+glance — total subject count, how many recordings were found — and, in
+<strong>bold red</strong>, how many subjects still need crosschecking (i.e. haven't
+been marked ☑ for every scan type). That count disappears once everyone's
+been reviewed.</p>
+<p>The left-hand panel lists every subject, with a small icon (or icons) next
+to each one telling you, at a glance, whether it needs your attention:</p>
+<table>
+<thead>
+<tr>
+<th>Icon</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>●</td>
+<td>Fine — exactly one recording found, nothing to do.</td>
+</tr>
+<tr>
+<td>○</td>
+<td>Missing — no recording found at all for this subject.</td>
+</tr>
+<tr>
+<td>⚠</td>
+<td>Needs a decision — more than one recording was found.</td>
+</tr>
+<tr>
+<td>⏳</td>
+<td>You've picked one, but haven't saved that choice yet.</td>
+</tr>
+<tr>
+<td>☑</td>
+<td>You've personally reviewed and approved this one.</td>
+</tr>
+<tr>
+<td>🏷</td>
+<td>Whichever recording currently counts as "the one" hasn't been tagged foh yet.</td>
+</tr>
+<tr>
+<td>❗</td>
+<td>Whichever recording currently counts as "the one" has a flagged issue — a sampling-rate mismatch, or a missing EDA/ECG channel — worth a look before you commit to it.</td>
+</tr>
+</tbody>
+</table>
+<p>That last one matters even for a subject that otherwise looks fine (●) — a
+single recording being <em>found</em> doesn't mean it was ever confirmed and tagged
+as the real foh recording, so it stays flagged until you either tag it or
+consciously decide it doesn't need to be. Tick <strong>Issues only</strong> and it'll show
+up there too, alongside missing/duplicate subjects.</p>
+<p>The <strong>Tag</strong> column shows, at a glance, whether the recording currently
+counts as "the one" has been tagged yet — either the tag itself (e.g.
+<code>foh</code>) once it has, or <strong>not tagged</strong> in orange if it hasn't (the same
+thing the 🏷 icon flags, spelled out here so you don't have to hover the
+icon legend to remember what it means).</p>
+<p>The <strong>Datatype</strong> column shows which BIDS <em>datatype</em> folder that
+recording's file currently lives in — <code>eeg</code> at first, since that's the
+name the collection software always uses (see <a href="#12-tag-files-with-real-bids-tags">step
+12</a> for why that's not accurate for FOH data, and
+what it becomes once tagged). "Datatype" is BIDS's own term for this —
+the <code>eeg</code>/<code>beh</code>/<code>func</code>/... subfolder a recording sits in, not a filename
+thing. Hover a value to see what it means and, if it's about to change,
+what it'll change to.</p>
+<p>The <strong>Info</strong> column next to it shows a quick summary for whichever
+recording currently counts as "the one" — the date and time it was
+recorded, how long it ran (in minutes), and how many of the streams the
+pipeline needs were actually found, e.g. <code>Streams: 4/4 ✓</code> (or ✗ if any are
+missing).
+Hover over that summary for the full breakdown, stream by stream — so you
+don't have to open a file yourself to get a sense of whether it's the
+real one.</p>
+<p>The tool remembers this per-recording info between launches, so
+re-opening a folder you've already looked at is fast rather than
+re-reading every recording from scratch. If a recording's actual file has
+changed since the tool last read it, click <strong>Refresh</strong> in the <strong>Subject
+actions</strong> panel (see below) to make it look again.</p>
+<p>Tick <strong>Issues only</strong> above the list to hide every subject that's already
+fine, so you only see the ones that need a decision.</p>
+<h3 id="5-click-a-subject-to-see-its-details">5. Click a subject to see its details</h3>
+<p>The right-hand panel shows full detail for whichever subject is selected
+on the left. If there's more than one recording, you'll see each one
+listed with its own date, length, and stream information side by side, so
+you can compare them directly.</p>
+<p>(You can also select more than one subject at once — Ctrl-click or
+Shift-click in the list — for bulk actions across your selection. See
+<a href="#working-with-several-subjects-at-once">Working with several subjects at once</a>
+below.)</p>
+<h3 id="6-pick-the-right-recording">6. Pick the right recording</h3>
+<p>Click the button next to the correct recording. This doesn't save
+anything yet — it's a preview, marked with the ⏳ icon, so you can change
+your mind before committing to it.</p>
+<h3 id="7-check-the-recording-detail-before-saving">7. Check the recording detail before saving</h3>
+<p>Once a recording counts as "the one" for a subject — either it was the
+only candidate, or you've picked it with the radio button — a small panel
+appears below the buttons with a fuller breakdown than the compact
+summary in the subject list:</p>
+<ul>
+<li>Which of the streams the pipeline needs were found in this recording,
+  each shown with its own tick or cross.</li>
+<li>For the <code>OpenSignals</code> stream specifically: the column names it reports
+  (e.g. <code>nSeq, EDA0, ECG1</code>), whether the EDA and ECG channels the pipeline
+  actually reads were found among them — matched even if the recording
+  device added a trailing channel number, like <code>EDA0</code> or <code>ECG1</code>, rather
+  than needing an exact name match — and its sampling rate, shown as
+  <em>effective</em> (measured from the file's actual timestamps) versus
+  <em>specified</em> (what the recording said it would be).</li>
+</ul>
+<p>If the sampling rate disagrees by more than 10%, or either channel is
+missing, that's shown in red, and the subject picks up a ❗ next to its
+name in the subject list — worth a second look before you commit to it.</p>
+<h3 id="8-save-your-decision">8. Save your decision</h3>
+<p>Once you're confident, click <strong>"Remove non-selected files from BIDS"</strong>
+in the <strong>Subject actions</strong> panel (above the recording detail) — this
+deletes the other recording(s) from your BIDS folder and records your
+decision. Nothing is lost: the raw folder (step 2) is never touched by
+this tool, so a removed recording is always still sitting there if you
+ever need it back — see <a href="#14-restore-a-subjects-duplicate-pick">step 14</a> to
+bring it back into BIDS. It only appears enabled once you've actually
+picked something; the button's label counts your pending picks so you
+can see at a glance whether there's anything to save.</p>
+<div class="admonition note">
+<p class="admonition-title">Why delete instead of moving it aside?</p>
+<p>Earlier versions of this tool moved a non-picked duplicate into a
+<code>crosscheck_review/</code> folder inside BIDS instead of deleting it. That
+turned out to be redundant: the raw folder is never touched by this
+tool either way, so it was already the recoverable copy. Deleting the
+BIDS-side copy keeps things simpler — there's just your raw folder and
+your BIDS folder, nothing in between.</p>
+<p>Nothing moves the moment you <em>pick</em> a candidate (step 6) — picking is
+just a preview. Files stay exactly where they are until you actually
+click a "Remove non-selected..." button.</p>
+</div>
+<p>If you've gone through several subjects and picked a recording for each
+without saving as you went, you don't have to repeat that per subject —
+click <strong>"Remove non selected files from BIDS"</strong> near the top of
+the window to save everything you've picked in one go, or select just the
+ones you want first and use <strong>"Remove non-selected files from BIDS for
+selected"</strong> in the Subject actions panel instead (see <a href="#working-with-several-subjects-at-once">Working with
+several subjects at once</a> below).
+Because either of those affects more than one subject at once, both ask
+you to confirm before doing anything — the single-subject version above
+doesn't, since it's already a deliberate one-at-a-time click.</p>
+<div class="admonition note">
+<p class="admonition-title">Didn't get to finish?</p>
+<p>If you close the tool with picks still pending (still showing the ⏳
+icon), that's fine — they aren't lost. The tool remembers them and
+they'll still be there, still pending, next time you open it.</p>
+</div>
+<h3 id="9-mark-a-subject-as-reviewed-optional">9. Mark a subject as reviewed (optional)</h3>
+<p>Above the recording detail, the <strong>Subject actions</strong> panel holds actions
+that apply to the whole subject rather than one specific recording:
+marking it reviewed, renaming its ID, re-reading its info from disk if a
+recording has changed since the tool last looked (<strong>Refresh</strong>), undoing a
+duplicate pick already committed (<strong>Restore from raw...</strong>, see <a href="#14-restore-a-subjects-duplicate-pick">step
+14</a>), and removing it from BIDS
+entirely (see <a href="#13-remove-a-subject-from-bids">step 13</a> below). It
+stays visible at a fixed spot regardless of what's selected — blank when
+nothing is selected, and titled with the subject's ID when exactly one
+is, so there's no jumping around or losing track of who it applies to as
+you click between subjects.</p>
+<p>Click <strong>"Mark crosschecked"</strong> there to record that you've personally
+looked at this subject and approved it — shown afterwards as a ☑ next to
+its name in the subject list. This is a manual note for your own or your
+team's reference; it doesn't change anything else. Click the same button
+again ("Un-mark crosschecked") to remove the mark.</p>
+<h3 id="10-look-at-the-files-yourself">10. Look at the files yourself</h3>
+<p>Click <strong>"Reveal subject folder"</strong> next to a recording to open that
+subject's folder — inside your <strong>BIDS folder</strong>, not the raw one — in
+your system's file browser (Explorer on Windows, Finder on macOS) —
+useful if you want to check something the tool doesn't show, or just
+confirm what's actually sitting on disk.</p>
+<h3 id="11-fix-an-obviously-wrong-date-or-id">11. Fix an obviously wrong date or ID</h3>
+<p>If a recording's filename has the wrong date in it, click
+<strong>"Correct date..."</strong> next to it and type the right one. If a whole
+subject's ID is wrong, use <strong>"Rename subject ID..."</strong> in the <strong>Subject
+actions</strong> panel — this renames every file for that subject, plus their
+folder, all at once. (This one's single-subject only: it doesn't appear
+when several subjects are selected, since renaming several different
+subjects to the same new ID wouldn't make sense.)</p>
+<div class="admonition note">
+<p class="admonition-title">Why don't I see \"Correct date...\" next to every candidate?</p>
+<p>For a subject with more than one candidate recording, <strong>"Correct
+date..."</strong> (and <strong>"Tag with foh BIDS tags"</strong>, see below) only appears
+next to whichever one you've picked with the radio button — there's
+nothing to correct on a file you haven't confirmed is the right one
+yet. Pick it first (step 6), and the button appears.</p>
+</div>
+<h3 id="12-tag-files-with-real-bids-tags">12. Tag files with real BIDS tags</h3>
+<p>Once you're confident a recording is the right one, click <strong>"Tag with
+foh BIDS tags"</strong> next to it. This inserts a <code>task-foh</code> entity (and an
+<code>acq-lsl</code> entity, since this was collected over Lab Streaming Layer) just
+before the <code>run-&lt;NNN&gt;</code> part of the filename, and replaces whatever comes
+after it with the real BIDS suffix <code>beh</code> — so
+<code>..._run-001_eeg_philani.xdf</code> becomes
+<code>..._task-foh_acq-lsl_run-001_beh.xdf</code>, not
+<code>..._run-001_eeg_philani_foh.xdf</code>. The collection software often tacks on
+extra free text after the run number (a device suffix, a collector's
+name), which isn't valid BIDS; tagging cleans that up at the same time as
+marking the file, rather than tagging on top of it.</p>
+<div class="admonition note">
+<p class="admonition-title">What's the eeg -&gt; beh folder switch about?</p>
+<p>The folder the file lives in gets renamed too, from <code>eeg</code> to <code>beh</code> —
+you'll see this reflected immediately in the <strong>Datatype</strong> column
+(step 4). The raw collection software always names this folder <code>eeg</code>,
+no matter what's actually recorded in it. For FOH that's simply
+wrong: this is physiology data, sometimes with behavioural data,
+collected over LSL — not brain activity, not EEG. <code>beh</code> ("behavioural"
+in BIDS's own vocabulary) is the accurate datatype for that once a
+recording's confirmed, so tagging fixes the folder name at the same
+time it fixes the file name.</p>
+<p>Nothing else in that folder gets left behind: any other file still
+sitting there — an unresolved duplicate you haven't picked yet, say —
+moves along with the folder rather than being separated from it.
+Removing the tag (below) renames the folder back to <code>eeg</code>.</p>
+</div>
+<p>Tagged the wrong recording, or tagged one that turns out not to be a real
+foh recording after all? The same button turns into <strong>"Remove foh BIDS
+tags"</strong> once a file carries the tag — click it to restore the original
+filename (the tool remembers what that was when it tagged the file, even
+though it's no longer visible in the current name) and strip the tags
+back off. The 🏷 icon comes back on that subject until you tag the right
+one (or decide none of its candidates should be).</p>
+<p>If you'd rather do this for every subject in one pass instead of
+file-by-file, click <strong>"Tag all selected with foh BIDS tags"</strong> near the
+top of the window (next to "Remove non selected files from BIDS"). It
+walks every subject, tags whichever recording currently counts as "the
+one," and skips anything already tagged — and, like "Remove non selected
+files from BIDS," it asks you to confirm first since it touches every
+subject at once. It only ever adds tags, never removes them, so an
+accidental tag still needs undoing by hand with "Remove foh BIDS tags."</p>
+<p>Only want to tag the subjects you've currently selected rather than the
+whole folder? Select them in the subject list first, then use <strong>"Tag
+selected with foh BIDS tags"</strong> in the <strong>Subject actions</strong> panel instead —
+same behaviour, just scoped to your selection.</p>
+<h3 id="13-remove-a-subject-from-bids">13. Remove a subject from BIDS</h3>
+<p>Sometimes a whole subject doesn't belong in the folder at all — a test
+recording that got saved alongside real data, or someone who was never
+really a participant. Click <strong>"Remove Subject Folder from BIDS..."</strong> in
+the <strong>Subject actions</strong> panel — this deletes the subject's entire folder
+from BIDS (their raw recording is untouched, and still sitting in the raw
+folder from step 2) and asks you for an optional reason first, so it's
+clear later why they were removed. Leave the reason blank and click OK if
+you don't need to record one, or Cancel to back out without removing
+anything.</p>
+<p>Removing a subject this way has no in-app undo — if you removed the wrong
+one, see the warning box in <a href="#14-restore-a-subjects-duplicate-pick">step
+14</a> below for how to bring them
+back.</p>
+<h3 id="14-restore-a-subjects-duplicate-pick">14. Restore a subject's duplicate pick</h3>
+<p>Only one kind of undo is built into the tool: select a subject (or a few,
+with Ctrl-click) and click <strong>"Restore from raw..."</strong> (or <strong>"Restore
+selected from raw..."</strong> for more than one) in the <strong>Subject actions</strong>
+panel. This only works for a subject who's still visible in the list with
+a duplicate already resolved (step 8) — it clears the bookkeeping for just
+them, leaving every other subject's decisions untouched, so click
+<strong>Refresh BIDS</strong> (step 2) afterward to bring their full record back in
+fresh. Because it re-derives their <em>whole</em> folder, not just the one file
+that was removed, any other decision already made for them (a corrected
+date, a crosschecked mark, another scan type's pick) goes with it and
+needs redoing too.</p>
+<div class="admonition warning">
+<p class="admonition-title">Nothing else is undoable in-app</p>
+<p>A whole subject removed entirely (step 13), or files removed by
+<strong>"Remove non-selected files from BIDS"</strong> (step 8), have no in-app
+undo — treat both as permanent. Your raw folder is still completely
+untouched either way (that's the guarantee at the top of this page),
+so nothing is actually lost — but bringing that data back into BIDS
+means re-running the raw-to-BIDS setup by hand: point the tool at a
+fresh, empty BIDS folder (or delete the old one) and click <strong>Refresh
+BIDS</strong> to rebuild from raw. See <a href="#backing-up-and-rebuilding-after-a-lost-bids-folder">Backing up, and rebuilding after a
+lost BIDS folder</a>
+below for restoring your crosscheck <em>decisions</em> into that fresh
+rebuild too, so you don't have to redo them by hand.</p>
+</div>
+<h3 id="backing-up-and-rebuilding-after-a-lost-bids-folder">Backing up, and rebuilding after a lost BIDS folder</h3>
+<p>This is the payoff of the rule at the top of this page — <strong>the raw folder
+is never touched</strong> — spelled out concretely: everything in your BIDS
+folder is either raw data (already safe, and reproducible any time by
+re-running "Refresh BIDS") or bookkeeping this tool writes as you work.
+Only that bookkeeping is unique and worth backing up on its own: click
+<strong>"Save Crosscheck Data"</strong> in the <strong>General Actions</strong> panel near the top
+of the window — no folder to pick, it copies the small set of files that
+record every decision you've made into the app's own local data folder,
+identified by the <strong>Study ID</strong> you've set for this BIDS folder. Tick
+<strong>Auto-save</strong> next to it to do this automatically on an interval instead
+of remembering to click it yourself.</p>
+<p>If the BIDS folder itself is ever lost or corrupted, point the tool at a
+fresh, empty BIDS folder with the <em>same</em> Study ID and click <strong>"Restore
+Saved Crosscheck Data"</strong>. This re-imports fresh from your raw folder, then
+automatically replays every past pick, tag, and correction from your saved
+data — you don't redo any of it by hand. It's only meant for a BIDS folder
+that's empty or was just freshly created, not for merging saved data into
+one that already has its own, different state.</p>
+<div class="admonition note">
+<p class="admonition-title">Want a completely fresh start instead?</p>
+<p>There's no single "clear everything and start over" button in this
+tool, on purpose. Restoring and reverting (above) only ever undo
+<em>decisions</em> — they always leave your raw folder as the source of
+truth and re-derive from it, which is safe by design. A full wipe is
+a different, much blunter kind of action: it would throw away
+perfectly good, already-checked work for subjects who were never a
+problem in the first place, just to fix a handful that were. Building
+that safely (so a room full of people can't wipe real results with
+one stray click) is more machinery than it's worth for something you
+can already do yourself, just as safely, outside the tool: <strong>point it
+at a brand-new, empty BIDS folder</strong> (create one anywhere and click
+<strong>Browse...</strong> to it), or <strong>delete the old BIDS folder yourself</strong> and
+let <strong>Refresh BIDS</strong> rebuild it from scratch. Either way, your raw
+folder is never touched, so nothing is actually at risk — you're just
+choosing to throw away the BIDS-side bookkeeping and start over. This
+is especially handy for a test/practice BIDS folder while you're
+still learning the tool — delete it and start fresh as often as you
+like.</p>
+</div>
+<h2 id="working-with-several-subjects-at-once">Working with several subjects at once</h2>
+<p>Click a subject to select it, or Ctrl-click (or Shift-click for a range)
+to select several at once. With one subject selected, the panel's title
+shows their ID, so you always know who the buttons below it apply to;
+with more than one, it switches to a <strong>"Subject actions — N subjects
+selected"</strong> panel with bulk versions of the actions above: <strong>Remove
+non-selected files from BIDS for selected</strong>, <strong>Refresh</strong>, <strong>Tag selected
+with foh BIDS tags</strong>, <strong>Mark selected crosschecked</strong> / <strong>Un-mark selected
+crosschecked</strong>, <strong>Restore selected from raw...</strong>, and <strong>Remove selected
+from BIDS...</strong>.</p>
+<p>Two things stay single-subject only, on purpose:</p>
+<ul>
+<li><strong>Renaming a subject's ID</strong> — renaming several different subjects to
+  the same new ID wouldn't make sense.</li>
+<li><strong>Picking which recording is the right one</strong> for a subject with more
+  than one candidate — that judgement call always stays in the
+  per-subject recording panel, never a bulk action. A subject still
+  waiting on that pick is simply skipped by any bulk action that needs an
+  actual file to work with (e.g. <strong>Remove non-selected files from BIDS
+  for selected</strong> or bulk FOH-tagging).</li>
+</ul>
+<h2 id="crane-has-its-own-version-of-this-tool">Crane has its own version of this tool</h2>
+<p>The Crane experiment has its own crosscheck tool, covered on its own page:
+<a href="../crane-crosscheck/">Crane Crosscheck</a>. It's built the same way and works
+the same way — same idea, same layout, same "raw folder is never touched"
+guarantee — just checking <code>physiology</code>/<code>behaviour</code>/<code>debrief</code> files instead
+of a single FOH recording. You may use FOH Crosscheck, Crane Crosscheck, or
+both, depending on which experiment(s) your data comes from; neither tool
+depends on the other.</p>
+<hr />
+<p><strong>Next: <a href="../crane-crosscheck/">Crane Crosscheck</a></strong> — the equivalent tool
+for Crane data.</p>
+<p><strong>Also see:</strong> <a href="../bids_crosscheck_plan/">BIDS Crosscheck Plan</a> for the
+original design decisions behind this tool, and <a href="../bids-crosscheck-architecture/">BIDS Crosscheck:
+Architecture</a> if you're looking to change
+how it works rather than just use it.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../crosschecking/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Crosschecking">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Crosschecking
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../crane-crosscheck/" class="md-footer__link md-footer__link--next" aria-label="Next: Crane Crosscheck">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Crane Crosscheck
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.footer"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

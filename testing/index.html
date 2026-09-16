@@ -1,0 +1,2226 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../contributing/">
+      
+      
+        <link rel="next" href="../api-reference/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/vrlab_icon.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Testing - VRLab Toolbox</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#testing" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="VRLab Toolbox" class="md-header__button md-logo" aria-label="VRLab Toolbox" data-md-component="logo">
+      
+  <img src="../assets/images/vrlab_icon.ico" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            VRLab Toolbox
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Testing
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="VRLab Toolbox" class="md-nav__button md-logo" aria-label="VRLab Toolbox" data-md-component="logo">
+      
+  <img src="../assets/images/vrlab_icon.ico" alt="logo">
+
+    </a>
+    VRLab Toolbox
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why This Toolbox Exists
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For Users
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    For Users
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    1. Prepare Your Data
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    1. Prepare Your Data
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crosschecking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crosschecking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../foh-crosscheck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FOH Crosscheck
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane-crosscheck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crane Crosscheck
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2. Process Your Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3. Check Your Output
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    3. Check Your Output
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../eda/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    EDA & SCRs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../foh-output/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FOH Output Checks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interval-qc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crane Output Checks (Interval QC)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For Contributors
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    For Contributors
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-use/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Use Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dev-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../code-organization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Organization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../golden-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Golden Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline-concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lab-streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lab Streaming (LSL/XDF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core-classes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Data Classes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids-crosscheck-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Crosscheck Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitHub Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-the-workspace" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is "the workspace"?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-git-basics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick git basics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Quick git basics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-commands-you-actually-need-to-get-started" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The commands you actually need to get started
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#installing-github-cli-gh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installing GitHub CLI (gh)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-crane_data-folder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The crane_data folder
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-examples-folder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The examples/ folder
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The examples/ folder">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#where-it-comes-from" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where it comes from
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#generate-it-yourself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generate it yourself
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reproducing-a-real-participants-trigger-anomaly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reproducing a real participant's trigger anomaly
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-foh_examples-folder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The foh_examples folder
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The foh_examples folder">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#generate-it-yourself_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generate it yourself
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#test-driven-development-tdd-briefly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test-Driven Development (TDD), briefly
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-the-tests-work-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the tests work here
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How the tests work here">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#running-tests-in-vs-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running tests in VS Code
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building & Releasing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project Notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline_next_steps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Next Steps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane_milestones/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Milestones
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../clock_drift_error/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clock Drift Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane_interactive_qc_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interactive QC Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids_crosscheck_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Crosscheck Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids_converter_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Converter Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-style-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Style Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-the-workspace" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is "the workspace"?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-git-basics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick git basics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Quick git basics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-commands-you-actually-need-to-get-started" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The commands you actually need to get started
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#installing-github-cli-gh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installing GitHub CLI (gh)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-crane_data-folder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The crane_data folder
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-examples-folder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The examples/ folder
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The examples/ folder">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#where-it-comes-from" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where it comes from
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#generate-it-yourself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generate it yourself
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reproducing-a-real-participants-trigger-anomaly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reproducing a real participant's trigger anomaly
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-foh_examples-folder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The foh_examples folder
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The foh_examples folder">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#generate-it-yourself_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generate it yourself
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#test-driven-development-tdd-briefly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test-Driven Development (TDD), briefly
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-the-tests-work-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the tests work here
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How the tests work here">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#running-tests-in-vs-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running tests in VS Code
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="testing">Testing</h1>
+<p>Now that you've seen how the pipeline is built (<a href="../pipeline-concepts/">Pipeline Concepts</a>,
+<a href="../design-patterns/">Design Patterns</a>), here's how it's checked: each piece
+can be tested on its own, which is exactly what the test suite does.</p>
+<h2 id="what-is-the-workspace">What is "the workspace"?</h2>
+<p>"The workspace" means the top-level project folder — the one you open in
+your editor, containing <code>src/</code>, <code>tests/</code>, <code>pyproject.toml</code>, and so on. Some
+tests expect extra data folders to exist directly inside this workspace
+folder, alongside those.</p>
+<h2 id="quick-git-basics">Quick git basics</h2>
+<p><strong>Git</strong> is a <em>version control system</em>: it keeps a history of every change
+made to the project's files, so changes can be tracked, compared, and
+undone. The project's history — every saved change ("commit") — lives in
+a hidden <code>.git</code> folder inside the workspace. This project's copy of that
+history is called a <strong>repository</strong> (or "repo").</p>
+<p>Not every file belongs in that history. A <strong><code>.gitignore</code></strong> file (in the
+workspace root) lists files and folders git should <em>never</em> track — even if
+they exist in the workspace. Each line is a pattern; anything matching it
+is skipped when you save changes. This project's <code>.gitignore</code> already
+excludes things like <code>__pycache__/</code>, build output, and — importantly —
+<code>/crane_data/</code>.</p>
+<h3 id="the-commands-you-actually-need-to-get-started">The commands you actually need to get started</h3>
+<p>Git has a lot of commands, but you can be productive with a handful of
+them. You don't need to learn git all at once — this short list covers
+day-to-day work:</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>git status</code></td>
+<td>Shows what's changed since your last commit. Safe to run anytime — it doesn't change anything.</td>
+</tr>
+<tr>
+<td><code>git add &lt;file&gt;</code></td>
+<td>Stages a file: marks it to be included in the next commit.</td>
+</tr>
+<tr>
+<td><code>git commit -m "message"</code></td>
+<td>Saves your staged changes as a new point in the project's history.</td>
+</tr>
+<tr>
+<td><code>git pull</code></td>
+<td>Fetches and merges in changes other people have committed.</td>
+</tr>
+<tr>
+<td><code>git push</code></td>
+<td>Sends your commits to the shared remote (e.g. GitHub).</td>
+</tr>
+<tr>
+<td><code>git log</code></td>
+<td>Shows the commit history.</td>
+</tr>
+<tr>
+<td><code>git diff</code></td>
+<td>Shows exactly what changed, line by line, before you stage it.</td>
+</tr>
+</tbody>
+</table>
+<p>For everyday work, <code>status</code> → <code>add</code> → <code>commit</code> → <code>pull</code>/<code>push</code> is most of
+what you'll actually type.</p>
+<h3 id="installing-github-cli-gh">Installing GitHub CLI (<code>gh</code>)</h3>
+<p><code>gh</code> is GitHub's own command-line tool — it lets you create pull requests,
+check CI status, and more, without leaving the terminal.</p>
+<pre><code class="language-bash"># Windows (PowerShell)
+winget install --id GitHub.cli
+
+# macOS
+brew install gh
+
+# Linux (Debian/Ubuntu)
+sudo apt install gh
+</code></pre>
+<p>If any of those don't work on your system (older Linux distros need an
+extra step to add GitHub's package repository first), see the official
+install instructions: <a href="https://github.com/cli/cli#installation">https://github.com/cli/cli#installation</a>.</p>
+<p>This is just enough git to work day-to-day. For branching, merging, and
+opening pull requests — i.e. actually <em>contributing</em> a change back — see
+<a href="../contributing/">For Contributors</a>.</p>
+<h2 id="the-crane_data-folder">The <code>crane_data</code> folder</h2>
+<p><code>crane_data/</code> holds real participant recordings, which the Crane test suite
+reads from directly. It is <strong>not</strong> included in the repository and never
+will be: it's real participant data, and committing it to git would mean
+it's kept in the project's history forever, on every clone of the repo —
+exactly what <code>.gitignore</code> exists to prevent.</p>
+<p>To run the full test suite, you need a <code>crane_data/</code> folder placed directly
+in the workspace root yourself (ask a team member/supervisor for it if you
+don't already have one). Without it, tests that read from <code>crane_data/</code>
+will fail with a file-not-found style error — that's expected, not a bug.</p>
+<h2 id="the-examples-folder">The <code>examples/</code> folder</h2>
+<p><code>examples/</code> holds a small <strong>synthetic</strong> Crane dataset — no real participant
+ever touched it, so unlike <code>crane_data/</code> nothing about it needs to stay
+secret. It's still <strong>not</strong> checked into the repo, though: generated at
+full length and full sampling rate, it runs to hundreds of MB, and git
+handles large binary files badly — every regeneration would add another
+full copy to the repo's history, forever. <code>examples/crane_templates/</code> (the
+small seed files it's generated <em>from</em>) is <em>meant</em> to be committed as the
+tracked exception — see the "Going further" note below, since right now it
+isn't. <code>examples/</code> itself (<code>examples/*</code> in <code>.gitignore</code>) is gitignored and
+built locally instead.</p>
+<p><code>tests/test_crane_pipeline.py</code> and <code>tests/test_crane_dummy_data.py</code> read
+from <code>examples/crane_bids_dummy/</code> — a <strong>BIDS-shaped</strong> folder, not the flat
+raw files directly — the same way the suite reads from <code>crane_data/</code>. So
+you need to generate both the raw data and its BIDS conversion yourself
+before running the full test suite (see below), much like you need someone
+to hand you a <code>crane_data/</code> folder.</p>
+<div class="admonition warning">
+<p class="admonition-title">The pipeline itself doesn't read BIDS yet</p>
+<p>Crane's own file-discovery (<code>ParticipantConfig.from_physiology_data</code>,
+driving <code>FindCraneParticipantFilesStrategyStep</code>) still only recognizes
+the old flat <code>{date}_{id}_CraneOut.{csv,mat}</code> filenames — not the BIDS
+layout <code>examples/crane_bids_dummy/</code> uses. Every test reading from it is
+currently expected to fail with a "no matching file" style error until
+that file-discovery is refactored to understand BIDS. That's
+intentional, not a sign something's broken: these are the failing
+tests meant to drive that refactor (test-driven development — see
+below). See <code>docs/pipeline_next_steps.md</code> and
+<code>docs/bids_converter_plan.md</code> for the planned shape of that change.</p>
+</div>
+<h3 id="where-it-comes-from">Where it comes from</h3>
+<p>The data isn't handwritten — two steps produce it. First,
+<code>generate_dummy_dataset()</code> in
+<code>src/vrlab_toolbox/processing/crane_dummy_data.py</code> builds the raw, flat
+layout, starting from the two real-<em>shaped</em>-but-not-real template files in
+<code>examples/crane_templates/</code> (<code>*_CraneOut.csv</code> + matching <code>.mat</code>). For each
+requested participant it copies a template, then randomises the numbers
+that matter (ratings, outcome counts, physiology noise) with a seeded
+<code>numpy</code> random generator — seeded, so the same call always produces
+byte-identical output. Second, <code>convert_crane_to_bids()</code> in
+<code>src/vrlab_toolbox/cli/crane_convert_to_bids.py</code> copies that raw layout into
+the real <code>sub-XXX/ses-01/beh/...</code> BIDS structure (see
+<code>docs/bids_converter_plan.md</code> for the naming decisions behind it) —
+<code>examples/crane_bids_dummy/</code> is that BIDS output, and the one the test
+suite actually reads from.</p>
+<div class="admonition note">
+<p class="admonition-title">Going further</p>
+<p><code>.gitignore</code> still carries a tracked-exception rule for
+<code>/sample_data/crane_templates/*.csv</code> — a stale path from before the
+templates moved to <code>examples/crane_templates/</code>. Worth cleaning up
+next time someone's touching <code>.gitignore</code>; not urgent on its own,
+and not fixed as part of this page's update.</p>
+</div>
+<p>Besides clean participants, it can also deliberately mutate a copy to
+reproduce one specific pipeline failure:</p>
+<pre><code class="language-python">ERROR_TYPES = (
+    &quot;missing_physiology&quot;,
+    &quot;missing_behaviour&quot;,
+    &quot;missing_debrief&quot;,
+    &quot;date_mismatch&quot;,
+    &quot;bad_trigger_count&quot;,
+    &quot;short_trigger&quot;,
+)
+</code></pre>
+<p>Each name matches a status the pipeline is supposed to catch — see
+<code>ERROR_SCENARIO_STATUS_KEY</code> in <code>tests/test_crane_dummy_data.py</code> for exactly
+which <code>ProcessingStatus</code> each one should produce.</p>
+<h3 id="generate-it-yourself">Generate it yourself</h3>
+<p><code>generate_dummy_dataset()</code> is wrapped by a CLI command, so you don't need
+to write any Python to build <code>examples/</code> — see the README's "Generate
+sample data" section:</p>
+<pre><code class="language-bash">crane_generate_sample_data examples/crane_templates examples --with-errors --seed 42
+</code></pre>
+<p><code>--seed</code> makes the output reproducible — same seed, same bytes, every
+time. Bump <code>--n-clean</code> and rerun to see how new <code>DUMMY0XX</code> participants get
+added; drop <code>--with-errors</code> for clean participants only.</p>
+<p><code>examples/</code> (the <code>output_folder</code> argument) is a plain <strong>raw</strong> folder — the
+same shape <code>cli/crane_convert_to_bids.py</code> expects as input. Add
+<code>--bids-folder examples/crane_bids_dummy</code> to also convert it into the BIDS
+folder the test suite reads from, in the same call:</p>
+<pre><code class="language-bash">crane_generate_sample_data examples/crane_templates examples --with-errors --seed 42 --bids-folder examples/crane_bids_dummy
+</code></pre>
+<p><code>examples/</code> still ends up holding the plain raw files either way; the BIDS
+folder is purely additional, printed as a second summary table alongside the
+"Generated crane dummy data" one. <code>convert_crane_to_bids()</code> is incremental —
+subjects already present in <code>examples/crane_bids_dummy/</code> are skipped, not
+re-copied — so re-running this after bumping <code>--n-clean</code> only adds the new
+participants. This is a development/testing convenience only — the
+generator itself has no connection to the crosscheck GUI (see
+docs/bids_converter_plan.md).</p>
+<div class="admonition note">
+<p class="admonition-title">Going further</p>
+<p><code>tests/test_crane_dummy_data.py</code> calls <code>generate_dummy_dataset()</code>
+directly (not the CLI) into a throwaway <code>tempfile</code> folder on every test
+run — that copy is separate from, and never touches, your local
+<code>examples/</code>.</p>
+</div>
+<h3 id="reproducing-a-real-participants-trigger-anomaly">Reproducing a real participant's trigger anomaly</h3>
+<p><code>ERROR_TYPES</code> above are randomly-placed mutations — good for exercising the
+pipeline's error handling in general, but they don't reproduce any
+<em>specific</em> real participant's trigger pattern. For that,
+<code>generate_dummy_participant_matching_reference()</code> (same file) reads one
+real <code>.mat</code> file's trigger-pulse <em>timing</em> — pulse count and gap lengths
+only, via <code>characterize_reference_trigger_pattern()</code> — and reproduces that
+shape on a synthetic template. None of the reference file's actual
+physiological signal is read or copied, so it's designed to be pointed
+straight at a local, gitignored <code>crane_data/</code> participant without that
+participant's data needing to go anywhere else.</p>
+<pre><code class="language-python">REFERENCE_ERROR_TYPES = (
+    &quot;missing_initial_trigger&quot;,
+    &quot;missing_last_trigger&quot;,
+    &quot;double_initial_trigger&quot;,
+)
+</code></pre>
+<p>Wrapped by the same CLI command, as an alternate mode:</p>
+<pre><code class="language-bash">crane_generate_sample_data examples/crane_templates examples \
+  --reference-folder crane_data \
+  --reference-subject-id PID16186 \
+  --reference-error-type missing_initial_trigger
+</code></pre>
+<p><code>--reference-folder</code>, <code>--reference-subject-id</code>, and <code>--reference-error-type</code>
+must be given together — the command validates that before generating
+anything, rather than silently ignoring a partially-specified reference.
+Repeated calls into the same <code>output_folder</code> accumulate (each adds one more
+synthetic participant, debrief rows included) instead of overwriting
+participants already there.</p>
+<div class="admonition note">
+<p class="admonition-title">Going further</p>
+<p>One anomaly per call — there's no way yet to reproduce a participant
+with <em>two</em> combined anomalies (e.g. missing both the first and last
+trigger) in a single synthetic file. Each call rebuilds fresh from the
+template rather than stacking onto a previous mutation.</p>
+</div>
+<h2 id="the-foh_examples-folder">The <code>foh_examples</code> folder</h2>
+<p><code>foh_examples/</code> is FOH's counterpart to <code>crane_data</code>/<code>examples</code> above -- but shaped
+differently, because FOH's raw recording is a single multi-stream <code>.xdf</code> file (Lab
+Streaming Layer), not a <code>.mat</code>/<code>.csv</code> pair. <code>src/vrlab_toolbox/processing/foh_dummy_data.py</code>
+builds synthetic recordings <strong>from scratch</strong> (like <code>longwalk_dummy_data.py</code>, not
+<code>crane_dummy_data.py</code>'s clone-and-perturb-a-template approach) via a small private XDF
+writer, since <code>pyxdf</code> can only read <code>.xdf</code> files, not write them.</p>
+<p>The four streams it writes (<code>OpenSignals</code>, <code>VR_markers</code>, <code>VR_trial_events</code>, <code>FOH_target</code>),
+their column names, the <code>VR_trial</code> event vocabulary, and the <code>FOH_target</code> CSV row shape are
+all modelled on a real, de-identified example recording a human inspected and cleared for
+this purpose -- session durations are compressed well below a real recording's length purely
+to keep generated files small and fast to build; the event <em>sequence</em> and the
+baseline/stress/recovery <em>ratios</em> follow the reference recording.</p>
+<p>Like <code>crane_examples</code>/<code>longwalk_examples</code>, <code>foh_examples/</code> is gitignored -- generate it
+locally rather than expecting it in a fresh clone.</p>
+<h3 id="generate-it-yourself_1">Generate it yourself</h3>
+<pre><code class="language-bash">foh_generate_sample_data foh_examples --seed 42
+</code></pre>
+<p>Writes straight into the already-BIDS-shaped layout FOH's recording software produces
+(<code>sub-XXX/ses-S001/beh/..._task-foh_run-001_beh.xdf</code>) -- there's no separate raw-to-BIDS
+conversion step for FOH the way there is for crane/longwalk, so <code>foh_examples</code> can be pointed
+at directly by <code>vrlab_foh_process</code> or the FOH crosscheck GUI.</p>
+<p>Add <code>--with-errors</code> to also generate one participant per known scenario:</p>
+<pre><code class="language-python">ERROR_TYPES = (
+    &quot;missing_physiology&quot;,
+    &quot;missing_behaviour&quot;,
+    &quot;missing_target&quot;,
+    &quot;missing_baseline_start_marker&quot;,
+    &quot;srate_mismatch&quot;,
+    &quot;incomplete_target_trials&quot;,
+)
+</code></pre>
+<p>Each reproduces a specific, documented effect -- see <code>SCENARIO_DESCRIPTIONS</code> in
+<code>foh_dummy_data.py</code> (also written into <code>foh_examples/dummy_data_log.txt</code> on every run) for
+what each one is for. <code>missing_physiology</code> and <code>missing_target</code> are worth calling out
+specifically: they reproduce genuine gaps in the current pipeline's error handling where a
+missing stream raises an uncaught <code>KeyError</code> instead of being caught and flagged like every
+other scenario here -- <code>tests/test_foh_dummy_data.py</code> asserts that's exactly what happens,
+so a future fix to that handling has a failing test ready to turn green instead of needing
+one written from scratch.</p>
+<div class="admonition note">
+<p class="admonition-title">Going further</p>
+<p><code>tests/test_foh_pipeline.py</code> still has a <code>TestFOHPipelineRealData</code> class reading from a
+real, gitignored <code>foh_data_copy/foh_bids_test</code> folder -- kept alongside the new
+self-contained <code>TestFOHPipelineDummyData</code> class rather than replacing it, the same way
+crane keeps both a dummy-data test class and a real-data one.</p>
+</div>
+<h2 id="test-driven-development-tdd-briefly">Test-Driven Development (TDD), briefly</h2>
+<p>TDD means writing a <strong>failing test first</strong> — one that describes what the
+code <em>should</em> do — before writing the code itself. Then you write just
+enough code to make that test pass, and clean it up afterwards. The test
+acts as a concrete, checkable definition of "done," written before you
+start guessing at an implementation.</p>
+<div class="admonition note">
+<p class="admonition-title">Going further</p>
+<p>Real Python's <a href="https://realpython.com/python-testing/">Getting Started With Testing in Python</a>
+is a solid next read — it covers <code>pytest</code> basics and TDD in more depth
+than this page does.</p>
+</div>
+<h2 id="how-the-tests-work-here">How the tests work here</h2>
+<ul>
+<li>Tests live in <code>tests/</code>, one file roughly per module under test
+  (<code>test_crane_pipeline.py</code>, <code>test_bids.py</code>, <code>test_long_walk_pipeline.py</code>).</li>
+<li>They're run with <a href="https://docs.pytest.org/"><code>pytest</code></a>, the test framework
+  this project uses. From the workspace root:</li>
+</ul>
+<p><code>pytest</code></p>
+<ul>
+<li>A single file or test can be run directly, e.g. <code>pytest tests/test_crane_pipeline.py</code>.</li>
+<li>Logging is turned on during tests (<code>pytest.ini_options</code> in
+  <code>pyproject.toml</code>), so <code>logger.info(...)</code> calls show up in the test output
+  — useful for seeing <em>why</em> a pipeline step failed, not just <em>that</em> it did.</li>
+</ul>
+<h3 id="running-tests-in-vs-code">Running tests in VS Code</h3>
+<p>Rather than typing <code>pytest</code> in a terminal every time, VS Code can discover
+and run tests through its own <strong>Testing</strong> panel (the flask/beaker icon in
+the sidebar) — click a test to run just that one, with pass/fail shown
+inline next to the code.</p>
+<p>To enable it, add to <code>.vscode/settings.json</code> (the same file used for the
+venv setting in <a href="../dev-setup/#vs-code-auto-activate-this-venv-in-every-new-terminal">Development Setup</a>):</p>
+<pre><code class="language-json">{
+  &quot;python.testing.pytestEnabled&quot;: true,
+  &quot;python.testing.unittestEnabled&quot;: false,
+  &quot;python.testing.pytestArgs&quot;: [&quot;tests&quot;]
+}
+</code></pre>
+<p>Or without editing JSON by hand: open the Command Palette
+(<code>Ctrl+Shift+P</code> / <code>Cmd+Shift+P</code>), run <strong>Python: Configure Tests</strong>, choose
+<strong>pytest</strong>, then point it at the <code>tests</code> folder — this writes the same
+settings for you. Once configured, the Testing panel lists every test
+found in <code>tests/</code>; running or debugging one from there uses the same
+active virtual environment as your terminal.</p>
+<div class="admonition note">
+<p class="admonition-title">Going further</p>
+<p>If tests fail intermittently with a <code>_tkinter</code>/<code>TclError</code> message,
+that's a known local-machine plotting-backend issue, not a real
+failure — see item 18 in <code>docs/pipeline_next_steps.md</code>.</p>
+</div>
+<hr />
+<p><strong>Next: <a href="../api-reference/">API Reference</a></strong> for specifics on individual
+functions and classes.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../contributing/" class="md-footer__link md-footer__link--prev" aria-label="Previous: GitHub Guidelines">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                GitHub Guidelines
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../api-reference/" class="md-footer__link md-footer__link--next" aria-label="Next: API Reference">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                API Reference
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.footer"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

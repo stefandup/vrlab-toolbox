@@ -1,0 +1,1951 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../api-reference/">
+      
+      
+        <link rel="next" href="../pipeline_next_steps/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/vrlab_icon.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Building & Releasing - VRLab Toolbox</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#building-releasing-pyinstaller-inno-setup" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="VRLab Toolbox" class="md-header__button md-logo" aria-label="VRLab Toolbox" data-md-component="logo">
+      
+  <img src="../assets/images/vrlab_icon.ico" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            VRLab Toolbox
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Building & Releasing
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="VRLab Toolbox" class="md-nav__button md-logo" aria-label="VRLab Toolbox" data-md-component="logo">
+      
+  <img src="../assets/images/vrlab_icon.ico" alt="logo">
+
+    </a>
+    VRLab Toolbox
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why This Toolbox Exists
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For Users
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    For Users
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    1. Prepare Your Data
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    1. Prepare Your Data
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crosschecking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crosschecking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../foh-crosscheck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FOH Crosscheck
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane-crosscheck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crane Crosscheck
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2. Process Your Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3. Check Your Output
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    3. Check Your Output
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../eda/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    EDA & SCRs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../foh-output/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FOH Output Checks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interval-qc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crane Output Checks (Interval QC)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For Contributors
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    For Contributors
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-use/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Use Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dev-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../code-organization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Organization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../golden-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Golden Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline-concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lab-streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lab Streaming (LSL/XDF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core-classes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Data Classes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids-crosscheck-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Crosscheck Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitHub Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building & Releasing
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building & Releasing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-pyinstaller" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why PyInstaller?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-current-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The current setup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-toolbox-launcher" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The toolbox launcher
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#building-it-yourself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Building it yourself
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-installer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The installer
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#version-tags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version tags
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#automatic-builds-on-tag-push" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automatic builds on tag push
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project Notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline_next_steps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Next Steps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane_milestones/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Milestones
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../clock_drift_error/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clock Drift Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane_interactive_qc_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interactive QC Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids_crosscheck_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Crosscheck Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids_converter_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Converter Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-style-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Style Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-pyinstaller" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why PyInstaller?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-current-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The current setup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-toolbox-launcher" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The toolbox launcher
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#building-it-yourself" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Building it yourself
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-installer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The installer
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#version-tags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version tags
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#automatic-builds-on-tag-push" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automatic builds on tag push
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="building-releasing-pyinstaller-inno-setup">Building &amp; Releasing (PyInstaller + Inno Setup)</h1>
+<p><a href="../contributing/">For Contributors</a> covered getting a change merged. This
+page covers the last step: turning the toolbox's commands — CLI and GUI —
+into standalone <code>.exe</code> files other people can run without installing Python
+at all, and bundling all of them into one installer.</p>
+<h2 id="why-pyinstaller">Why PyInstaller?</h2>
+<p>Not everyone who needs to run a tool like <code>vrlab_crane_process</code> is a Python
+developer with a <code>.venv</code> set up (see <a href="../dev-setup/#1-set-up-a-virtual-environment">Development Setup</a>).
+<a href="https://pyinstaller.org/">PyInstaller</a> bundles the Python interpreter,
+every dependency, and the script itself into one executable file. The
+result — <code>vrlab_crane_process.exe</code> — can be copied to any folder, including
+one on the <code>PATH</code>, and just run. No Python install, no venv, no <code>pip
+install</code> on the machine that runs it.</p>
+<h2 id="the-current-setup">The current setup</h2>
+<p>Every buildable command is bundled by one single PyInstaller "spec file" —
+<code>specs/toolbox.spec</code> — rather than one spec per tool. It loops over a plain
+<code>TOOLS</code> list (<code>(exe_name, script path relative to src/vrlab_toolbox, console
+window?, extra datas)</code> per tool, covering both CLI tools and the two
+PySide6 crosscheck GUIs plus the launcher below) and runs one <code>Analysis</code> +
+<code>EXE</code> per entry, but feeds every tool's outputs into a single shared
+<code>COLLECT</code> at the end:</p>
+<pre><code class="language-python">TOOLS = [
+    (&quot;vrlab_check_xdf&quot;, os.path.join(&quot;cli&quot;, &quot;check_mobi_xdf.py&quot;), True, []),
+    (&quot;vrlab_crane_bids_crosscheck&quot;, os.path.join(&quot;gui&quot;, &quot;crane_bids_crosscheck_gui.py&quot;), False, []),
+    (
+        &quot;vrlab_crane_process&quot;,
+        os.path.join(&quot;cli&quot;, &quot;vrlab_crane_process.py&quot;),
+        True,
+        [(os.path.join(REPO_ROOT, &quot;references&quot;, &quot;matched_debug_df_testa.parquet&quot;), &quot;references&quot;)],
+    ),
+    # ... one entry per console-script command in pyproject.toml's [project.scripts]
+]
+
+for name, script, console, extra_datas in TOOLS:
+    a = Analysis([os.path.join(SRC_ROOT, script)], datas=[*extra_datas, *copy_metadata(&quot;vrlab-toolbox&quot;)], ...)
+    pyz = PYZ(a.pure)
+    exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name=name, console=console, ...)
+    collect_args.extend([exe, a.binaries, a.zipfiles, a.datas])
+
+COLLECT(*collect_args, name=&quot;vrlab_toolbox&quot;)
+</code></pre>
+<p>A few things worth knowing:</p>
+<ul>
+<li><strong>One <code>COLLECT</code>, not one per tool.</strong> Every tool used to be its own
+  <code>--onedir</code> build (or its own spec file, before 2026-08-28), each carrying
+  a full copy of the shared scientific-Python stack (numpy, scipy, mne,
+  PySide6, …). Feeding all eleven tools' <code>EXE</code>/<code>binaries</code>/<code>datas</code> into one
+  <code>COLLECT</code> instead means identical dependency files are only written to
+  disk once, under a single <code>build_output/dist/vrlab_toolbox/</code> folder — see
+  <a href="#the-installer">The installer</a> below.</li>
+<li><strong><code>REPO_ROOT = os.path.join(SPECPATH, "..")</code></strong> — <code>SPECPATH</code> is a variable
+  PyInstaller injects automatically, set to the spec file's own directory.
+  Since the spec lives in <code>specs/</code>, one level below the workspace root,
+  entry-point and data paths are built from <code>REPO_ROOT</code> rather than
+  hardcoded relative paths, regardless of what directory <code>pyinstaller</code> is
+  actually invoked from.</li>
+<li><strong><code>matched_debug_df_testa.parquet</code></strong> (<code>vrlab_crane_process</code>'s entry only)
+  — a reference data file some processing code reads at runtime; without
+  listing it here explicitly, PyInstaller wouldn't know to bundle it (only
+  actual Python imports are detected automatically).</li>
+<li><strong><code>copy_metadata("vrlab-toolbox")</code></strong> — bundles this package's installed
+  metadata (version, name, …) into every tool. This is specifically because
+  <code>@click.version_option(package_name="vrlab-toolbox")</code> looks up the
+  installed package's version via <code>importlib.metadata</code> at runtime — and a
+  frozen exe doesn't have a normal <code>site-packages/</code> layout unless you tell
+  PyInstaller to keep this piece of it.</li>
+<li>The two GUI entries (<code>vrlab_crane_bids_crosscheck</code>,
+  <code>vrlab_foh_bids_crosscheck</code>) and the launcher's entry
+  (<code>vrlab_toolbox_launcher</code>, see below) pass <code>console=False</code> — a normal
+  windowed app, no console window popping up behind it.</li>
+</ul>
+<h2 id="the-toolbox-launcher">The toolbox launcher</h2>
+<p><code>src/vrlab_toolbox/gui/toolbox_launcher.py</code> (console-script
+<code>vrlab_toolbox_launcher</code>) is a small PySide6 window with one button per GUI
+tool — currently "FOH BIDS Crosscheck" and "Crane BIDS Crosscheck" — each of
+which just <code>subprocess.Popen</code>s that tool's exe from the launcher's own
+folder. CLI tools aren't buttons; they're listed as plain text underneath,
+since they're meant to be run from a terminal (which is why getting the
+toolbox folder onto <code>PATH</code> matters — see the installer below). It's the exe
+the installer puts a desktop shortcut to.</p>
+<h2 id="building-it-yourself">Building it yourself</h2>
+<pre><code class="language-bash">python -m pip install pyinstaller   # not in requirements-dev.txt — rarely needed
+</code></pre>
+<pre><code class="language-powershell"># Windows — build.ps1 -Full  (equivalent to what it runs internally, from an activated .venv)
+pip install -e . --no-deps
+pyinstaller --workpath build_output/work --distpath build_output/dist specs/toolbox.spec
+</code></pre>
+<p><code>build.ps1</code> itself doesn't call bare <code>pip</code>/<code>pyinstaller</code> like the snippet above -- it resolves
+<code>.venv\Scripts\python.exe</code> once up front and runs both steps through <code>python -m pip ...</code>/
+<code>python -m PyInstaller ...</code>. On a machine with more than one Python on <code>PATH</code> (a global
+install, a scoop/pyenv shim, ...), calling bare <code>pip</code>/<code>pyinstaller</code> risks <code>pip install -e .</code>
+writing fresh <code>setuptools_scm</code> version metadata into a <em>different</em> site-packages than the one
+<code>pyinstaller</code> reads it back from via <code>copy_metadata</code> -- silently baking a stale version into
+the exe, with no error. Pinning both to the same interpreter closes that gap; this only
+matters when running the raw commands above by hand outside of <code>build.ps1</code>.</p>
+<p><code>build.ps1</code> itself takes a flag rather than always doing a full rebuild:</p>
+<ul>
+<li><code>.\build.ps1</code> (no flag) — prints usage and builds nothing.</li>
+<li><code>.\build.ps1 -Full</code> — the full pipeline above: rebuild every exe, then
+  assemble and compile the installer (see below). Slow, since PyInstaller
+  re-bundles every tool from scratch.</li>
+<li><code>.\build.ps1 -Exe</code> — only the PyInstaller step, into <code>build_output/dist/</code>.
+  Skips assembling <code>build_output/toolbox/</code> and compiling the installer, so
+  it doesn't need Inno Setup installed at all — useful when you're
+  iterating on a tool's code and just want to check the exe builds.</li>
+<li><code>.\build.ps1 -Inno</code> — skips the PyInstaller step entirely and reuses
+  whatever's already in <code>build_output/dist/</code>; just reassembles
+  <code>build_output/toolbox/</code> and recompiles <code>toolbox_installer.iss</code>. Use this
+  after a <code>-Full</code> or <code>-Exe</code> build already succeeded and you're only
+  iterating on the Inno Setup script itself — recompiling just the
+  installer takes seconds instead of minutes.</li>
+</ul>
+<p>Every artifact from any of the above — PyInstaller's intermediate work
+files, its exe output, the assembled installer payload, and the compiled
+installer — lands under one gitignored <code>build_output/</code> folder
+(<code>build_output/work/</code>, <code>build_output/dist/</code>, <code>build_output/toolbox/</code>,
+<code>build_output/installer/</code> respectively) instead of four separate top-level
+folders.</p>
+<pre><code class="language-bash"># macOS/Linux — build_mac.sh
+pyinstaller --onefile src/vrlab_toolbox/cli/vrlab_crane_process.py
+pyinstaller --onefile src/vrlab_toolbox/cli/mobi_FOH_assess_data.py
+</code></pre>
+<p>The output lands in <code>build_output/dist/</code>. If PyInstaller complains about an
+obsolete <code>pathlib</code> backport package being installed, <code>pip uninstall
+pathlib</code> — modern Python already includes <code>pathlib</code> in the standard
+library.</p>
+<div class="admonition note">
+<p class="admonition-title">Going further</p>
+<p><code>build_mac.sh</code> only builds two of the toolbox's tools, as plain
+<code>--onefile</code> builds — so it doesn't bundle the reference <code>.parquet</code> file
+or the version metadata the <code>specs/</code> builds do, and there's no
+macOS/Linux equivalent of the toolbox-wide build or the installer below
+(Inno Setup, which does the installer packaging, is Windows-only). A
+known gap, not an intentional platform difference.</p>
+</div>
+<h2 id="the-installer">The installer</h2>
+<p><code>build.ps1</code> doesn't stop at building exes — after <code>specs/toolbox.spec</code>
+builds, it also:</p>
+<ol>
+<li>Resolves a version string by reading <code>vrlab-toolbox</code>'s installed package
+   metadata back out of the venv (<code>importlib.metadata.version(...)</code> via the
+   same interpreter used for the PyInstaller build) -- the same version
+   PyInstaller's <code>copy_metadata</code> already baked into the exe, so the
+   installer can't disagree with what's actually running inside it.</li>
+<li>Copies <code>build_output/dist/vrlab_toolbox/*</code> into a fresh
+   <code>build_output/toolbox/</code> folder.</li>
+<li>Compiles <code>toolbox_installer.iss</code> (an <a href="https://jrsoftware.org/isinfo.php">Inno Setup</a>
+   script, in the workspace root) with <code>ISCC.exe</code>, producing
+   <code>build_output\installer\VRLabToolboxSetup-&lt;version&gt;.exe</code>, e.g.
+   <code>VRLabToolboxSetup-v1.2.0.exe</code> (<code>OutputDir</code>/<code>OutputBaseFilename</code> in
+   <code>toolbox_installer.iss</code>'s <code>[Setup]</code> section — <code>MyAppVersion</code> is passed
+   in via <code>/DMyAppVersion=&lt;version&gt;</code>, resolved in step 1 above).</li>
+</ol>
+<p><code>toolbox_installer.iss</code> is deliberately a <strong>current-user, no-admin</strong> install
+(<code>PrivilegesRequired=lowest</code>) — appropriate for lab machines where installing
+software as an administrator often isn't an option:</p>
+<ul>
+<li>Installs to <code>{localappdata}\Programs\VRLabToolbox</code>, a location any user can
+  write to.</li>
+<li>Adds that folder to the current user's <code>PATH</code> (<code>HKEY_CURRENT_USER\Environment</code>,
+  not the system-wide <code>HKLM</code> one) via a small Pascal Script block, and
+  removes it again on uninstall. It also broadcasts a <code>WM_SETTINGCHANGE</code>
+  message so this doesn't strictly require a logoff — though a <strong>new</strong>
+  terminal window is still needed to pick up the change, since already-open
+  terminals cached their environment at launch.</li>
+<li>Puts a desktop shortcut to <code>vrlab_toolbox_launcher.exe</code> (the launcher
+  above) on the current user's desktop.</li>
+<li><code>CloseApplications=yes</code> (Inno 6's own default, stated explicitly so it can't be silently
+  turned off later) means Setup checks every file it's about to write for a process holding it
+  open and prompts to close it before touching anything -- so a toolbox window left running
+  during an upgrade gets caught here, not partway through file copying.</li>
+<li>On top of that, <code>[Code]</code>'s <code>IsUpgrade</code>/<code>UninstallOldVersion</code> detect a previous install of the
+  same product (matched by <code>AppId</code>, via its own <code>HKCU</code> uninstall registry entry) and run its
+  uninstaller fully silently (<code>/VERYSILENT /NORESTART /SUPPRESSMSGBOXES</code>) before the new
+  version's files are copied. Inno's default behavior on an upgrade is an in-place file
+  overwrite, which never removes a file the <em>old</em> version shipped that the <em>new</em> version
+  doesn't (e.g. a renamed or dropped tool's stale <code>.exe</code>) -- the explicit uninstall-first step
+  avoids that buildup instead.</li>
+</ul>
+<p><code>toolbox_installer.iss</code> produces a single <code>VRLabToolboxSetup-&lt;version&gt;.exe</code>
+— no disk spanning, so there's no separate <code>.bin</code> payload file to keep
+track of or lose. If the combined toolbox ever grows past Inno's ~2 GB single-file
+limit, <code>DiskSpanning=yes</code> (with <code>DiskSliceSize=max</code>) would need to come
+back, splitting the installer into a small <code>.exe</code> stub plus one or more
+<code>.bin</code> parts users would have to download alongside it.</p>
+<p>If <code>ISCC.exe</code> isn't found at its default install path, <code>build.ps1</code> falls
+back to checking <code>PATH</code>, and errors out clearly if Inno Setup isn't
+installed at all — the exe-building steps still succeed either way, you
+just won't get a compiled installer.</p>
+<h2 id="version-tags">Version tags</h2>
+<p><a href="../code-organization/#how-pyprojecttoml-works">Code Organization</a> covered
+<code>setuptools_scm</code>: this package's version isn't written by hand anywhere —
+it's derived from <strong>git tags</strong> automatically. To cut a new version:</p>
+<pre><code class="language-bash">git tag v1.2.0
+git push origin v1.2.0
+</code></pre>
+<p>That single tag push does two things: <code>setuptools_scm</code> picks it up as the
+installed package's version (which is what ends up embedded in each exe via
+<code>copy_metadata</code>, above, and shown by e.g. <code>vrlab_crane_process --version</code>),
+<em>and</em> it triggers an automatic build — next section.</p>
+<h2 id="automatic-builds-on-tag-push">Automatic builds on tag push</h2>
+<p><code>.github/workflows/release.yml</code> is a <a href="https://docs.github.com/actions">GitHub Actions</a>
+workflow — config that tells GitHub's own servers to run steps
+automatically in response to an event, rather than on your machine. This
+one is the piece that actually reacts to the tag push above:</p>
+<pre><code class="language-yaml">on:
+  push:
+    tags:
+      - &quot;v*&quot;
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: &quot;3.12&quot;
+      - run: pip install -r requirements.txt
+      - run: pip install -e . --no-deps
+      - run: pyinstaller --workpath build_output/work --distpath build_output/dist specs/toolbox.spec
+      - run: |
+          New-Item -ItemType Directory -Path build_output/toolbox | Out-Null
+          Copy-Item build_output\dist\vrlab_toolbox\* build_output\toolbox -Recurse
+      - run: choco install innosetup -y
+      - run: |
+          $version = &quot;${{ github.ref_name }}&quot; -replace '^v',''
+          &amp; &quot;C:\Program Files (x86)\Inno Setup 6\ISCC.exe&quot; toolbox_installer.iss &quot;/DMyAppVersion=$version&quot;
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: build_output/installer/*.exe
+</code></pre>
+<p>Pushing any tag matching <code>v*</code> (e.g. <code>v1.2.0</code>) makes GitHub check out the
+repo on a fresh Windows machine, install everything, build every tool's exe
+from the single <code>specs/toolbox.spec</code>, install Inno Setup via
+<a href="https://chocolatey.org/">Chocolatey</a> (not present on the runner by
+default), compile the installer — using the pushed tag itself as the
+installer's version, rather than <code>git describe</code> — and attach the compiled
+installer (<code>build_output/installer/*.exe</code>, resolved via <code>OutputDir</code> in
+<code>toolbox_installer.iss</code>) to a GitHub Release. All of it automatic, with no
+one needing to run the build script by hand.</p>
+<p><code>pyproject.toml</code> itself doesn't trigger the build — that's this workflow
+file, reacting to the tag. <code>pyproject.toml</code>'s part is narrower but load-bearing:
+it's what turns that same tag into the correct version number, via
+<code>setuptools_scm</code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Going further</p>
+<p>This workflow only runs on <code>windows-latest</code> — there's no automated
+macOS/Linux release build yet, matching the manual build gap noted
+above.</p>
+</div>
+<hr />
+<p><strong>Next: Project Notes</strong> (in the sidebar) — the project's own history and
+still-open work.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../api-reference/" class="md-footer__link md-footer__link--prev" aria-label="Previous: API Reference">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                API Reference
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../pipeline_next_steps/" class="md-footer__link md-footer__link--next" aria-label="Next: Next Steps">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Next Steps
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.footer"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

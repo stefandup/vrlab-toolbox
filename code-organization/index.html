@@ -1,0 +1,2232 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../dev-setup/">
+      
+      
+        <link rel="next" href="../golden-rules/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/vrlab_icon.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Code Organization - VRLab Toolbox</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#code-organization" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="VRLab Toolbox" class="md-header__button md-logo" aria-label="VRLab Toolbox" data-md-component="logo">
+      
+  <img src="../assets/images/vrlab_icon.ico" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            VRLab Toolbox
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Code Organization
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="VRLab Toolbox" class="md-nav__button md-logo" aria-label="VRLab Toolbox" data-md-component="logo">
+      
+  <img src="../assets/images/vrlab_icon.ico" alt="logo">
+
+    </a>
+    VRLab Toolbox
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why This Toolbox Exists
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For Users
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    For Users
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    1. Prepare Your Data
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    1. Prepare Your Data
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crosschecking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crosschecking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../foh-crosscheck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FOH Crosscheck
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane-crosscheck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crane Crosscheck
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2. Process Your Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3. Check Your Output
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    3. Check Your Output
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../eda/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    EDA & SCRs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../foh-output/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FOH Output Checks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interval-qc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crane Output Checks (Interval QC)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For Contributors
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    For Contributors
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-use/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Use Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dev-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Organization
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Organization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-this-toolbox-does" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What this toolbox does
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-workspace-at-a-glance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The workspace, at a glance
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The workspace, at a glance">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-pyprojecttoml-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How pyproject.toml works
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#building-and-previewing-this-documentation-site" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Building and previewing this documentation site
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inside-srcvrlab_toolbox" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inside src/vrlab_toolbox/
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-pipelinepy-then-crane_pipelinepy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why pipeline.py, then crane_pipeline.py?
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Why pipeline.py, then crane_pipeline.py?">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#where-the-actual-steps-live" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the actual steps live
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-edapy-processes-a-signal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How eda.py processes a signal
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-command-line-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The command-line tools
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The command-line tools">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-a-cli-command-receives-input-click" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How a CLI command receives input (click)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#code-style" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Code style
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Code style">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#turning-on-pylance-type-checking-in-vs-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Turning on Pylance type checking in VS Code
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../golden-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Golden Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline-concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lab-streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lab Streaming (LSL/XDF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core-classes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Data Classes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids-crosscheck-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Crosscheck Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitHub Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building & Releasing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project Notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline_next_steps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Next Steps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane_milestones/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Milestones
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../clock_drift_error/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clock Drift Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane_interactive_qc_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interactive QC Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids_crosscheck_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Crosscheck Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids_converter_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Converter Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-style-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Style Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-this-toolbox-does" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What this toolbox does
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-workspace-at-a-glance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The workspace, at a glance
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The workspace, at a glance">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-pyprojecttoml-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How pyproject.toml works
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#building-and-previewing-this-documentation-site" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Building and previewing this documentation site
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inside-srcvrlab_toolbox" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inside src/vrlab_toolbox/
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-pipelinepy-then-crane_pipelinepy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why pipeline.py, then crane_pipeline.py?
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Why pipeline.py, then crane_pipeline.py?">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#where-the-actual-steps-live" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the actual steps live
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-edapy-processes-a-signal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How eda.py processes a signal
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-command-line-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The command-line tools
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The command-line tools">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-a-cli-command-receives-input-click" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How a CLI command receives input (click)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#code-style" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Code style
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Code style">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#turning-on-pylance-type-checking-in-vs-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Turning on Pylance type checking in VS Code
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="code-organization">Code Organization</h1>
+<p>Coming from <a href="../dev-setup/">Development Setup</a>? This page explains how
+the code you just installed is actually laid out, so you can find your way
+around it.</p>
+<h2 id="what-this-toolbox-does">What this toolbox does</h2>
+<p>The VRLab Toolbox turns raw recordings — physiology signals, VR event
+logs, and questionnaire answers — into one clean, per-participant data file
+that's ready for analysis. It does this with a <strong>pipeline</strong>: a fixed
+sequence of steps (find files → import → process → combine → save) that
+every participant's data passes through, in the same order, every time.</p>
+<h2 id="the-workspace-at-a-glance">The workspace, at a glance</h2>
+<p>"The workspace" just means the top-level project folder — the one you open
+in your editor, containing everything below:</p>
+<table>
+<thead>
+<tr>
+<th>File / folder</th>
+<th>What it's for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pyproject.toml</code></td>
+<td>The project's main settings file: build info, the CLI commands (<code>[project.scripts]</code>), and config for tools like <code>ruff</code> and <code>pytest</code>.</td>
+</tr>
+<tr>
+<td><code>requirements.txt</code></td>
+<td>The exact package versions needed to <strong>run</strong> the toolbox. This is what you install first.</td>
+</tr>
+<tr>
+<td><code>requirements-dev.txt</code></td>
+<td>Extra tools only needed for <strong>developing</strong> the toolbox (not for just running it) — currently <code>pyright</code>, <code>ruff</code>, <code>mkdocs</code>, <code>mkdocs-material</code>.</td>
+</tr>
+<tr>
+<td><code>src/vrlab_toolbox/</code></td>
+<td>All the toolbox's Python code.</td>
+</tr>
+<tr>
+<td><code>tests/</code></td>
+<td>The automated test suite (see <a href="../testing/">Testing</a>).</td>
+</tr>
+<tr>
+<td><code>docs/</code></td>
+<td>This documentation site.</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Going further</p>
+<p>"Dev requirements" is a common convention: packages a <em>user</em> of the
+toolbox never needs (a linter, a type checker, a docs builder), but a
+<em>contributor</em> does. Splitting them out keeps the toolbox itself
+lightweight to install.</p>
+</div>
+<h3 id="how-pyprojecttoml-works">How <code>pyproject.toml</code> works</h3>
+<p><code>pyproject.toml</code> is the standard, modern place Python projects put their
+build/packaging config — one file instead of the older scattered
+<code>setup.py</code>/<code>setup.cfg</code>/<code>MANIFEST.in</code>. The sections that matter here:</p>
+<ul>
+<li><strong><code>[project]</code></strong> — package metadata: name, and <code>dynamic = ["version"]</code>
+  (the version isn't written by hand — see next point).</li>
+<li><strong><code>[tool.setuptools_scm]</code></strong> — its presence tells <code>setuptools</code> to derive
+  the package's version automatically from <strong>git tags</strong>, rather than a
+  hand-maintained version string anywhere in the code. Push a tag like
+  <code>v1.2.0</code>, and that becomes the installed package's version. More on why
+  that matters in <a href="../packaging/">Building &amp; Releasing</a>.</li>
+<li><strong><code>[tool.setuptools.dynamic]</code></strong> — points <code>dependencies</code> at
+  <code>requirements.txt</code>, which is why <code>pip install -e .</code> alone is enough (see
+  <a href="../getting-started/">Getting Started</a>).</li>
+<li><strong><code>[project.scripts]</code></strong> — declares each CLI command as
+  <code>command_name = "python.module.path:function"</code>, e.g.
+  <code>vrlab_crane_process = "vrlab_toolbox.cli.vrlab_crane_process:main"</code>. This
+  is what turns a plain Python function into a command you can type on its
+  own.</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Going further</p>
+<p>When you <code>pip install -e .</code>, every name under <code>[project.scripts]</code> gets
+written as an actual small executable/script file <strong>inside your
+virtual environment</strong> — <code>.venv\Scripts\</code> on Windows,
+<code>.venv/bin/</code> on macOS/Linux (see <a href="../dev-setup/#1-set-up-a-virtual-environment">Development Setup</a>
+for what a venv is). That's genuinely why typing <code>vrlab_crane_process</code>
+works once your venv is active: your shell finds that file on its
+<code>PATH</code>. Worth browsing that folder once, next to <code>site-packages/</code> — it
+demystifies where CLI commands actually come from.</p>
+</div>
+<h3 id="building-and-previewing-this-documentation-site">Building and previewing this documentation site</h3>
+<p>This site (<code>docs/</code>) is built with <code>mkdocs</code>. From the workspace root:</p>
+<pre><code># 1. Install the dev tools (mkdocs + mkdocs-material), if you haven't already
+pip install -r requirements-dev.txt
+
+# 2. Start a live-reload preview server
+mkdocs serve
+</code></pre>
+<p>Step 2 prints a local address (usually <code>http://127.0.0.1:8000/</code>) — open it
+in a browser. The page reloads automatically as you edit files in <code>docs/</code>.
+<code>Ctrl+C</code> stops the server.</p>
+<p>For a static build instead of a live server, use <code>mkdocs build</code> — this
+produces a <code>site/</code> folder (already git-ignored; see <a href="../testing/#quick-git-basics">Testing</a>).</p>
+<div class="admonition note">
+<p class="admonition-title">Going further</p>
+<p>For now, this site is <strong>local-only</strong> — there's no public link to it yet.
+The plan is to eventually host it with <strong>GitHub Pages</strong>: a free feature
+of GitHub that takes a folder of built HTML (like <code>mkdocs build</code>'s
+<code>site/</code> output) and serves it at its own web address, usually
+<code>https://&lt;user-or-org&gt;.github.io/&lt;repo-name&gt;/</code>. We can't turn that on
+yet because GitHub Pages only builds automatically from a <strong>private</strong>
+repository on paid GitHub plans (Pro/Team/Enterprise) — on the free
+plan, the repo has to be public first. Once this repo is public (or the
+plan changes), the plan is to add a small GitHub Actions workflow that
+runs <code>mkdocs build</code> and publishes the result automatically, so the site
+stays in sync with <code>docs/</code> without a manual step.</p>
+</div>
+<h2 id="inside-srcvrlab_toolbox">Inside <code>src/vrlab_toolbox/</code></h2>
+<table>
+<thead>
+<tr>
+<th>Folder</th>
+<th>What lives there</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cli/</code></td>
+<td>Small command-line scripts users run directly.</td>
+</tr>
+<tr>
+<td><code>processing/</code></td>
+<td>The actual pipeline logic: loading data, building trial intervals, computing physiology metrics, and wiring it all together.</td>
+</tr>
+<tr>
+<td><code>read_mobi_xdf/</code></td>
+<td>Loading <code>.xdf</code> (LSL) recording files.</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Going further</p>
+<p>Two folders are mid-cleanup, worth knowing about if you see them
+referenced elsewhere: <code>qc/</code> is dead code (unused, scheduled for
+removal), and <code>read_mobi_xdf/</code> is planned to move into <code>processing/</code>,
+living next to <code>biopac.py</code> — the same place <code>.mat</code> loading lives —
+since both are just physiology-file loaders for different formats.</p>
+</div>
+<h2 id="why-pipelinepy-then-crane_pipelinepy">Why <code>pipeline.py</code>, then <code>crane_pipeline.py</code>?</h2>
+<p><code>processing/pipeline.py</code> holds the <strong>generic, reusable machinery</strong> —
+<code>PipelineTemplate</code> and the <code>Sequential*Steps</code> containers — that don't know
+anything about one specific experiment. <code>processing/crane_pipeline.py</code> is
+where one experiment ("Crane") wires that generic machinery together with
+its own concrete steps, via <code>run_pipeline()</code>. Other experiments (<code>foh_pipeline.py</code>,
+<code>long_walk_pipeline.py</code>) follow the same pattern: reuse the shared
+machinery, supply experiment-specific steps.</p>
+<p>One call to <code>run_pipeline()</code> processes <strong>exactly one participant</strong>,
+returning one row of output. Combining many participants into the final
+combined CSV/SPSS file happens separately, at the CLI level — see
+<a href="../design-patterns/#one-participant-at-a-time">Design Patterns</a> for exactly
+where that split happens in the code.</p>
+<h3 id="where-the-actual-steps-live">Where the actual steps live</h3>
+<p><code>crane_pipeline.py</code> itself is mostly <em>wiring</em> — it imports each step from
+the module that actually implements it:</p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Implemented in</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Find a participant's files</td>
+<td><code>crane_pipeline.py</code> (<code>FindCraneParticipantFilesStrategyStep</code>)</td>
+</tr>
+<tr>
+<td>Import/process Crane behaviour data</td>
+<td><code>crane_behaviour.py</code></td>
+</tr>
+<tr>
+<td>Import/process debrief data</td>
+<td><code>crane_debrief_behaviour.py</code></td>
+</tr>
+<tr>
+<td>Import physiology data</td>
+<td><code>biopac.py</code></td>
+</tr>
+<tr>
+<td>Build trial intervals</td>
+<td><code>crane_trial_intervals.py</code></td>
+</tr>
+<tr>
+<td>Process EDA physiology</td>
+<td><code>eda.py</code></td>
+</tr>
+</tbody>
+</table>
+<p>If you're trying to find where a specific piece of logic actually runs,
+start from this table rather than <code>crane_pipeline.py</code> — that file mostly
+just imports and assembles the pieces above.
+(See <a href="../pipeline-concepts/">Pipeline Concepts</a> for <em>why</em> it's built this way.)</p>
+<p><code>foh_pipeline.py</code> is wired the same way, for FOH's own steps:</p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Implemented in</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Find a participant's files</td>
+<td><code>foh_pipeline.py</code> (<code>FindFohParticipantFilesStrategyStep</code>)</td>
+</tr>
+<tr>
+<td>Import/process FOH trial + target behaviour data</td>
+<td><code>foh_behaviour.py</code>, <code>foh_target_behaviour.py</code></td>
+</tr>
+<tr>
+<td>Import physiology data</td>
+<td><code>lsl.py</code> (<code>FohLslPhysiologyDataImportStrategy</code>)</td>
+</tr>
+<tr>
+<td>Build trial intervals</td>
+<td><code>foh_trial_intervals.py</code>, using event definitions from <code>foh_config.py</code></td>
+</tr>
+<tr>
+<td>Process EDA physiology</td>
+<td><code>eda.py</code> — the <em>same</em> <code>ProcessEdaPhysiologyDataStrategyStep</code> Crane uses, unmodified</td>
+</tr>
+</tbody>
+</table>
+<p>See <a href="../lab-streaming/">Lab Streaming (LSL/XDF)</a> for what's different about
+FOH's data (one <code>.xdf</code> file instead of separate <code>.mat</code>/CSV files) and why
+that only changes the import/interval steps, not the processing steps.</p>
+<h3 id="how-edapy-processes-a-signal">How <code>eda.py</code> processes a signal</h3>
+<p><a href="../eda/">EDA &amp; SCRs</a> covers what EDA/SCRs are and how to read the QC plot,
+in plain terms; this is the code behind it. The processing chain, from raw
+signal to one row of output:</p>
+<ol>
+<li><strong>Slice</strong> — <code>run_eda_intervals</code> uses <code>trial_intervals.slice_data_frame</code>
+   to cut the full EDA recording into one chunk per trial interval.</li>
+<li><strong>Clean, decompose, find peaks</strong> — for each interval,
+   <code>run_nk_eda_processing</code> wraps three NeuroKit2 calls in order:
+   <code>nk.eda_clean</code> (remove noise) → <code>nk.eda_phasic</code> (split into
+   tonic/phasic components) → <code>nk.eda_peaks</code> (detect SCRs in the phasic
+   component).</li>
+<li><strong>Count</strong> — <code>get_eda_data_out</code> counts detected SCR peaks for that
+   interval and divides by the interval's length in minutes, producing one
+   <code>..._SCR_per_min</code> value.</li>
+<li><strong>Tidy column names</strong> — <code>correct_order</code> cleans up the resulting column
+   names so repeated interval labels (e.g. two <code>ITI</code> columns) don't
+   collide.</li>
+<li><strong>QC plot</strong> — separately, <code>run_eda_qc</code> runs the <em>same</em> cleaning/decompose
+   steps over the <strong>whole, unsliced</strong> recording (not per interval) purely to
+   draw the QC figure — it doesn't feed into the numeric output.</li>
+</ol>
+<p><code>eda.py</code> calls NeuroKit2 with this project's chosen methods
+(<code>clean_method="biosppy"</code>, <code>peak_detect_method="vanhalem2020"</code>) and
+reshapes the result — see <a href="../eda/#the-neurokit2-toolbox">EDA &amp; SCRs</a> for
+what NeuroKit2 itself is.</p>
+<p><code>ProcessEdaPhysiologyDataStrategyStep</code> (<code>eda.py</code>) is the concrete strategy
+that satisfies <code>ProcessPhysiologyDataStrategyStep</code> from <code>pipeline.py</code> — see
+<a href="../design-patterns/">Design Patterns</a> for what that means. Like the
+interval-matching step, it has its own <code>fallback_strategy</code>:</p>
+<ul>
+<li><strong><code>ProcessEdaPhysiologyDataStrategyStep</code></strong> — the main path. Takes the
+  already-matched <code>TrialIntervals</code> produced by the interval step and
+  processes each labelled trial.</li>
+<li><strong><code>ProcessEdaPhysiologyFallbackStrategyStep</code></strong> — used when no matched
+  intervals are available. It derives its own raw, unlabelled trigger
+  intervals directly from the physiology data
+  (<code>trial_intervals.get_raw_biopac_trigger_intervals</code>) and processes those
+  instead — the same "partial data beats no data" idea as the interval
+  step's fallback (see item 5 in
+  <a href="../pipeline_next_steps/#5-add-a-fallback-for-partialmissing-behaviour-data-using-unlabelled-intervals">Next Steps</a>).</li>
+</ul>
+<h2 id="the-command-line-tools">The command-line tools</h2>
+<p>CLI scripts live in <code>src/vrlab_toolbox/cli/</code> (e.g. <code>vrlab_crane_process.py</code>).
+They're deliberately kept <strong>thin</strong>: read input, loop over files, call into
+<code>processing/</code>, save the result. All the real decision-making lives in
+<code>processing/</code>, not in the CLI. Two reasons:</p>
+<ol>
+<li><strong>Testing</strong> — code in <code>processing/</code> can be tested directly with <code>pytest</code>,
+   without running a full command-line program.</li>
+<li><strong>Reuse</strong> — the same processing logic can be called from a CLI, a script,
+   or a notebook, without rewriting it.</li>
+</ol>
+<h3 id="how-a-cli-command-receives-input-click">How a CLI command receives input (<code>click</code>)</h3>
+<p>Each CLI file uses the <a href="https://click.palletsprojects.com/"><code>click</code></a> library
+to turn a plain function into a command-line command. Take
+<code>vrlab_crane_process.py</code>:</p>
+<pre><code class="language-python">@click.command()
+@click.argument(&quot;input_folder&quot;, type=click.Path(exists=True, dir_okay=True, path_type=Path))
+@click.argument(&quot;output_folder&quot;, type=click.Path(exists=True, dir_okay=True, path_type=Path))
+@click.option(&quot;--subject_id&quot;, required=False, default=&quot;&quot;, help=&quot;Process a single participant&quot;)
+@click.option(&quot;--verbose&quot;, is_flag=True, help=&quot;Give verbose output&quot;)
+def main(input_folder: Path, output_folder: Path, verbose: bool, subject_id: str):
+    ...
+</code></pre>
+<ul>
+<li><code>@click.argument(...)</code> — a <strong>required, positional</strong> value (order matters).
+  <code>type=click.Path(...)</code> tells click to check the path exists and hand it
+  back as a <code>pathlib.Path</code>, instead of a plain string you'd have to convert
+  yourself.</li>
+<li><code>@click.option(...)</code> — an <strong>optional, named</strong> value (<code>--subject_id ...</code>),
+  with a default if it's left out. <code>is_flag=True</code> makes <code>--verbose</code>
+  a simple on/off switch.</li>
+<li>Each decorator adds one parameter to <code>main(...)</code>, in the order they're
+  declared as arguments (options can come in any order on the command line).</li>
+</ul>
+<p>So running:</p>
+<pre><code>vrlab_crane_process C:\data\input C:\data\output --subject_id P00018
+</code></pre>
+<p>calls <code>main(input_folder=..., output_folder=..., subject_id="P00018", verbose=False)</code>.
+The command name (<code>vrlab_crane_process</code>) itself comes from <code>[project.scripts]</code>
+in <code>pyproject.toml</code>, which points at this <code>main</code> function.</p>
+<h2 id="code-style">Code style</h2>
+<p>Two automatic tools help keep the code consistent — config for both lives in
+<code>pyproject.toml</code>:</p>
+<ul>
+<li><strong><a href="https://docs.astral.sh/ruff/">ruff</a></strong> — checks for errors and style
+  issues (e.g. unused imports) and can auto-format code. This project's
+  ruff settings: 100-character line length, double-quote strings.</li>
+<li><strong><a href="https://microsoft.github.io/pyright/">pyright</a></strong> — checks type hints
+  for mistakes before you run the code.</li>
+</ul>
+<h3 id="turning-on-pylance-type-checking-in-vs-code">Turning on Pylance type checking in VS Code</h3>
+<p>Running <code>pyright</code> from the terminal checks the whole project at once, but
+you don't have to wait for that to see a problem — <strong>Pylance</strong>, the
+extension VS Code already uses for Python (autocomplete, go-to-definition,
+etc.), is built on the <em>same</em> <code>pyright</code> engine. It can underline type
+errors live, in the editor, as you type, before you ever run the file or
+the terminal check.</p>
+<p>This project's own <code>.vscode/settings.json</code> doesn't set a
+<code>python.analysis.typeCheckingMode</code> — it only configures the interpreter
+path, the integrated terminal, and <code>ruff</code> as the on-save formatter:</p>
+<pre><code class="language-json">{
+    &quot;python.defaultInterpreterPath&quot;: &quot;${workspaceFolder}\\.venv\\Scripts\\python.exe&quot;,
+    &quot;[python]&quot;: {
+        &quot;editor.defaultFormatter&quot;: &quot;charliermarsh.ruff&quot;,
+        &quot;editor.formatOnSave&quot;: true
+    }
+}
+</code></pre>
+<p>So Pylance's live type checking currently runs at whichever level is the
+extension's own built-in default on your machine — nothing in this repo
+pins it. If you want it to check more (or less) as you type, that's a
+setting you'd add to <code>.vscode/settings.json</code> yourself, e.g.:</p>
+<pre><code class="language-json">{
+    &quot;python.analysis.typeCheckingMode&quot;: &quot;basic&quot;
+}
+</code></pre>
+<p>Pyright's three levels, from lightest to strictest: <code>"off"</code> (no live type
+checking at all), <code>"basic"</code>, and <code>"strict"</code>. (Some pyright versions also
+expose an in-between <code>"standard"</code> level — check what your installed
+Pylance version offers via the setting's autocomplete in VS Code before
+picking one.)</p>
+<p><strong>Why this is worth turning on, not just noise to silence:</strong> it catches
+real mistakes <em>before</em> you run anything — passing the wrong concrete type
+into a strategy step's <code>run()</code>, forgetting a required argument, or calling
+a function marked <code>@deprecated</code> (see <a href="../golden-rules/#mark-old-code-deprecated--dont-just-delete-it-or-leave-it-silently">Golden Rules</a>
+for a real example of that last one). In a codebase built around typed
+<code>Protocol</code> contracts like this one (<a href="../design-patterns/#strategy">Design Patterns</a>),
+that's exactly the class of bug type checking is designed to catch —
+finding out at edit time, not after a participant's data has half-run
+through the pipeline.</p>
+<div class="admonition note">
+<p class="admonition-title">Going further</p>
+<p>Our style follows <a href="https://realpython.com/python-pep8/">PEP 8</a>, Python's
+official style guide — Real Python's PEP 8 guide is a good, readable
+walkthrough of the reasoning behind it.</p>
+</div>
+<p>See the <a href="../ai-style-guide/">AI Style Guide</a> for this same stack — <code>click</code>,
+<code>pandera</code>, <code>dataclasses</code>/<code>Protocol</code>, <code>pytest</code>, <code>rich</code> — written up as an
+explicit reference for AI coding assistants, so a new tool or pattern
+doesn't get introduced alongside what's already here.</p>
+<hr />
+<p><strong>Next: <a href="../golden-rules/">Golden Rules</a></strong> — a handful of coding rules of
+thumb this codebase actually follows, with real examples.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../dev-setup/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Development Setup">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Development Setup
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../golden-rules/" class="md-footer__link md-footer__link--next" aria-label="Next: Golden Rules">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Golden Rules
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.footer"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

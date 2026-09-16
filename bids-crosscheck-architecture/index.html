@@ -1,0 +1,2046 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../core-classes/">
+      
+      
+        <link rel="next" href="../contributing/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/vrlab_icon.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>BIDS Crosscheck Architecture - VRLab Toolbox</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#bids-crosscheck-architecture" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="VRLab Toolbox" class="md-header__button md-logo" aria-label="VRLab Toolbox" data-md-component="logo">
+      
+  <img src="../assets/images/vrlab_icon.ico" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            VRLab Toolbox
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              BIDS Crosscheck Architecture
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="VRLab Toolbox" class="md-nav__button md-logo" aria-label="VRLab Toolbox" data-md-component="logo">
+      
+  <img src="../assets/images/vrlab_icon.ico" alt="logo">
+
+    </a>
+    VRLab Toolbox
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why This Toolbox Exists
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For Users
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    For Users
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    1. Prepare Your Data
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    1. Prepare Your Data
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crosschecking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crosschecking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../foh-crosscheck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FOH Crosscheck
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane-crosscheck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crane Crosscheck
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2. Process Your Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3. Check Your Output
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    3. Check Your Output
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../eda/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    EDA & SCRs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../foh-output/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FOH Output Checks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interval-qc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crane Output Checks (Interval QC)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For Contributors
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    For Contributors
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-use/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Use Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dev-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../code-organization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Organization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../golden-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Golden Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline-concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lab-streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lab Streaming (LSL/XDF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core-classes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Data Classes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Crosscheck Architecture
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Crosscheck Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#philosophy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Philosophy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#code-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Code layout
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key types
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-subject-tables-tag-and-datatype-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The subject table's Tag and Datatype columns
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-artifacts-a-bids-folder-ends-up-with" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The artifacts a BIDS folder ends up with
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#backup-and-disaster-recovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backup and disaster recovery
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extending-adding-a-new-dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extending: adding a new dataset
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#libraries-used" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Libraries used
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#known-gaps-todos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known gaps / TODOs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitHub Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building & Releasing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project Notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline_next_steps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Next Steps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane_milestones/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Milestones
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../clock_drift_error/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clock Drift Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane_interactive_qc_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interactive QC Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids_crosscheck_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Crosscheck Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids_converter_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Converter Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-style-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Style Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#philosophy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Philosophy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#code-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Code layout
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key types
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-subject-tables-tag-and-datatype-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The subject table's Tag and Datatype columns
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-artifacts-a-bids-folder-ends-up-with" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The artifacts a BIDS folder ends up with
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#backup-and-disaster-recovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backup and disaster recovery
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extending-adding-a-new-dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extending: adding a new dataset
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#libraries-used" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Libraries used
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#known-gaps-todos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known gaps / TODOs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="bids-crosscheck-architecture">BIDS Crosscheck: Architecture</h1>
+<p><a href="../bids_crosscheck_plan/">BIDS Crosscheck Plan</a> covers the <em>design</em>
+decisions behind this tool — why it exists, what's deliberately out of
+scope, the mockup it was built from. This page is the <em>code</em> map: what's
+actually built, where it lives, and what to touch to change or extend it.
+If you're looking to <em>use</em> the tool instead, see <a href="../foh-crosscheck/">FOH
+Crosscheck</a> or <a href="../crane-crosscheck/">Crane Crosscheck</a>.</p>
+<h2 id="philosophy">Philosophy</h2>
+<ul>
+<li><strong>Human-in-the-loop, decisions recorded not applied.</strong> The tool never
+  guesses which file is right. Every choice a person makes is written to a
+  JSON file <em>before</em> anything on disk changes, so the record survives even
+  if the app crashes mid-operation.</li>
+<li><strong>One tool per dataset</strong>, not one app with a dataset switcher — matches
+  this repo's existing pattern of one CLI/entry point per pipeline
+  (<code>vrlab_crane_process</code>, <code>vrlab_foh_assess_data</code>, …).</li>
+<li><strong>No automatic collision resolution.</strong> If a rename ever leaves two files
+  looking like duplicates again, that's treated as an ordinary duplicate,
+  routed through the same review — deliberately one mechanism, not two.</li>
+<li><strong>Additive-only.</strong> Nothing here changes <code>ParticipantConfig</code> or any
+  existing pipeline code — see the plan's own guardrail section for the
+  full reasoning.</li>
+</ul>
+<h2 id="code-layout">Code layout</h2>
+<pre><code>processing/bids_crosscheck.py        Qt-free engine: scanning, JSON I/O, corrections
+gui/bids_crosscheck_common.py        shared PySide6 window (BidsCrosscheckWindow)
+gui/crane_bids_crosscheck_gui.py     thin entry point: crane's DatasetConfig
+gui/foh_bids_crosscheck_gui.py       thin entry point: FOH's DatasetConfig + CandidateExtras
+tests/test_bids_crosscheck.py        tests for the engine (no Qt dependency)
+</code></pre>
+<p>Everything Qt-specific stays out of <code>processing/bids_crosscheck.py</code> on
+purpose — it's plain Python + <code>pathlib</code>, testable without a display, and in
+principle reusable from a future non-GUI entry point.</p>
+<h2 id="key-types">Key types</h2>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Lives in</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DatasetConfig</code></td>
+<td><code>processing/bids_crosscheck.py</code></td>
+<td>One dataset's scan types, glob patterns, and whether/how task-tagging (FOH's "Tag with foh BIDS tags") applies -- <code>task_tag_task</code>/<code>task_tag_acq</code>/<code>task_tag_suffix</code> (the BIDS entities/suffix a tag writes) plus an optional <code>task_tag_folder_name</code>, which also renames a tagged file's parent folder (e.g. FOH's <code>eeg/</code> -&gt; <code>beh/</code>), carrying along anything else still in it.</td>
+</tr>
+<tr>
+<td><code>ScanTypeConfig</code></td>
+<td>same</td>
+<td>One scan type's name + the glob patterns that find its candidate files.</td>
+</tr>
+<tr>
+<td><code>SubjectScan</code></td>
+<td>same</td>
+<td>One subject/scan-type's candidate files, with a <code>status</code> property (<code>"ok"</code> / <code>"missing"</code> / <code>"duplicate"</code>, derived purely from file count).</td>
+</tr>
+<tr>
+<td><code>BidsFolderScan</code></td>
+<td>same</td>
+<td>The result of scanning a whole folder — every subject × scan-type, plus <code>has_issues()</code>.</td>
+</tr>
+<tr>
+<td><code>CandidateExtras</code></td>
+<td><code>gui/bids_crosscheck_common.py</code></td>
+<td>The hook dataset-specific GUIs override to add per-candidate info (see FOH below). Crane uses the no-op default.</td>
+</tr>
+<tr>
+<td><code>BidsCrosscheckWindow</code></td>
+<td>same</td>
+<td>The actual master-detail window: subject table (Subject / Tag / Datatype / Info columns) on the left, per-scan-type detail panel on the right.</td>
+</tr>
+</tbody>
+</table>
+<p><code>BidsCrosscheckWindow</code> never imports anything crane- or FOH-specific — it
+only knows <code>DatasetConfig</code> and the <code>CandidateExtras</code> protocol. That's what
+lets <code>crane_bids_crosscheck_gui.py</code> and <code>foh_bids_crosscheck_gui.py</code> stay a
+few dozen lines each.</p>
+<h2 id="the-subject-tables-tag-and-datatype-columns">The subject table's Tag and Datatype columns</h2>
+<p><code>_build_subject_tag_widget</code> shows, per tag-eligible scan type (i.e.
+<code>extras.task_tag_available(scan_type)</code> is true), whether the
+currently-effective candidate carries the <code>task-&lt;task&gt;</code> marker yet -- the
+task value itself if tagged, <code>"not tagged"</code> in <code>PLEASE_SELECT_COLOR</code> if not.
+Blank for a scan type that doesn't support tagging at all (e.g. every one of
+Crane's), or with nothing effective yet. Same underlying check as
+<code>_needs_task_tag</code>, just surfaced as its own column instead of only
+the 🏷 icon.</p>
+<p><code>_build_subject_datatype_widget</code> shows, per scan type, the BIDS datatype
+folder (<code>file.parent.name</code>) the currently-effective candidate lives in right
+now -- blank if there's nothing effective yet (missing, or an unresolved
+duplicate). <code>_datatype_tooltip</code> explains the value on hover: what the current
+folder is, and -- if <code>task_tag_folder_name</code> is configured and differs
+from the current folder -- what it becomes once tagged. <code>BIDS_DATATYPE_NAMES</code>
+(a small, dataset-agnostic dict of BIDS's own datatype abbreviations, e.g.
+<code>"beh": "behavioural"</code>) glosses both in plain English wherever it recognizes
+the folder name; an unrecognized one is shown without a gloss rather than
+guessed. Deliberately doesn't assert anything about the <em>current</em> folder's
+accuracy (only the <em>target</em> one, which the dataset config author chose on
+purpose) -- FOH's <code>eeg/</code> is a real example of a current folder whose name is
+simply wrong for what it contains.</p>
+<p>Column order is Subject / Tag / Datatype / Info, left to right.</p>
+<h2 id="the-artifacts-a-bids-folder-ends-up-with">The artifacts a BIDS folder ends up with</h2>
+<p>The tool never touches anything outside the BIDS folder it's pointed at
+(see the plan's "BIDS folder only" decision). Inside it, these appear as
+you use the tool:</p>
+<ul>
+<li><strong><code>crosscheck.json</code></strong> — finalized decisions: <code>selected_run</code>,
+  <code>date_correction</code>, <code>id_correction</code>, <code>task_tag</code>/<code>task_tag_removed</code>,
+  <code>crosschecked</code>. Keyed by <code>{subject_id}_{scan_type}</code> (<code>_decision_key</code>),
+  except <code>crosschecked</code> uses a <em>different</em> key (<code>_crosschecked_key</code>, same
+  base plus <code>_crosschecked</code>) so marking something crosschecked can never
+  overwrite an existing <code>selected_run</code> entry for that same subject/scan-type.
+  <strong>Update (2026-09-01):</strong> each key's value is a <em>list</em> of decisions, oldest
+  first (<code>_append_decision</code>/<code>_latest_decision</code>), not one dict — a later
+  correction on the same key no longer erases an earlier one. An old
+  single-entry <code>crosscheck.json</code> is transparently upgraded to <code>[entry]</code> on
+  load, so nothing already on disk needs migrating by hand. Most callers
+  (<code>crosschecked_scan_types</code>, <code>existing_subject_ids</code>) only need
+  <code>_latest_decision</code>, i.e. current state; <code>revert_all_decisions</code> and
+  <code>rebuild_from_raw</code> (below) are the two that walk the full history.</li>
+<li><strong><code>crosscheck_pending.json</code></strong> — radio picks made but not yet committed
+  (<code>load_pending_selections</code>/<code>save_pending_selections</code>). Kept in a
+  <em>separate</em> file from <code>crosscheck.json</code> on purpose: these aren't decisions
+  yet, just in-progress GUI state, autosaved so closing the app before
+  clicking "commit" doesn't lose the picks. Filenames only, not full
+  paths — re-resolved against a fresh scan's actual candidates on load, so
+  a stale entry (file renamed/deleted outside the tool) is silently
+  dropped rather than crashing.</li>
+<li><strong><code>excluded_subjects.json</code></strong> — <code>{subject_id: reason}</code> for every subject
+  <code>record_subject_excluded</code> has removed from BIDS. Unlike the earlier
+  <code>crosscheck_junk/</code>/<code>crosscheck_review/</code> folders (removed 2026-08-27), a
+  removed subject's <code>sub-XXX/</code> folder is deleted outright, not moved
+  anywhere -- safe only because neither importer/converter ever touches
+  the raw folder (see "BIDS folder only" in the plan), so it's always the
+  real recoverable copy. <code>existing_subject_ids</code> unions this file's keys
+  with the folders actually on disk, so an excluded subject doesn't look
+  "new" again to the next raw-to-BIDS refresh. <code>record_selected_run</code> (a
+  duplicate's non-selected candidate) deletes the file directly instead
+  and does <em>not</em> write here -- it's still recorded in <code>crosscheck.json</code>'s
+  <code>selected_run</code> entry, which is enough for restore (below) to find it.
+  <code>restore_all_from_bids</code> reverses both: it clears this file entirely, and
+  for every <code>selected_run</code> decision it finds, deletes that subject's whole
+  <code>sub-XXX/</code> folder and the decision itself, so the next raw-to-BIDS
+  refresh re-derives them fresh. There's no more permanent-delete
+  operation in this module -- deleting <em>was</em> already the only operation,
+  so a separate "confirm forever" action on top of it would be redundant.</li>
+</ul>
+<p>Both JSON writes go through <code>_write_json_atomic</code> — write to a <code>.tmp</code> file,
+then <code>os.replace()</code> — so a crash mid-write can't corrupt either file.</p>
+<h2 id="backup-and-disaster-recovery">Backup and disaster recovery</h2>
+<p>Everything in a BIDS folder is either raw data (already safe — the raw folder
+is never touched, see "BIDS folder only" in the plan) or one of the JSON
+files above; only <code>crosscheck.json</code>/<code>excluded_subjects.json</code>/
+<code>crosscheck_pending.json</code> actually need backing up (<code>crosscheck_info_cache.json</code>
+is a re-derivable performance cache, not a decision record). Two functions
+handle this:</p>
+<ul>
+<li><strong><code>backup_decisions(bids_folder, backup_folder)</code></strong> — copies those three
+  files to <code>backup_folder</code>. Wired to the GUI's "Backup crosscheck data..."
+  button.</li>
+<li><strong><code>rebuild_from_raw(bids_folder, decisions, excluded)</code></strong> — the recovery
+  side. Assumes <code>bids_folder</code> has <em>just</em> been freshly re-imported from raw
+  (the GUI runs the existing <code>raw_converter</code>/"Refresh BIDS" hook first,
+  unchanged), then replays every decision's filesystem effect against it —
+  the same rename/delete each <code>record_*</code> function performs, but computed
+  directly from what the entry already recorded (<code>original_filename</code> →
+  <code>corrected_filename</code>, etc.) rather than recomputed from scratch, so there's
+  one definition of what each decision type means, not two. The one
+  exception is <code>id_correction</code>, which re-applies the same original/corrected
+  id token-replacement rule <code>record_id_correction</code> uses, since its entry
+  stores the original relative paths rather than each file's new name.</li>
+</ul>
+<p>Every entry (across every key) is retried pass after pass until a pass
+  makes no further progress, rather than walked once in a fixed order — two
+  things can make an entry temporarily unresolvable: it isn't the oldest
+  step in its own key's chain yet (its <code>original_filename</code> doesn't exist
+  until an earlier entry in the same list produces it), or it depends on an
+  <code>id_correction</code> recorded under a <em>different</em> key finishing first. Both
+  resolve themselves once whatever they were waiting on succeeds on an
+  earlier pass — no explicit ordering/timestamp needed, and notably not
+  derivable from <code>crosscheck.json</code>'s on-disk key order anyway, since
+  <code>_write_json_atomic</code> writes with <code>sort_keys=True</code>. Whatever still can't
+  resolve once no pass makes progress is reported unresolved rather than
+  guessed at (see "no automatic collision resolution" in the plan for why).
+  Wired to the GUI's "Rebuild from backup..." button, which loads
+  <code>decisions</code>/<code>excluded</code> from a chosen backup folder (via the same
+  <code>load_decisions</code>/<code>load_excluded_subjects</code> already used for the live BIDS
+  folder — both take a bare folder path) before calling this.</p>
+<p>Not every dataset-specific correction fits <code>crosscheck.json</code>'s "decision
+about an already-converted file" shape, though — crane's
+<code>debrief_id_corrections.json</code>/<code>raw_filename_id_corrections.json</code>
+(<code>cli/crane_convert_to_bids.py</code>, surfaced via its own <code>extra_raw_actions</code>
+dialogs) are <em>inputs</em> the converter itself reads on the next "Refresh BIDS"
+run, not something to replay afterward. <code>BidsCrosscheckWindow</code>'s
+<code>extra_backup_filenames</code> constructor parameter (set by
+<code>crane_bids_crosscheck_gui.py</code>, empty for FOH) names these so
+<code>backup_decisions</code> includes them too, and a new <code>restore_backup_files</code>
+function puts them back into <code>bids_folder</code> <em>before</em> <code>raw_converter</code> runs
+during a rebuild — the window itself doesn't know what these files mean,
+only that they need to travel with a backup the same way <code>crosscheck.json</code>
+does (the same "this window doesn't know what the callback does" contract
+<code>extra_raw_actions</code> already uses).</p>
+<h2 id="extending-adding-a-new-dataset">Extending: adding a new dataset</h2>
+<p>A new dataset needs exactly two things: a <code>DatasetConfig</code>, and a <code>main()</code>
+that calls <code>run_bids_crosscheck_app</code>. <code>crane_bids_crosscheck_gui.py</code> is the
+minimal template (no <code>CandidateExtras</code> override):</p>
+<pre><code class="language-python">from vrlab_toolbox.gui.bids_crosscheck_common import CandidateExtras, run_bids_crosscheck_app
+from vrlab_toolbox.processing.bids_crosscheck import DatasetConfig, ScanTypeConfig
+
+CRANE_DATASET_CONFIG = DatasetConfig(
+    dataset_name=&quot;crane&quot;,
+    scan_types=(
+        ScanTypeConfig(name=&quot;physiology&quot;, glob_patterns=(&quot;*physiology*&quot;,)),
+        ScanTypeConfig(name=&quot;behaviour&quot;, glob_patterns=(&quot;*behaviour*&quot;,)),
+        ScanTypeConfig(name=&quot;debrief&quot;, glob_patterns=(&quot;*redcap*&quot;,)),
+    ),
+)
+
+def main() -&gt; None:
+    run_bids_crosscheck_app(
+        CRANE_DATASET_CONFIG, &quot;Crane BIDS Crosscheck&quot;, CandidateExtras(),
+        settings_app_name=&quot;CraneBidsCrosscheck&quot;,
+    )
+</code></pre>
+<p><code>foh_bids_crosscheck_gui.py</code> shows the richer path: a <code>CandidateExtras</code>
+subclass (<code>FohCandidateExtras</code>) that overrides <code>describe()</code> to show a
+recording's date/duration/stream-presence (colored HTML, parsed via
+<code>pyxdf</code> + <code>processing/lsl.gather_xdf_data_streams</code>/<code>get_start_time</code>), and
+<code>task_tag_available()</code> to enable the "Tag with foh BIDS tags" button.
+Every parse result is cached per-file in <code>self._info_cache</code> for the life
+of the window — see the caching TODO below for the next step (persisting
+that across restarts too).</p>
+<p>Add <code>settings_app_name</code> (used as the <code>QSettings</code> application name — see
+below) unique per dataset, and register a console-script entry in
+<code>pyproject.toml</code>'s <code>[project.scripts]</code>, matching the existing
+<code>vrlab_crane_bids_crosscheck</code> / <code>vrlab_foh_bids_crosscheck</code> pattern.</p>
+<h2 id="libraries-used">Libraries used</h2>
+<ul>
+<li><strong><a href="https://doc.qt.io/qtforpython-6/">PySide6</a></strong> — the GUI framework
+  itself (official Python bindings for Qt).</li>
+<li><strong><code>QSettings</code></strong> (part of <code>PySide6.QtCore</code>) — remembers the last-opened
+  BIDS folder across restarts, one registry/plist entry per
+  <code>settings_app_name</code>, so crane and FOH don't share state.</li>
+<li><strong><a href="https://rich.readthedocs.io/"><code>rich.progress.Progress</code></a></strong> — the same
+  progress-bar library the CLIs already use (<code>vrlab_crane_process.py</code>,
+  <code>mobi_FOH_assess_data.py</code>). Used for exactly one case: the very first
+  auto-restore on startup happens before <code>window.show()</code>, so the Qt
+  progress bar would be invisible — <code>BidsCrosscheckWindow</code> falls back to a
+  terminal bar via <code>self.isVisible()</code>, then switches to the normal Qt one
+  for every subsequent rescan.</li>
+<li><strong><a href="https://github.com/xdf-modules/pyxdf"><code>pyxdf</code></a></strong> — FOH-only, for
+  reading stream/timestamp info out of <code>.xdf</code> files (already a toolbox
+  dependency via <code>processing/lsl.py</code>).</li>
+</ul>
+<h2 id="known-gaps-todos">Known gaps / TODOs</h2>
+<ul>
+<li><strong>FOH info caching isn't persistent yet</strong> — logged in <a href="../bids_crosscheck_plan/#todo-deferred-not-scoped-now">BIDS Crosscheck
+  Plan</a>.</li>
+<li><strong>Bulk FOH-rename silently skips unpicked subjects</strong> — no warning is shown
+  when a subject is skipped because no recording had been picked yet. See
+  <a href="../bids_crosscheck_plan/#todo-deferred-not-scoped-now">BIDS Crosscheck Plan</a>.</li>
+<li><strong>Crane parity with FOH's <code>CandidateExtras</code></strong> — FOH is ahead (rich
+  <code>describe()</code> info, <code>task_tag</code>); crane still uses the no-op base.
+  Deliberately one dataset at a time — bring crane's GUI up to match FOH's
+  once a good crane-specific info source is identified, not scoped yet.</li>
+<li><strong>Crane's glob patterns are still placeholders</strong> — see the note at the
+  top of <code>crane_bids_crosscheck_gui.py</code>; there's no real crane BIDS output
+  to check them against yet (see <a href="../bids_converter_plan/">BIDS Converter
+  Plan</a>).</li>
+</ul>
+<h2 id="testing">Testing</h2>
+<p><code>tests/test_bids_crosscheck.py</code> covers <code>processing/bids_crosscheck.py</code>
+directly — no Qt, no display needed, plain <code>unittest.TestCase</code> with
+<code>tempfile.mkdtemp()</code> BIDS-folder fixtures (see <code>TestScanBidsFolder</code> for the
+pattern). GUI-level behaviour has been verified with ad hoc headless
+scripts (<code>QT_QPA_PLATFORM=offscreen</code>) during development rather than a
+committed GUI test suite — worth formalizing if this tool keeps growing.</p>
+<hr />
+<p><strong>Also see:</strong> <a href="../foh-crosscheck/">FOH Crosscheck</a> and <a href="../crane-crosscheck/">Crane
+Crosscheck</a> for the user-facing walkthroughs, and
+<a href="../bids_crosscheck_plan/">BIDS Crosscheck Plan</a> for the original design
+rationale.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../core-classes/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Core Data Classes">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Core Data Classes
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../contributing/" class="md-footer__link md-footer__link--next" aria-label="Next: GitHub Guidelines">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                GitHub Guidelines
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.footer"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

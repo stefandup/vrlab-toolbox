@@ -1,0 +1,2150 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../bids_converter_plan/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/vrlab_icon.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>AI Style Guide - VRLab Toolbox</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#ai-style-guide" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="VRLab Toolbox" class="md-header__button md-logo" aria-label="VRLab Toolbox" data-md-component="logo">
+      
+  <img src="../assets/images/vrlab_icon.ico" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            VRLab Toolbox
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              AI Style Guide
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="VRLab Toolbox" class="md-nav__button md-logo" aria-label="VRLab Toolbox" data-md-component="logo">
+      
+  <img src="../assets/images/vrlab_icon.ico" alt="logo">
+
+    </a>
+    VRLab Toolbox
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why This Toolbox Exists
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For Users
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    For Users
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    1. Prepare Your Data
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    1. Prepare Your Data
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crosschecking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crosschecking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../foh-crosscheck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FOH Crosscheck
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane-crosscheck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crane Crosscheck
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2. Process Your Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3. Check Your Output
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    3. Check Your Output
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../eda/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    EDA & SCRs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../foh-output/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FOH Output Checks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interval-qc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crane Output Checks (Interval QC)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For Contributors
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    For Contributors
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-use/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Use Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dev-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../code-organization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Organization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../golden-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Golden Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline-concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lab-streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lab Streaming (LSL/XDF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core-classes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Data Classes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids-crosscheck-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Crosscheck Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitHub Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building & Releasing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project Notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline_next_steps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Next Steps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane_milestones/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Milestones
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../clock_drift_error/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clock Drift Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane_interactive_qc_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interactive QC Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids_crosscheck_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Crosscheck Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids_converter_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Converter Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Style Guide
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Style Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-rule-this-page-exists-to-enforce" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The rule this page exists to enforce
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#established-stack-use-whats-already-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Established stack — use what's already here
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#style-specifics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Style specifics
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#patterns-to-reuse-not-reinvent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Patterns to reuse, not reinvent
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#no-flashy-new-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        No flashy new patterns
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#one-file-one-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One file, one step
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#teaching-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Teaching examples
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cleared-for-vibe-coding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cleared for vibe coding
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#execution-exception-dummy-data-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Execution exception: dummy-data generation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#execution-exception-code-checking-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Execution exception: code-checking tools
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#execution-exception-build-scripts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Execution exception: build scripts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verboten-without-override" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verboten without OVERRIDE
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#restricted-folders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Restricted folders
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#using-this-page" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using this page
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-rule-this-page-exists-to-enforce" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The rule this page exists to enforce
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#established-stack-use-whats-already-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Established stack — use what's already here
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#style-specifics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Style specifics
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#patterns-to-reuse-not-reinvent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Patterns to reuse, not reinvent
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#no-flashy-new-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        No flashy new patterns
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#one-file-one-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One file, one step
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#teaching-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Teaching examples
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cleared-for-vibe-coding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cleared for vibe coding
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#execution-exception-dummy-data-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Execution exception: dummy-data generation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#execution-exception-code-checking-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Execution exception: code-checking tools
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#execution-exception-build-scripts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Execution exception: build scripts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verboten-without-override" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verboten without OVERRIDE
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#restricted-folders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Restricted folders
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#using-this-page" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using this page
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="ai-style-guide">AI Style Guide</h1>
+<p>A single reference to hand an AI coding assistant — paste it in, or point
+the assistant at this page — before it touches this codebase. Its job is
+narrow: keep contributions consistent no matter which human, or which AI
+tool, produced them, so the codebase doesn't slowly accumulate several
+different styles and several different toolboxes for the same job.</p>
+<p>This complements <a href="../ai-use/">AI Use Guidelines</a>: that page is the
+<em>whether</em> — pipeline/processing/schema code stays human-typed, GUI and
+docs can clear the bar for AI authorship (see <a href="../ai-use/#the-core-rule-ai-is-a-tutor-not-a-coder">AI Use
+Guidelines</a>). This page
+is the <em>what</em>, for whenever code does get proposed, and for
+guidance/examples an assistant gives along the way. It also renders
+exactly where that <em>whether</em> line falls today — see <a href="#cleared-for-vibe-coding">Cleared for Vibe
+Coding</a> below — since <code>AGENTS.md</code>'s
+BYPASS/OVERRIDE commands need one canonical list to point at rather than
+a description duplicated across pages. That canonical list is
+<a href="https://github.com/stefandup/vrlab-toolbox/blob/master/vibe_list.md"><code>vibe_list.md</code></a>
+at the repo root, a plain file in the
+<code>.gitignore</code>/<code>CODEOWNERS</code> mold; this page transcludes its table rather
+than keeping a second copy.</p>
+<h2 id="the-rule-this-page-exists-to-enforce">The rule this page exists to enforce</h2>
+<p>Don't introduce a second way of doing something this codebase already does
+one way. That's <a href="../golden-rules/#write-pythonic-code--dont-fight-the-language">Golden Rules</a>'s
+"Pythonic, boring, stock-standard Python" rule, applied specifically to
+AI-suggested tools, patterns, and dependencies — the place an inconsistent
+new style is most likely to sneak in unnoticed.</p>
+<h2 id="established-stack-use-whats-already-here">Established stack — use what's already here</h2>
+<table>
+<thead>
+<tr>
+<th>Job</th>
+<th>What this project already uses</th>
+<th>Not:</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CLI commands</td>
+<td><a href="https://click.palletsprojects.com/"><code>click</code></a></td>
+<td><code>argparse</code>, <code>typer</code>, hand-rolled <code>sys.argv</code> parsing</td>
+</tr>
+<tr>
+<td>Dataframe validation</td>
+<td><a href="https://pandera.readthedocs.io/"><code>pandera</code></a></td>
+<td><code>pydantic</code> for dataframes, hand-written column checks</td>
+</tr>
+<tr>
+<td>Structured data</td>
+<td><code>dataclasses</code>, <code>typing.Protocol</code> contracts</td>
+<td>plain dicts as pseudo-objects, custom base-class hierarchies</td>
+</tr>
+<tr>
+<td>Error handling</td>
+<td>EAFP, specific <code>except</code> tuples</td>
+<td>broad <code>except Exception</code>, error-code return values</td>
+</tr>
+<tr>
+<td>Testing</td>
+<td><code>pytest</code></td>
+<td><code>unittest</code> as the <em>primary</em> style for new tests, custom test runners</td>
+</tr>
+<tr>
+<td>Logging</td>
+<td>stdlib <code>logging</code></td>
+<td><code>print()</code>, a new logging library</td>
+</tr>
+<tr>
+<td>CLI progress/output</td>
+<td><code>rich</code></td>
+<td>a second progress-bar or console-formatting library</td>
+</tr>
+<tr>
+<td>Packaging/versioning</td>
+<td><code>setuptools_scm</code> (git tags), PyInstaller</td>
+<td>hand-maintained version strings, a different bundler</td>
+</tr>
+</tbody>
+</table>
+<p>Before adding a new dependency, check <code>requirements.txt</code> first — if
+something already does the job, use that. See
+<a href="../code-organization/#the-workspace-at-a-glance">Code Organization</a> for
+where these are configured.</p>
+<h2 id="style-specifics">Style specifics</h2>
+<ul>
+<li><strong>Formatting/linting</strong>: <code>ruff</code> — 100-character lines, double-quote
+  strings. Let it format on save; don't hand-format around it (see
+  <a href="../code-organization/#code-style">Code Organization</a>).</li>
+<li><strong>Type hints</strong> on every function signature — this is what makes
+  <code>pyright</code>/Pylance catch mistakes at edit time (same page, above).</li>
+<li><strong>Naming</strong>: <code>snake_case</code> for functions/variables, <code>PascalCase</code> for
+  classes, <code>UPPER_SNAKE_CASE</code> for module-level constants.</li>
+<li><strong>f-strings</strong> for string formatting, not <code>.format()</code> or <code>%</code>.</li>
+<li><strong>Minimal docstrings</strong> — a line or two at most, only where the <em>why</em>
+  isn't obvious from the code itself. Well-named functions and classes do
+  most of the explaining; don't add a docstring that just restates the
+  function name.</li>
+</ul>
+<h2 id="patterns-to-reuse-not-reinvent">Patterns to reuse, not reinvent</h2>
+<ul>
+<li><strong>EAFP</strong> for error handling, with specific exception types named in the
+  <code>except</code> clause — <a href="../golden-rules/#ask-forgiveness-not-permission-eafp">Golden Rules</a>.</li>
+<li><strong><code>Protocol</code>-based strategy steps</strong> for pipeline stages, not a new
+  inheritance hierarchy or a new plugin system —
+  <a href="../design-patterns/">Design Patterns</a>.</li>
+<li><strong>Pandera schemas at dataframe boundaries</strong> — validate on the way in and
+  the way out, don't trust an untyped dataframe implicitly —
+  <a href="../design-patterns/#input-and-output-contracts">Design Patterns</a>.</li>
+<li><strong><code>dataclasses</code></strong>, frozen where the object shouldn't mutate after
+  construction.</li>
+<li><strong>Thin CLI, fat <code>processing/</code></strong> — CLI files read input and call into
+  <code>processing/</code>; the actual logic doesn't live in the CLI file —
+  <a href="../code-organization/#the-command-line-tools">Code Organization</a>.</li>
+</ul>
+<h2 id="no-flashy-new-patterns">No flashy new patterns</h2>
+<p>Specifically avoid, unless there's no working alternative and it's been
+discussed first: metaclasses, monkey-patching, deeply nested
+comprehensions or clever one-liners that trade readability for brevity,
+new decorator-based magic (<code>@deprecated</code> is the one established exception
+— <a href="../golden-rules/#mark-old-code-deprecated--dont-just-delete-it-or-leave-it-silently">Golden Rules</a>),
+and speculative abstractions or config options for a use case that doesn't
+exist yet — <a href="../golden-rules/#write-code-for-today-not-for-a-hypothetical-future">Golden Rules</a>.</p>
+<p>If a genuinely better pattern seems worth introducing, propose it
+explicitly, as its own step, with the tradeoff stated — never slip it in
+as a side effect of an unrelated change.</p>
+<h2 id="one-file-one-step">One file, one step</h2>
+<p>Same rule as <a href="../ai-use/#one-thing-at-a-time">AI Use Guidelines</a>: don't let
+an assistant touch multiple files, or introduce multiple new patterns, in
+one proposed change.</p>
+<h2 id="teaching-examples">Teaching examples</h2>
+<p>If an assistant is asked for example code to explain a concept rather than
+to solve the actual task, keep examples in a clearly separate, obviously
+fictional domain unrelated to this project's own work (this repo's
+<code>AGENTS.md</code>, at the workspace root, illustrates this with an everyday
+domain like library checkouts, bus schedules, or a small inventory — pick
+whatever fits the concept, but stay in one domain per explanation) — so an
+example never gets mistaken for, or pasted in as, real production code.</p>
+<h2 id="cleared-for-vibe-coding">Cleared for vibe coding</h2>
+<p><a href="../ai-use/#the-core-rule-ai-is-a-tutor-not-a-coder">AI Use Guidelines</a>
+draws its <em>whether</em> line at "pipeline, processing, and schema code," with
+the GUI layer and prose docs as the named exceptions. In practice that
+line runs through the middle of <code>processing/</code>: most of it is the analysis
+logic this project exists to teach, but a handful of modules are
+format/plumbing work — BIDS conversion, dummy-data generation, the
+crosscheck feature — with the same low-teaching-value shape as the GUI
+layer, not the pipeline foundation itself. The table below — transcluded
+from <a href="https://github.com/stefandup/vrlab-toolbox/blob/master/vibe_list.md"><code>vibe_list.md</code></a>
+at the repo root, the single place it's actually maintained — is the file-level record of where that line
+falls today. In <code>AGENTS.md</code>, this list is what <strong>BYPASS</strong> is scoped to;
+everything <em>not</em> on it is default-deny (see <a href="#verboten-without-override">Verboten without
+OVERRIDE</a> below), so a new area only ever
+needs adding to <code>vibe_list.md</code> itself to become BYPASS-eligible.</p>
+<p>"Cleared" doesn't mean unsupervised, though. AI-authored code here still
+has to pass the <a href="../ai-use/#the-four-rules-of-vibe-coding">four rules of vibe
+coding</a> — read it and understand
+every step, explain it to someone else, fix it manually if it breaks,
+build on it manually — and it still has to land on this page's
+established stack and style rules above. Cleared for authorship isn't
+cleared to invent a new pattern. The <strong>Human-checked</strong> column is that
+sign-off, made concrete: tick it once
+<a href="https://github.com/stefandup">@stefandup</a> has actually read through
+that area's current AI-authored state against the four rules. An
+unticked box means it hasn't had that pass yet, not that something's
+wrong.</p>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Files</th>
+<th>Human-checked (<a href="https://github.com/stefandup">@stefandup</a>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BIDS conversion</td>
+<td><code>src/vrlab_toolbox/processing/bids.py</code>, <code>crane_bids.py</code>, <code>longwalk_bids.py</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Dummy/sample data</td>
+<td><code>src/vrlab_toolbox/processing/crane_dummy_data.py</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>CLIs</td>
+<td>every file in <code>src/vrlab_toolbox/cli/</code> — already thin by design, see <a href="docs/ai-style-guide.md#patterns-to-reuse-not-reinvent">Thin CLI, fat <code>processing/</code></a></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Crosscheck (backend + GUI)</td>
+<td><code>src/vrlab_toolbox/processing/bids_crosscheck.py</code>; <code>src/vrlab_toolbox/gui/bids_crosscheck_common.py</code>, <code>crane_bids_crosscheck_gui.py</code>, <code>foh_bids_crosscheck_gui.py</code>, <code>longwalk_bids_crosscheck_gui.py</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Process results viewer (GUI)</td>
+<td><code>src/vrlab_toolbox/gui/qt_common.py</code>, <code>process_results_common.py</code>, <code>crane_process_results_gui.py</code>, <code>longwalk_process_results_gui.py</code> — read-only viewer over a <code>vrlab_*_process</code> output folder, same GUI-layer shape as crosscheck</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Toolbox launcher (GUI)</td>
+<td><code>src/vrlab_toolbox/gui/toolbox_launcher.py</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Build/packaging scripts</td>
+<td><code>build.ps1</code>, <code>build_mac.sh</code>, <code>toolbox_installer.iss</code>, <code>specs/*.spec</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Docs</td>
+<td>everything under <code>docs/</code>, plus <code>mkdocs.yml</code> — already covered by <a href="docs/ai-use.md">AI Use Guidelines</a>'s docs exception</td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>Root README</td>
+<td><code>README.md</code></td>
+<td>[ ]</td>
+</tr>
+<tr>
+<td>CI workflows</td>
+<td><code>.github/workflows/*.yml</code></td>
+<td>[ ]</td>
+</tr>
+</tbody>
+</table>
+<h2 id="execution-exception-dummy-data-generation">Execution exception: dummy-data generation</h2>
+<p>Everything above this section is about <em>authorship</em> — <code>AGENTS.md</code>'s
+guardrails otherwise stop an assistant from ever running code itself, even
+in areas cleared for vibe coding, requiring every command to be handed to
+a human to run instead. <code>vrlab_crane_generate_sample_data</code> (and the
+equivalent <code>longwalk</code>/<code>foh</code> sample-data generators) is the one exception:
+because it only ever writes synthetic data into <code>*_examples/</code> folders and
+never touches real subject data, an AI assistant may run it directly —
+including the <code>--bids-folder</code> conversion step it can trigger in the same
+call — rather than just proposing the command.</p>
+<p>That doesn't skip the human step, it moves it: whatever the tool
+generates still needs a human to look at the result (<code>git diff</code>/<code>git
+status</code> on the <code>*_examples/</code> output, and the printed generation summary
+table) before it's trusted for pipeline testing. This exception is scoped
+to dummy-data generation specifically — it doesn't extend to running the
+BIDS-conversion CLIs standalone, the crosscheck tool, or the
+pipeline/processing CLIs (e.g. <code>vrlab_crane_process</code>) on that data, which
+all stay under <code>AGENTS.md</code>'s ordinary "only suggest commands" rule.</p>
+<h2 id="execution-exception-code-checking-tools">Execution exception: code-checking tools</h2>
+<p>A second exception to the same run-nothing-yourself default (see above):
+an AI assistant may run the project's configured checkers — <code>ruff check</code>,
+<code>ruff format</code>/<code>--check</code>, <code>pyright</code>/Pylance — directly, and apply the fixes
+they suggest, against any file listed in
+<a href="https://github.com/stefandup/vrlab-toolbox/blob/master/vibe_list.md"><code>vibe_list.md</code></a>.
+That's not a new authorship permission; it's the same one BYPASS already
+grants for those files, just applied to catching what a first pass
+missed, so there's no extra approval step beyond the one the file's
+presence on <code>vibe_list.md</code> already implies. Running a checker against, or
+fixing what it flags in, any file <em>not</em> on <code>vibe_list.md</code> still means
+only suggesting the command — same as every other command against an
+OVERRIDE-only file.</p>
+<h2 id="execution-exception-build-scripts">Execution exception: build scripts</h2>
+<p>A third exception to the same run-nothing-yourself default (see above):
+an AI assistant may run <code>build.ps1</code> (Windows) or <code>build_mac.sh</code> (macOS)
+directly, in any of their modes (<code>-Exe</code>, <code>-Full</code>, <code>-Inno</code> for <code>build.ps1</code>).
+Unlike the other execution exceptions, this one isn't gated on
+<code>vibe_list.md</code> membership — it's the <em>build scripts themselves</em> that are
+scoped, not the files they happen to touch: <code>-Exe</code>/<code>-Full</code> write only into
+the gitignored <code>build_output/</code> folder (plus a local editable-install of
+this same package into the active venv, via <code>pip install -e .</code>) and <code>-Full</code>/
+<code>-Inno</code> additionally compile the installer with Inno Setup's <code>ISCC.exe</code>,
+also writing only under <code>build_output/</code>. None of that touches git, a
+remote system, or any credential. Running <code>toolbox_installer.iss</code> /
+<code>ISCC.exe</code> on its own, outside of <code>build.ps1</code> invoking it, is not covered
+by this exception and still means only suggesting the command.</p>
+<h2 id="verboten-without-override">Verboten without OVERRIDE</h2>
+<p><img alt="Stop sign" src="../assets/images/stop-sign.png" width="80" /></p>
+<p>This isn't a second list to maintain — it's <strong>everything not named</strong> in
+<a href="https://github.com/stefandup/vrlab-toolbox/blob/master/vibe_list.md"><code>vibe_list.md</code></a>'s
+<a href="#cleared-for-vibe-coding">Cleared for vibe coding</a> table above, anywhere in the repo, not
+just <code>src/vrlab_toolbox/processing/</code>. Default-deny: a file doesn't need
+adding to a table here to become off-limits for AI authorship under
+<code>AGENTS.md</code>'s ordinary BYPASS command — it's off-limits the moment it's
+absent from <code>vibe_list.md</code>. Reaching for <strong>OVERRIDE</strong> instead doesn't
+relax the standard; it's for the "genuinely unavoidable" cases that page
+already allows for, and the same <a href="../ai-use/#the-four-rules-of-vibe-coding">four rules of vibe
+coding</a> still apply to whatever
+lands.</p>
+<p>In practice, today, that's almost entirely <code>src/vrlab_toolbox/processing/</code>'s
+pipeline orchestration (<code>crane_pipeline.py</code>, <code>foh_pipeline.py</code>,
+<code>longwalk_pipeline.py</code>, <code>mobi_core_pipeline.py</code>, <code>graphomotor_pipeline.py</code>,
+<code>pipeline.py</code>), signal processing (<code>biopac.py</code>, <code>ecg.py</code>, <code>eda.py</code>,
+<code>eeg.py</code>, <code>lsl.py</code>, <code>opensignals.py</code>, <code>spiral.py</code>), behaviour/trial-interval
+extraction (<code>behaviour.py</code>, <code>biodata.py</code>, <code>crane_behaviour.py</code>,
+<code>crane_debrief_behaviour.py</code>, <code>crane_trial_intervals.py</code>,
+<code>foh_behaviour.py</code>, <code>foh_target_behaviour.py</code>, <code>foh_trial_intervals.py</code>,
+<code>longwalk_behaviour.py</code>, <code>longwalk_trial_intervals.py</code>,
+<code>trial_intervals.py</code>), REDCap/config/IO (<code>crane_redcap.py</code>, <code>redcap.py</code>,
+<code>foh_config.py</code>, <code>input_data.py</code>, <code>output_data.py</code>,
+<code>processing_status.py</code>), schemas/shared utilities (<code>pandera_defaults.py</code>,
+<code>plot_utils.py</code>), and graphomotor (<code>graphomotor_qc.py</code>,
+<code>graphomotor_task.py</code>, <code>graphomotor_xdf.py</code>) — the actual analysis logic
+<a href="../ai-use/#the-core-rule-ai-is-a-tutor-not-a-coder">AI Use Guidelines</a>'s
+core rule is about. That's a description of where OVERRIDE tends to come
+up, though, not the mechanism itself: it's whatever's left over once
+<code>vibe_list.md</code> is subtracted, so this paragraph can go stale without
+breaking anything, unlike a maintained deny-list would.</p>
+<h2 id="restricted-folders">Restricted folders</h2>
+<p>Separate from authorship style: <a href="https://github.com/stefandup/vrlab-toolbox/blob/master/.ai_restricted"><code>.ai_restricted</code></a>
+(repo root) is a human-maintained, <code>.gitignore</code>-style list of folders no AI
+assistant may read or write — typically example/sample data the user doesn't
+want an AI touching. Absolute, and not affected by BYPASS or OVERRIDE — see
+<code>AGENTS.md</code>'s restricted-folders guardrail.</p>
+<h2 id="using-this-page">Using this page</h2>
+<p>Point any AI assistant here before it looks at anything else in this
+repo — as a pasted-in reference, or via whatever project config file your
+tool reads (<code>AGENTS.md</code>, <code>CLAUDE.md</code>, <code>.cursorrules</code>,
+<code>.github/copilot-instructions.md</code>, …). This repo's own <code>AGENTS.md</code> already
+does the equivalent for its interaction style; this page is the equivalent
+for code style and toolbox choices.</p>
+<p>This page is also meant to be reusable beyond this one repo: the same
+shape — an established-stack table, mechanical style rules, patterns to
+reuse, an explicit avoid-list — travels to any future lab codebase, so
+different projects (and different people's AI assistants) don't drift
+into incompatible styles from each other, either.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../bids_converter_plan/" class="md-footer__link md-footer__link--prev" aria-label="Previous: BIDS Converter Plan">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                BIDS Converter Plan
+              </div>
+            </div>
+          </a>
+        
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.footer"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
