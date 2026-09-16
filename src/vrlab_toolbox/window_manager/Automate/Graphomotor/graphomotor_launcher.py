@@ -75,7 +75,7 @@ from pywinauto import Desktop
 from automation_layer import setup_opensignals
 
 
-BASE_DIR = Path(r"C:\Users\MoBI-Midtown")
+BASE_DIR = Path.home()
 
 LABRECORDER_EXE = BASE_DIR / "LabRecorder" / "LabRecorder.exe"
 
@@ -85,17 +85,13 @@ OPENSIGNALS_EXE = Path(
 
 NEON_GUI_DIR = BASE_DIR / "neon-gui"
 
-GRAPHOMOTOR_DIR = Path(
-    r"C:\Users\MoBI-Midtown\graphomotor_CMI_mooi\src\graphomotor_protocol"
-)
+GRAPHOMOTOR_DIR = BASE_DIR / "graphomotor_CMI_mooi" / "src" / "graphomotor_protocol"
 
 GRAPHOMOTOR_SCRIPT = (
     GRAPHOMOTOR_DIR / "graphomotor_older_mooi.py"
 )
 
-WINDOW_MX_DIR = Path(
-    r"C:\Users\MoBI-Midtown\Automate\Graphomotor\Code"
-)
+WINDOW_MX_DIR = BASE_DIR / "Automate" / "Graphomotor" / "Code"
 
 AUTO_ARRANGE_SCRIPT = (
     WINDOW_MX_DIR / "auto_arrange_windows.py"
@@ -356,7 +352,7 @@ class GraphomotorSessionLauncher:
     def launch_neon(self) -> None:
         """
         Launch Neon the same way as the older working launcher:
-        cd into C:\\Users\\MoBI-Midtown\\neon-gui, then run uv run main.py.
+        cd into <home>/neon-gui, then run uv run main.py.
         """
         print("[INFO] Opening Neon Scene Camera Recorder...")
 

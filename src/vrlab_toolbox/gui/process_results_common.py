@@ -26,6 +26,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
+import shiboken6
 from matplotlib.axes import Axes
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
@@ -142,6 +143,11 @@ _ZOOM_STEP = 1.25
 _MIN_SCALE = 0.1
 _MAX_SCALE = 8.0
 
+# The Summary Stats detail tab's label -- checked by `_render_activity_log` to decide
+# whether the Activity Log should show `ProcessResultsConfig.dashboard_overhead_lines`
+# instead of the focused subject's log.
+_STATS_TAB_LABEL = "Summary Stats"
+
 # `(index, total, subject_id)`, called once per subject during "Process BIDS Folder" --
 # see `ProcessResultsConfig.process_bids_folder` and `ProcessResultsWindow._on_process_progress`.
 ProgressCallback = Callable[[int, int, str], None]
@@ -175,7 +181,10 @@ class ProcessResultsConfig:
     yet ("not yet processed", see `_discover_bids_subject_ids`) -- the same glob pattern
     that batch function itself uses to find subjects (e.g.
     `vrlab_crane_process.PHYSIO_GLOB_PATTERN`), reused rather than duplicated so the two
-    can't quietly drift apart. `None` skips that discovery entirely.
+    can't quietly drift apart. `None` skips that discovery entirely. `bids_subject_id_from_path`
+    is the matching per-file subject-id parser for that glob -- defaults to
+    `get_subject_id_from_mat` (crane/longwalk's biopac `.mat` files), pass
+    `lsl.get_subject_id` for an `.xdf`-based dataset like FOH instead.
 
     `build_group_dashboard`, if given, replaces the Summary Stats tab's generic
     one-measure-at-a-time bar chart (and its "Measure:" dropdown, which this window
@@ -185,6 +194,14 @@ class ProcessResultsConfig:
     nothing's selected), with `figure` already cleared and ready to lay out via
     `figure.add_gridspec(...)`. `None` keeps today's plain behaviour (the whole figure
     driven by the "Measure:" dropdown alone).
+
+    `dashboard_overhead_lines`, if given alongside `build_group_dashboard`, moves status
+    counts/summary numbers that would otherwise be their own rows in that figure into
+    the Activity Log instead -- called as `dashboard_overhead_lines(batch_df,
+    subject_ids)` on the same selection change, returning plain-text lines shown there
+    (as HTML-escaped text) whenever the Summary Stats tab is the active detail tab.
+    `None`, or an empty list back from it, leaves the Activity Log showing whatever it
+    otherwise would (the focused subject's log, or a run-status message).
     """
 
     dataset_name: str
@@ -194,7 +211,9 @@ class ProcessResultsConfig:
         None
     )
     bids_physio_glob: str | None = None
+    bids_subject_id_from_path: Callable[[Path], str] = get_subject_id_from_mat
     build_group_dashboard: Callable[[Figure, pd.DataFrame, list[str]], None] | None = None
+    dashboard_overhead_lines: Callable[[pd.DataFrame, list[str]], list[str]] | None = None
 
 
 def _find_batch_csv(output_folder: Path, csv_glob: str) -> Path | None:
@@ -252,15 +271,18 @@ def _discover_subject_ids(
     return sorted(csv_subject_ids | log_subject_ids | bids_subject_ids, key=str.casefold)
 
 
-def _discover_bids_subject_ids(bids_folder: Path, physio_glob: str) -> set[str]:
+def _discover_bids_subject_ids(
+    bids_folder: Path, physio_glob: str, subject_id_from_path: Callable[[Path], str]
+) -> set[str]:
     """Every subject with a physiology recording under `bids_folder`, found by the same
     glob + filename-parsing a batch function's own subject-discovery loop uses (see
-    `ProcessResultsConfig.bids_physio_glob`) -- so a subject that's been crosschecked but
-    never processed still shows up (see `_discover_subject_ids`), without this window
-    reimplementing that discovery logic itself. `get_subject_id_from_mat` only ever
-    parses the filename string, so there's nothing here that can fail per-file.
+    `ProcessResultsConfig.bids_physio_glob`/`bids_subject_id_from_path`) -- so a subject
+    that's been crosschecked but never processed still shows up (see
+    `_discover_subject_ids`), without this window reimplementing that discovery logic
+    itself. `subject_id_from_path` only ever parses the filename string, so there's
+    nothing here that can fail per-file.
     """
-    return {get_subject_id_from_mat(mat_path) for mat_path in bids_folder.rglob(physio_glob)}
+    return {subject_id_from_path(path) for path in bids_folder.rglob(physio_glob)}
 
 
 def _discover_plot_paths(output_folder: Path, subject_id: str) -> dict[str, Path]:
@@ -467,16 +489,22 @@ class _ZoomablePlotView(QWidget):
         self._apply_scale()
 
     def _fit_to_window(self) -> None:
+        # Deferred via QTimer.singleShot from __init__/showEvent/resizeEvent, so by the
+        # time this runs the view (and its `_scroll`) may already be gone -- e.g. the
+        # dashboard was rebuilt or the tab/window closed while the call was queued.
+        if not shiboken6.isValid(self):
+            return
         if self._pixmap.isNull():
             return
         viewport = self._scroll.viewport().size()
-        has_size = self._pixmap.width() and self._pixmap.height()
-        has_size = has_size and viewport.width() and viewport.height()
+        has_size = self._pixmap.width() and viewport.width()
         if has_size:
-            self._scale = min(
-                viewport.width() / self._pixmap.width(),
-                viewport.height() / self._pixmap.height(),
-            )
+            # Fit to width only (not height): a tall multi-panel dashboard scaled to
+            # also fit the viewport's height would squash every subplot down to
+            # illegible size. Fitting width keeps each panel readable and relies on
+            # vertical scrolling for the rest, rather than shrinking everything to fit
+            # in one screen.
+            self._scale = viewport.width() / self._pixmap.width()
         self._apply_scale()
 
 
@@ -489,6 +517,14 @@ class ProcessResultsWindow(QMainWindow):
         self.batch_df: pd.DataFrame | None = None
         self.subject_ids: list[str] = []
         self._last_csv_path: Path | None = None
+        # See `_render_activity_log`: `_activity_log_html` is the subject-log/run-status
+        # content the Activity Log normally shows; `_dashboard_overhead_html` (only ever
+        # non-None when `ProcessResultsConfig.dashboard_overhead_lines` is set) takes
+        # over instead while the Summary Stats tab is active. Both need to exist before
+        # `_build_ui` -- adding the Summary Stats tab there fires `detail_tabs`'
+        # `currentChanged` once immediately.
+        self._activity_log_html: str = ""
+        self._dashboard_overhead_html: str | None = None
         self._settings = QSettings(SETTINGS_ORGANIZATION, settings_app_name)
 
         self.setWindowTitle(f"{config.window_title} (v{__version__})")
@@ -587,6 +623,9 @@ class ProcessResultsWindow(QMainWindow):
         # garbage-collected (and silently stop firing) as soon as _build_ui returns.
         self._tab_wheel_filter = _TabBarWheelFilter()
         self.detail_tabs.tabBar().installEventFilter(self._tab_wheel_filter)
+        # Switching into/out of the Summary Stats tab toggles what the Activity Log
+        # shows -- see `_render_activity_log`.
+        self.detail_tabs.currentChanged.connect(self._render_activity_log)
         right_layout.addWidget(self.detail_tabs)
         splitter.addWidget(right_panel)
         splitter.setSizes([380, 870])
@@ -618,7 +657,7 @@ class ProcessResultsWindow(QMainWindow):
         self.stats_plot_container = QVBoxLayout()
         self.stats_plot_container.setContentsMargins(0, 0, 0, 0)
         stats_layout.addLayout(self.stats_plot_container, 1)
-        self.detail_tabs.addTab(stats_widget, "Summary Stats")
+        self.detail_tabs.addTab(stats_widget, _STATS_TAB_LABEL)
 
     def _build_bids_folder_group(self) -> QGroupBox:
         group = QGroupBox("BIDS Folder")
@@ -841,9 +880,10 @@ class ProcessResultsWindow(QMainWindow):
         escaped = html.escape(f"[{timestamp}] {prefix}{message}").replace("\n", "<br>")
         if is_error:
             escaped = f'<span style="color:{_ERROR_COLOR};">{escaped}</span>'
-        if self.activity_log_text.toPlainText():
-            self.activity_log_text.append("")
-        self.activity_log_text.append(escaped)
+        if self._activity_log_html:
+            self._activity_log_html += "<br><br>"
+        self._activity_log_html += escaped
+        self._render_activity_log()
 
     def _on_browse_output_folder(self) -> None:
         start_dir = default_browse_dir(self.output_folder)
@@ -893,7 +933,11 @@ class ProcessResultsWindow(QMainWindow):
         """
         csv_subject_ids = set(self.batch_df["Subject_ID"]) if self.batch_df is not None else set()
         bids_subject_ids = (
-            _discover_bids_subject_ids(self.bids_folder, self.config.bids_physio_glob)
+            _discover_bids_subject_ids(
+                self.bids_folder,
+                self.config.bids_physio_glob,
+                self.config.bids_subject_id_from_path,
+            )
             if self.bids_folder is not None and self.config.bids_physio_glob is not None
             else set()
         )
@@ -1022,7 +1066,8 @@ class ProcessResultsWindow(QMainWindow):
             self.detail_tabs.removeTab(0)
 
         if subject_id is None:
-            self.activity_log_text.setPlainText("")
+            self._activity_log_html = ""
+            self._render_activity_log()
             return
 
         if self.output_folder is not None:
@@ -1047,16 +1092,34 @@ class ProcessResultsWindow(QMainWindow):
 
     def _show_subject_log(self, subject_id: str) -> None:
         if self.output_folder is None:
-            self.activity_log_text.setPlainText("")
-            return
-        log_path = self.output_folder / "logs" / f"{subject_id}.log"
-        if log_path.is_file():
-            text = log_path.read_text(encoding="utf-8", errors="replace")
-            self.activity_log_text.setHtml(_colorize_log_html(text))
-            cursor = self.activity_log_text.textCursor()
-            self.activity_log_text.moveCursor(cursor.MoveOperation.End)
+            self._activity_log_html = ""
         else:
-            self.activity_log_text.setPlainText(f"No log found for {subject_id}.")
+            log_path = self.output_folder / "logs" / f"{subject_id}.log"
+            if log_path.is_file():
+                text = log_path.read_text(encoding="utf-8", errors="replace")
+                self._activity_log_html = _colorize_log_html(text)
+            else:
+                self._activity_log_html = html.escape(f"No log found for {subject_id}.")
+        self._render_activity_log()
+
+    def _render_activity_log(self) -> None:
+        """Activity Log doubles as three things depending on context: the focused
+        subject's own log, the "Process BIDS Folder" run-status feed (see
+        `_log_activity`), and -- while the Summary Stats tab is the active detail tab
+        and the dataset supplies `ProcessResultsConfig.dashboard_overhead_lines` -- that
+        dashboard's status/count readout, freeing the figure itself to spend all its
+        height on charts instead of a status banner. Re-run on every selection change,
+        stats refresh, and detail-tab switch so it always reflects whichever applies.
+        """
+        show_overhead = (
+            self._dashboard_overhead_html is not None
+            and self.detail_tabs.tabText(self.detail_tabs.currentIndex()) == _STATS_TAB_LABEL
+        )
+        self.activity_log_text.setHtml(
+            self._dashboard_overhead_html if show_overhead else self._activity_log_html
+        )
+        cursor = self.activity_log_text.textCursor()
+        self.activity_log_text.moveCursor(cursor.MoveOperation.End)
 
     def _build_plot_tab(self, png_path: Path) -> QWidget:
         return _ZoomablePlotView(QPixmap(str(png_path)))
@@ -1077,10 +1140,18 @@ class ProcessResultsWindow(QMainWindow):
             dpi=self._stats_dpi,
             layout="constrained" if has_dashboard else None,
         )
+        self._dashboard_overhead_html = None
         if self.batch_df is None:
             figure.add_subplot(111).set_axis_off()
         elif self.config.build_group_dashboard is not None:
-            self.config.build_group_dashboard(figure, self.batch_df, selected or self.subject_ids)
+            subject_ids = selected or self.subject_ids
+            self.config.build_group_dashboard(figure, self.batch_df, subject_ids)
+            if self.config.dashboard_overhead_lines is not None:
+                lines = self.config.dashboard_overhead_lines(self.batch_df, subject_ids)
+                if lines:
+                    self._dashboard_overhead_html = "<br>".join(
+                        html.escape(line) for line in lines
+                    )
         else:
             axes = figure.add_subplot(111)
             if individual:
@@ -1090,6 +1161,7 @@ class ProcessResultsWindow(QMainWindow):
             figure.tight_layout()
 
         self._show_stats_pixmap(figure_to_pixmap(figure, self._stats_dpi))
+        self._render_activity_log()
 
     def _show_stats_pixmap(self, pixmap: QPixmap) -> None:
         if self._stats_plot_view is not None:

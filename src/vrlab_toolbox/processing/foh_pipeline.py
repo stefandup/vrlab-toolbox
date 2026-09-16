@@ -18,7 +18,10 @@ from vrlab_toolbox.processing.foh_target_behaviour import (
 from vrlab_toolbox.processing.foh_trial_intervals import FohGetTrialIntervalStrategyStep
 from vrlab_toolbox.processing.input_data import ParticipantConfig
 from vrlab_toolbox.processing.lsl import FohLslPhysiologyDataImportStrategy
-from vrlab_toolbox.processing.output_data import PipelineOutputData
+from vrlab_toolbox.processing.output_data import (
+    PipelineOutputData,
+    build_base_pipeline_output_schema,
+)
 
 from . import trial_intervals as trial_intervals
 
@@ -48,9 +51,27 @@ class FindFohParticipantFilesStrategyStep:
         )
 
 
-# TODO: Fill out pipeline output schema for FOH
 def build_foh_participant_output_schema() -> pa.DataFrameSchema:
-    return pa.DataFrameSchema()
+    """Create schema for the wide participant output produced by this pipeline.
+
+    Column names are matched by regex rather than enumerated (unlike
+    `crane_pipeline.build_crane_participant_output_schema`'s behaviour columns) because
+    `foh_target_behaviour.py`'s `run_processing` only adds a numbered suffix for
+    baseline/stress trials (from its per-trial-type `cumcount`), not recovery -- and
+    everything is lowercased before it reaches here (see
+    `ProcessFohTargetDataWithIntervalsStrategyStep.run`).
+    """
+    target_columns = {
+        r"^(baseline|stress|recovery)(_\d+)?_(short|medium|long)_target$": pa.Column(
+            float, nullable=True, coerce=True, required=False, regex=True
+        )
+    }
+    physiology_columns = {
+        r"^.+_SCR_per_min$": pa.Column(
+            float, nullable=True, coerce=True, required=False, regex=True
+        )
+    }
+    return build_base_pipeline_output_schema({**target_columns, **physiology_columns})
 
 
 @dataclass

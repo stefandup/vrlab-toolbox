@@ -1,4 +1,4 @@
 @echo off
-cd /d "C:\Users\MoBI-Midtown\Automate\Graphomotor\Code"
+cd /d "%USERPROFILE%\Automate\Graphomotor\Code"
 py graphomotor_gui.py
 pause

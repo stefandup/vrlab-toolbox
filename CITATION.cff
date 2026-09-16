@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use VRLab Toolbox in your research, please cite the software using the following information."
+
+title: "VRLab Toolbox"
+type: software
+
+authors:
+  - family-names: "du Plessis"
+    given-names: "Stefan"
+    affiliation: "Stellenbosch University"
+  - family-names: "Schulenburg"
+    given-names: "Suzette"
+    affiliation: "Stellenbosch University"
+
+repository-code: "https://github.com/stefandup/vrlab_toolbox"
+
+license: "PolyForm-Noncommercial-1.0.0"
+license-url: "https://polyformproject.org/licenses/noncommercial/1.0.0"

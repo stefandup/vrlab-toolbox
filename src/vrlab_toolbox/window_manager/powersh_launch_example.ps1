@@ -1,5 +1,5 @@
-$python_path =  "C:\Users\stefan\powershell_scripts\power_sh\Scripts\python.exe"
-$launch_window_script = "C:\Users\stefan\powershell_scripts\example_window.py"
+$python_path = "$HOME\powershell_scripts\power_sh\Scripts\python.exe"
+$launch_window_script = "$HOME\powershell_scripts\example_window.py"
 
 #Write-Host "Starting $launch_window_script"
 $p = Start-Process -FilePath $python_path -ArgumentList $launch_window_script -PassThru

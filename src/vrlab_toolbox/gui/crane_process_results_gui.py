@@ -52,7 +52,10 @@ def _process_bids_folder(
 _BLOCK_ORDER = ("NonStressBlock", "StressBlock")
 _TRIAL_ORDER = ("NonSlipTrial", "SlipTrial")
 CONDITIONS = tuple((block, trial) for block in _BLOCK_ORDER for trial in _TRIAL_ORDER)
-CONDITION_LABELS = ("NonStress\nNonSlip", "NonStress\nSlip", "Stress\nNonSlip", "Stress\nSlip")
+# Single-line (rather than "NonStress\nNonSlip" split across two lines): rotated close
+# to vertical (see `_draw_condition_bar_chart`), a rotated multi-line label's lines end
+# up side by side instead of stacked, which reads worse than one rotated line.
+CONDITION_LABELS = ("NonStress NonSlip", "NonStress Slip", "Stress NonSlip", "Stress Slip")
 # Lighter = NonSlip, darker = Slip; blue = NonStress, red = Stress -- reused on every
 # condition-grouped panel so the same condition always reads as the same color.
 _CONDITION_COLORS = ("#9ecae1", "#3182bd", "#fc9272", "#de2d26")
@@ -138,6 +141,13 @@ def _draw_condition_bar_chart(
     axes.bar(positions, means, yerr=sds, capsize=3, color=_CONDITION_COLORS)
     axes.set_xticks(list(positions))
     axes.set_xticklabels(CONDITION_LABELS, fontsize=tick_fontsize)
+    # Each of the 12 small per-metric panels is only ~1.6in wide -- four centered
+    # horizontal labels there collide (same crowding the debrief panel below avoids
+    # with its own rotated labels). Near-vertical keeps each label's horizontal
+    # footprint down to about one character wide, which a shallower angle didn't.
+    axes.tick_params(axis="x", labelrotation=90, labelsize=tick_fontsize)
+    for tick_label in axes.get_xticklabels():
+        tick_label.set_ha("center")
     axes.tick_params(axis="y", labelsize=tick_fontsize)
     axes.set_title(title, fontsize=title_fontsize)
     if ylim is not None:
@@ -156,25 +166,22 @@ def _status_label(status: ProcessingStatus) -> str:
     return _STATUS_DISPLAY_LABEL.get(status, status.value)
 
 
-def _draw_status_banner(axes: Axes, subset: pd.DataFrame, subject_ids: list[str]) -> None:
-    """Large-font processing-status readout -- one subject's own worst status when
-    exactly one is selected, otherwise a count per status across the selection (plus
-    any selected subject with no batch-CSV row at all, i.e. no output yet).
+def _status_summary_text(subset: pd.DataFrame, subject_ids: list[str]) -> str:
+    """Processing-status readout as one text line for the Activity Log -- one subject's
+    own worst status when exactly one is selected, otherwise a count per status across
+    the selection (plus any selected subject with no batch-CSV row at all, i.e. no
+    output yet). Used to live as its own large-font row in the dashboard figure; now
+    text so that space goes back to the actual charts (see `build_crane_group_dashboard`
+    and `ProcessResultsConfig.dashboard_overhead_lines`).
     """
-    axes.set_axis_off()
     no_output = len(subject_ids) - len(subset)
 
     if len(subject_ids) == 1:
         if subset.empty:
-            text, color = ("No output yet", STATUS_ICON[ProcessingStatus.NOT_RUN][1])
-        else:
-            status = worst_status(str(subset.iloc[0].get("Processing_Status", "")))
-            icon, color = STATUS_ICON[status]
-            text = f"{icon} {_status_label(status).upper()}"
-        axes.text(
-            0.5, 0.5, text, ha="center", va="center", fontsize=24, fontweight="bold", color=color
-        )
-        return
+            return "Status: No output yet"
+        status = worst_status(str(subset.iloc[0].get("Processing_Status", "")))
+        icon, _color = STATUS_ICON[status]
+        return f"Status: {icon} {_status_label(status).upper()}"
 
     status_values = subset["Processing_Status"] if "Processing_Status" in subset.columns else []
     counts = Counter(worst_status(str(value)) for value in status_values)
@@ -184,21 +191,10 @@ def _draw_status_banner(axes: Axes, subset: pd.DataFrame, subject_ids: list[str]
     ]
     if no_output:
         parts.append(f"{STATUS_ICON[ProcessingStatus.NOT_RUN][0]} {no_output} no output yet")
-    text = "    ".join(parts) if parts else "No subjects selected"
-    axes.text(0.5, 0.5, text, ha="center", va="center", fontsize=15, fontweight="bold")
+    return "Status: " + ("    ".join(parts) if parts else "No subjects selected")
 
 
-def _draw_number_panel(axes: Axes, value_text: str, title: str) -> None:
-    """One big number over a small caption -- shared layout for every stat that's a
-    single figure rather than a per-condition trend (TP/ITI counts, the target-score
-    goal).
-    """
-    axes.set_axis_off()
-    axes.text(0.5, 0.62, value_text, ha="center", va="center", fontsize=26, fontweight="bold")
-    axes.text(0.5, 0.18, title, ha="center", va="center", fontsize=7, wrap=True)
-
-
-def _draw_tp_subject_count(axes: Axes, subset: pd.DataFrame) -> None:
+def _tp_subject_count_text(subset: pd.DataFrame) -> str:
     """How many of `subset`'s subjects have at least one unrecognized (TP) trigger
     period -- a data-quality flag, so what matters at group level is how many subjects
     were affected, not a raw total that just scales with however many trials happened
@@ -210,27 +206,24 @@ def _draw_tp_subject_count(axes: Axes, subset: pd.DataFrame) -> None:
     if columns and total:
         has_tp_data = pd.Series(subset[columns].notna().any(axis=1))
         affected = int(has_tp_data.sum())
-    _draw_number_panel(
-        axes, f"{affected} / {total}", "Subjects with unrecognized\n(TP) trigger periods"
-    )
+    return f"Subjects with unrecognized (TP) trigger periods: {affected} / {total}"
 
 
-def _draw_iti_median_count(axes: Axes, subset: pd.DataFrame) -> None:
+def _iti_median_count_text(subset: pd.DataFrame) -> str:
     """Typical (median) number of ITI intervals with data, per subject -- ITIs are an
     expected, structural part of every session, so the per-subject count is more
     informative at group level than a raw sum across however many subjects are selected.
     """
     columns = [c for c in subset.columns if _ITI_SCR_RE.fullmatch(c)]
     if not columns or subset.empty:
-        _draw_number_panel(axes, "-", "Median ITI intervals with\ndata, per subject")
-        return
+        return "Median ITI intervals with data, per subject: -"
     per_subject_counts = subset[columns].notna().sum(axis=1)
     median = float(per_subject_counts.median())
     text = f"{median:.0f}" if median == int(median) else f"{median:.1f}"
-    _draw_number_panel(axes, text, "Median ITI intervals with\ndata, per subject")
+    return f"Median ITI intervals with data, per subject: {text}"
 
 
-def _draw_goal_count(axes: Axes, subset: pd.DataFrame) -> None:
+def _goal_count_text(subset: pd.DataFrame) -> str:
     """The crane game's target/goal barrel count -- a single number (the typical value
     across `subset`, via median) rather than a per-condition trend, since it's a fixed
     session target rather than something expected to vary by Stress x Slip.
@@ -238,15 +231,13 @@ def _draw_goal_count(axes: Axes, subset: pd.DataFrame) -> None:
     columns = [_condition_column("target_score", block, trial) for block, trial in CONDITIONS]
     present = [c for c in columns if c in subset.columns]
     if not present:
-        _draw_number_panel(axes, "-", "Goal (target barrels),\nmedian")
-        return
+        return "Goal (target barrels), median: -"
     numeric = subset[present].apply(pd.to_numeric, errors="coerce")
     per_subject = pd.Series(numeric.mean(axis=1, skipna=True)).dropna()
     if per_subject.empty:
-        _draw_number_panel(axes, "-", "Goal (target barrels),\nmedian")
-        return
+        return "Goal (target barrels), median: -"
     value = float(per_subject.median())
-    _draw_number_panel(axes, f"{value:.0f}", "Goal (target barrels),\nmedian")
+    return f"Goal (target barrels), median: {value:.0f}"
 
 
 def _draw_behaviour_metric(axes: Axes, subset: pd.DataFrame, metric: str, individual: bool) -> None:
@@ -321,31 +312,41 @@ def build_crane_group_dashboard(
 ) -> None:
     """`ProcessResultsConfig.build_group_dashboard` for crane: a fixed-layout "one
     dashboard" over whichever subjects are selected (or the whole roster, if none are)
-    -- processing status, SCR/EDA interval counts and target-score goal, every
-    behaviour metric trending across the four Stress x Slip conditions, EDA/SCR's own
-    trend across those same conditions, and debrief emotions by trial type.
+    -- every behaviour metric trending across the four Stress x Slip conditions,
+    EDA/SCR's own trend across those same conditions, and debrief emotions by trial
+    type. Processing status, SCR/EDA interval counts and the target-score goal are
+    `crane_dashboard_overhead_lines` instead, shown in the Activity Log rather than as
+    rows here -- see `ProcessResultsConfig.dashboard_overhead_lines`.
     """
     n_cols = 6
     # Explicit hspace/wspace are unnecessary here -- the figure this is drawn into is
     # always built with layout="constrained" (see `ProcessResultsWindow._refresh_stats_tab`),
     # which recomputes spacing/margins on every draw instead of using fixed values.
-    gridspec = figure.add_gridspec(6, n_cols, height_ratios=[0.6, 0.6, 1, 1, 1.1, 1.2])
+    gridspec = figure.add_gridspec(4, n_cols, height_ratios=[1, 1, 1.1, 1.2])
     subset = batch_df.loc[batch_df["Subject_ID"].isin(subject_ids)]
     individual = len(subject_ids) == 1
-    third = n_cols // 3
-
-    _draw_status_banner(figure.add_subplot(gridspec[0, :]), subset, subject_ids)
-    _draw_tp_subject_count(figure.add_subplot(gridspec[1, :third]), subset)
-    _draw_iti_median_count(figure.add_subplot(gridspec[1, third : 2 * third]), subset)
-    _draw_goal_count(figure.add_subplot(gridspec[1, 2 * third :]), subset)
 
     # 10 behaviour metrics -- fits a 2-row x 6-col grid with two slots left empty.
-    metric_positions = [(row, col) for row in range(2, 4) for col in range(n_cols)]
+    metric_positions = [(row, col) for row in range(2) for col in range(n_cols)]
     for (row, col), metric in zip(metric_positions, BEHAVIOUR_METRICS, strict=False):
         _draw_behaviour_metric(figure.add_subplot(gridspec[row, col]), subset, metric, individual)
 
-    _draw_scr_condition_bars(figure.add_subplot(gridspec[4, :]), subset, individual)
-    _draw_debrief_emotions(figure.add_subplot(gridspec[5, :]), subset, individual)
+    _draw_scr_condition_bars(figure.add_subplot(gridspec[2, :]), subset, individual)
+    _draw_debrief_emotions(figure.add_subplot(gridspec[3, :]), subset, individual)
+
+
+def crane_dashboard_overhead_lines(batch_df: pd.DataFrame, subject_ids: list[str]) -> list[str]:
+    """`ProcessResultsConfig.dashboard_overhead_lines` for crane: the status/count
+    readout that used to be `build_crane_group_dashboard`'s own top two rows, now text
+    in the Activity Log instead so that space goes back to the charts.
+    """
+    subset = batch_df.loc[batch_df["Subject_ID"].isin(subject_ids)]
+    return [
+        _status_summary_text(subset, subject_ids),
+        _tp_subject_count_text(subset),
+        _iti_median_count_text(subset),
+        _goal_count_text(subset),
+    ]
 
 
 CRANE_PROCESS_RESULTS_CONFIG = ProcessResultsConfig(
@@ -355,6 +356,7 @@ CRANE_PROCESS_RESULTS_CONFIG = ProcessResultsConfig(
     process_bids_folder=_process_bids_folder,
     bids_physio_glob=PHYSIO_GLOB_PATTERN,
     build_group_dashboard=build_crane_group_dashboard,
+    dashboard_overhead_lines=crane_dashboard_overhead_lines,
 )
 
 

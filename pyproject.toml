@@ -5,6 +5,15 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "vrlab-toolbox"
 dynamic = ["version", "dependencies"]
+description = "VRLab toolbox for VR physiology and behavioural data processing."
+license = { file = "LICENSE.md" }
+authors = [
+    { name = "Stefan du Plessis" },
+    { name = "Suzette Schulenburg" },
+]
+
+[project.urls]
+Repository = "https://github.com/stefandup/vrlab-toolbox"
 
 [tool.setuptools_scm]
 
@@ -18,7 +27,8 @@ vrlab_foh_import_to_bids = "vrlab_toolbox.cli.foh_import_to_bids:main"
 vrlab_foh_generate_sample_data = "vrlab_toolbox.cli.foh_generate_sample_data:main"
 vrlab_foh_assess_data = "vrlab_toolbox.cli.FOH_assess_data:main"
 vrlab_foh_bids_crosscheck = "vrlab_toolbox.gui.foh_bids_crosscheck_gui:main"
-vrlab_foh_process = "vrlab_toolbox.cli.FOH_process:main"
+vrlab_foh_process_GUI = "vrlab_toolbox.gui.foh_process_results_gui:main"
+vrlab_foh_process = "vrlab_toolbox.cli.vrlab_foh_process:main"
 vrlab_plot_target_data = "vrlab_toolbox.cli.plot_subject_target_scr_bars:main"
 vrlab_crane_bids_crosscheck = "vrlab_toolbox.gui.crane_bids_crosscheck_gui:main"
 vrlab_crane_process = "vrlab_toolbox.cli.vrlab_crane_process:main"

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from vrlab_toolbox.cli.FOH_process import run_batch as run_batch_fn
+from vrlab_toolbox.cli.vrlab_foh_process import run_batch as run_batch_fn
 from vrlab_toolbox.processing.biodata import RawBioData
 from vrlab_toolbox.processing.foh_behaviour import (
     ImportFohBehaviourDataStrategyStep,
