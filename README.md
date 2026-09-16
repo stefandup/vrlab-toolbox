@@ -1,4 +1,4 @@
-# vrlab_toolbox
+# VRLab Toolbox
 
 This repo holds a set of submodules and utilities developed for VRLab workflows, released publicly under a noncommercial license — see [License](#license) below.
 
