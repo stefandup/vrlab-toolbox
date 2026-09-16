@@ -415,7 +415,10 @@ class RedcapApp(tk.Tk):
             error_message,
         )
 
-
-if __name__ == "__main__":
+def main():
     app = RedcapApp()
     app.mainloop()
+
+if __name__ == "__main__":
+    main()
+
