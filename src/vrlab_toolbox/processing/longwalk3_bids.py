@@ -88,7 +88,7 @@ def csv_to_df_compress_header(csv_fn_in: Path) -> pd.DataFrame:
     return df
 
 
-def get_dfs_by_date(subject_id_in: str, data_folder_in: Path) -> dict[Path, SubDict]:
+def get_all_dfs(subject_id_in: str, data_folder_in: Path) -> dict[Path, SubDict]:
     return {
         file: {
             "dataframe": csv_to_df_compress_header(file),
@@ -101,9 +101,10 @@ def get_dfs_by_date(subject_id_in: str, data_folder_in: Path) -> dict[Path, SubD
     }
 
 
-def combine_behaviour_files(subject_id_in: str, data_folder_in: Path) -> pd.DataFrame:
-    df_list: list[pd.DataFrame] = []
-    dfs_by_date = get_dfs_by_date(subject_id_in, data_folder_in)
+# TODO: finish csv combination: should have an output suggestion as well.
+def combine_behaviour_files(subject_id_in: str, data_folder_in: Path) -> dict[str, pd.DataFrame]:
+    df_lists: dict[str, list[pd.DataFrame]] = {}
+    dfs_by_date = get_all_dfs(subject_id_in, data_folder_in)
 
     for nr, (fn, sub_dict) in enumerate(dfs_by_date.items()):
         bids_filename_out = f"sub-{subject_id_in}_ses-{sub_dict['session_nr']}_task-longwalkv3_run-000_behaviour.tsv"
@@ -114,9 +115,21 @@ def combine_behaviour_files(subject_id_in: str, data_folder_in: Path) -> pd.Data
         df["onset"] = pd.to_datetime(df["onset"], format=DATESTR_FORMAT, errors="coerce")
         df = df.add_suffix(f"_{sub_dict['bp_id']}")
         df.rename(columns={f"onset_{sub_dict['bp_id']}": "onset"}, inplace=True)
-        df_list.append(df)
+        key = str(sub_dict["date"])
+        if key is not None:
+            df_lists.setdefault(key, []).append(df)
 
-    df_out = pd.concat(df_list, ignore_index=True)
-    df_out = df_out.sort_values("onset").reset_index(drop=True)
+    for session_nr, (list_date, df_list) in enumerate(df_lists.items()):
+        print(list_date)
+        print(f"{len(df_list)} dfs to merge")
+        print("-" * 100)
+        combined_dfs = pd.concat(df_list, ignore_index=True)
+        target_fn = f"sub-{subject_id_in}_ses-{session_nr}_task-longwalkv3_run-000_behaviour.tsv"
 
-    return df_out
+    # combined_dfs = {}
+    # for date, df_list in df_lists.items():
+    #    combined_df_out = pd.concat(df_list, ignore_index=True)
+    #    combined_df_out = combined_df_out.sort_values("onset").reset_index(drop=True)
+    #    combined_dfs.update(date) = combined_df_out
+
+    return combined_dfs
