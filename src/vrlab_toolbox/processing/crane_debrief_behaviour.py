@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 REDCAP_FN = "CraneGame_Emotional Experience Form.xlsx"
 GROUP_REDCAP_GLOB = "KHANYAEmotionLab-Getalldata_DATA_*.csv"
-# TODO: Do a MAP for converting from redcap. Do stick to core emotions as listed here.
 EMOTIONS_TESTED = (
     "boredom",
     "dissatisfaction",

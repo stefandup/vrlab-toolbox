@@ -52,6 +52,12 @@ TOOLS = [
         [],
     ),
     (
+        "vrlab_longwalk3_generate_sample_data",
+        os.path.join("cli", "longwalk3_generate_sample_data.py"),
+        True,
+        [],
+    ),
+    (
         "vrlab_longwalk_process_GUI",
         os.path.join("gui", "longwalk_process_results_gui.py"),
         False,
