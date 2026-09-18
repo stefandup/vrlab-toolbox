@@ -77,9 +77,9 @@ def main(
     session with more than one run/city, without it always being the same session.
 
     Each actor-location log's year/month/day/hour/minute/second/millisecond columns are combined
-    into a single "date" column (concatenated yyyyMMddHHmmssSSS, e.g. "20260916175501000" -- the
-    template CSVs currently have "0" in every millisecond cell, pending a real value from the
-    Unreal-side export), and its
+    into a single "date" column (concatenated yyyyMMddHHmmssSSS, e.g. "20260916175501873" -- the
+    millisecond part is randomly generated per row, reproducibly under --seed, since the
+    template CSVs don't carry a real recorded value yet), and its
     worldLocationX/Y/Z columns into a single "worldLocation" column formatted the way an Unreal
     FVector prints via ToString() (e.g. "X=1.0 Y=2.0 Z=3.0"). Repeated header rows in a template
     are preserved as-is.

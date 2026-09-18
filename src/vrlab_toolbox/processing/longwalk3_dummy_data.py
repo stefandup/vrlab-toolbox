@@ -110,10 +110,14 @@ def _read_repeated_header_csv(csv_path: Path) -> tuple[list[str], int, list[list
     return header, header_repeat_count, raw_rows[header_repeat_count:]
 
 
-def _combine_date(row: list[str], date_part_index: dict[str, int]) -> str:
-    year, month, day, hour, minute, second, millisecond = (
-        int(row[date_part_index[name]]) for name in DATE_PART_COLUMNS
+def _combine_date(row: list[str], date_part_index: dict[str, int], rng: random.Random) -> str:
+    # The template's own millisecond cell is just a placeholder (no real sub-second value has
+    # ever been recorded by the Unreal-side export) -- a random one is generated per row instead
+    # so dummy data doesn't leave every event's millisecond fixed at the same value.
+    year, month, day, hour, minute, second = (
+        int(row[date_part_index[name]]) for name in DATE_PART_COLUMNS if name != "millisecond"
     )
+    millisecond = rng.randint(0, 999)
     return f"{year:04d}{month:02d}{day:02d}{hour:02d}{minute:02d}{second:02d}{millisecond:03d}"
 
 
@@ -121,11 +125,13 @@ def _combine_world_location(row: list[str], location_index: dict[str, int]) -> s
     return " ".join(f"{axis}={row[location_index[axis]]}" for axis in WORLD_LOCATION_AXES)
 
 
-def reshape_actor_log(header: list[str], rows: list[list[str]]) -> tuple[list[str], list[list[str]]]:
+def reshape_actor_log(
+    header: list[str], rows: list[list[str]], rng: random.Random
+) -> tuple[list[str], list[list[str]]]:
     """Replaces year/month/day/hour/minute/second/millisecond with a single "date" column
-    (concatenated yyyyMMddHHmmssSSS, e.g. "20260916175501000" -- the template CSVs currently
-    have "0" in every millisecond cell, pending a real value from the Unreal-side export) and
-    worldLocationX/Y/Z with a single "worldLocation" column
+    (concatenated yyyyMMddHHmmssSSS, e.g. "20260916175501873" -- the millisecond part is
+    randomly generated per row via rng, since the template CSVs don't carry a real recorded
+    value yet -- see _combine_date) and worldLocationX/Y/Z with a single "worldLocation" column
     column (formatted the way an Unreal FVector prints via ToString(), e.g. "X=1.0 Y=2.0
     Z=3.0"). Any other column (actor, isFearCue, ...) is kept in place. Rows are otherwise
     unchanged. If header doesn't have both groups of columns (e.g. behaviour.csv), it's
@@ -160,7 +166,9 @@ def reshape_actor_log(header: list[str], rows: list[list[str]]) -> tuple[list[st
 
     new_header = reshape_row(header, "date", "worldLocation")
     new_rows = [
-        reshape_row(row, _combine_date(row, date_part_index), _combine_world_location(row, location_index))
+        reshape_row(
+            row, _combine_date(row, date_part_index, rng), _combine_world_location(row, location_index)
+        )
         for row in rows
     ]
     return new_header, new_rows
@@ -241,6 +249,10 @@ def generate_dummy_longwalkv3_participant(
     error_type: str | None = None,
     rng: random.Random | None = None,
 ) -> DummyLongWalkV3ParticipantResult:
+    # Only required by build_session_city_layout for error_type="multiple_cities_per_session",
+    # but also used below to randomize each actor-log row's millisecond value -- falls back to
+    # an unseeded Random so a direct call without rng (the clean-scenario case) still works.
+    rng = rng or random.Random()
     acq_template = discover_acq_template(template_folder)
     behaviour_template = discover_behaviour_template(template_folder)
     actor_log_templates = discover_actor_log_templates(template_folder)
@@ -284,7 +296,7 @@ def generate_dummy_longwalkv3_participant(
 
             for suffix, template_path in actor_log_templates.items():
                 header, header_repeat_count, rows = _read_repeated_header_csv(template_path)
-                new_header, new_rows = reshape_actor_log(header, rows)
+                new_header, new_rows = reshape_actor_log(header, rows, rng)
                 actor_log_path = (
                     output_folder
                     / f"{csv_timestamp}_{subject_id}_{session_token}_task-{city_label}_{run_token}_{suffix}"
