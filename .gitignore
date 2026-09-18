@@ -36,3 +36,4 @@ longwalk_bids/
 longwalk_examples/
 crane_examples/dist/
 longwalkv3_examples/
+*.ipynb

@@ -7,22 +7,27 @@ from rich.table import Table
 from vrlab_toolbox import vrlab_logging
 from vrlab_toolbox.processing.longwalk3_dummy_data import (
     DEFAULT_CITY_LABELS,
+    ERROR_TYPES,
     generate_dummy_longwalkv3_dataset,
 )
 
-EXAMPLES_EPILOG = """
+EXAMPLES_EPILOG = f"""
 Examples:
 
 \b
-  1 dummy participant ("dummy01"), reproducible, one behaviour/actor-log set per city -
-  cloned from the templates in longwalkv3_examples/ with date and worldLocation columns
-  reshaped (see longwalk3_dummy_data.py):
+  1 clean dummy participant ("dummy01"), reproducible, one city per session (ses-01=city1,
+  ses-02=city2, ses-03=city3) -- cloned from the templates in longwalkv3_examples/ with date
+  and worldLocation columns reshaped (see longwalk3_dummy_data.py):
   longwalk3_generate_sample_data longwalkv3_examples longwalk3_examples_dummy
 
 \b
-  5 dummy participants, only city1/city2:
+  Also add one participant per known error scenario: {", ".join(ERROR_TYPES)}:
+  longwalk3_generate_sample_data longwalkv3_examples longwalk3_examples_dummy --with-errors
+
+\b
+  5 clean dummy participants, only city1/city2:
   longwalk3_generate_sample_data longwalkv3_examples longwalk3_examples_dummy \\
-    --n-subjects 5 --cities city1 --cities city2
+    --n-clean 5 --cities city1 --cities city2
 """
 
 
@@ -33,7 +38,12 @@ Examples:
 )
 @click.argument("output_folder", type=click.Path(path_type=Path), required=True)
 @click.option(
-    "--n-subjects", default=1, show_default=True, help="Number of dummy participants to generate"
+    "--n-clean", default=1, show_default=True, help="Number of well-formed dummy participants"
+)
+@click.option(
+    "--with-errors",
+    is_flag=True,
+    help=f"Also generate one participant per known error scenario: {', '.join(ERROR_TYPES)}",
 )
 @click.option(
     "--cities",
@@ -43,36 +53,56 @@ Examples:
     help="Task labels to generate a behaviour/actor-log file set for, repeatable "
     "(--cities city1 --cities city2 ...).",
 )
+@click.option("--seed", type=int, default=None, help="Seed for reproducible generation")
 def main(
     template_folder: Path,
     output_folder: Path,
-    n_subjects: int,
+    n_clean: int,
+    with_errors: bool,
     cities: tuple[str, ...],
+    seed: int | None,
 ) -> None:
     """Generate synthetic longwalkV3 participant data from the raw file set in template_folder
-    (see longwalkv3_examples/): one .acq physiology file per participant, plus one
-    behaviour.csv and one actor-location log per city per participant.
+    (see longwalkv3_examples/): one .acq physiology file per session (sessions are different
+    days, so physiology can't span them -- see longwalk3_dummy_data.py), plus one behaviour.csv
+    and one actor-location log per city per session.
 
-    Each actor-location log's year/month/day/hour/minute/second columns are combined into a
-    single ISO 8601 "date" column, and its worldLocationX/Y/Z columns into a single
-    "worldLocation" column formatted the way an Unreal FVector prints via ToString() (e.g.
-    "X=1.0 Y=2.0 Z=3.0"). Repeated header rows in a template are preserved as-is.
+    A well-formed ("clean") participant gets one city's file set per session (longwalkV3 has 3
+    planned sessions -- ses-01=city_labels[0], ses-02=city_labels[1], ...). --with-errors also
+    adds one participant per known error scenario -- currently just
+    "multiple_cities_per_session", which still has the standard number of sessions, but one
+    randomly chosen session gets two runs instead of one: the wrong city first (as if that city
+    was started by mistake), then that session's actually-planned city. Both are written as
+    run-000, the same as the real Unreal-side export always does -- exercising detection of a
+    session with more than one run/city, without it always being the same session.
+
+    Each actor-location log's year/month/day/hour/minute/second/millisecond columns are combined
+    into a single "date" column (concatenated yyyyMMddHHmmssSSS, e.g. "20260916175501000" -- the
+    template CSVs currently have "0" in every millisecond cell, pending a real value from the
+    Unreal-side export), and its
+    worldLocationX/Y/Z columns into a single "worldLocation" column formatted the way an Unreal
+    FVector prints via ToString() (e.g. "X=1.0 Y=2.0 Z=3.0"). Repeated header rows in a template
+    are preserved as-is.
     """
 
     output_folder.mkdir(parents=True, exist_ok=True)
 
-    results = generate_dummy_longwalkv3_dataset(template_folder, output_folder, n_subjects, cities)
+    results = generate_dummy_longwalkv3_dataset(
+        template_folder, output_folder, n_clean, with_errors, cities, seed
+    )
 
     table = Table(title="Generated longwalkV3 dummy data")
     table.add_column("Subject ID")
-    table.add_column("Physiology file")
+    table.add_column("Scenario")
+    table.add_column("Physiology files")
     table.add_column("Behaviour files")
     table.add_column("Actor-log files")
 
     for result in results:
         table.add_row(
             result.subject_id,
-            result.acq_path.name,
+            result.scenario,
+            str(len(result.acq_paths)),
             str(len(result.behaviour_paths)),
             str(len(result.actor_log_paths)),
         )
