@@ -101,7 +101,7 @@ def get_dfs_by_date(subject_id_in: str, data_folder_in: Path) -> dict[Path, SubD
     }
 
 
-def combine_behaviour_files(subject_id_in, data_folder_in) -> pd.DataFrame:
+def combine_behaviour_files(subject_id_in: str, data_folder_in: Path) -> pd.DataFrame:
     df_list: list[pd.DataFrame] = []
     dfs_by_date = get_dfs_by_date(subject_id_in, data_folder_in)
 
