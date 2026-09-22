@@ -5,6 +5,7 @@ from pathlib import Path
 
 import click
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 from rich.progress import Progress
 
@@ -21,7 +22,14 @@ def remove_unwanted_old_pngs(
     subject_folder: Path,
     subject_id: str,
 ) -> None:
-    """Remove figures produced by older Spiral versions."""
+    """Remove old Graphomotor PNGs before writing the combined QC figure."""
+
+
+    for path in subject_folder.glob(f"{subject_id}_*.png"):
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            continue
 
     unwanted_names = (
         f"{subject_id}_selected_stream_sample_counts.png",
@@ -167,6 +175,96 @@ def clean_final_output(output_df: pd.DataFrame) -> pd.DataFrame:
 
     return output_df.loc[:, final_columns].copy()
 
+def _find_figure(
+    figures: dict[str, plt.Figure],
+    keyword_options: list[tuple[str, ...]],
+) -> plt.Figure | None:
+    """Find a figure using one of several possible keyword combinations."""
+
+    for keywords in keyword_options:
+        for label, figure in figures.items():
+            normalized = label.lower().replace("_", " ").replace("-", " ")
+
+            if all(keyword in normalized for keyword in keywords):
+                return figure
+
+    return None
+
+
+def make_combined_qc_figure(
+    figures: dict[str, plt.Figure],
+    subject_id: str,
+) -> plt.Figure:
+    """Combine the three useful Graphomotor QC figures into one PNG."""
+
+    stream_presence = _find_figure(
+        figures,
+        [
+            ("stream", "presence"),
+        ],
+    )
+
+    spiral_eeg_summary = figures.get("Spiral_EEG_QC")
+
+    eda_qc = _find_figure(
+        figures,
+        [
+            ("eda", "qc"),
+            ("eda", "quality"),
+        ],
+    )
+
+    panels = [
+        ("Selected stream presence", stream_presence),
+        ("Spiral drawing EEG summary", spiral_eeg_summary),
+        ("EDA QC", eda_qc),
+    ]
+
+    combined_fig, axes = plt.subplots(
+        3,
+        1,
+        figsize=(16, 22),
+    )
+
+    for ax, (panel_title, source_fig) in zip(axes, panels, strict=True):
+        ax.axis("off")
+
+        if source_fig is None:
+            ax.text(
+                0.5,
+                0.5,
+                f"{panel_title}\nNot available",
+                ha="center",
+                va="center",
+                fontsize=16,
+                transform=ax.transAxes,
+            )
+            continue
+
+        source_fig.canvas.draw()
+
+        image = np.asarray(
+            source_fig.canvas.buffer_rgba()
+        )
+
+        ax.imshow(image)
+        ax.set_title(
+            panel_title,
+            fontsize=15,
+            pad=10,
+        )
+
+    combined_fig.suptitle(
+        f"{subject_id}: Graphomotor QC Summary",
+        fontsize=18,
+        y=0.995,
+    )
+
+    combined_fig.tight_layout(
+        rect=(0, 0, 1, 0.985)
+    )
+
+    return combined_fig
 
 @click.command()
 @click.argument(
@@ -305,32 +403,28 @@ def main(
 
             participant_parts.append(participant_df)
 
-            subject_output_folder = output_folder / subject_id
-
-            subject_output_folder.mkdir(
-                parents=True,
-                exist_ok=True,
-            )
-
             remove_unwanted_old_pngs(
-                subject_output_folder,
-                subject_id,
+             output_folder,
+             subject_id,
+)
+
+            combined_figure = make_combined_qc_figure(
+              pipeline_output.figure_data_out,
+              subject_id,
             )
 
-            for (
-                figure_label,
-                figure,
-            ) in pipeline_output.figure_data_out.items():
-                try:
-                    save_plot(
-                        figure,
-                        subject_output_folder,
-                        subject_id,
-                        figure_label,
-                    )
+            try:
+             save_plot(
+             combined_figure,
+             output_folder,
+             subject_id,
+             "graphomotor_qc_summary",
+            )
+            finally:
+             plt.close(combined_figure)
 
-                finally:
-                    plt.close(figure)
+             for figure in pipeline_output.figure_data_out.values():
+              plt.close(figure)
 
             if verbose:
                 selected_row = pipeline_output.selected_df_out.iloc[0]
