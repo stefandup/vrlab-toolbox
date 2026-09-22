@@ -158,8 +158,15 @@ def combine_behaviour_files(subject_id_in: str, data_folder_in: Path) -> dict[st
         df.rename(columns={f"onset_{sub_dict['bp_id']}": "onset"}, inplace=True)
         key = str(sub_dict["date"])
 
+        # Extract float values from Unreal world location
+
         for BP_ACTOR_ID in BP_ACTOR_IDS:
             word_location_df = df.filter(regex=f"^worldLocation_{BP_ACTOR_ID}$")
+
+            if word_location_df.empty:
+                logger.info(f"{BP_ACTOR_ID} has no world location. Skipping.")
+                continue
+
             col_name = word_location_df.columns[0]
 
             parts = word_location_df[col_name].str.extract(
@@ -167,7 +174,9 @@ def combine_behaviour_files(subject_id_in: str, data_folder_in: Path) -> dict[st
             )
             parts.columns = [f"{col_name}_x", f"{col_name}_y", f"{col_name}_z"]
             parts = parts.astype(float)
-            # TODO: Now drop the old cols and append the new ones...
+            df[parts.columns] = parts
+            df = df.drop(columns=col_name)
+
         if key is not None:
             df_lists.setdefault(key, []).append(df)
 
@@ -177,11 +186,5 @@ def combine_behaviour_files(subject_id_in: str, data_folder_in: Path) -> dict[st
         print("-" * 100)
         combined_dfs = pd.concat(df_list, ignore_index=True)
         target_fn = f"sub-{subject_id_in}_ses-{session_nr}_task-longwalkv3_run-000_behaviour.tsv"
-
-    # combined_dfs = {}
-    # for date, df_list in df_lists.items():
-    #    combined_df_out = pd.concat(df_list, ignore_index=True)
-    #    combined_df_out = combined_df_out.sort_values("onset").reset_index(drop=True)
-    #    combined_dfs.update(date) = combined_df_out
 
     return combined_dfs
