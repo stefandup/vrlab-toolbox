@@ -50,6 +50,7 @@ FOH_PROCESS_RESULTS_CONFIG = ProcessResultsConfig(
     process_bids_folder=_process_bids_folder,
     bids_physio_glob=PHYSIO_GLOB_PATTERN,
     bids_subject_id_from_path=get_subject_id,
+    window_icon_path=Path("assets") / "FOH_icon.png",
 )
 
 

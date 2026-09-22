@@ -77,6 +77,12 @@ LONGWALKV3_DATASET_CONFIG = DatasetConfig(
     # prefix (see docs/bids_converter_plan.md) -- routes the crosscheck GUI's "Correct
     # date..." button to edit that row instead of renaming the file.
     dates_in_scans_tsv=True,
+    # A session's physiology recording starts a few minutes before its first events export,
+    # and later runs start later still -- all legitimately on the same real-world day, but
+    # never the exact same minute. Day-level agreement (rather than the exact-minute default)
+    # is what actually matches longwalkV3's real layout -- see bids_crosscheck.py's
+    # scans_tsv_dates_agree.
+    scans_tsv_date_granularity="day",
 )
 
 CHECK = "✓"
@@ -457,6 +463,7 @@ def main() -> None:
         LongwalkV3CandidateExtras(),
         settings_app_name="LongwalkV3BidsCrosscheck",
         raw_converter=_run_longwalkv3_conversion,
+        window_icon_path=Path("assets") / "longwalkv3_icon.png",
         extra_raw_actions=[
             (
                 "Fix Filenames in Raw Folder",

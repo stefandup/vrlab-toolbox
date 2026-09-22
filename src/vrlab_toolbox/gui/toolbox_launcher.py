@@ -12,7 +12,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
@@ -29,29 +29,43 @@ from vrlab_toolbox import __version__
 
 # Grouped and labelled for display -- crosscheck first since it's the step that has to
 # happen before processing, so the button order matches the order a subject's data
-# actually moves through the two tools.
+# actually moves through the two tools. Each entry's third element is its dataset icon
+# file under assets/ (see ICON_ASSET_RELATIVE_PATH below), or None for a tool with no
+# dataset-specific icon (REDCap Pull isn't tied to one dataset).
 GUI_TOOL_GROUPS = (
     (
         "Crosscheck",
         (
-            ("FOH BIDS Crosscheck", "vrlab_foh_bids_crosscheck.exe"),
-            ("Crane BIDS Crosscheck", "vrlab_crane_bids_crosscheck.exe"),
-            ("Longwalk BIDS Crosscheck", "vrlab_longwalk_bids_crosscheck.exe"),
-            ("LongwalkV3 BIDS Crosscheck", "vrlab_longwalk3_bids_crosscheck.exe"),
+            ("FOH BIDS Crosscheck", "vrlab_foh_bids_crosscheck.exe", "FOH_icon.png"),
+            ("Crane BIDS Crosscheck", "vrlab_crane_bids_crosscheck.exe", "crane_icon.png"),
+            (
+                "Longwalk BIDS Crosscheck",
+                "vrlab_longwalk_bids_crosscheck.exe",
+                "longwalk_icon.png",
+            ),
+            (
+                "LongwalkV3 BIDS Crosscheck",
+                "vrlab_longwalk3_bids_crosscheck.exe",
+                "longwalkv3_icon.png",
+            ),
         ),
     ),
     (
         "Processing",
         (
-            ("Crane Process Results", "vrlab_crane_process_GUI.exe"),
-            ("FOH Process Results", "vrlab_foh_process_GUI.exe"),
-            ("Longwalk Process Results", "vrlab_longwalk_process_GUI.exe"),
+            ("Crane Process Results", "vrlab_crane_process_GUI.exe", "crane_icon.png"),
+            ("FOH Process Results", "vrlab_foh_process_GUI.exe", "FOH_icon.png"),
+            (
+                "Longwalk Process Results",
+                "vrlab_longwalk_process_GUI.exe",
+                "longwalk_icon.png",
+            ),
         ),
     ),
     (
         "Data",
         [
-            ("REDCap Pull", "vrlab_redcap_pull.exe"),
+            ("REDCap Pull", "vrlab_redcap_pull.exe", None),
         ],
     ),
 )
@@ -75,6 +89,9 @@ ICON_ASSET_RELATIVE_PATH = Path("assets") / "vrlab_icon.ico"
 # Big enough to read as a real logo, not a favicon -- but capped so it doesn't push the
 # window taller than the button list actually needs.
 ICON_DISPLAY_HEIGHT = 72
+# Small enough to sit inline in a button without dominating its text label -- each
+# GUI_TOOL_GROUPS entry's per-dataset icon (see BUTTON_ICON_SIZE below).
+BUTTON_ICON_SIZE = 20
 # Keeps the window slim regardless of how long the CLI tools list gets -- that list wraps
 # inside its own box (see CLI_TOOLS_GROUP below) instead of forcing the window wide.
 WINDOW_WIDTH = 320
@@ -86,11 +103,15 @@ def _toolbox_dir() -> Path:
     return Path(__file__).parent
 
 
-def _icon_path() -> Path:
+def _asset_path(relative_path: Path) -> Path:
     if getattr(sys, "frozen", False):
-        return _toolbox_dir() / ICON_ASSET_RELATIVE_PATH
+        return _toolbox_dir() / relative_path
     # src/vrlab_toolbox/gui/toolbox_launcher.py -> repo root is three parents up.
-    return Path(__file__).resolve().parents[3] / ICON_ASSET_RELATIVE_PATH
+    return Path(__file__).resolve().parents[3] / relative_path
+
+
+def _icon_path() -> Path:
+    return _asset_path(ICON_ASSET_RELATIVE_PATH)
 
 
 class ToolboxLauncher(QMainWindow):
@@ -118,8 +139,13 @@ class ToolboxLauncher(QMainWindow):
 
         for group_label, tools in GUI_TOOL_GROUPS:
             layout.addWidget(QLabel(f"<b>{group_label}</b>"))
-            for label, exe_name in tools:
+            for label, exe_name, icon_filename in tools:
                 button = QPushButton(label)
+                if icon_filename is not None:
+                    button_icon_path = _asset_path(Path("assets") / icon_filename)
+                    if button_icon_path.is_file():
+                        button.setIcon(QIcon(str(button_icon_path)))
+                        button.setIconSize(QSize(BUTTON_ICON_SIZE, BUTTON_ICON_SIZE))
                 button.clicked.connect(
                     lambda _checked=False, exe_name=exe_name: self._launch(exe_name)
                 )

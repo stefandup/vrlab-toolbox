@@ -69,12 +69,18 @@ def main(
 
     A well-formed ("clean") participant gets one city's file set per session (longwalkV3 has 3
     planned sessions -- ses-01=city_labels[0], ses-02=city_labels[1], ...). --with-errors also
-    adds one participant per known error scenario -- currently just
-    "multiple_cities_per_session", which still has the standard number of sessions, but one
-    randomly chosen session gets two runs instead of one: the wrong city first (as if that city
-    was started by mistake), then that session's actually-planned city. Both are written as
-    run-000, the same as the real Unreal-side export always does -- exercising detection of a
-    session with more than one run/city, without it always being the same session.
+    adds one participant per known error scenario -- currently:
+
+    \b
+    - "multiple_cities_per_session": still the standard number of sessions, but one randomly
+      chosen session gets two runs instead of one: the wrong city first (as if that city was
+      started by mistake), then that session's actually-planned city. Both are written as
+      run-000, the same as the real Unreal-side export always does -- exercising detection of
+      a session with more than one run/city, without it always being the same session.
+    - "unparsable_physiology_filename": otherwise a normal, well-formed layout, but one
+      randomly chosen session's physiology .acq file is renamed the way a file browser names
+      an accidental duplicate copy -- " (1)" inserted before the extension -- a common real
+      mistake that leaves a raw filename no longer matching the expected pattern at all.
 
     Each actor-location log's year/month/day/hour/minute/second/millisecond columns are combined
     into a single "date" column (concatenated yyyyMMddHHmmssSSS, e.g. "20260916175501873" -- the

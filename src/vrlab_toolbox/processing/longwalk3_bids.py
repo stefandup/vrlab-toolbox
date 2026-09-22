@@ -45,7 +45,7 @@ from rich.table import Table
 
 from vrlab_toolbox.processing import bids, pandera_defaults
 from vrlab_toolbox.processing.bids import build_base_bids_events_schema
-from vrlab_toolbox.processing.bids_crosscheck import existing_subject_ids
+from vrlab_toolbox.processing.bids_crosscheck import SCANS_TSV_DATE_FORMAT, existing_subject_ids
 
 RAW_FILENAME_ID_CORRECTIONS_FILENAME = "raw_filename_id_corrections.json"
 
@@ -465,7 +465,7 @@ def _convert_subject_physiology(
             acq_file,
             destination,
             _scans_tsv_path(output_folder, subject_id, session_nr),
-            parsed.date.isoformat(),
+            parsed.date.strftime(SCANS_TSV_DATE_FORMAT),
         )
         written.append(destination)
 
@@ -487,7 +487,11 @@ def _convert_subject_events(
         onset_min = events_df["onset"].min() if not events_df.empty else None
         # isinstance rather than pd.notna: also excludes pd.NaT (an all-unparseable "onset"
         # column), which isn't a pd.Timestamp instance either.
-        acq_time = onset_min.isoformat() if isinstance(onset_min, pd.Timestamp) else "nodate"
+        acq_time = (
+            onset_min.strftime(SCANS_TSV_DATE_FORMAT)
+            if isinstance(onset_min, pd.Timestamp)
+            else "nodate"
+        )
         relative_name = destination.relative_to(
             _scans_tsv_path(output_folder, subject_id, session_nr).parent
         ).as_posix()

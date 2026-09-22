@@ -7,6 +7,10 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import pandas as pd
+
+from vrlab_toolbox.processing.longwalk3_bids import DATESTR_FORMAT
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_CITY_LABELS = ("city1", "city2", "city3")
@@ -27,7 +31,7 @@ CLEAN_SCENARIO_LABEL = "clean"
 # 3 planned sessions -- see longwalk3_bids.py's SESSION_TOKEN comment). Each named error type
 # below instead produces a specific known-wrong session/city layout, to exercise the BIDS
 # crosscheck's ability to flag it.
-ERROR_TYPES = ("multiple_cities_per_session",)
+ERROR_TYPES = ("multiple_cities_per_session", "unparsable_physiology_filename")
 SCENARIO_DESCRIPTIONS: dict[str, str] = {
     CLEAN_SCENARIO_LABEL: (
         "One city's behaviour/actor-log file set per session (ses-01=city1, ses-02=city2, "
@@ -40,10 +44,24 @@ SCENARIO_DESCRIPTIONS: dict[str, str] = {
         "run-000, the same as the real Unreal-side export always does -- exercises detection "
         "of a session with more than one run/city, without it always being the same session."
     ),
+    "unparsable_physiology_filename": (
+        "Otherwise a normal, well-formed layout, but one randomly chosen session's physiology "
+        ".acq file is renamed the way a file browser names an accidental duplicate copy -- "
+        '" (1)" inserted before the extension -- so it no longer matches the expected '
+        '"{date}_{subject_id}_LongWalkV3Out" pattern at all. A common real mistake '
+        "(re-exporting into a folder that already has that filename, or copying the file for "
+        'a manual backup) -- exercises the crosscheck GUI\'s "Fix Filenames in Raw Folder" '
+        "dialog flagging a genuinely unparseable raw file, rather than one that resolves to "
+        "the wrong subject."
+    ),
 }
 
 DATE_PART_COLUMNS = ("year", "month", "day", "hour", "minute", "second", "millisecond")
 WORLD_LOCATION_AXES = ("X", "Y", "Z")
+# Newer actor-log exports (see longwalkv3_examples/) already ship a single combined "date"/
+# "datetime" column in DATESTR_FORMAT instead of separate DATE_PART_COLUMNS -- both names are
+# accepted since longwalk3_bids.combine_events_df_files renames either to "onset".
+_COMBINED_DATETIME_COLUMN_NAMES = ("date", "datetime")
 
 # Suffix (everything after "..._run-<n>_") of each actor-location log template found in
 # longwalkv3_examples/ -- used to find each one under template_folder regardless of its
@@ -84,9 +102,13 @@ def _dummy_redcap_value(column: str, subject_id: str) -> str:
 
 
 def discover_redcap_debrief_template(template_folder: Path) -> Path:
-    matches = [p for p in sorted(template_folder.glob("*.csv")) if _REDCAP_EXPORT_PATTERN.match(p.name)]
+    matches = [
+        p for p in sorted(template_folder.glob("*.csv")) if _REDCAP_EXPORT_PATTERN.match(p.name)
+    ]
     if not matches:
-        raise FileNotFoundError(f"No template REDCap debrief export csv found under {template_folder}")
+        raise FileNotFoundError(
+            f"No template REDCap debrief export csv found under {template_folder}"
+        )
     return matches[0]
 
 
@@ -143,8 +165,11 @@ def discover_acq_template(template_folder: Path) -> Path:
         raise FileNotFoundError(f"No template .acq file found under {template_folder}")
     return matches[0]
 
+
 def discover_behaviour_template(template_folder: Path) -> Path:
-    matches = [p for p in sorted(template_folder.glob("*.csv")) if _BEHAVIOUR_SUFFIX_PATTERN.search(p.name)]
+    matches = [
+        p for p in sorted(template_folder.glob("*.csv")) if _BEHAVIOUR_SUFFIX_PATTERN.search(p.name)
+    ]
     if not matches:
         raise FileNotFoundError(f"No template behaviour csv found under {template_folder}")
     return matches[0]
@@ -164,7 +189,9 @@ def discover_actor_log_templates(template_folder: Path) -> dict[str, Path]:
             templates[match.group("suffix")] = csv_path
 
     if not templates:
-        raise FileNotFoundError(f"No template actor-location log csvs found under {template_folder}")
+        raise FileNotFoundError(
+            f"No template actor-location log csvs found under {template_folder}"
+        )
     return templates
 
 
@@ -186,23 +213,92 @@ def _read_repeated_header_csv(csv_path: Path) -> tuple[list[str], int, list[list
     return header, header_repeat_count, raw_rows[header_repeat_count:]
 
 
-def _combine_date(row: list[str], date_part_index: dict[str, int], rng: random.Random) -> str:
-    # The template's own millisecond cell is just a placeholder (no real sub-second value has
-    # ever been recorded by the Unreal-side export) -- a random one is generated per row instead
-    # so dummy data doesn't leave every event's millisecond fixed at the same value.
+def _row_date_parts_datetime(row: list[str], date_part_index: dict[str, int]) -> dt.datetime:
     year, month, day, hour, minute, second = (
         int(row[date_part_index[name]]) for name in DATE_PART_COLUMNS if name != "millisecond"
     )
+    return dt.datetime(year, month, day, hour, minute, second)
+
+
+def _combine_date(
+    row: list[str], date_part_index: dict[str, int], shift: dt.timedelta, rng: random.Random
+) -> str:
+    # The template's own millisecond cell is just a placeholder (no real sub-second value has
+    # ever been recorded by the Unreal-side export) -- a random one is generated per row instead
+    # so dummy data doesn't leave every event's millisecond fixed at the same value. `shift`
+    # rebases the row's own year/month/day/... onto this run's actual date (see
+    # reshape_actor_log) instead of leaving every generated participant/session/run stuck on
+    # the template's own recorded date.
+    shifted = _row_date_parts_datetime(row, date_part_index) + shift
     millisecond = rng.randint(0, 999)
-    return f"{year:04d}{month:02d}{day:02d}{hour:02d}{minute:02d}{second:02d}{millisecond:03d}"
+    return f"{shifted:%Y%m%d%H%M%S}{millisecond:03d}"
 
 
 def _combine_world_location(row: list[str], location_index: dict[str, int]) -> str:
     return " ".join(f"{axis}={row[location_index[axis]]}" for axis in WORLD_LOCATION_AXES)
 
 
+def _parse_digit_timestamp(value: str) -> dt.datetime | None:
+    """Parses a `DATESTR_FORMAT` digit string exactly the way
+    longwalk3_bids.combine_events_df_files itself will (pd.to_datetime with the same
+    format/errors="coerce") rather than the stricter datetime.strptime -- pandas tolerates
+    some malformed-but-real-recorded values strptime rejects outright (e.g. a leap-second
+    rounding artifact from the Unreal-side export, second=60, which pandas rolls into the next
+    minute). Using the same parser here is what keeps "was this row actually shifted" and "will
+    the converter actually treat this row as dated" in agreement -- otherwise a row left
+    un-shifted because it looked unparseable can still parse downstream, leaking the
+    template's own un-shifted date back into the converter's acq_time.
+    """
+    parsed = pd.to_datetime(value, format=DATESTR_FORMAT, errors="coerce")
+    return None if pd.isna(parsed) else parsed.to_pydatetime()
+
+
+def _shift_combined_datetime_rows(
+    header: list[str], rows: list[list[str]], run_start: dt.datetime
+) -> list[list[str]]:
+    """Rebases a template that already has a single combined date/datetime column (see
+    _COMBINED_DATETIME_COLUMN_NAMES) onto `run_start`, the same way _combine_date rebases a
+    template that still has separate year/month/day/... columns -- reshape_actor_log falls
+    back to this when there's nothing to reshape structurally, since without it every
+    generated participant/session/run would keep the template's own recorded date untouched
+    (see reshape_actor_log's `run_start` docstring). Returns `rows` unchanged if there's no
+    such column, or no row with a parseable reference date to shift from.
+    """
+    header_lower = [column.lower() for column in header]
+    timestamp_name = next(
+        (name for name in _COMBINED_DATETIME_COLUMN_NAMES if name in header_lower), None
+    )
+    if timestamp_name is None or not rows:
+        return rows
+
+    timestamp_index = header_lower.index(timestamp_name)
+    reference = next(
+        (
+            parsed
+            for row in rows
+            if (parsed := _parse_digit_timestamp(row[timestamp_index])) is not None
+        ),
+        None,
+    )
+    if reference is None:
+        return rows
+    shift = run_start - reference
+
+    def shift_row(row: list[str]) -> list[str]:
+        parsed = _parse_digit_timestamp(row[timestamp_index])
+        if parsed is None:
+            return row
+        shifted = parsed + shift
+        millisecond = shifted.microsecond // 1000
+        new_row = list(row)
+        new_row[timestamp_index] = f"{shifted:%Y%m%d%H%M%S}{millisecond:03d}"
+        return new_row
+
+    return [shift_row(row) for row in rows]
+
+
 def reshape_actor_log(
-    header: list[str], rows: list[list[str]], rng: random.Random
+    header: list[str], rows: list[list[str]], rng: random.Random, run_start: dt.datetime
 ) -> tuple[list[str], list[list[str]]]:
     """Replaces year/month/day/hour/minute/second/millisecond with a single "date" column
     (concatenated yyyyMMddHHmmssSSS, e.g. "20260916175501873" -- the millisecond part is
@@ -210,24 +306,39 @@ def reshape_actor_log(
     value yet -- see _combine_date) and worldLocationX/Y/Z with a single "worldLocation" column
     column (formatted the way an Unreal FVector prints via ToString(), e.g. "X=1.0 Y=2.0
     Z=3.0"). Any other column (actor, isFearCue, ...) is kept in place. Rows are otherwise
-    unchanged. If header doesn't have both groups of columns (e.g. behaviour.csv), it's
-    returned unchanged.
+    unchanged. If header doesn't have both groups of columns to reshape (e.g. behaviour.csv,
+    or a newer export that already ships a single combined date/datetime column -- see
+    _shift_combined_datetime_rows), the header/columns are returned unchanged, but any combined
+    date/datetime column found is still rebased onto `run_start`.
+
+    `run_start` (this run's target start time -- see _run_csv_timestamp) rebases every row's
+    date by the same delta needed to move the template's own first row onto it, so a run's
+    events land on that run's actual calendar day/time instead of the template's recorded one
+    -- otherwise every generated participant/session/run ends up with identical event dates.
     """
     header_lower = [column.lower() for column in header]
 
-    date_part_index = {name: header_lower.index(name) for name in DATE_PART_COLUMNS if name in header_lower}
+    date_part_index = {
+        name: header_lower.index(name) for name in DATE_PART_COLUMNS if name in header_lower
+    }
     location_index = {
         axis: header_lower.index(f"worldlocation{axis.lower()}")
         for axis in WORLD_LOCATION_AXES
         if f"worldlocation{axis.lower()}" in header_lower
     }
 
-    if len(date_part_index) != len(DATE_PART_COLUMNS) or len(location_index) != len(WORLD_LOCATION_AXES):
-        return header, rows
+    if len(date_part_index) != len(DATE_PART_COLUMNS) or len(location_index) != len(
+        WORLD_LOCATION_AXES
+    ):
+        return header, _shift_combined_datetime_rows(header, rows, run_start)
 
     combined_indices = set(date_part_index.values()) | set(location_index.values())
     date_insert_at = min(date_part_index.values())
     location_insert_at = min(location_index.values())
+
+    shift = (
+        run_start - _row_date_parts_datetime(rows[0], date_part_index) if rows else dt.timedelta(0)
+    )
 
     def reshape_row(row: list[str], date_value: str, location_value: str) -> list[str]:
         new_row = []
@@ -243,7 +354,9 @@ def reshape_actor_log(
     new_header = reshape_row(header, "date", "worldLocation")
     new_rows = [
         reshape_row(
-            row, _combine_date(row, date_part_index, rng), _combine_world_location(row, location_index)
+            row,
+            _combine_date(row, date_part_index, shift, rng),
+            _combine_world_location(row, location_index),
         )
         for row in rows
     ]
@@ -272,7 +385,9 @@ def _run_csv_timestamp(session_day: dt.datetime, run_index: int) -> str:
     return (session_day + run_index * RUN_TIME_STEP).strftime("%Y%m%d%H%M")
 
 
-def _multiple_cities_per_session_layout(city_labels: tuple[str, ...], rng: random.Random) -> list[list[str]]:
+def _multiple_cities_per_session_layout(
+    city_labels: tuple[str, ...], rng: random.Random
+) -> list[list[str]]:
     """One randomly chosen session's planned city is preceded by a run in a different, randomly
     chosen city -- e.g. ses-02 was planned as city2, but city3 got run first by mistake, then
     city2 was run afterwards to correct it (both written as run-000 -- see
@@ -303,6 +418,12 @@ def build_session_city_layout(
     ses-02=city_labels[1], ... error_type="multiple_cities_per_session": still exactly that many
     sessions, but one of them instead gets two runs, a wrong city then its correct one (see
     _multiple_cities_per_session_layout) -- requires rng.
+
+    Only these two values are meaningful here -- a session/city *layout* shape. Other
+    ERROR_TYPES entries (e.g. "unparsable_physiology_filename") don't affect this layout at
+    all; generate_dummy_longwalkv3_participant applies those separately, after the (otherwise
+    clean) file set this function's layout produces has been written, so callers pass this
+    function None for any such error_type.
     """
     if error_type is None:
         session_city_runs: list[list[str]] = [[city] for city in city_labels]
@@ -311,9 +432,28 @@ def build_session_city_layout(
             raise ValueError("rng is required for error_type='multiple_cities_per_session'")
         session_city_runs = _multiple_cities_per_session_layout(city_labels, rng)
     else:
-        raise ValueError(f"error_type must be one of {ERROR_TYPES}, got {error_type!r}")
+        raise ValueError(
+            "error_type must be None or 'multiple_cities_per_session' for this layout "
+            f"function, got {error_type!r}"
+        )
 
     return [(f"ses-{index + 1:02d}", cities) for index, cities in enumerate(session_city_runs)]
+
+
+def _natural_duplicate_copy_name(path: Path) -> Path:
+    """`path` renamed the way a file browser (Explorer, Finder, a browser's download manager)
+    names an accidental second copy of the same file -- " (1)" inserted right before the
+    extension. One of the most common real mistakes a research assistant makes (re-exporting
+    into a folder that already has that filename, or copying a file for a manual backup) --
+    used by ERROR_TYPES' "unparsable_physiology_filename" to produce a raw filename that no
+    longer matches longwalk3_bids.py's `_PHYSIOLOGY_FILENAME_PATTERN` at all (its trailing
+    "_LongWalkV3Out" is anchored to the end of the filename stem).
+
+    Deliberately not reused for a raw csv file: `_RAW_CSV_FILENAME_PATTERN`'s trailing
+    `bp_id` group matches anything up to the end of the stem, so the exact same "(1)" suffix
+    would still parse there (just with a slightly garbled bp_id) rather than failing outright.
+    """
+    return path.with_name(f"{path.stem} (1){path.suffix}")
 
 
 def generate_dummy_longwalkv3_participant(
@@ -337,23 +477,36 @@ def generate_dummy_longwalkv3_participant(
         behaviour_template
     )
 
+    # unparsable_physiology_filename corrupts one session's .acq filename after it's written
+    # below, not the session/city layout itself -- build_session_city_layout only knows about
+    # the layout-shape error (multiple_cities_per_session), so any other error_type is passed
+    # to it as None (see its own docstring).
+    layout_error_type = error_type if error_type == "multiple_cities_per_session" else None
+    session_city_layout = build_session_city_layout(city_labels, layout_error_type, rng)
+    corrupt_physiology_session_index = (
+        rng.randrange(len(session_city_layout))
+        if error_type == "unparsable_physiology_filename"
+        else None
+    )
+
     acq_paths = []
     behaviour_paths = []
     actor_log_paths = []
-    for session_index, (session_token, session_city_runs) in enumerate(
-        build_session_city_layout(city_labels, error_type, rng)
-    ):
+    for session_index, (session_token, session_city_runs) in enumerate(session_city_layout):
         session_day = _session_day(subject_index, session_index)
 
         # One physiology recording per session -- it can't span the multiple days different
         # sessions now fall on -- started once, before that session's first exported run.
-        acq_path = (
-            output_folder / f"{_acq_timestamp(session_day)}_{subject_id}_LongWalkV3Out.acq"
-        )
+        acq_path = output_folder / f"{_acq_timestamp(session_day)}_{subject_id}_LongWalkV3Out.acq"
         shutil.copyfile(acq_template, acq_path)
+        if session_index == corrupt_physiology_session_index:
+            corrupted_acq_path = _natural_duplicate_copy_name(acq_path)
+            acq_path.rename(corrupted_acq_path)
+            acq_path = corrupted_acq_path
         acq_paths.append(acq_path)
 
         for run_index, city_label in enumerate(session_city_runs):
+            run_start = session_day + run_index * RUN_TIME_STEP
             csv_timestamp = _run_csv_timestamp(session_day, run_index)
             # The real Unreal-side export never counts runs up -- every run is written as
             # "run-000" and it's the BIDS pipeline's job to sort out true run numbers later
@@ -361,10 +514,10 @@ def generate_dummy_longwalkv3_participant(
             # would collide, but the multiple-cities error only ever pairs a session with two
             # *different* cities, so the filenames stay distinct on task-<city> alone.
             run_token = "run-000"
-            behaviour_path = (
-                output_folder
-                / f"{csv_timestamp}_{subject_id}_{session_token}_task-{city_label}_{run_token}_behaviour.csv"
+            run_filename_prefix = (
+                f"{csv_timestamp}_{subject_id}_{session_token}_task-{city_label}_{run_token}"
             )
+            behaviour_path = output_folder / f"{run_filename_prefix}_behaviour.csv"
             _write_repeated_header_csv(
                 behaviour_path, behaviour_header, behaviour_header_repeat_count, behaviour_rows
             )
@@ -372,16 +525,17 @@ def generate_dummy_longwalkv3_participant(
 
             for suffix, template_path in actor_log_templates.items():
                 header, header_repeat_count, rows = _read_repeated_header_csv(template_path)
-                new_header, new_rows = reshape_actor_log(header, rows, rng)
-                actor_log_path = (
-                    output_folder
-                    / f"{csv_timestamp}_{subject_id}_{session_token}_task-{city_label}_{run_token}_{suffix}"
+                new_header, new_rows = reshape_actor_log(header, rows, rng, run_start)
+                actor_log_path = output_folder / f"{run_filename_prefix}_{suffix}"
+                _write_repeated_header_csv(
+                    actor_log_path, new_header, header_repeat_count, new_rows
                 )
-                _write_repeated_header_csv(actor_log_path, new_header, header_repeat_count, new_rows)
                 actor_log_paths.append(actor_log_path)
 
     scenario = error_type or CLEAN_SCENARIO_LABEL
-    return DummyLongWalkV3ParticipantResult(subject_id, scenario, acq_paths, behaviour_paths, actor_log_paths)
+    return DummyLongWalkV3ParticipantResult(
+        subject_id, scenario, acq_paths, behaviour_paths, actor_log_paths
+    )
 
 
 @dataclass

@@ -397,6 +397,7 @@ def main() -> None:
         FohCandidateExtras(),
         settings_app_name="FohBidsCrosscheck",
         raw_converter=_run_foh_import,
+        window_icon_path=Path("assets") / "FOH_icon.png",
     )
 
 

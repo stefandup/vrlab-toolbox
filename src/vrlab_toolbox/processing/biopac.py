@@ -2,6 +2,7 @@ import logging
 import os
 from pathlib import Path
 
+import bioread
 import numpy as np
 import pandas as pd
 import scipy.io as sio
@@ -23,26 +24,39 @@ class BiopacPhysiologyDataImportStartegy:
         return raw_data_for_pipeline
 
 
-def clean_biopac_labels(labels_in):
+def clean_biopac_mat_labels(labels_in: np.ndarray) -> list[str]:
 
     return [label.strip().split(" ")[0] for label in labels_in.flatten()]
 
 
-def load_biopac_data(physiology_fn: Path) -> RawBioData:
-    """Load biopac mat files into pd Dataframe."""
-    # time_stamps EDA DF
+def clean_biopac_acq_label(label_in: str) -> str:
+    return label_in.strip().split(" ")[0]
 
-    logger.info(f"Loading {str(physiology_fn)}")
+
+def import_biopac_acq(physiology_fn) -> dict[str, pd.DataFrame]:
+    imported_data = bioread.read_file(physiology_fn)
     dfs_out: dict[str, pd.DataFrame] = {}
 
-    try:
-        imported_data = sio.loadmat(physiology_fn)
-    except ValueError as e:
-        logger.error("Error loading %s: %s", physiology_fn, e)
-        raise
+    for channel in imported_data.channels:
+        if channel.name is not None:
+            label = clean_biopac_acq_label(channel.name)
+            raw_channel_data = channel.data
+            if raw_channel_data is not None:
+                sampling_freq = channel.samples_per_second
+                time_stamps = np.arange(len(raw_channel_data)) / np.float64(sampling_freq)
+                new_data = pd.DataFrame({"time_stamps": time_stamps, label: raw_channel_data})
+
+                dfs_out.update({label: pd.DataFrame(new_data)})
+
+    return dfs_out
+
+
+def import_biopac_mat(physiology_fn) -> dict[str, pd.DataFrame]:
+    dfs_out: dict[str, pd.DataFrame] = {}
+    imported_data = sio.loadmat(physiology_fn)
     mat_data = imported_data["data"]
     mat_isi = imported_data["isi"]
-    mat_labels = clean_biopac_labels(imported_data["labels"])
+    mat_labels = clean_biopac_mat_labels(imported_data["labels"])
 
     # Append each dataset to a dictionary. Not they have potentially different sampling freq,
     # so needs a differnt set for each
@@ -55,7 +69,26 @@ def load_biopac_data(physiology_fn: Path) -> RawBioData:
         new_data = pd.DataFrame({"time_stamps": time_stamps, label: data})
         dfs_out.update({label: new_data})
 
-    raw_bio_data_out = RawBioData(raw_data=dfs_out)
+    return dfs_out
+
+
+get_physiology_importer = {".mat": import_biopac_mat, ".acq": import_biopac_acq}
+
+
+def load_biopac_data(physiology_fn: Path) -> RawBioData:
+    """Load biopac mat files into pd Dataframe."""
+    # time_stamps EDA DF
+
+    logger.info(f"Loading {str(physiology_fn)}")
+
+    try:
+        physiology_importer = get_physiology_importer[physiology_fn.suffix]
+        imported_data = physiology_importer(physiology_fn)
+    except ValueError as e:
+        logger.error("Error loading %s: %s", physiology_fn, e)
+        raise
+
+    raw_bio_data_out = RawBioData(raw_data=imported_data)
 
     return raw_bio_data_out
 

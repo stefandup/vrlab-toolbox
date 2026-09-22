@@ -11,6 +11,7 @@ import logging
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 from PySide6.QtCore import QItemSelectionModel, QSettings, QStandardPaths, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices, QFont
@@ -53,6 +54,7 @@ from vrlab_toolbox.gui.qt_common import (
     HOME_BASE_NAME_EXTRA_POINT_INCREASE,
     SETTINGS_ORGANIZATION,
     default_browse_dir,
+    set_window_icon,
     wrap_tooltip,
 )
 from vrlab_toolbox.gui.qt_common import accent_group_box_stylesheet as _accent_group_box_stylesheet
@@ -77,6 +79,7 @@ from vrlab_toolbox.processing.bids_crosscheck import (
     crosschecked_scan_types,
     ensure_bidsignore,
     fill_missing_scans_tsv_dates,
+    group_scans_tsv_rows_by_session,
     list_scans_tsv_rows,
     load_decisions,
     load_excluded_subjects,
@@ -100,6 +103,7 @@ from vrlab_toolbox.processing.bids_crosscheck import (
     save_pending_selections,
     save_study_id,
     scan_bids_folder,
+    scans_tsv_dates_agree,
     scans_tsv_reference_date,
     set_crosschecked,
 )
@@ -363,6 +367,7 @@ class BidsCrosscheckWindow(QMainWindow):
         | None = None,
         convert_button_tooltip: str = DEFAULT_CONVERT_BUTTON_TOOLTIP,
         extra_backup_filenames: tuple[str, ...] = (),
+        window_icon_path: Path | None = None,
     ):
         """`raw_converter`, if given, adds a "Raw folder summary" group box and a "Refresh BIDS"
         button in the "BIDS Folder" group box below it -- optional, dataset-specific (crane
@@ -410,6 +415,11 @@ class BidsCrosscheckWindow(QMainWindow):
         `raw_converter` itself reads as input on the next conversion. This window doesn't
         know what these files mean, only that they need to travel with a backup the same way
         `crosscheck.json` does.
+
+        `window_icon_path`, if given, is a repo-root-relative path (e.g. `Path("assets") /
+        "crane_icon.png"`) to this dataset's title-bar/taskbar icon -- resolved via
+        `qt_common.set_window_icon`, which degrades quietly to no icon if the file isn't
+        found. `None` (the default) leaves the window with Qt's own default icon.
         """
         super().__init__()
         self.dataset_config = dataset_config
@@ -440,6 +450,7 @@ class BidsCrosscheckWindow(QMainWindow):
         )
 
         self.setWindowTitle(f"{window_title} (v{__version__})")
+        set_window_icon(self, window_icon_path)
         self.resize(1100, 650)
         self._build_ui()
         self._restore_last_bids_folder()
@@ -1414,20 +1425,26 @@ class BidsCrosscheckWindow(QMainWindow):
 
     def _scans_tsv_has_date_issue(self, subject_id: str) -> bool:
         """True if any of this subject's scans.tsv rows fails the scans.tsv pane's own
-        tick/cross check -- doesn't parse as YYYYMMDDHHMM, or disagrees with the subject's
-        other rows (see `_build_scans_tsv_row`). Powers the master subject list's at-a-glance
-        SCANS_TSV_DATE_ISSUE_ICON, so a date problem is visible without opening the subject.
+        tick/cross check -- doesn't parse as YYYYMMDDHHMM, or disagrees with its own session's
+        other rows (see `_build_scans_tsv_row`) at this dataset's configured granularity.
+        Powers the master subject list's at-a-glance SCANS_TSV_DATE_ISSUE_ICON, so a date
+        problem is visible without opening the subject.
         """
         if self.bids_folder is None:
             return False
         rows = list_scans_tsv_rows(self.bids_folder, subject_id)
         if not rows:
             return False
-        reference_date = scans_tsv_reference_date(rows)
-        for row in rows:
-            parsed = parse_scans_tsv_date(row.get("acq_time"))
-            if parsed is None or (reference_date is not None and parsed != reference_date):
-                return True
+        granularity = self.dataset_config.scans_tsv_date_granularity
+        for session_rows in group_scans_tsv_rows_by_session(rows):
+            reference_date = scans_tsv_reference_date(session_rows)
+            for row in session_rows:
+                parsed = parse_scans_tsv_date(row.get("acq_time"))
+                if parsed is None or (
+                    reference_date is not None
+                    and not scans_tsv_dates_agree(parsed, reference_date, granularity)
+                ):
+                    return True
         return False
 
     def _status_icon_tooltip(self) -> str:
@@ -2160,13 +2177,18 @@ class BidsCrosscheckWindow(QMainWindow):
         return row
 
     def _build_scans_tsv_group(self, subject_id: str) -> QGroupBox | None:
-        """`scans.tsv` sidecar pane: every row (filename, acq_time) this subject's sidecar
-        currently tracks -- not just the one file "Correct date..." can reach per scan type
-        above, since a scans.tsv can outlive a resolved duplicate or list a file that's since
-        stopped matching any scan type's glob. Each row gets a green tick if its acq_time
-        parses as YYYYMMDDHHMM *and* agrees with the subject's other rows, a red cross
-        otherwise (unparseable, or disagrees) -- see `_build_scans_tsv_row`. None if this
-        subject has no scans.tsv yet (e.g. not converted).
+        """`scans.tsv` sidecar pane: every row (filename, acq_time) every one of this
+        subject's scans.tsv sidecars currently tracks -- not just the one file "Correct
+        date..." can reach per scan type above, since a scans.tsv can outlive a resolved
+        duplicate or list a file that's since stopped matching any scan type's glob. A subject
+        can have more than one scans.tsv (e.g. longwalkV3's one-per-session layout); rows are
+        grouped by their own session entity (`group_scans_tsv_rows_by_session`) so a row is
+        only ever compared against its *own* session's other rows, never a different,
+        genuinely-different-dated session. Each row gets a green tick if its acq_time parses
+        as YYYYMMDDHHMM *and* agrees with its session's other rows (at this dataset's
+        configured `scans_tsv_date_granularity`), a red cross otherwise (unparseable, or
+        disagrees) -- see `_build_scans_tsv_row`. None if this subject has no scans.tsv yet
+        (e.g. not converted).
         """
         rows = list_scans_tsv_rows(self.bids_folder, subject_id)
         if rows is None:
@@ -2176,15 +2198,22 @@ class BidsCrosscheckWindow(QMainWindow):
         group = QGroupBox(f"scans.tsv ({len(rows)} {row_word})")
         layout = QVBoxLayout(group)
 
-        reference_date = scans_tsv_reference_date(rows)
-
-        for row in rows:
-            layout.addWidget(self._build_scans_tsv_row(subject_id, row, reference_date))
+        granularity = self.dataset_config.scans_tsv_date_granularity
+        for session_rows in group_scans_tsv_rows_by_session(rows):
+            reference_date = scans_tsv_reference_date(session_rows)
+            for row in session_rows:
+                layout.addWidget(
+                    self._build_scans_tsv_row(subject_id, row, reference_date, granularity)
+                )
 
         return group
 
     def _build_scans_tsv_row(
-        self, subject_id: str, row: dict[str, str], reference_date: datetime | None
+        self,
+        subject_id: str,
+        row: dict[str, str],
+        reference_date: datetime | None,
+        granularity: Literal["minute", "day"],
     ) -> QWidget:
         relative_filename = row.get("filename", "")
         raw_date = row.get("acq_time", "")
@@ -2192,15 +2221,22 @@ class BidsCrosscheckWindow(QMainWindow):
         if parsed is None:
             icon, color = "✗", UNCROSSCHECKED_COLOR
             tooltip = f"{raw_date or '(empty)'!r} doesn't parse as YYYYMMDDHHMM"
-        elif reference_date is not None and parsed != reference_date:
+        elif reference_date is not None and not scans_tsv_dates_agree(
+            parsed, reference_date, granularity
+        ):
             icon, color = "✗", UNCROSSCHECKED_COLOR
+            agreement = "day" if granularity == "day" else "exact time"
             tooltip = (
-                f"{raw_date} doesn't match this subject's other scans.tsv rows "
-                f"({reference_date.strftime(SCANS_TSV_DATE_FORMAT)})"
+                f"{raw_date} doesn't share the same {agreement} as this session's other "
+                f"scans.tsv rows ({reference_date.strftime(SCANS_TSV_DATE_FORMAT)})"
             )
         else:
             icon, color = "✓", FOUND_EVERYWHERE_COLOR
-            tooltip = "Parses as YYYYMMDDHHMM and matches this subject's other rows"
+            agreement = "day" if granularity == "day" else "exact time"
+            tooltip = (
+                f"Parses as YYYYMMDDHHMM and shares the same {agreement} as this "
+                "session's other rows"
+            )
 
         row_widget = QWidget()
         row_layout = QHBoxLayout(row_widget)
@@ -2904,6 +2940,7 @@ def run_bids_crosscheck_app(
     | None = None,
     convert_button_tooltip: str = DEFAULT_CONVERT_BUTTON_TOOLTIP,
     extra_backup_filenames: tuple[str, ...] = (),
+    window_icon_path: Path | None = None,
 ) -> None:
     app = QApplication.instance() or QApplication([])
     # Consistent tooltip look regardless of OS/theme default -- black text on white, matching
@@ -2926,6 +2963,7 @@ def run_bids_crosscheck_app(
         extra_raw_actions,
         convert_button_tooltip,
         extra_backup_filenames,
+        window_icon_path,
     )
     window.show()
     app.exec()

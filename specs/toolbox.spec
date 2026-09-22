@@ -9,11 +9,20 @@ from PyInstaller.utils.hooks import copy_metadata
 REPO_ROOT = os.path.join(SPECPATH, "..")
 SRC_ROOT = os.path.join(REPO_ROOT, "src", "vrlab_toolbox")
 ICON = os.path.join(REPO_ROOT, "assets", "vrlab_icon.ico")
+CRANE_ICON = os.path.join(REPO_ROOT, "assets", "crane_icon.png")
+FOH_ICON = os.path.join(REPO_ROOT, "assets", "FOH_icon.png")
+LONGWALK_ICON = os.path.join(REPO_ROOT, "assets", "longwalk_icon.png")
+LONGWALKV3_ICON = os.path.join(REPO_ROOT, "assets", "longwalkv3_icon.png")
 
 # (exe_name, script path relative to src/vrlab_toolbox, console window?, extra datas)
 TOOLS = [
     ("vrlab_check_xdf", os.path.join("cli", "check_xdf.py"), True, []),
-    ("vrlab_crane_bids_crosscheck", os.path.join("gui", "crane_bids_crosscheck_gui.py"), False, []),
+    (
+        "vrlab_crane_bids_crosscheck",
+        os.path.join("gui", "crane_bids_crosscheck_gui.py"),
+        False,
+        [(CRANE_ICON, "assets")],
+    ),
     ("vrlab_crane_convert_to_bids", os.path.join("cli", "crane_convert_to_bids.py"), True, []),
     ("vrlab_crane_generate_sample_data", os.path.join("cli", "crane_generate_sample_data.py"), True, []),
     ("vrlab_crane_process", os.path.join("cli", "vrlab_crane_process.py"), True, []),
@@ -21,7 +30,7 @@ TOOLS = [
         "vrlab_crane_process_GUI",
         os.path.join("gui", "crane_process_results_gui.py"),
         False,
-        [],
+        [(CRANE_ICON, "assets")],
     ),
     ("vrlab_foh_assess_data", os.path.join("cli", "FOH_assess_data.py"), True, []),
     ("vrlab_foh_process", os.path.join("cli", "vrlab_foh_process.py"), True, []),
@@ -29,15 +38,20 @@ TOOLS = [
         "vrlab_foh_process_GUI",
         os.path.join("gui", "foh_process_results_gui.py"),
         False,
-        [],
+        [(FOH_ICON, "assets")],
     ),
-    ("vrlab_foh_bids_crosscheck", os.path.join("gui", "foh_bids_crosscheck_gui.py"), False, []),
+    (
+        "vrlab_foh_bids_crosscheck",
+        os.path.join("gui", "foh_bids_crosscheck_gui.py"),
+        False,
+        [(FOH_ICON, "assets")],
+    ),
     ("vrlab_foh_import_to_bids", os.path.join("cli", "foh_import_to_bids.py"), True, []),
     (
         "vrlab_longwalk_bids_crosscheck",
         os.path.join("gui", "longwalk_bids_crosscheck_gui.py"),
         False,
-        [],
+        [(LONGWALK_ICON, "assets")],
     ),
     (
         "vrlab_longwalk_convert_to_bids",
@@ -61,13 +75,13 @@ TOOLS = [
         "vrlab_longwalk3_bids_crosscheck",
         os.path.join("gui", "longwalk3_bids_crosscheck_gui.py"),
         False,
-        [],
+        [(LONGWALKV3_ICON, "assets")],
     ),
     (
         "vrlab_longwalk_process_GUI",
         os.path.join("gui", "longwalk_process_results_gui.py"),
         False,
-        [],
+        [(LONGWALK_ICON, "assets")],
     ),
     ("vrlab_plot_target_data", os.path.join("cli", "plot_subject_target_scr_bars.py"), True, []),
     ("vrlab_redcap_pull", os.path.join("gui", "redcap_pull_gui.py"), False, []),
@@ -75,7 +89,13 @@ TOOLS = [
         "vrlab_toolbox_launcher",
         os.path.join("gui", "toolbox_launcher.py"),
         False,
-        [(ICON, "assets")],
+        [
+            (ICON, "assets"),
+            (CRANE_ICON, "assets"),
+            (FOH_ICON, "assets"),
+            (LONGWALK_ICON, "assets"),
+            (LONGWALKV3_ICON, "assets"),
+        ],
     ),
 ]
 

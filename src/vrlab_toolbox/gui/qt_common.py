@@ -4,11 +4,13 @@ crosscheck windows (`bids_crosscheck_common.py`) and the process-results viewer
 a speculative shared base class.
 """
 
+import sys
 import textwrap
 from pathlib import Path
 
 from PySide6.QtCore import QStandardPaths
-from PySide6.QtWidgets import QLabel
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QLabel, QMainWindow
 
 SETTINGS_ORGANIZATION = "MooiToolbox"
 
@@ -114,3 +116,29 @@ def accent_group_box_stylesheet(color: str) -> str:
         f"QGroupBox {{ border: 2px solid {color}; border-radius: 4px; margin-top: 8px; }}"
         "QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; }"
     )
+
+
+def resolve_asset_path(relative_path: Path) -> Path:
+    """Resolves a repo-root-relative asset path (e.g. `Path("assets") / "crane_icon.png"`)
+    against wherever it actually lives: bundled next to the frozen exe (see
+    specs/toolbox.spec's per-tool `extra_datas`) when packaged, or the real repo root in
+    dev mode. Same dual-path logic `toolbox_launcher.py` uses for its own logo, shared here
+    so every tool's window icon resolves the same way instead of each reimplementing it.
+    """
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).parent / relative_path
+    # src/vrlab_toolbox/gui/qt_common.py -> repo root is three parents up.
+    return Path(__file__).resolve().parents[3] / relative_path
+
+
+def set_window_icon(window: QMainWindow, relative_icon_path: Path | None) -> None:
+    """Sets `window`'s title-bar/taskbar icon from a repo-root-relative asset path, if given
+    and the file actually exists there -- silently does nothing otherwise (e.g. a dev
+    checkout missing an optional asset), same "degrade quietly" behavior as
+    `toolbox_launcher.py`'s own logo loading.
+    """
+    if relative_icon_path is None:
+        return
+    icon_path = resolve_asset_path(relative_icon_path)
+    if icon_path.is_file():
+        window.setWindowIcon(QIcon(str(icon_path)))

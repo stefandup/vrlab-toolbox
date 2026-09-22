@@ -62,6 +62,14 @@ class DatasetConfig:
     # date prefix -- gates whether the crosscheck GUI's "Correct date..." button edits that
     # row (record_scans_tsv_date_correction) or renames the file (record_date_correction).
     dates_in_scans_tsv: bool = False
+    # How strictly the scans.tsv pane's tick/cross (and SCANS_TSV_DATE_ISSUE_ICON) requires a
+    # session's rows to agree -- "minute" (the default) requires the exact same acq_time,
+    # right for crane/longwalk where every row for a subject is expected to share one real
+    # acquisition time. "day" only requires the same calendar day -- for a dataset (e.g.
+    # longwalkV3) where recordings within one real session legitimately start at different
+    # times (physiology a few minutes before the first events export, a later run further
+    # still) but are still expected on the same real-world day. See scans_tsv_dates_agree.
+    scans_tsv_date_granularity: Literal["minute", "day"] = "minute"
 
     def scan_type_names(self) -> tuple[str, ...]:
         return tuple(scan_type.name for scan_type in self.scan_types)
@@ -735,14 +743,17 @@ def scans_tsv_reference_date(rows: list[dict[str, str]]) -> datetime | None:
 
 
 def fill_missing_scans_tsv_dates(bids_folder: Path, subject_id: str) -> list[str]:
-    """Fills every row in `subject_id`'s scans.tsv sidecar whose `acq_time` is empty or doesn't
-    parse as YYYYMMDDHHMM, using that subject's own `scans_tsv_reference_date` -- e.g. a
-    behaviour/events row appended without a real acquisition time (see
+    """Fills every row in each of `subject_id`'s scans.tsv sidecars whose `acq_time` is empty
+    or doesn't parse as YYYYMMDDHHMM, using that *same file's own* `scans_tsv_reference_date`
+    -- e.g. a behaviour/events row appended without a real acquisition time (see
     processing/longwalk_bids.py) gets backfilled from the same participant's already-dated
-    physiology row. Never touches a row that already carries *some* parseable date, even a
+    physiology row. A subject can have more than one scans.tsv (e.g. longwalkV3's
+    one-per-session layout) -- each file's own reference date is used to fill only that same
+    file's rows, so one session's date is never used to backfill another, genuinely different,
+    session. Never touches a row that already carries *some* parseable date, even a
     disagreeing one -- that's still a human decision for "Edit date...", not something to
-    silently overwrite. Returns the filenames actually filled; empty if there was nothing to
-    fill, or no reference date to fill from yet.
+    silently overwrite. Returns the filenames actually filled, across every scans.tsv; empty
+    if there was nothing to fill anywhere, or no reference date to fill from yet.
 
     Reuses the same `scans_tsv_date_correction` decision type as
     `record_scans_tsv_row_date_correction`, keyed per row (filename + position, since more than
@@ -753,39 +764,43 @@ def fill_missing_scans_tsv_dates(bids_folder: Path, subject_id: str) -> list[str
     matches = sorted(subject_folder.glob("**/*_scans.tsv"))
     if not matches:
         return []
-    scans_tsv = matches[0]
-
-    rows = _read_scans_tsv_rows(scans_tsv)
-    reference_date = scans_tsv_reference_date(rows)
-    if reference_date is None:
-        return []
-    corrected_date = reference_date.strftime(SCANS_TSV_DATE_FORMAT)
 
     filled: list[str] = []
     decisions = load_decisions(bids_folder)
-    for index, row in enumerate(rows):
-        if parse_scans_tsv_date(row.get("acq_time")) is not None:
+    for scans_tsv in matches:
+        rows = _read_scans_tsv_rows(scans_tsv)
+        reference_date = scans_tsv_reference_date(rows)
+        if reference_date is None:
             continue
-        filename = row.get("filename", "")
-        _append_decision(
-            decisions,
-            _decision_key(subject_id, f"scans_tsv:{filename}:{index}"),
-            {
-                "type": "scans_tsv_date_correction",
-                "subject_id": subject_id,
-                "scan_type": f"scans_tsv:{filename}",
-                "scans_tsv": scans_tsv.relative_to(bids_folder).as_posix(),
-                "filename": filename,
-                "original_date": row.get("acq_time", ""),
-                "corrected_date": corrected_date,
-            },
-        )
-        row["acq_time"] = corrected_date
-        filled.append(filename)
+        corrected_date = reference_date.strftime(SCANS_TSV_DATE_FORMAT)
+
+        file_filled: list[str] = []
+        for index, row in enumerate(rows):
+            if parse_scans_tsv_date(row.get("acq_time")) is not None:
+                continue
+            filename = row.get("filename", "")
+            _append_decision(
+                decisions,
+                _decision_key(subject_id, f"scans_tsv:{filename}:{index}"),
+                {
+                    "type": "scans_tsv_date_correction",
+                    "subject_id": subject_id,
+                    "scan_type": f"scans_tsv:{filename}",
+                    "scans_tsv": scans_tsv.relative_to(bids_folder).as_posix(),
+                    "filename": filename,
+                    "original_date": row.get("acq_time", ""),
+                    "corrected_date": corrected_date,
+                },
+            )
+            row["acq_time"] = corrected_date
+            file_filled.append(filename)
+
+        if file_filled:
+            _write_scans_tsv_rows(scans_tsv, rows)
+            filled.extend(file_filled)
 
     if filled:
         _write_decisions_atomic(bids_folder, decisions)
-        _write_scans_tsv_rows(scans_tsv, rows)
     return filled
 
 
@@ -842,18 +857,71 @@ def record_scans_tsv_row_removed(
 
 
 def list_scans_tsv_rows(bids_folder: Path, subject_id: str) -> list[dict[str, str]] | None:
-    """Every row of `subject_id`'s `scans.tsv` sidecar (`filename`, `acq_time`), for the
-    crosscheck GUI's scans.tsv pane -- unlike `read_scans_tsv_date`, which only looks up one
-    file's row, this lists everything the sidecar currently tracks for the subject, including
-    rows for files a duplicate pick has since made ineffective. Returns None if the subject has
-    no scans.tsv at all (e.g. not converted yet, or a dataset that doesn't use one -- see
-    `DatasetConfig.dates_in_scans_tsv`).
+    """Every row of every one of `subject_id`'s `scans.tsv` sidecars (`filename`, `acq_time`),
+    for the crosscheck GUI's scans.tsv pane -- unlike `read_scans_tsv_date`, which only looks
+    up one file's row, this lists everything every sidecar currently tracks for the subject,
+    including rows for files a duplicate pick has since made ineffective. A subject can have
+    more than one `scans.tsv` (e.g. longwalkV3's one-per-session layout, see
+    `processing/longwalk3_bids.py`) -- every match is read and concatenated in sorted-path
+    order, not just the first, so a later session's rows are never silently hidden. Returns
+    None if the subject has no scans.tsv at all (e.g. not converted yet, or a dataset that
+    doesn't use one -- see `DatasetConfig.dates_in_scans_tsv`).
     """
     subject_folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{subject_id}"
     matches = sorted(subject_folder.glob("**/*_scans.tsv"))
     if not matches:
         return None
-    return _read_scans_tsv_rows(matches[0])
+    rows: list[dict[str, str]] = []
+    for scans_tsv in matches:
+        rows.extend(_read_scans_tsv_rows(scans_tsv))
+    return rows
+
+
+_SESSION_TOKEN_PATTERN = re.compile(r"ses-[A-Za-z0-9]+")
+
+
+def _scans_tsv_row_session_token(row: dict[str, str]) -> str | None:
+    """The `ses-<label>` entity embedded in a scans.tsv row's own `filename` value, if any --
+    every BIDS filename carries its session entity, so this is enough to group a subject's
+    rows by real-world session (see `group_scans_tsv_rows_by_session`) without needing to
+    track which physical scans.tsv file each row was read from. None for a row whose filename
+    doesn't carry one -- shouldn't happen for a real BIDS scan, but such a row is still usable
+    ungrouped rather than raising.
+    """
+    match = _SESSION_TOKEN_PATTERN.search(row.get("filename", ""))
+    return match.group(0) if match else None
+
+
+def group_scans_tsv_rows_by_session(
+    rows: list[dict[str, str]],
+) -> list[list[dict[str, str]]]:
+    """Groups `rows` (see `list_scans_tsv_rows`) by the `ses-<label>` token embedded in each
+    row's own filename, preserving each group's first-seen order -- so a `scans_tsv_reference_date`
+    computed per group only ever compares rows that actually belong to the same real-world
+    session, not a subject's whole (possibly multi-session) sidecar at once. A single-session
+    dataset (crane, longwalk, FOH) always produces exactly one group, so this is a no-op there.
+    A row with no discernible session token gets its own group of one rather than being merged
+    with unrelated rows.
+    """
+    groups: dict[str, list[dict[str, str]]] = {}
+    order: list[str] = []
+    for index, row in enumerate(rows):
+        key = _scans_tsv_row_session_token(row) or f"__no_session_token_{index}"
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append(row)
+    return [groups[key] for key in order]
+
+
+def scans_tsv_dates_agree(a: datetime, b: datetime, granularity: Literal["minute", "day"]) -> bool:
+    """True if `a` and `b` should count as agreeing for the scans.tsv pane's tick/cross check,
+    at `granularity` (see `DatasetConfig.scans_tsv_date_granularity`) -- exact equality for
+    "minute", same calendar day for "day".
+    """
+    if granularity == "day":
+        return a.date() == b.date()
+    return a == b
 
 
 def record_scans_tsv_row_date_correction(

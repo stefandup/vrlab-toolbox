@@ -357,6 +357,7 @@ CRANE_PROCESS_RESULTS_CONFIG = ProcessResultsConfig(
     bids_physio_glob=PHYSIO_GLOB_PATTERN,
     build_group_dashboard=build_crane_group_dashboard,
     dashboard_overhead_lines=crane_dashboard_overhead_lines,
+    window_icon_path=Path("assets") / "crane_icon.png",
 )
 
 

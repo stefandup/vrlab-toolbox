@@ -1,7 +1,7 @@
 | Area | Files | Human-checked ([@stefandup](https://github.com/stefandup)) |
 | --- | --- | --- |
 | BIDS conversion | `src/vrlab_toolbox/processing/bids.py`, `crane_bids.py`, `longwalk_bids.py`, `longwalk3_bids.py` | [ ] |
-| Dummy/sample data | `src/vrlab_toolbox/processing/crane_dummy_data.py` | [ ] |
+| Dummy/sample data | `src/vrlab_toolbox/processing/crane_dummy_data.py`, `longwalk3_dummy_data.py` | [ ] |
 | CLIs | every file in `src/vrlab_toolbox/cli/` — already thin by design, see [Thin CLI, fat `processing/`](docs/ai-style-guide.md#patterns-to-reuse-not-reinvent) | [ ] |
 | Crosscheck (backend + GUI) | `src/vrlab_toolbox/processing/bids_crosscheck.py`; `src/vrlab_toolbox/gui/bids_crosscheck_common.py`, `crane_bids_crosscheck_gui.py`, `foh_bids_crosscheck_gui.py`, `longwalk_bids_crosscheck_gui.py`, `longwalk3_bids_crosscheck_gui.py` | [ ] |
 | Process results viewer (GUI) | `src/vrlab_toolbox/gui/qt_common.py`, `process_results_common.py`, `crane_process_results_gui.py`, `longwalk_process_results_gui.py` — read-only viewer over a `vrlab_*_process` output folder, same GUI-layer shape as crosscheck | [ ] |

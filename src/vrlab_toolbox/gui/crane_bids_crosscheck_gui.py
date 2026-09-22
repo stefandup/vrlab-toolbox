@@ -851,6 +851,7 @@ def main() -> None:
         CraneCandidateExtras(),
         settings_app_name="CraneBidsCrosscheck",
         raw_converter=_run_crane_conversion,
+        window_icon_path=Path("assets") / "crane_icon.png",
         override_file_label="Debrief Data",
         override_file_filter="CSV files (*.csv)",
         override_file_autodetect=find_debrief_export,

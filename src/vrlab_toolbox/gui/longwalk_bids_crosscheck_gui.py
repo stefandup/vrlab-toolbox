@@ -487,6 +487,7 @@ def main() -> None:
         LongwalkCandidateExtras(),
         settings_app_name="LongwalkBidsCrosscheck",
         raw_converter=_run_longwalk_conversion,
+        window_icon_path=Path("assets") / "longwalk_icon.png",
         extra_raw_actions=[
             (
                 "Fix Filenames in Raw Folder",
