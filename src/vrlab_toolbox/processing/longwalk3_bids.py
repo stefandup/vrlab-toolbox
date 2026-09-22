@@ -159,7 +159,7 @@ def combine_events_df_files(
         df.rename(columns={f"onset_{df.attrs['bp_id']}": "onset"}, inplace=True)
 
         # Extract float values from Unreal world location
-        actors_bp_list = []
+
         for BP_ACTOR_ID in BP_ACTOR_IDS:
             word_location_df = df.filter(regex=f"^worldLocation_{BP_ACTOR_ID}$")
 
