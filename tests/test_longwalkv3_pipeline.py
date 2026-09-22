@@ -10,7 +10,7 @@ from vrlab_toolbox.processing.longwalk3_behaviour import (
     RawLongWalkV3BehaviourData,
     build_long_walk_v3_raw_behav_file_schema,
 )
-from vrlab_toolbox.processing.longwalk3_bids import combine_behaviour_files
+from vrlab_toolbox.processing.longwalk3_bids import combine_events_df_files, get_all_dfs
 from vrlab_toolbox.processing.longwalk3_debrief_behaviour import RawLongWalkV3DebriefBehaviourData
 
 # from vrlab_toolbox.processing.longwalk3_pipeline import (
@@ -38,8 +38,8 @@ class TestBidsConversion(unittest.TestCase):
     def test_combining_csv_files(self):
         dummy_data_folder = Path(r"longwalkv3_examples\\dummy_data")
         subject_id_correct = "dummy01"
-
-        df_out = combine_behaviour_files(subject_id_correct, dummy_data_folder)
+        df_list = get_all_dfs(subject_id_correct, dummy_data_folder)
+        df_out = combine_events_df_files(subject_id_correct, df_list)
 
 
 unittest.skip("WIP")

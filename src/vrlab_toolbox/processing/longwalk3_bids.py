@@ -1,8 +1,9 @@
 import logging
 import re
+from collections.abc import Hashable
 from datetime import datetime
 from pathlib import Path
-from typing import TypedDict
+from typing import Any, TypedDict, cast
 
 import pandas as pd
 import pandera.pandas as pa
@@ -26,8 +27,7 @@ _PID_DASH_PATTERN = re.compile(r"^PID-(\d+)$", re.IGNORECASE)
 DATESTR_FORMAT = "%Y%m%d%H%M%S%f"
 
 
-class SubDict(TypedDict):
-    dataframe: pd.DataFrame
+class EventsFileDictAttributes(TypedDict):
     date: datetime | None
     session_nr: int
     city_nr: int
@@ -96,17 +96,21 @@ def csv_to_df_compress_header(csv_fn_in: Path) -> pd.DataFrame:
     return df
 
 
-def get_all_dfs(subject_id_in: str, data_folder_in: Path) -> dict[Path, SubDict]:
-    return {
-        file: {
-            "dataframe": csv_to_df_compress_header(file),
-            "date": _get_date_from_id(file),
-            "session_nr": _get_session_nr(file),
-            "city_nr": _get_city_nr(file),
-            "bp_id": get_bp_id(file),
-        }
-        for file in data_folder_in.rglob(f"*{subject_id_in}*.csv")
-    }
+def get_all_dfs(subject_id_in: str, data_folder_in: Path) -> list[pd.DataFrame]:
+    df_list_out = []
+    for file in data_folder_in.rglob(f"*{subject_id_in}*.csv"):
+        df_out = csv_to_df_compress_header(file)
+        date_out = _get_date_from_id(file)
+        attributes = EventsFileDictAttributes(
+            date=date_out,
+            session_nr=_get_session_nr(file),
+            city_nr=_get_city_nr(file),
+            bp_id=get_bp_id(file),
+        )
+        df_out.attrs = cast(dict[Hashable, Any], attributes)
+        df_list_out.append(df_out)
+
+    return df_list_out
 
 
 BP_ACTOR_IDS = [
@@ -140,26 +144,22 @@ def build_longwalkv3_raw_session_events_behav_file_schema_() -> pa.DataFrameSche
     return build_base_bids_events_schema(additional_cols_session)
 
 
-# TODO: finish csv combination: should have an output suggestion as well.
-def combine_behaviour_files(subject_id_in: str, data_folder_in: Path) -> dict[str, pd.DataFrame]:
-    df_lists: dict[str, list[pd.DataFrame]] = {}
-    dfs_by_date = get_all_dfs(subject_id_in, data_folder_in)
+def combine_events_df_files(
+    subject_id_in, dfs_by_date: list[pd.DataFrame]
+) -> dict[str, pd.DataFrame]:
+    df_by_date_dict: dict[datetime, list[pd.DataFrame]] = {}
+    session_dfs_by_fn_out_dict: dict[str, pd.DataFrame] = {}
 
-    for nr, (fn, sub_dict) in enumerate(dfs_by_date.items()):
-        bids_filename_out = f"sub-{subject_id_in}_ses-{sub_dict['session_nr']}_task-longwalkv3_run-000_behaviour.tsv"
-
-        # print(f"For date {sub_dict['date']} - {bids_filename_out}")
-        df = sub_dict["dataframe"]
+    for df in dfs_by_date:
         df.rename(
             columns={"TimeStamp": "onset", "date": "onset", "datetime": "onset"}, inplace=True
         )
         df["onset"] = pd.to_datetime(df["onset"], format=DATESTR_FORMAT, errors="coerce")
-        df = df.add_suffix(f"_{sub_dict['bp_id']}")
-        df.rename(columns={f"onset_{sub_dict['bp_id']}": "onset"}, inplace=True)
-        key = str(sub_dict["date"])
+        df = df.add_suffix(f"_{df.attrs['bp_id']}")
+        df.rename(columns={f"onset_{df.attrs['bp_id']}": "onset"}, inplace=True)
 
         # Extract float values from Unreal world location
-
+        actors_bp_list = []
         for BP_ACTOR_ID in BP_ACTOR_IDS:
             word_location_df = df.filter(regex=f"^worldLocation_{BP_ACTOR_ID}$")
 
@@ -177,14 +177,14 @@ def combine_behaviour_files(subject_id_in: str, data_folder_in: Path) -> dict[st
             df[parts.columns] = parts
             df = df.drop(columns=col_name)
 
-        if key is not None:
-            df_lists.setdefault(key, []).append(df)
+            df_by_date_dict.setdefault(df.attrs["date"], []).append(df)
 
-    for session_nr, (list_date, df_list) in enumerate(df_lists.items()):
-        print(list_date)
-        print(f"{len(df_list)} dfs to merge")
-        print("-" * 100)
-        combined_dfs = pd.concat(df_list, ignore_index=True)
-        target_fn = f"sub-{subject_id_in}_ses-{session_nr}_task-longwalkv3_run-000_behaviour.tsv"
+    target_fns_out = []
+    # Concat by date
+    for session_nr, (list_date, df_list) in enumerate(df_by_date_dict.items()):
+        logger.info(f"{len(df_list)} dfs to merge for date {list_date}")
+        combined_dfs_out = pd.concat(df_list, ignore_index=True)
+        target_fns_out = f"sub-{subject_id_in}_ses-{session_nr}_task-longwalkv3_run-000_events.tsv"
+        session_dfs_by_fn_out_dict.update({target_fns_out: combined_dfs_out})
 
-    return combined_dfs
+    return session_dfs_by_fn_out_dict
