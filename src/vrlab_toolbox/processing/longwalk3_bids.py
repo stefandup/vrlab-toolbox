@@ -45,7 +45,7 @@ from rich.table import Table
 
 from vrlab_toolbox.processing import bids, pandera_defaults
 from vrlab_toolbox.processing.bids import build_base_bids_events_schema
-from vrlab_toolbox.processing.bids_crosscheck import SUBJECT_FOLDER_PREFIX, existing_subject_ids
+from vrlab_toolbox.processing.bids_crosscheck import existing_subject_ids
 
 logger = logging.getLogger(__name__)
 
@@ -280,7 +280,7 @@ def combine_events_df_files(
             combined_df_out = pd.concat(runs[run_key], ignore_index=True)
             target_fn_out = bids.build_bids_filename(
                 subject_id_in,
-                f"ses-{session_nr:02d}",
+                _session_token(session_nr),
                 TASK_TOKEN,
                 f"run-{run_nr:03d}",
                 "events",
@@ -301,21 +301,18 @@ def _session_nr_from_events_filename(filename: str) -> int:
     return int(match.group("session_nr"))
 
 
-def _session_folder(output_folder: Path, subject_id: str, session_nr: int) -> Path:
-    folder = output_folder / f"{SUBJECT_FOLDER_PREFIX}{subject_id}" / f"ses-{session_nr:02d}"
-    folder.mkdir(parents=True, exist_ok=True)
-    return folder
+def _session_token(session_nr: int) -> str:
+    return f"ses-{session_nr:02d}"
 
 
 def _datatype_folder(output_folder: Path, subject_id: str, session_nr: int) -> Path:
-    folder = _session_folder(output_folder, subject_id, session_nr) / DATATYPE_FOLDER_NAME
-    folder.mkdir(parents=True, exist_ok=True)
-    return folder
+    return bids.datatype_folder(
+        output_folder, subject_id, _session_token(session_nr), DATATYPE_FOLDER_NAME
+    )
 
 
 def _scans_tsv_path(output_folder: Path, subject_id: str, session_nr: int) -> Path:
-    session_folder = _session_folder(output_folder, subject_id, session_nr)
-    return session_folder / f"{SUBJECT_FOLDER_PREFIX}{subject_id}_ses-{session_nr:02d}_scans.tsv"
+    return bids.scans_tsv_path(output_folder, subject_id, _session_token(session_nr))
 
 
 def _convert_subject_physiology(
@@ -338,7 +335,7 @@ def _convert_subject_physiology(
         destination = _datatype_folder(output_folder, subject_id, session_nr) / (
             bids.build_bids_filename(
                 subject_id,
-                f"ses-{session_nr:02d}",
+                _session_token(session_nr),
                 TASK_TOKEN,
                 PHYSIOLOGY_RUN_TOKEN,
                 "physio",
@@ -459,13 +456,6 @@ def convert_longwalkv3_to_bids(
     )
 
 
-def _cell(paths_by_subject: dict[str, list[Path]], subject_id: str) -> str:
-    paths = paths_by_subject.get(subject_id)
-    if not paths:
-        return "(missing)"
-    return ", ".join(path.name for path in paths)
-
-
 def print_longwalkv3_conversion_summary(summary: LongWalkV3ConversionSummary) -> None:
     """Rich console/table rendering of a `LongWalkV3ConversionSummary`, factored out so the
     CLI's `main()` stays a thin wrapper around `convert_longwalkv3_to_bids()`.
@@ -484,7 +474,7 @@ def print_longwalkv3_conversion_summary(summary: LongWalkV3ConversionSummary) ->
     for subject_id in summary.new_subject_ids:
         table.add_row(
             subject_id,
-            _cell(summary.subject_physiology, subject_id),
-            _cell(summary.subject_events, subject_id),
+            bids.summary_table_cell(summary.subject_physiology, subject_id),
+            bids.summary_table_cell(summary.subject_events, subject_id),
         )
     console.print(table)

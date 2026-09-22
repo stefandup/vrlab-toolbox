@@ -3,7 +3,7 @@ import json
 import os
 import re
 import shutil
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -95,6 +95,43 @@ def write_scan_as_tsv(source: Path, destination: Path, scans_tsv_path: Path, acq
     pd.read_csv(source).to_csv(destination, sep="\t", index=False)
     relative_name = destination.relative_to(scans_tsv_path.parent).as_posix()
     append_scan_row(scans_tsv_path, relative_name, acq_time)
+
+
+def session_folder(output_folder: Path, subject_id: str, session_token: str) -> Path:
+    """`sub-XXX/<session_token>/`, created if it doesn't exist yet. `session_token` is a
+    caller-built full token (e.g. "ses-01") -- fixed for a converter with no real multi-session
+    concept (crane, longwalk), or computed per real session (longwalk3).
+    """
+    folder = output_folder / f"sub-{subject_id}" / session_token
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
+def datatype_folder(
+    output_folder: Path, subject_id: str, session_token: str, datatype_folder_name: str = "beh"
+) -> Path:
+    folder = session_folder(output_folder, subject_id, session_token) / datatype_folder_name
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
+def scans_tsv_path(output_folder: Path, subject_id: str, session_token: str) -> Path:
+    return session_folder(output_folder, subject_id, session_token) / (
+        f"sub-{subject_id}_{session_token}_scans.tsv"
+    )
+
+
+def summary_table_cell(paths_by_subject: Mapping[str, list[Path] | Path], subject_id: str) -> str:
+    """Rich-table cell text for one subject's converted file(s) in a `*ConversionSummary` --
+    "(missing)" if the subject has none, comma-joined filenames for a list, or a single
+    filename. Shared by the `print_*_conversion_summary` functions.
+    """
+    value = paths_by_subject.get(subject_id)
+    if not value:
+        return "(missing)"
+    if isinstance(value, list):
+        return ", ".join(path.name for path in value)
+    return value.name
 
 
 def paths_conflict(a: Path, b: Path) -> bool:
