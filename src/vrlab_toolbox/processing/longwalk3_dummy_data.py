@@ -51,6 +51,82 @@ WORLD_LOCATION_AXES = ("X", "Y", "Z")
 _ACTOR_LOG_SUFFIX_PATTERN = re.compile(r"_run-\d+_(?P<suffix>.+\.csv)$")
 _BEHAVIOUR_SUFFIX_PATTERN = re.compile(r"_run-\d+_behaviour\.csv$")
 
+# REDCap's own export naming convention: "<ProjectName>_DATA_<YYYY-MM-DD>_<HHMM>.csv" -- used to
+# find the debrief REDCap export template under template_folder (see longwalkv3_examples/), and
+# to recover the project name for the dummy file written alongside it.
+_REDCAP_EXPORT_PATTERN = re.compile(r"^(?P<project_name>.+)_DATA_\d{4}-\d{2}-\d{2}_\d{4}\.csv$")
+REDCAP_DEBRIEF_TIMESTAMP = dt.datetime(2026, 9, 18, 15, 50)
+
+# Heuristics for filling a dummy value per REDCap column name -- deliberately generic
+# placeholders (not an attempt to model real response distributions): a REDCap "form complete"
+# status column always gets code "2" (complete), a date-ish or name-ish column gets an obviously
+# fake fixed value, a single-choice/scale question column (ends "_q<n>") gets "1", and anything
+# else falls back to "dummy". study_id is handled separately since it must match the dummy
+# subject id passed in.
+_REDCAP_QUESTION_COLUMN_PATTERN = re.compile(r"_q\d+$")
+_REDCAP_DUMMY_DATE = "2026-01-01"
+
+
+def _dummy_redcap_value(column: str, subject_id: str) -> str:
+    if column == "study_id":
+        return subject_id
+    if column.endswith("_complete"):
+        return "2"
+    if "date" in column.lower() or column.lower() == "dob":
+        return _REDCAP_DUMMY_DATE
+    if "name" in column.lower():
+        return "Dummy"
+    if "sign" in column.lower():
+        return "Dummy Signature"
+    if _REDCAP_QUESTION_COLUMN_PATTERN.search(column.lower()):
+        return "1"
+    return "dummy"
+
+
+def discover_redcap_debrief_template(template_folder: Path) -> Path:
+    matches = [p for p in sorted(template_folder.glob("*.csv")) if _REDCAP_EXPORT_PATTERN.match(p.name)]
+    if not matches:
+        raise FileNotFoundError(f"No template REDCap debrief export csv found under {template_folder}")
+    return matches[0]
+
+
+def _read_csv_header(csv_path: Path) -> list[str]:
+    """Reads only the header row of csv_path -- never the data rows below it, since a REDCap
+    export template may hold real participant data (see the debrief csv in
+    longwalkv3_examples/); only its column structure is safe to reuse for dummy generation.
+    """
+    with csv_path.open(newline="", encoding="utf-8") as f:
+        header = next(csv.reader(f))
+    return [cell.strip() for cell in header]
+
+
+def generate_dummy_redcap_debrief_file(
+    template_folder: Path, output_folder: Path, subject_ids: list[str]
+) -> Path:
+    """Writes a dummy REDCap debrief export csv under output_folder, one row per subject_id, with
+    the same columns as the real export template found under template_folder (see
+    discover_redcap_debrief_template) but every value replaced by a generic placeholder (see
+    _dummy_redcap_value) -- the template's own data rows are never read.
+    """
+    template_path = discover_redcap_debrief_template(template_folder)
+    header = _read_csv_header(template_path)
+
+    project_name_match = _REDCAP_EXPORT_PATTERN.match(template_path.name)
+    assert project_name_match is not None
+    project_name = project_name_match.group("project_name")
+
+    output_path = (
+        output_folder
+        / f"{project_name}_DATA_{REDCAP_DEBRIEF_TIMESTAMP.strftime('%Y-%m-%d_%H%M')}.csv"
+    )
+    with output_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(header)
+        for subject_id in subject_ids:
+            writer.writerow([_dummy_redcap_value(column, subject_id) for column in header])
+
+    return output_path
+
 
 @dataclass
 class DummyLongWalkV3ParticipantResult:
@@ -308,6 +384,14 @@ def generate_dummy_longwalkv3_participant(
     return DummyLongWalkV3ParticipantResult(subject_id, scenario, acq_paths, behaviour_paths, actor_log_paths)
 
 
+@dataclass
+class DummyLongWalkV3DatasetResult:
+    participant_results: list[DummyLongWalkV3ParticipantResult]
+    # None when template_folder had no REDCap debrief export template to clone (see
+    # discover_redcap_debrief_template) -- callers should treat that as "skipped", not an error.
+    redcap_debrief_path: Path | None = None
+
+
 def generate_dummy_longwalkv3_dataset(
     template_folder: Path,
     output_folder: Path,
@@ -315,7 +399,7 @@ def generate_dummy_longwalkv3_dataset(
     with_errors: bool = False,
     city_labels: tuple[str, ...] = DEFAULT_CITY_LABELS,
     seed: int | None = None,
-) -> list[DummyLongWalkV3ParticipantResult]:
+) -> DummyLongWalkV3DatasetResult:
     output_folder.mkdir(parents=True, exist_ok=True)
     rng = random.Random(seed)
 
@@ -323,7 +407,7 @@ def generate_dummy_longwalkv3_dataset(
     if with_errors:
         scenarios += list(ERROR_TYPES)
 
-    results = []
+    participant_results = []
     for index, error_type in enumerate(scenarios):
         subject_id = f"dummy{index + 1:02d}"
         logger.info(
@@ -331,7 +415,7 @@ def generate_dummy_longwalkv3_dataset(
             subject_id,
             error_type or CLEAN_SCENARIO_LABEL,
         )
-        results.append(
+        participant_results.append(
             generate_dummy_longwalkv3_participant(
                 template_folder,
                 output_folder,
@@ -343,4 +427,17 @@ def generate_dummy_longwalkv3_dataset(
             )
         )
 
-    return results
+    redcap_debrief_path: Path | None = None
+    try:
+        redcap_debrief_path = generate_dummy_redcap_debrief_file(
+            template_folder,
+            output_folder,
+            [result.subject_id for result in participant_results],
+        )
+    except FileNotFoundError:
+        logger.info(
+            "No REDCap debrief export template found under %s -- skipping dummy debrief file.",
+            template_folder,
+        )
+
+    return DummyLongWalkV3DatasetResult(participant_results, redcap_debrief_path)

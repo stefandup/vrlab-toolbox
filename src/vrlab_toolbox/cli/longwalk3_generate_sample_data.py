@@ -87,7 +87,7 @@ def main(
 
     output_folder.mkdir(parents=True, exist_ok=True)
 
-    results = generate_dummy_longwalkv3_dataset(
+    dataset_result = generate_dummy_longwalkv3_dataset(
         template_folder, output_folder, n_clean, with_errors, cities, seed
     )
 
@@ -98,7 +98,7 @@ def main(
     table.add_column("Behaviour files")
     table.add_column("Actor-log files")
 
-    for result in results:
+    for result in dataset_result.participant_results:
         table.add_row(
             result.subject_id,
             result.scenario,
@@ -107,7 +107,20 @@ def main(
             str(len(result.actor_log_paths)),
         )
 
-    Console().print(table)
+    console = Console()
+    console.print(table)
+
+    if dataset_result.redcap_debrief_path is not None:
+        console.print(
+            f"[green]Dummy REDCap debrief file written for "
+            f"{len(dataset_result.participant_results)} subject(s):[/green] "
+            f"{dataset_result.redcap_debrief_path}"
+        )
+    else:
+        console.print(
+            "[yellow]No REDCap debrief export template found -- skipped dummy debrief "
+            "file.[/yellow]"
+        )
 
 
 if __name__ == "__main__":

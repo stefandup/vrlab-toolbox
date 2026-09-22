@@ -5,6 +5,10 @@ from pathlib import Path
 from typing import TypedDict
 
 import pandas as pd
+import pandera.pandas as pa
+
+from vrlab_toolbox.processing import pandera_defaults
+from vrlab_toolbox.processing.bids import build_base_bids_events_schema
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +59,7 @@ def get_bp_id(subject_id_in: Path) -> str:
 
 
 def is_header(fields):
-    return fields[0].strip().lower() in {"date", "timestamp"}
+    return fields[0].strip().lower() in {"date", "timestamp", "datetime"}
 
 
 def csv_to_df_compress_header(csv_fn_in: Path) -> pd.DataFrame:
@@ -80,8 +84,12 @@ def csv_to_df_compress_header(csv_fn_in: Path) -> pd.DataFrame:
                 current_rows = []
             else:
                 current_rows.append(fields)
-        if current_header is not None:
-            chunks.append(pd.DataFrame(current_rows, columns=current_header))
+
+        if current_header is None:
+            logger.error(f"Error: empty datafile {csv_fn_in}")
+            raise ValueError
+
+        chunks.append(pd.DataFrame(current_rows, columns=current_header))
 
         df = pd.concat(chunks, ignore_index=True)
 
@@ -101,6 +109,37 @@ def get_all_dfs(subject_id_in: str, data_folder_in: Path) -> dict[Path, SubDict]
     }
 
 
+BP_ACTOR_IDS = [
+    "BPAudioCueTriggerC",
+    "BPHeatmapManagerC",
+    "BPNPCC",
+    "BPPanicAttackManagerC",
+    "BPPanicCooldownTimersManagerC",
+    "BPPanicTriggerC",
+    "BPPhoneC",
+    "ThreatLevelMarkerNewC",
+]
+
+
+def build_longwalkv3_raw_session_events_behav_file_schema_() -> pa.DataFrameSchema:
+    additional_cols_session = {
+        "Nausea_behaviour": pandera_defaults.likert_col(),
+        "Dizzy_behaviour": pandera_defaults.likert_col(),
+        "Stressed_behaviour": pandera_defaults.likert_col(),
+        "Anxious_behaviour": pandera_defaults.likert_col(),
+        **{
+            f"actor_{BP_ACTOR_ID}": pandera_defaults.optional_str_col()
+            for BP_ACTOR_ID in BP_ACTOR_IDS
+        },
+        **{
+            f"^worldLocation_{BP_ACTOR_ID}_[xyz]$": pandera_defaults.coord_axis_col()
+            for BP_ACTOR_ID in BP_ACTOR_IDS
+        },
+    }
+
+    return build_base_bids_events_schema(additional_cols_session)
+
+
 # TODO: finish csv combination: should have an output suggestion as well.
 def combine_behaviour_files(subject_id_in: str, data_folder_in: Path) -> dict[str, pd.DataFrame]:
     df_lists: dict[str, list[pd.DataFrame]] = {}
@@ -111,11 +150,24 @@ def combine_behaviour_files(subject_id_in: str, data_folder_in: Path) -> dict[st
 
         # print(f"For date {sub_dict['date']} - {bids_filename_out}")
         df = sub_dict["dataframe"]
-        df.rename(columns={"TimeStamp": "onset", "date": "onset"}, inplace=True)
+        df.rename(
+            columns={"TimeStamp": "onset", "date": "onset", "datetime": "onset"}, inplace=True
+        )
         df["onset"] = pd.to_datetime(df["onset"], format=DATESTR_FORMAT, errors="coerce")
         df = df.add_suffix(f"_{sub_dict['bp_id']}")
         df.rename(columns={f"onset_{sub_dict['bp_id']}": "onset"}, inplace=True)
         key = str(sub_dict["date"])
+
+        for BP_ACTOR_ID in BP_ACTOR_IDS:
+            word_location_df = df.filter(regex=f"^worldLocation_{BP_ACTOR_ID}$")
+            col_name = word_location_df.columns[0]
+
+            parts = word_location_df[col_name].str.extract(
+                r"X=([\-\d.]+)\s+Y=([\-\d.]+)\sZ=([\-\d.]+)"
+            )
+            parts.columns = [f"{col_name}_x", f"{col_name}_y", f"{col_name}_z"]
+            parts = parts.astype(float)
+            # TODO: Now drop the old cols and append the new ones...
         if key is not None:
             df_lists.setdefault(key, []).append(df)
 

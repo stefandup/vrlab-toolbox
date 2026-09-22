@@ -68,3 +68,7 @@ def likert_col():
     Likert scale: 1 = Strongly disagree, 2 = Disagree, 3 = Neutral, 4 = Agree, 5 = Strongly agree
     """
     return pa.Column(pa.Int64, nullable=True, coerce=True, checks=Check.isin([1, 2, 3, 4, 5]))
+
+
+def coord_axis_col():
+    return pa.Column(float, nullable=True, coerce=True, regex=True)
