@@ -187,7 +187,8 @@ def _sanitize_for_filesystem(text: str) -> str:
 
 
 STATUS_ICON_TOOLTIP = (
-    f"{STATUS_ICON['ok']} complete -- exactly one file found\n"
+    f"{STATUS_ICON['ok']} complete -- exactly one file found (or, for a scan type that "
+    "allows it, every file found is treated as legitimate)\n"
     f"{STATUS_ICON['missing']} missing -- no file found\n"
     f"{STATUS_ICON['duplicate']} duplicate -- more than one candidate, pick one\n"
     f"{CROSSCHECKED_ICON} crosschecked -- manually marked as reviewed\n"
@@ -1440,18 +1441,16 @@ class BidsCrosscheckWindow(QMainWindow):
         return tooltip
 
     def _has_candidate_warning(self, subject_id: str, scan_type: str) -> bool:
-        """True if the file currently in effect for this scan type has a flagged issue.
+        """True if any file currently in effect for this scan type has a flagged issue.
 
-        Mirrors `_needs_task_tag`: checks the effective candidate only, so a duplicate
+        Mirrors `_needs_task_tag`: checks the effective candidate(s) only, so a duplicate
         with no pick made yet doesn't get judged before there's anything to judge.
         """
         if self.scan is None:
             return False
         subject_scan = self.scan.scans[subject_id][scan_type]
-        file = self._effective_candidate_file(subject_id, scan_type, subject_scan)
-        if file is None:
-            return False
-        return self.extras.has_warning(scan_type, file)
+        files = self._effective_candidate_files(subject_id, scan_type, subject_scan)
+        return any(self.extras.has_warning(scan_type, file) for file in files)
 
     def _needs_task_tag(self, subject_id: str, scan_type: str) -> bool:
         """True if a file counts as "the one" for this scan type but hasn't been tagged yet.
@@ -1580,9 +1579,20 @@ class BidsCrosscheckWindow(QMainWindow):
                     f'<span style="color:{UNCROSSCHECKED_COLOR}">{scan_type.capitalize()} ✗</span>'
                 )
                 extra_tooltip = f"No {scan_type} file found for this subject."
-            elif subject_scan.status == "ok":
+            elif subject_scan.status == "ok" and len(subject_scan.files) == 1:
                 extra_html = self.extras.describe(scan_type, subject_scan.files[0])
                 extra_tooltip = self.extras.describe_tooltip(scan_type, subject_scan.files[0])
+            elif subject_scan.status == "ok":
+                # allow_multiple scan type with more than one legitimate file (e.g.
+                # longwalkV3's per-session physiology) -- each file's own describe() joined
+                # into one compact line rather than picking just the first.
+                described = [
+                    text
+                    for file in subject_scan.files
+                    if (text := self.extras.describe(scan_type, file))
+                ]
+                extra_html = " &nbsp;|&nbsp; ".join(described) if described else None
+                extra_tooltip = None
             elif subject_scan.status == "duplicate":
                 pending_file = pending_for_subject.get(scan_type)
                 if pending_file is not None:
@@ -1721,16 +1731,14 @@ class BidsCrosscheckWindow(QMainWindow):
                 widget.deleteLater()
         for scan_type in self.dataset_config.scan_type_names():
             subject_scan = self.scan.scans[subject_id][scan_type]
-            file = self._effective_candidate_file(subject_id, scan_type, subject_scan)
-            if file is None:
-                continue
-            detail_html = self.extras.detail(scan_type, file)
-            if not detail_html:
-                continue
-            detail_label = QLabel(detail_html)
-            detail_label.setTextFormat(Qt.TextFormat.RichText)
-            detail_label.setWordWrap(True)
-            self.detail_extra_layout.addWidget(detail_label)
+            for file in self._effective_candidate_files(subject_id, scan_type, subject_scan):
+                detail_html = self.extras.detail(scan_type, file)
+                if not detail_html:
+                    continue
+                detail_label = QLabel(detail_html)
+                detail_label.setTextFormat(Qt.TextFormat.RichText)
+                detail_label.setWordWrap(True)
+                self.detail_extra_layout.addWidget(detail_label)
 
     def _update_commit_all_button(self) -> None:
         total_pending = sum(len(picks) for picks in self._pending_selections.values())
@@ -1745,16 +1753,30 @@ class BidsCrosscheckWindow(QMainWindow):
             self.commit_all_button.setStyleSheet("")
         self.commit_all_button.setEnabled(bool(total_pending))
 
+    def _effective_candidate_files(
+        self, subject_id: str, scan_type: str, subject_scan: SubjectScan
+    ) -> list[Path]:
+        """Every file currently in effect for this scan type: all of them for "ok" (usually
+        just one, but every file for an allow_multiple scan type -- see
+        ScanTypeConfig.allow_multiple), or whichever single candidate is radio-picked
+        (possibly still pending commit) for a duplicate, or none yet."""
+        if subject_scan.status == "ok":
+            return list(subject_scan.files)
+        if subject_scan.status == "duplicate":
+            pending = self._pending_selections.get(subject_id, {}).get(scan_type)
+            return [pending] if pending is not None else []
+        return []
+
     def _effective_candidate_file(
         self, subject_id: str, scan_type: str, subject_scan: SubjectScan
     ) -> Path | None:
-        """The file currently in effect for this scan type: the sole "ok" file, or whichever
-        candidate is radio-picked (possibly still pending commit) for a duplicate."""
-        if subject_scan.status == "ok":
-            return subject_scan.files[0]
-        if subject_scan.status == "duplicate":
-            return self._pending_selections.get(subject_id, {}).get(scan_type)
-        return None
+        """The first file currently in effect for this scan type -- see
+        `_effective_candidate_files`. Used by call sites (task tagging) that only ever expect
+        a single effective file; an allow_multiple scan type never enables tagging today, so
+        this narrowing doesn't lose anything in practice.
+        """
+        files = self._effective_candidate_files(subject_id, scan_type, subject_scan)
+        return files[0] if files else None
 
     def _pending_task_tag_file(self, subject_id: str, scan_type: str) -> Path | None:
         if self.scan is None or not self.extras.task_tag_available(scan_type):
@@ -2013,11 +2035,14 @@ class BidsCrosscheckWindow(QMainWindow):
         if subject_scan.status == "missing":
             layout.addWidget(QLabel("MISSING"))
         elif subject_scan.status == "ok":
-            layout.addWidget(
-                self._build_candidate_row(
-                    subject_id, subject_scan.scan_type, subject_scan.files[0], None
+            # Normally exactly one file; for an allow_multiple scan type (see
+            # ScanTypeConfig.allow_multiple) there can legitimately be several -- each shown
+            # the same way, individually correctable, with no "pick one" radio needed since
+            # none of them are being discarded.
+            for file in subject_scan.files:
+                layout.addWidget(
+                    self._build_candidate_row(subject_id, subject_scan.scan_type, file, None)
                 )
-            )
         else:
             layout.addWidget(QLabel("Pick one:"))
             radio_group = QButtonGroup(group)

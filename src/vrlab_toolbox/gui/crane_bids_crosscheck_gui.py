@@ -834,7 +834,7 @@ def _run_crane_conversion(
     the shared REDCAP group export.
     """
     handler = _ListLogHandler()
-    converter_logger = logging.getLogger("mooi_toolbox.processing.crane_bids")
+    converter_logger = logging.getLogger("vrlab_toolbox.processing.crane_bids")
     converter_logger.addHandler(handler)
     try:
         summary = convert_crane_to_bids(raw_folder, bids_folder, debrief_export)

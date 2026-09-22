@@ -37,6 +37,7 @@ GUI_TOOL_GROUPS = (
             ("FOH BIDS Crosscheck", "vrlab_foh_bids_crosscheck.exe"),
             ("Crane BIDS Crosscheck", "vrlab_crane_bids_crosscheck.exe"),
             ("Longwalk BIDS Crosscheck", "vrlab_longwalk_bids_crosscheck.exe"),
+            ("LongwalkV3 BIDS Crosscheck", "vrlab_longwalk3_bids_crosscheck.exe"),
         ),
     ),
     (

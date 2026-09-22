@@ -22,6 +22,10 @@ from vrlab_toolbox.processing.output_data import PipelineOutputData
 
 
 class FindLongWalkV3ParticipantFilesStrategyStep:
+    # TODO: BiopacPhysiologyDataImportStartegy.input_data_file_format is PhysiologyFileFormat.MATLAB
+    # (load_biopac_data uses sio.loadmat), but longwalkv3's BIDS physiology files are raw .acq
+    # (see longwalk3_bids.py's PHYSIOLOGY_GLOB) -- this import/processing step needs a real .acq
+    # reader before longwalkv3 physiology can actually run through this pipeline.
     physiology_data_type = BiopacPhysiologyDataImportStartegy.input_data_file_format
     behaviour_data_types = [
         ProcessLongWalkV3BehaviourDataStrategyStep.input_data_type,

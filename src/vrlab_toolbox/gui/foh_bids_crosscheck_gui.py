@@ -380,7 +380,7 @@ def _run_foh_import(raw_folder: Path, bids_folder: Path, _override_file: Path | 
     to match the shared `raw_converter` call signature.
     """
     handler = _ListLogHandler()
-    importer_logger = logging.getLogger("mooi_toolbox.cli.foh_import_to_bids")
+    importer_logger = logging.getLogger("vrlab_toolbox.cli.foh_import_to_bids")
     importer_logger.addHandler(handler)
     try:
         summary = import_foh_raw_to_bids(raw_folder, bids_folder)

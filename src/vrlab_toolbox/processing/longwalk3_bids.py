@@ -47,6 +47,8 @@ from vrlab_toolbox.processing import bids, pandera_defaults
 from vrlab_toolbox.processing.bids import build_base_bids_events_schema
 from vrlab_toolbox.processing.bids_crosscheck import existing_subject_ids
 
+RAW_FILENAME_ID_CORRECTIONS_FILENAME = "raw_filename_id_corrections.json"
+
 logger = logging.getLogger(__name__)
 
 PHYSIOLOGY_GLOB = "*_LongWalkV3Out.acq"
@@ -131,6 +133,104 @@ def extract_subject_id(file: Path) -> str | None:
     return parsed_csv.subject_id if parsed_csv is not None else None
 
 
+def load_raw_filename_id_corrections(bids_folder: Path) -> dict[str, str]:
+    return bids.load_json_map(bids_folder / RAW_FILENAME_ID_CORRECTIONS_FILENAME)
+
+
+def save_raw_filename_id_corrections(bids_folder: Path, corrections: dict[str, str]) -> None:
+    bids.save_json_map(bids_folder / RAW_FILENAME_ID_CORRECTIONS_FILENAME, corrections)
+
+
+def resolve_physiology_filename(
+    file: Path, input_folder: Path, corrections: dict[str, str]
+) -> ParsedPhysiologyFilename | None:
+    """Like `parse_physiology_filename`, but checks a human-declared correction first (see
+    `load_raw_filename_id_corrections`), keyed by the file's path relative to `input_folder`.
+    Still requires the filename to match the expected "{date}_..._LongWalkV3Out" shape to
+    recover a date -- a correction can override the subject id, not conjure a date out of an
+    unrecognizable filename.
+    """
+    try:
+        key = file.relative_to(input_folder).as_posix()
+    except ValueError:
+        key = file.name
+    corrected_subject_id = corrections.get(key)
+    if corrected_subject_id:
+        match = _PHYSIOLOGY_FILENAME_PATTERN.match(file.stem)
+        if match is None:
+            return None
+        return ParsedPhysiologyFilename(
+            subject_id=corrected_subject_id,
+            date=datetime.strptime(match.group("date"), FILENAME_DATESTR_FORMAT),
+        )
+    return parse_physiology_filename(file)
+
+
+def resolve_raw_csv_filename(
+    file: Path, input_folder: Path, corrections: dict[str, str]
+) -> ParsedRawCsvFilename | None:
+    """Like `parse_raw_csv_filename`, but checks a human-declared correction first -- same
+    contract as `resolve_physiology_filename`, for the raw behaviour/actor-log csv side.
+    """
+    try:
+        key = file.relative_to(input_folder).as_posix()
+    except ValueError:
+        key = file.name
+    corrected_subject_id = corrections.get(key)
+    if corrected_subject_id:
+        match = _RAW_CSV_FILENAME_PATTERN.match(file.stem)
+        if match is None:
+            return None
+        return ParsedRawCsvFilename(
+            subject_id=corrected_subject_id,
+            date=datetime.strptime(match.group("date"), FILENAME_DATESTR_FORMAT),
+            session_nr=int(match.group("session_nr")),
+            city_label=match.group("city_label"),
+            bp_id=match.group("bp_id"),
+        )
+    return parse_raw_csv_filename(file)
+
+
+def resolve_subject_id(file: Path, input_folder: Path, corrections: dict[str, str]) -> str | None:
+    """Correction-aware analog of `extract_subject_id` -- used wherever a subject id needs to
+    reflect a human's raw-filename correction (see `resolve_physiology_filename`/
+    `resolve_raw_csv_filename`), not just what the raw filename itself parses to.
+    """
+    parsed_physiology = resolve_physiology_filename(file, input_folder, corrections)
+    if parsed_physiology is not None:
+        return parsed_physiology.subject_id
+    parsed_csv = resolve_raw_csv_filename(file, input_folder, corrections)
+    return parsed_csv.subject_id if parsed_csv is not None else None
+
+
+def discover_raw_files_for_review(input_folder: Path) -> list[Path]:
+    """Every raw physiology/behaviour/actor-log file in `input_folder`, read-only, regardless
+    of whether it currently resolves to a subject id -- lets the crosscheck GUI's
+    raw-filename correction dialog review or override any of them, not only ones that fail to
+    parse. Every raw csv (not just BEHAVIOUR_GLOB's `*_behaviour.csv`) is included, since
+    `get_all_dfs` pulls in a subject's sibling actor-location logs the same way.
+    """
+    return sorted(
+        (*input_folder.rglob(PHYSIOLOGY_GLOB), *input_folder.rglob("*.csv")),
+        key=lambda file: file.relative_to(input_folder).as_posix(),
+    )
+
+
+def explain_unparseable_filename(file: Path) -> str:
+    """Plain-English reason `parse_physiology_filename`/`parse_raw_csv_filename` returned
+    None, for the crosscheck GUI's raw-filename correction dialog.
+    """
+    if file.suffix.lower() == ".acq":
+        return (
+            'Doesn\'t match the expected "{date}_{subject_id}_LongWalkV3Out" physiology '
+            "filename pattern."
+        )
+    return (
+        "Doesn't match the expected \"{date}_{subject_id}_ses-{session_nr}_"
+        'task-{city_label}_run-{n}_{bp_id}" raw csv filename pattern.'
+    )
+
+
 def is_header(fields):
     return fields[0].strip().lower() in {"date", "timestamp", "datetime"}
 
@@ -169,10 +269,27 @@ def csv_to_df_compress_header(csv_fn_in: Path) -> pd.DataFrame:
     return df
 
 
-def get_all_dfs(subject_id_in: str, data_folder_in: Path) -> list[pd.DataFrame]:
+def get_all_dfs(
+    subject_id_in: str, data_folder_in: Path, corrections: dict[str, str] | None = None
+) -> list[pd.DataFrame]:
+    """`corrections` (see `load_raw_filename_id_corrections`) is checked per file via
+    `resolve_raw_csv_filename`. Candidates are still pre-filtered by a `subject_id_in`
+    substring glob (as before) for the common case, plus any file a correction explicitly
+    points at `subject_id_in` -- covers a raw filename whose own text doesn't contain
+    `subject_id_in` at all, without scanning (and re-warning about) every csv in the folder on
+    every subject's call.
+    """
+    corrections = corrections or {}
+    corrected_for_subject = {
+        data_folder_in / key
+        for key, corrected_subject_id in corrections.items()
+        if corrected_subject_id == subject_id_in
+    }
+    candidate_files = set(data_folder_in.rglob(f"*{subject_id_in}*.csv")) | corrected_for_subject
+
     df_list_out = []
-    for file in data_folder_in.rglob(f"*{subject_id_in}*.csv"):
-        parsed = parse_raw_csv_filename(file)
+    for file in sorted(candidate_files):
+        parsed = resolve_raw_csv_filename(file, data_folder_in, corrections)
         if parsed is None:
             logger.warning(
                 "Skipping %s -- doesn't match the expected raw behaviour/actor-log filename shape.",
@@ -180,8 +297,8 @@ def get_all_dfs(subject_id_in: str, data_folder_in: Path) -> list[pd.DataFrame]:
             )
             continue
         if parsed.subject_id != subject_id_in:
-            # The glob above matches on substring, so a different subject whose id happens to
-            # contain subject_id_in would otherwise slip in here too.
+            # The substring glob above can still admit a different subject whose id happens
+            # to contain subject_id_in.
             continue
 
         df_out = csv_to_df_compress_header(file)
@@ -316,15 +433,17 @@ def _scans_tsv_path(output_folder: Path, subject_id: str, session_nr: int) -> Pa
 
 
 def _convert_subject_physiology(
-    subject_id: str, input_folder: Path, output_folder: Path
+    subject_id: str, input_folder: Path, output_folder: Path, corrections: dict[str, str]
 ) -> list[Path]:
     """Copies one .acq per session, session number inferred from chronological order across
-    this subject's physiology files -- see module docstring.
+    this subject's physiology files -- see module docstring. `corrections` (see
+    `load_raw_filename_id_corrections`) lets a human-declared subject id override a raw
+    filename's own parse for this subject, same as `get_all_dfs` does for events.
     """
     parsed_by_file = {
         file: parsed
         for file in sorted(input_folder.rglob(PHYSIOLOGY_GLOB))
-        if (parsed := parse_physiology_filename(file)) is not None
+        if (parsed := resolve_physiology_filename(file, input_folder, corrections)) is not None
         and parsed.subject_id == subject_id
     }
     ordered_files = sorted(parsed_by_file, key=lambda file: parsed_by_file[file].date)
@@ -353,8 +472,10 @@ def _convert_subject_physiology(
     return written
 
 
-def _convert_subject_events(subject_id: str, input_folder: Path, output_folder: Path) -> list[Path]:
-    dfs = get_all_dfs(subject_id, input_folder)
+def _convert_subject_events(
+    subject_id: str, input_folder: Path, output_folder: Path, corrections: dict[str, str]
+) -> list[Path]:
+    dfs = get_all_dfs(subject_id, input_folder, corrections)
     events_by_filename = combine_events_df_files(subject_id, dfs)
 
     written: list[Path] = []
@@ -398,6 +519,7 @@ def convert_longwalkv3_to_bids(
     """Core, UI-agnostic conversion logic -- see module docstring for the output layout."""
     output_folder.mkdir(parents=True, exist_ok=True)
     already_converted = existing_subject_ids(output_folder)
+    raw_filename_corrections = load_raw_filename_id_corrections(output_folder)
 
     physiology_files = sorted(input_folder.rglob(PHYSIOLOGY_GLOB))
     behaviour_files = sorted(input_folder.rglob(BEHAVIOUR_GLOB))
@@ -405,7 +527,7 @@ def convert_longwalkv3_to_bids(
     all_subject_ids: set[str] = set()
     unparseable_files: list[Path] = []
     for file in (*physiology_files, *behaviour_files):
-        subject_id = extract_subject_id(file)
+        subject_id = resolve_subject_id(file, input_folder, raw_filename_corrections)
         if subject_id is None:
             unparseable_files.append(file)
             continue
@@ -426,10 +548,10 @@ def convert_longwalkv3_to_bids(
     subject_events: dict[str, list[Path]] = {}
     for subject_id in new_subject_ids:
         subject_physiology[subject_id] = _convert_subject_physiology(
-            subject_id, input_folder, output_folder
+            subject_id, input_folder, output_folder, raw_filename_corrections
         )
         subject_events[subject_id] = _convert_subject_events(
-            subject_id, input_folder, output_folder
+            subject_id, input_folder, output_folder, raw_filename_corrections
         )
 
     if skipped_subject_ids:

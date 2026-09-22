@@ -37,6 +37,12 @@ class BidsCrosscheckError(Exception):
 class ScanTypeConfig:
     name: str
     glob_patterns: tuple[str, ...]
+    # True for a scan type where more than one matching file per subject is normal and
+    # expected (e.g. longwalkV3's per-session physiology, per-run/city events) rather than a
+    # genuine duplicate needing human resolution -- see SubjectScan.status. Defaults to False
+    # so every existing dataset (crane, foh, longwalk) keeps its current "exactly one file"
+    # duplicate-resolution behavior unchanged.
+    allow_multiple: bool = False
 
 
 @dataclass(frozen=True)
@@ -74,12 +80,16 @@ class SubjectScan:
     subject_id: str
     scan_type: str
     files: tuple[Path, ...]
+    # Mirrors this scan type's ScanTypeConfig.allow_multiple -- see its docstring. Carried
+    # here (rather than looked up via a DatasetConfig reference) so `status` stays a plain,
+    # dependency-free property.
+    allow_multiple: bool = False
 
     @property
     def status(self) -> SubjectStatus:
         if not self.files:
             return "missing"
-        if len(self.files) > 1:
+        if len(self.files) > 1 and not self.allow_multiple:
             return "duplicate"
         return "ok"
 
@@ -241,6 +251,7 @@ def scan_bids_folder(bids_folder: Path, config: DatasetConfig) -> BidsFolderScan
                 subject_id=subject_id,
                 scan_type=scan_type_cfg.name,
                 files=tuple(sorted(files)),
+                allow_multiple=scan_type_cfg.allow_multiple,
             )
 
     return BidsFolderScan(bids_folder=bids_folder, scans=scans)
