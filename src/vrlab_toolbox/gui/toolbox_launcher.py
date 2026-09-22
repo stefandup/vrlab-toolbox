@@ -1,13 +1,17 @@
-"""Standalone PySide6 launcher: FSL-style button list for the toolbox's GUI tools.
-
+"""Cross-platform PySide6 launcher: FSL-style button list for the toolbox's GUI tools.
+When packaged (exe) on windows:
 Ships as vrlab_toolbox_launcher.exe next to the other toolbox exes (see
 toolbox_installer.iss). CLI tools aren't listed as buttons -- they run from a
 terminal once the install folder is on PATH -- but are listed below the
 buttons as a reminder of what's available.
+
+On Mac/Linux teh launcher starts the corresponding Python GUI modules using the active
+python interpreter.
 """
 
 from __future__ import annotations
 
+import importlib
 import subprocess
 import sys
 from pathlib import Path
@@ -34,23 +38,23 @@ GUI_TOOL_GROUPS = (
     (
         "Crosscheck",
         (
-            ("FOH BIDS Crosscheck", "vrlab_foh_bids_crosscheck.exe"),
-            ("Crane BIDS Crosscheck", "vrlab_crane_bids_crosscheck.exe"),
-            ("Longwalk BIDS Crosscheck", "vrlab_longwalk_bids_crosscheck.exe"),
+            ("FOH BIDS Crosscheck", "vrlab_foh_bids_crosscheck.exe", "vrlab_toolbox.gui.foh_bids_crosscheck_gui"),
+            ("Crane BIDS Crosscheck", "vrlab_crane_bids_crosscheck.exe", "vrlab_toolbox.gui.crane_bids_crosscheck_gui"),
+            ("Longwalk BIDS Crosscheck", "vrlab_longwalk_bids_crosscheck.exe", "vrlab_toolbox.gui.longwalk_bids_crosscheck_gui"),
         ),
     ),
     (
         "Processing",
         (
-            ("Crane Process Results", "vrlab_crane_process_GUI.exe"),
-            ("FOH Process Results", "vrlab_foh_process_GUI.exe"),
-            ("Longwalk Process Results", "vrlab_longwalk_process_GUI.exe"),
+            ("Crane Process Results", "vrlab_crane_process_GUI.exe", "vrlab_toolbox.gui.crane_process_results_gui"),
+            ("FOH Process Results", "vrlab_foh_process_GUI.exe", "vrlab_toolbox.gui.foh_process_results_gui"),
+            ("Longwalk Process Results", "vrlab_longwalk_process_GUI.exe", "vrlab_toolbox.gui.longwalk_process_results_gui"),
         ),
     ),
     (
         "Data",
         [
-            ("REDCap Pull", "vrlab_redcap_pull.exe"),
+            ("REDCap Pull", "vrlab_redcap_pull.exe", "vrlab_toolbox.gui.redcap_pull_gui"),
         ],
     ),
 )
@@ -87,10 +91,23 @@ def _toolbox_dir() -> Path:
 
 def _icon_path() -> Path:
     if getattr(sys, "frozen", False):
-        return _toolbox_dir() / ICON_ASSET_RELATIVE_PATH
-    # src/vrlab_toolbox/gui/toolbox_launcher.py -> repo root is three parents up.
+        bundle_dir = Path(
+            getattr(sys, "_MEIPASS", Path(sys.executable).parent)
+        )
+        return bundle_dir / ICON_ASSET_RELATIVE_PATH
+
     return Path(__file__).resolve().parents[3] / ICON_ASSET_RELATIVE_PATH
 
+def _run_gui_module(module_name: str) -> None:
+    """Run one of the toolbox GUI modules inside a child process."""
+    module = importlib.import_module(module_name)
+
+    if not hasattr(module, "main"):
+        raise RuntimeError(
+            f"{module_name} does not contain a main() function."
+        )
+
+    module.main()
 
 class ToolboxLauncher(QMainWindow):
     def __init__(self) -> None:
@@ -117,10 +134,10 @@ class ToolboxLauncher(QMainWindow):
 
         for group_label, tools in GUI_TOOL_GROUPS:
             layout.addWidget(QLabel(f"<b>{group_label}</b>"))
-            for label, exe_name in tools:
+            for label, exe_name, module_name in tools:
                 button = QPushButton(label)
                 button.clicked.connect(
-                    lambda _checked=False, exe_name=exe_name: self._launch(exe_name)
+                    lambda _checked=False, exe_name=exe_name, module_name=module_name: self._launch(exe_name, module_name)
                 )
                 layout.addWidget(button)
 
@@ -138,15 +155,53 @@ class ToolboxLauncher(QMainWindow):
         self.setCentralWidget(container)
         self.setFixedWidth(WINDOW_WIDTH)
 
-    def _launch(self, exe_name: str) -> None:
-        exe_path = _toolbox_dir() / exe_name
+    def _launch(self, exe_name: str, module_name: str) -> None:
         try:
-            subprocess.Popen([str(exe_path)])
-        except OSError as exc:
-            QMessageBox.critical(self, "VR Lab Toolbox", f"Could not start {exe_name}:\n{exc}")
+         if getattr(sys, "frozen", False) and sys.platform == "win32":
+          exe_path = _toolbox_dir() / exe_name
 
+          if not exe_path.is_file():
+              raise FileNotFoundError(
+                  f"Could not fine:\n{exe_path}"
+              )
+          subprocess.Popen([str(exe_path)])
+          return
+
+        # Mac/Linux
+         if getattr(sys, "frozen", False):
+            subprocess.Popen(
+                [
+                    sys.executable,
+                    "--launch-module",
+                    module_name,
+                ]
+            )
+            return
+         
+         # Normal python installation
+         subprocess.Popen(
+          [
+             sys.executable,
+             "-m",
+             module_name
+          ]
+         )
+
+        except (OSError, FileNotFoundError) as exc:
+            QMessageBox.critical(
+                self,
+                "VR Lab Toolbox",
+                f"Could not strat tool:\n\n{exc}",
+            )
 
 def main() -> None:
+    # When the frozen application starts itself to launch one
+    # of the individual GUI tools, run that GUI instead of
+    # opening another toolbox launcher.
+    if len(sys.argv) >= 3 and sys.argv[1] == "--launch-module":
+        _run_gui_module(sys.argv[2])
+        return
+
     app = QApplication(sys.argv)
     window = ToolboxLauncher()
     window.show()
