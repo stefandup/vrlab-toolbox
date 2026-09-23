@@ -12,7 +12,7 @@ matplotlib.use("Agg")
 from vrlab_toolbox.processing.biodata import RawBioData
 from vrlab_toolbox.processing.crane_behaviour import RawCraneBehaviourData
 from vrlab_toolbox.processing.crane_bids import convert_crane_to_bids
-from vrlab_toolbox.processing.crane_debrief_behaviour import RawDebriefBehaviourData
+from vrlab_toolbox.processing.crane_debrief_behaviour import RawCraneDebriefBehaviourData
 from vrlab_toolbox.processing.crane_dummy_data import (
     DUMMY_GROUP_DEBRIEF_FN,
     REFERENCE_ERROR_TYPES,
@@ -34,7 +34,7 @@ TEMPLATE_FOLDER = Path("crane_examples/crane_templates")
 ERROR_SCENARIO_STATUS_KEY = {
     "missing_physiology": RawBioData,
     "missing_behaviour": RawCraneBehaviourData,
-    "missing_debrief": RawDebriefBehaviourData,
+    "missing_debrief": RawCraneDebriefBehaviourData,
     "bad_trigger_count": TrialIntervals,
     "short_trigger": TrialIntervals,
     "unbalanced_trial_conditions": RawCraneBehaviourData,

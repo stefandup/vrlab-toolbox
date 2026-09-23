@@ -26,8 +26,13 @@ Output layout:
   (the real Unreal-side export always writes the same placeholder), so it's ignored for
   numbering and the city label plus a real run number are carried as `acq-<city>`/`run-NNN`
   entities instead.
-- REDCap debrief backfill (like crane's) isn't implemented yet -- longwalk3_debrief_behaviour.py
-  is still a schema stub with no group-export glob wired up.
+- One debrief file per subject -- like crane's, but anchored on `ses-01` (a subject's earliest
+  real session) since the REDCap debrief form isn't tied to any one of a subject's VR sessions.
+  Named with the same `acq-debrief`/`_beh.tsv` convention as crane, matching
+  longwalk3_debrief_behaviour.py's `filename_glob`. Unlike crane, the export's columns aren't
+  filtered against a raw debrief schema yet -- longwalk3_debrief_behaviour.py's is still an
+  empty stub (see its own module), so every column the export has is kept as-is until that
+  schema is filled in.
 """
 
 import logging
@@ -53,11 +58,25 @@ logger = logging.getLogger(__name__)
 
 PHYSIOLOGY_GLOB = "*_LongWalkV3Out.acq"
 BEHAVIOUR_GLOB = "*_behaviour.csv"
+# Real REDCap exports are named "{ProjectName}_DATA_{YYYY-MM-DD}_{HHMM}.csv" (see
+# longwalk3_dummy_data.py's _REDCAP_EXPORT_PATTERN) -- project name varies per study, unlike
+# crane's single fixed project export name, so the glob only pins down the shared "_DATA_"
+# marker.
+GROUP_REDCAP_GLOB = "*_DATA_*.csv"
+# The REDCap column that identifies which subject a debrief row belongs to -- "study_id" here,
+# not crane's "record_id".
+DEBRIEF_ID_COLUMN = "study_id"
 DATATYPE_FOLDER_NAME = "beh"
 TASK_TOKEN = "task-longwalkv3"
 # Physiology has no repeated-run concept (one recording per session) -- fixed placeholder run
 # entity, same as crane's PHYSIOLOGY suffix.
 PHYSIOLOGY_RUN_TOKEN = "run-001"
+# Debrief likewise has no repeated-run concept -- one form per subject, not per session.
+DEBRIEF_RUN_TOKEN = "run-001"
+# Debrief is anchored on the subject's earliest real session -- it isn't tied to any one VR
+# session, and every subject with any converted data has a ses-01 by definition (see
+# _convert_subject_physiology/_convert_subject_events).
+DEBRIEF_SESSION_NR = 1
 # Raw filenames carry a minute-precision date/time prefix (e.g. "202609161752") -- distinct
 # from the separate, seconds+milliseconds format used by the "date"/"onset" column *inside*
 # each behaviour/actor-log csv (see DATESTR_FORMAT).
@@ -201,6 +220,43 @@ def resolve_subject_id(file: Path, input_folder: Path, corrections: dict[str, st
         return parsed_physiology.subject_id
     parsed_csv = resolve_raw_csv_filename(file, input_folder, corrections)
     return parsed_csv.subject_id if parsed_csv is not None else None
+
+
+def find_debrief_export(input_folder: Path, override: Path | None = None) -> Path | None:
+    """Locate the shared REDCap group export -- same contract as crane_bids.find_debrief_export.
+    `override`, given, is used as-is. Otherwise searches recursively for `GROUP_REDCAP_GLOB`.
+    """
+    if override is not None:
+        return override
+
+    candidates = sorted(input_folder.rglob(GROUP_REDCAP_GLOB))
+    if not candidates:
+        logger.warning(
+            "No file matching %r found in %s -- skipping debrief entirely",
+            GROUP_REDCAP_GLOB,
+            input_folder,
+        )
+        return None
+
+    if len(candidates) > 1:
+        logger.warning(
+            "Multiple files matching %r found -- using %s: %s",
+            GROUP_REDCAP_GLOB,
+            candidates[0].name,
+            ", ".join(path.name for path in candidates),
+        )
+    return candidates[0]
+
+
+def load_debrief_export(input_folder: Path, override: Path | None = None) -> pd.DataFrame | None:
+    """Read the shared REDCap group export. Unlike crane_bids.load_debrief_export, columns
+    aren't filtered against a raw debrief schema yet -- see module docstring -- so every column
+    the export has is kept as-is.
+    """
+    export_path = find_debrief_export(input_folder, override)
+    if export_path is None:
+        return None
+    return pd.read_csv(export_path, dtype={DEBRIEF_ID_COLUMN: str})
 
 
 def discover_raw_files_for_review(input_folder: Path) -> list[Path]:
@@ -503,6 +559,51 @@ def _convert_subject_events(
     return written
 
 
+def _has_debrief_file(output_folder: Path, subject_id: str) -> bool:
+    folder = _datatype_folder(output_folder, subject_id, DEBRIEF_SESSION_NR)
+    return folder.is_dir() and any(folder.glob("*_beh.tsv"))
+
+
+def _debrief_acq_date(output_folder: Path, subject_id: str) -> str:
+    """Best-effort acquisition date for a subject's debrief file -- ses-01's own first scan
+    date if there is one, "nodate" otherwise (e.g. a subject whose only converted data is the
+    debrief form itself). Same fallback contract as crane_bids._existing_acq_date.
+    """
+    rows = bids.read_scans_tsv_rows(_scans_tsv_path(output_folder, subject_id, DEBRIEF_SESSION_NR))
+    return rows[0]["acq_time"] if rows else "nodate"
+
+
+def _convert_subject_debrief(
+    subject_id: str, debrief_df: pd.DataFrame, output_folder: Path
+) -> Path | None:
+    """Writes this subject's row(s) from the REDCap debrief export as one individual
+    `sub-XXX_ses-01_task-longwalkv3_acq-debrief_run-001_beh.tsv`, the same acq-debrief/`_beh`
+    convention crane_bids.py uses. Returns None if the export has no row for this subject.
+    """
+    subject_rows = debrief_df[debrief_df[DEBRIEF_ID_COLUMN] == subject_id]
+    if subject_rows.empty:
+        return None
+
+    destination = _datatype_folder(output_folder, subject_id, DEBRIEF_SESSION_NR) / (
+        bids.build_bids_filename(
+            subject_id,
+            _session_token(DEBRIEF_SESSION_NR),
+            TASK_TOKEN,
+            DEBRIEF_RUN_TOKEN,
+            "beh",
+            ".tsv",
+            acq="debrief",
+        )
+    )
+    subject_rows.to_csv(destination, sep="\t", index=False)
+
+    scans_tsv_path = _scans_tsv_path(output_folder, subject_id, DEBRIEF_SESSION_NR)
+    relative_name = destination.relative_to(scans_tsv_path.parent).as_posix()
+    acq_date = _debrief_acq_date(output_folder, subject_id)
+    bids.append_scan_row(scans_tsv_path, relative_name, acq_date)
+    return destination
+
+
 @dataclass
 class LongWalkV3ConversionSummary:
     """Everything a caller (the CLI's `main()`) needs to report what a
@@ -513,20 +614,28 @@ class LongWalkV3ConversionSummary:
     new_subject_ids: list[str] = field(default_factory=list)
     subject_physiology: dict[str, list[Path]] = field(default_factory=dict)
     subject_events: dict[str, list[Path]] = field(default_factory=dict)
+    subject_debrief: dict[str, Path] = field(default_factory=dict)
     already_converted: set[str] = field(default_factory=set)
     unparseable_files: list[Path] = field(default_factory=list)
+    unmatched_debrief: list[str] = field(default_factory=list)
+    backfilled_debrief_ids: list[str] = field(default_factory=list)
 
 
 def convert_longwalkv3_to_bids(
-    input_folder: Path, output_folder: Path
+    input_folder: Path, output_folder: Path, debrief_export: Path | None = None
 ) -> LongWalkV3ConversionSummary:
-    """Core, UI-agnostic conversion logic -- see module docstring for the output layout."""
+    """Core, UI-agnostic conversion logic -- see module docstring for the output layout.
+
+    `debrief_export`, if given, overrides auto-detection of the shared REDCap group export --
+    for when there's more than one file matching `GROUP_REDCAP_GLOB` in `input_folder`.
+    """
     output_folder.mkdir(parents=True, exist_ok=True)
     already_converted = existing_subject_ids(output_folder)
     raw_filename_corrections = load_raw_filename_id_corrections(output_folder)
 
     physiology_files = sorted(input_folder.rglob(PHYSIOLOGY_GLOB))
     behaviour_files = sorted(input_folder.rglob(BEHAVIOUR_GLOB))
+    debrief_df = load_debrief_export(input_folder, debrief_export)
 
     all_subject_ids: set[str] = set()
     unparseable_files: list[Path] = []
@@ -565,20 +674,62 @@ def convert_longwalkv3_to_bids(
             ", ".join(skipped_subject_ids),
         )
 
+    # Debrief backfill: an already-converted subject still gets reconsidered for debrief
+    # specifically if they don't have one yet (e.g. a previous run's export didn't match
+    # them) -- same philosophy as crane_bids.convert_crane_to_bids.
+    backfill_candidate_ids = sorted(
+        sid for sid in already_converted if not _has_debrief_file(output_folder, sid)
+    )
+    debrief_candidate_ids = sorted(set(new_subject_ids) | set(backfill_candidate_ids))
+
+    subject_debrief: dict[str, Path] = {}
+    backfilled_debrief_ids: list[str] = []
+    if debrief_df is not None:
+        for subject_id in debrief_candidate_ids:
+            destination = _convert_subject_debrief(subject_id, debrief_df, output_folder)
+            if destination is not None:
+                subject_debrief[subject_id] = destination
+                if subject_id in backfill_candidate_ids:
+                    backfilled_debrief_ids.append(subject_id)
+
+    if backfilled_debrief_ids:
+        logger.info(
+            "Backfilled debrief for %d already-converted subject(s) that didn't have one yet: %s",
+            len(backfilled_debrief_ids),
+            ", ".join(backfilled_debrief_ids),
+        )
+
+    unmatched_debrief = [sid for sid in debrief_candidate_ids if sid not in subject_debrief]
+    if debrief_df is not None and unmatched_debrief:
+        logger.warning(
+            "No debrief row found for %d subject(s) -- check whether their %s in %r actually "
+            "matches the ID in their filenames: %s",
+            len(unmatched_debrief),
+            DEBRIEF_ID_COLUMN,
+            GROUP_REDCAP_GLOB,
+            ", ".join(unmatched_debrief),
+        )
+
     logger.info(
-        "Added %d new subject folder(s) to %s: %d physiology, %d events file(s).",
+        "Added %d new subject folder(s) to %s: %d physiology, %d events, %d debrief file(s) "
+        "(%d of those backfilled for already-converted subjects).",
         len(new_subject_ids),
         output_folder,
         sum(len(paths) for paths in subject_physiology.values()),
         sum(len(paths) for paths in subject_events.values()),
+        len(subject_debrief),
+        len(backfilled_debrief_ids),
     )
 
     return LongWalkV3ConversionSummary(
         new_subject_ids=new_subject_ids,
         subject_physiology=subject_physiology,
         subject_events=subject_events,
+        subject_debrief=subject_debrief,
         already_converted=already_converted,
         unparseable_files=unparseable_files,
+        unmatched_debrief=unmatched_debrief,
+        backfilled_debrief_ids=backfilled_debrief_ids,
     )
 
 
@@ -587,7 +738,7 @@ def print_longwalkv3_conversion_summary(summary: LongWalkV3ConversionSummary) ->
     CLI's `main()` stays a thin wrapper around `convert_longwalkv3_to_bids()`.
     """
     console = Console()
-    if not summary.new_subject_ids:
+    if not summary.new_subject_ids and not summary.backfilled_debrief_ids:
         console.print(
             "No new subjects found -- everything in the source folder is already converted."
         )
@@ -597,10 +748,19 @@ def print_longwalkv3_conversion_summary(summary: LongWalkV3ConversionSummary) ->
     table.add_column("Subject ID")
     table.add_column("Physiology")
     table.add_column("Events")
+    table.add_column("Debrief")
     for subject_id in summary.new_subject_ids:
         table.add_row(
             subject_id,
             bids.summary_table_cell(summary.subject_physiology, subject_id),
             bids.summary_table_cell(summary.subject_events, subject_id),
+            bids.summary_table_cell(summary.subject_debrief, subject_id),
+        )
+    for subject_id in summary.backfilled_debrief_ids:
+        table.add_row(
+            f"{subject_id} (backfill)",
+            "(already converted)",
+            "(already converted)",
+            bids.summary_table_cell(summary.subject_debrief, subject_id),
         )
     console.print(table)

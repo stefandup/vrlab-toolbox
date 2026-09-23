@@ -39,7 +39,7 @@ class ImportLongWalkV3BehaviourDataStrategyStep:
 
     def run(self, config_in: ParticipantConfig) -> RawLongWalkV3BehaviourData:
 
-        return RawLongWalkV3BehaviourData.load_from_behaviour_type(
+        return RawLongWalkV3BehaviourData.load_from_bids_behaviour_type(
             config_in, self.behaviour_output_type
         )
 

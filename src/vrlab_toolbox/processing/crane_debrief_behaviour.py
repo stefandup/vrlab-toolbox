@@ -75,7 +75,7 @@ class CraneDebriefPipelineOutput(PipelineOutputData):
 
 
 @dataclass
-class RawDebriefBehaviourData(RawBehaviourData):
+class RawCraneDebriefBehaviourData(RawBehaviourData):
     validation_schema: pa.DataFrameSchema = field(
         default_factory=lambda: crane_raw_debrief_file_schema
     )
@@ -88,7 +88,9 @@ class RawDebriefBehaviourData(RawBehaviourData):
 
         return cls(subject_config=config_in, raw_behav_df=debrief_df)
 
-    def get_single_subject_from_group_data(self, subject_id_in: str) -> "RawDebriefBehaviourData":
+    def get_single_subject_from_group_data(
+        self, subject_id_in: str
+    ) -> "RawCraneDebriefBehaviourData":
 
         matching_subject_df = self.raw_behav_df.loc[self.raw_behav_df["record_id"] == subject_id_in]
 
@@ -96,7 +98,7 @@ class RawDebriefBehaviourData(RawBehaviourData):
             logger.error(f"Subject {subject_id_in} not found in {GROUP_REDCAP_GLOB}.")
             raise ValueError
 
-        raw_debrief_data_out = RawDebriefBehaviourData(
+        raw_debrief_data_out = RawCraneDebriefBehaviourData(
             subject_config=self.subject_config, raw_behav_df=matching_subject_df
         )
 
@@ -104,10 +106,10 @@ class RawDebriefBehaviourData(RawBehaviourData):
 
 
 class ImportCraneDebriefDataProcessStrategyStep:
-    behaviour_output_type = RawDebriefBehaviourData
+    behaviour_output_type = RawCraneDebriefBehaviourData
 
-    def run(self, config_in: ParticipantConfig) -> RawDebriefBehaviourData:
-        single_subject_data = RawDebriefBehaviourData.load_from_behaviour_type(
+    def run(self, config_in: ParticipantConfig) -> RawCraneDebriefBehaviourData:
+        single_subject_data = RawCraneDebriefBehaviourData.load_from_bids_behaviour_type(
             config_in, self.behaviour_output_type
         )
 
@@ -115,10 +117,10 @@ class ImportCraneDebriefDataProcessStrategyStep:
 
 
 class ProcessCraneDebriefBehaviourDataStrategyStep:
-    input_data_type = RawDebriefBehaviourData
+    input_data_type = RawCraneDebriefBehaviourData
 
     def run(
-        self, config_in: ParticipantConfig, raw_behaviour_data_in: RawDebriefBehaviourData
+        self, config_in: ParticipantConfig, raw_behaviour_data_in: RawCraneDebriefBehaviourData
     ) -> CraneDebriefPipelineOutput:
 
         raw_data_df = raw_behaviour_data_in.raw_behav_df

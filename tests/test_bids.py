@@ -26,7 +26,7 @@ class TestBidsEventsDataBasicImport(unittest.TestCase):
         )
 
     def test_import_from_crane_tsv_out(self):
-        raw_crane_behav_data = RawCraneBehaviourData.load_from_behaviour_type(
+        raw_crane_behav_data = RawCraneBehaviourData.load_from_bids_behaviour_type(
             example_crane_participant_correct, RawCraneBehaviourData
         )
         raw_crane_bids_events_data = raw_crane_behav_data.to_bids_events()
