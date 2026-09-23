@@ -12,11 +12,10 @@ from vrlab_toolbox.processing.longwalk3_behaviour import (
 )
 from vrlab_toolbox.processing.longwalk3_bids import combine_events_df_files, get_all_dfs
 from vrlab_toolbox.processing.longwalk3_debrief_behaviour import RawLongWalkV3DebriefBehaviourData
-
-# from vrlab_toolbox.processing.longwalk3_pipeline import (
-#    FindLongWalkV3ParticipantFilesStrategyStep,
-#    run_pipeline,
-# )
+from vrlab_toolbox.processing.longwalk3_pipeline import (
+    FindLongWalkV3ParticipantFilesStrategyStep,
+    run_pipeline,
+)
 from vrlab_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
 from vrlab_toolbox.processing.trial_intervals import TrialIntervals
 

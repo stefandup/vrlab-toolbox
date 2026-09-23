@@ -4,11 +4,10 @@ import pandera.pandas as pa
 
 from vrlab_toolbox.processing.behaviour import RawBehaviourData
 from vrlab_toolbox.processing.input_data import ParticipantConfig
+from vrlab_toolbox.processing.longwalk3_bids import (
+    build_longwalkv3_raw_session_events_behav_file_schema,
+)
 from vrlab_toolbox.processing.output_data import PipelineOutputData
-
-
-def build_long_walk_v3_raw_behav_file_schema() -> pa.DataFrameSchema:
-    return pa.DataFrameSchema()
 
 
 def build_longwalkv3_behaviour_output_schema() -> pa.DataFrameSchema:
@@ -16,8 +15,10 @@ def build_longwalkv3_behaviour_output_schema() -> pa.DataFrameSchema:
 
 
 class RawLongWalkV3BehaviourData(RawBehaviourData):
+    """Raw data for LongWalkV3 is based off BIDS events schema"""
+
     validation_schema: pa.DataFrameSchema = field(
-        default_factory=build_long_walk_v3_raw_behav_file_schema
+        default_factory=build_longwalkv3_raw_session_events_behav_file_schema
     )
 
 

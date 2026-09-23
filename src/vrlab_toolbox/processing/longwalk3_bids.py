@@ -329,7 +329,7 @@ BP_ACTOR_IDS = [
 ]
 
 
-def build_longwalkv3_raw_session_events_behav_file_schema_() -> pa.DataFrameSchema:
+def build_longwalkv3_raw_session_events_behav_file_schema() -> pa.DataFrameSchema:
     additional_cols_session = {
         "Nausea_behaviour": pandera_defaults.likert_col(),
         "Dizzy_behaviour": pandera_defaults.likert_col(),
