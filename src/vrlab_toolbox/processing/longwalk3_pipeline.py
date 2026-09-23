@@ -2,11 +2,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
+import pandera.pandas as pa
 
 from vrlab_toolbox.processing import pipeline
 from vrlab_toolbox.processing.biopac import BiopacPhysiologyDataImportStartegy
 from vrlab_toolbox.processing.eda import ProcessEdaPhysiologyDataStrategyStep
-from vrlab_toolbox.processing.input_data import ParticipantConfig
+from vrlab_toolbox.processing.input_data import ParticipantConfig, PhysiologyFileFormat
 from vrlab_toolbox.processing.longwalk3_behaviour import (
     ImportLongWalkV3BehaviourDataStrategyStep,
     ProcessLongWalkV3BehaviourDataStrategyStep,
@@ -22,11 +23,7 @@ from vrlab_toolbox.processing.output_data import PipelineOutputData
 
 
 class FindLongWalkV3ParticipantFilesStrategyStep:
-    # TODO: BiopacPhysiologyDataImportStartegy.input_data_file_format is PhysiologyFileFormat.MATLAB
-    # (load_biopac_data uses sio.loadmat), but longwalkv3's BIDS physiology files are raw .acq
-    # (see longwalk3_bids.py's PHYSIOLOGY_GLOB) -- this import/processing step needs a real .acq
-    # reader before longwalkv3 physiology can actually run through this pipeline.
-    physiology_data_type = BiopacPhysiologyDataImportStartegy.input_data_file_format
+    physiology_data_type = PhysiologyFileFormat.BIOPAC
     behaviour_data_types = [
         ProcessLongWalkV3BehaviourDataStrategyStep.input_data_type,
         ProcessLongWalkV3DebriefBehaviourDataStrategyStep.input_data_type,
@@ -45,8 +42,8 @@ class FindLongWalkV3ParticipantFilesStrategyStep:
         )
 
 
-def build_longwalkv3_participant_output_schema():
-    pass
+def build_longwalkv3_participant_output_schema() -> pa.DataFrameSchema:
+    return pa.DataFrameSchema()
 
 
 @dataclass
@@ -78,7 +75,11 @@ def run_pipeline(
         ]
     )
     import_physiology_steps = pipeline.SequentialPhysiolgyImportSteps(
-        steps=[BiopacPhysiologyDataImportStartegy()]
+        steps=[
+            BiopacPhysiologyDataImportStartegy(
+                input_data_file_format=FindLongWalkV3ParticipantFilesStrategyStep.physiology_data_type
+            )
+        ]
     )
     process_physiology_steps = pipeline.SequentialPhysiologyProcessingSteps(
         steps=[ProcessEdaPhysiologyDataStrategyStep()]

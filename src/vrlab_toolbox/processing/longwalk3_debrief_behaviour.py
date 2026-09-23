@@ -32,10 +32,6 @@ class ImportLongWalkV3DebriefDataProcessStrategyStep:
         return single_subject_data
 
 
-class ProcessLongWalkV3DebriefBehaviourDataStrategyStep:
-    input_data_type = RawLongWalkV3DebriefBehaviourData
-
-
 def build_longwalkv3_debrief_pipeline_output_schema() -> pa.DataFrameSchema:
     return pa.DataFrameSchema()
 
@@ -45,3 +41,12 @@ class LongWalkV3DebriefPipelineOutput(PipelineOutputData):
     validation_schema: pa.DataFrameSchema = field(
         default_factory=build_longwalkv3_debrief_pipeline_output_schema
     )
+
+
+class ProcessLongWalkV3DebriefBehaviourDataStrategyStep:
+    input_data_type = RawLongWalkV3DebriefBehaviourData
+
+    def run(
+        self, config_in: ParticipantConfig, raw_behaviour_data_in: RawLongWalkV3DebriefBehaviourData
+    ) -> LongWalkV3DebriefPipelineOutput:
+        return LongWalkV3DebriefPipelineOutput(config_in.subject_id)

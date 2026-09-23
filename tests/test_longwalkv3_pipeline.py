@@ -8,9 +8,12 @@ from vrlab_toolbox.processing.longwalk3_behaviour import (
     ImportLongWalkV3BehaviourDataStrategyStep,
     ProcessLongWalkV3BehaviourDataStrategyStep,
     RawLongWalkV3BehaviourData,
-    build_long_walk_v3_raw_behav_file_schema,
 )
-from vrlab_toolbox.processing.longwalk3_bids import combine_events_df_files, get_all_dfs
+from vrlab_toolbox.processing.longwalk3_bids import (
+    build_longwalkv3_raw_session_events_behav_file_schema,
+    combine_events_df_files,
+    get_all_dfs,
+)
 from vrlab_toolbox.processing.longwalk3_debrief_behaviour import RawLongWalkV3DebriefBehaviourData
 from vrlab_toolbox.processing.longwalk3_pipeline import (
     FindLongWalkV3ParticipantFilesStrategyStep,
@@ -41,9 +44,6 @@ class TestBidsConversion(unittest.TestCase):
         df_out = combine_events_df_files(subject_id_correct, df_list)
 
 
-unittest.skip("WIP")
-
-
 class TestBasicDataHandling(unittest.TestCase):
     def test_find_long_walk_v3_participant_strategy(self):
         good_config = FindLongWalkV3ParticipantFilesStrategyStep().run(CLEAN_ID, EXAMPLES_FOLDER)
@@ -68,7 +68,7 @@ class TestLongWalkV3BehaviourStrategy(unittest.TestCase):
 
     def test_bids_behav_import(self):
         raw_behaviour = ImportLongWalkV3BehaviourDataStrategyStep().run(self.config)
-        build_long_walk_v3_raw_behav_file_schema().validate(raw_behaviour.raw_behav_df)
+        build_longwalkv3_raw_session_events_behav_file_schema().validate(raw_behaviour.raw_behav_df)
 
     def test_long_walk_v3_process_behaviour(self):
         raw_behaviour = ImportLongWalkV3BehaviourDataStrategyStep().run(config_in=self.config)

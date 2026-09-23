@@ -1,5 +1,6 @@
 import logging
 import os
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import bioread
@@ -13,8 +14,9 @@ from vrlab_toolbox.processing.input_data import ParticipantConfig, PhysiologyFil
 logger = logging.getLogger(__name__)
 
 
+@dataclass
 class BiopacPhysiologyDataImportStartegy:
-    input_data_file_format = PhysiologyFileFormat.MATLAB
+    input_data_file_format: PhysiologyFileFormat = field(default=PhysiologyFileFormat.MATLAB)
     output_data_type = RawBioData
 
     def run(self, config_in: ParticipantConfig) -> RawBioData:
