@@ -1385,3 +1385,70 @@ history along (item 26's dead-code history included either way).
    an OS-level rename only doable from outside a running session that's working inside it.
 6. Once public, item 20's GitHub Pages deferral is unblocked — add the
    `mkdocs gh-deploy`-equivalent Actions job it already describes as "not needed yet."
+
+### 30. LongWalkV3 pipeline: multi-session behaviour import design (open decisions)
+
+Not started — design discussion only, 2026-09-23. `longwalk3_pipeline.py` has basics wired up
+(crosscheck, debrief export); next up is `ImportLongWalkV3BehaviourDataStrategyStep`, which
+surfaced a real architectural mismatch: `ParticipantConfig`/`ParticipantConfig.from_bids_data`
+(`input_data.py`) assumes one file per behaviour type per subject — it globs and takes
+`behav_file_matches[0]`, warning on extras as if they were duplicate-data errors. That's true for
+Crane/FOH but not LongWalkV3: a subject can have up to 3 real-world sessions, each with multiple
+city/run `events.tsv` files (see `longwalk3_bids.py`'s module docstring) — behaviour import there
+is inherently multi-file, not a duplicate to resolve down to one.
+
+**Direction agreed:** don't touch `pipeline.py` or `input_data.py` (both shared with Crane/FOH).
+Loop over sessions at the `longwalk3_pipeline.py` level instead — call the unmodified
+`PipelineTemplate.run()` once per session, with a session-scoped `ParticipantConfig` and a
+session-scoped output folder (`output_folder_session01`, etc.). A separate, later merge script
+combines the per-session output CSVs into one spreadsheet, suffixing column headers per session
+(`_session1`, `_session2`, ...) — done entirely outside pipeline code, so `PipelineOutputData.merge()`'s
+same-row column-concat (which requires disjoint column names between the two frames being merged,
+see item 1) never has to reconcile columns across sessions.
+
+**Two implementation details to get right, not design decisions:**
+
+- Construct `PipelineTemplate` and all its step objects **fresh inside each loop iteration**, not
+  once and reused. `SequentialBehaviourImportSteps`/`SequentialPhysiolgyImportSteps` hold their
+  `RawBehaviourDataStore`/`RawPhysiologyDataStore` as instance state created once via
+  `field(default_factory=...)`. If the same instances were reused across the session loop, a
+  session whose import fails partway (exception caught, `.add()` never called) would silently fall
+  through to the *previous* session's still-present entry for that type — processing would run on
+  stale prior-session data while reporting that session's import as `ERROR`. Rebuilding everything
+  fresh per iteration (matching how `run_pipeline()`'s body already builds it once today) avoids
+  this entirely.
+- Pass `session_nr` into `FindLongWalkV3ParticipantFilesStrategyStep`'s constructor, not as a new
+  required `run()` parameter — the shared `FindParticipantFilesStrategyStep` Protocol (`pipeline.py`)
+  fixes `run()`'s signature to `(participant_id_in, data_folder_in, output_folder_in=None)`, and a
+  new required param there would break structural conformance.
+
+**Open decision — LongWalkV3 debrief handling in a per-session loop, not yet picked:** the
+debrief file is anchored to a subject's `ses-01` only (`longwalk3_bids.py`'s `DEBRIEF_SESSION_NR`
+— it isn't tied to any one VR session), but the per-session loop reruns the whole
+`PipelineTemplate`, including `ImportLongWalkV3DebriefDataProcessStrategyStep`, every iteration.
+Three options on the table:
+
+1. **Exclude debrief from non-primary sessions** — condition `behaviour_data_types_in` on
+   `session_nr == 1` in the find-step. Needs care: `RawBehaviourData.load_from_bids_behaviour_type`
+   (`behaviour.py:50`) does a plain `config_in._behaviour_file_names[behaviour_type]` dict lookup,
+   not `.get()` — if a session's config simply omits the type from `behaviour_data_types_in`, the
+   key is absent (not `None`), which raises an uncaught `KeyError` instead of the catchable
+   `FileNotFoundError` `SequentialBehaviourImportSteps.run()` expects. So the find-step must still
+   include the type for every session (value resolves to `None` on non-primary sessions), just
+   never search for it there.
+2. **Attempt debrief every session, accept the status noise** — sessions 2/3 will report
+   `RawLongWalkV3DebriefBehaviourData=ERROR` in their per-session `Processing_Status`, which is
+   expected-by-design rather than a real fault. Any downstream status check (including the eventual
+   merge script) needs to know to disregard debrief status outside the `ses-01` row.
+3. **Add a real "not applicable" `ProcessingStatus` value** — today's enum
+   (`processing_status.py`) is only `NOT_RUN/OK/PARTIAL/CORRECTED/ERROR`, nothing represents
+   "correctly skipped, not a failure." The only option of the three that touches a shared file used
+   by every pipeline, not just LongWalkV3 — `OVERRIDE`-gated.
+
+Whichever is picked, keep it separate from genuinely missing per-session data (e.g. a session
+folder that exists but is missing its physiology file) — that's a real gap and should very likely
+stay `ERROR`, not get silently downgraded by whatever debrief fix lands.
+
+Not to be conflated with the older, unrelated `long_walk_pipeline.py`/`long walk` entries in the
+"Deferred: FOH & LongWalk" section above — those are about the previous long-walk pipeline
+(single-session, no behavioural data at all), not `longwalk3_*`.

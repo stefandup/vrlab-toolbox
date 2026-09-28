@@ -1,21 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "Building VR Lab Toolbox for macOS..."
+echo "Building VR Lab Toolbox for Linux..."
 
-rm -rf build_output/work/mac
-rm -rf "build_output/dist/VR Lab Toolbox"
-rm -rf "build_output/dist/VR Lab Toolbox.app"
+rm -rf build_output/work/linux
+rm -rf build_output/dist/vrlab_toolbox_linux
 
 python -m PyInstaller \
   --noconfirm \
   --clean \
-  --windowed \
   --onedir \
-  --name "VR Lab Toolbox" \
-  --osx-bundle-identifier "za.ac.sun.vrlab.toolbox" \
+  --name "vrlab_toolbox_linux" \
   --distpath build_output/dist \
-  --workpath build_output/work/mac \
+  --workpath build_output/work/linux \
   --copy-metadata vrlab-toolbox \
   --add-data "assets/vrlab_icon.ico:assets" \
   --hidden-import "vrlab_toolbox.gui.foh_bids_crosscheck_gui" \
@@ -27,5 +24,5 @@ python -m PyInstaller \
   --hidden-import "vrlab_toolbox.gui.redcap_pull_gui" \
   src/vrlab_toolbox/gui/toolbox_launcher.py
 
-echo "macOS build complete:"
-echo "build_output/dist/VR Lab Toolbox.app"
+echo "Linux build complete:"
+echo "build_output/dist/vrlab_toolbox_linux"

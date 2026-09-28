@@ -9,6 +9,10 @@ permissions:
   contents: write
 
 jobs:
+  # ============================================================
+  # WINDOWS
+  # Existing Windows build — unchanged
+  # ============================================================
   build:
     runs-on: windows-latest
     steps:
@@ -48,3 +52,82 @@ jobs:
         with:
           files: build_output/installer/*.exe
           generate_release_notes: true
+
+
+  # ============================================================
+  # macOS
+  # Builds after Windows has created the GitHub Release
+  # ============================================================
+  macos:
+    needs: build
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install package
+        run: pip install -e . --no-deps
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Build macOS app
+        run: ./build_mac.sh
+
+      - name: Package macOS app
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent \
+            "build_output/dist/VR Lab Toolbox.app" \
+            "build_output/VRLabToolbox-macOS-arm64-${{ github.ref_name }}.zip"
+
+      - name: Upload macOS release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build_output/VRLabToolbox-macOS-arm64-*.zip
+
+
+  # ============================================================
+  # LINUX
+  # Builds after Windows has created the GitHub Release
+  # ============================================================
+  linux:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install package
+        run: pip install -e . --no-deps
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Build Linux toolbox
+        run: ./build_linux.sh
+
+      - name: Package Linux build
+        run: |
+          tar -czf \
+            "build_output/VRLabToolbox-Linux-x86_64-${{ github.ref_name }}.tar.gz" \
+            -C build_output/dist \
+            vrlab_toolbox_linux
+
+      - name: Upload Linux release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build_output/VRLabToolbox-Linux-x86_64-*.tar.gz
