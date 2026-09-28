@@ -880,6 +880,7 @@ def main() -> None:
             DEBRIEF_ID_CORRECTIONS_FILENAME,
             RAW_FILENAME_ID_CORRECTIONS_FILENAME,
         ),
+        enable_redcap=True,
     )
 
 
