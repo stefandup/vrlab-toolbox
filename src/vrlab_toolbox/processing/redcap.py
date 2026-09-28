@@ -7,6 +7,8 @@ import keyring
 import pandas as pd
 import requests
 
+from vrlab_toolbox.processing.crane_redcap import clean_crane_redcap_data
+
 
 DEFAULT_REDCAP_URL = "https://redcap.sun.ac.za/api/"
 
@@ -160,6 +162,9 @@ def pull_report_to_raw(
         report_id=report_id,
         redcap_url=redcap_url,
     )
+
+    if crosscheck_id == "crane":
+        dataframe = clean_crane_redcap_data(dataframe)
 
     output_file = redcap_output_path(
         raw_folder=raw_folder,

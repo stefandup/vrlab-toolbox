@@ -1232,8 +1232,11 @@ class BidsCrosscheckWindow(QMainWindow):
             override_file = self.override_file
 
             # A manually selected debrief file always takes priority.
-            # Only pull REDCap automatically when no explicit override
-            # has been selected.
+            # Otherwise try to pull the latest REDCap report. If REDCap is
+            # unavailable, fall back to the last stable REDCap CSV already
+            # present in the raw folder. If neither is available, continue
+            # without debrief data, matching the converter's original
+            # optional-debrief behaviour.
             if self.enable_redcap and override_file is None:
                 study_id = self._current_study_id()
 
@@ -1242,10 +1245,36 @@ class BidsCrosscheckWindow(QMainWindow):
                         "Set the Study ID before refreshing BIDS with REDCap data."
                     )
 
-                override_file = self._pull_redcap_to_raw(study_id)
-                self._log_activity(
-                    f"Latest REDCap data saved to {override_file}."
+                existing_redcap_file = redcap_output_path(
+                    raw_folder=self.raw_folder,
+                    study_id=study_id,
+                    crosscheck_id=self.dataset_config.dataset_name,
                 )
+
+                try:
+                    override_file = self._pull_redcap_to_raw(study_id)
+                    self._log_activity(
+                        f"Latest REDCap data saved to {override_file}."
+                    )
+                except Exception as redcap_error:  # noqa: BLE001 -- fallback is intentional
+                    if existing_redcap_file.exists():
+                        override_file = existing_redcap_file
+                        self._log_activity(
+                            "Could not pull the latest REDCap data. "
+                            f"Using the existing REDCap file instead:\n{existing_redcap_file}\n\n"
+                            f"REDCap error: {redcap_error}"
+                        )
+                    else:
+                        override_file = None
+                        self._log_activity(
+                            "Could not pull REDCap data and no existing REDCap file was "
+                            "found in the raw folder. Refresh BIDS will continue without "
+                            "debrief data.\n\n"
+                            f"REDCap error: {redcap_error}\n\n"
+                            f'You can also use the "{self.override_file_label or "override file"}" '
+                            "file picker to select an exported CSV manually.",
+                            is_error=True,
+                        )
 
             lines = self.raw_converter(
                 self.raw_folder,
