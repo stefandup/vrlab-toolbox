@@ -104,6 +104,13 @@ from vrlab_toolbox.processing.bids_crosscheck import (
     set_crosschecked,
 )
 
+from vrlab_toolbox.gui.redcap_crosscheck import RedcapSetupDialog
+from vrlab_toolbox.processing.redcap import (
+    load_config,
+    pull_report_to_raw,
+    redcap_output_path,
+)
+
 logger = logging.getLogger(__name__)
 
 STATUS_ICON = {"ok": "●", "missing": "○", "duplicate": "⚠"}
@@ -135,6 +142,7 @@ DEFAULT_STUDY_ID_PLACEHOLDER = "study_name_here"
 EXTRA_RAW_ACTION_GROUP_RAW = "raw"
 EXTRA_RAW_ACTION_GROUP_OVERRIDE = "override"
 CROSSCHECK_DATA_BACKUP_DIRNAME = "crosscheck_backups"
+REDCAP_CONFIG_DIRNAME = "redcap"
 AUTOSAVE_ENABLED_SETTINGS_KEY = "autosave_enabled"
 AUTOSAVE_INTERVAL_MINUTES_SETTINGS_KEY = "autosave_interval_minutes"
 DEFAULT_AUTOSAVE_INTERVAL_MINUTES = 2
@@ -362,6 +370,7 @@ class BidsCrosscheckWindow(QMainWindow):
         | None = None,
         convert_button_tooltip: str = DEFAULT_CONVERT_BUTTON_TOOLTIP,
         extra_backup_filenames: tuple[str, ...] = (),
+        enable_redcap: bool = False,
     ):
         """`raw_converter`, if given, adds a "Raw folder summary" group box and a "Refresh BIDS"
         button in the "BIDS Folder" group box below it -- optional, dataset-specific (crane
@@ -420,6 +429,7 @@ class BidsCrosscheckWindow(QMainWindow):
         self.extra_raw_actions = extra_raw_actions or []
         self.convert_button_tooltip = convert_button_tooltip
         self.extra_backup_filenames = extra_backup_filenames
+        self.enable_redcap = enable_redcap
         self.bids_folder: Path | None = None
         self.raw_folder: Path | None = None
         self.override_file: Path | None = None
@@ -687,6 +697,53 @@ class BidsCrosscheckWindow(QMainWindow):
         self.study_id_combo.activated.connect(lambda _index: self._on_study_id_committed())
         bids_study_row.addWidget(self.study_id_combo, 1)
         bids_group_layout.addLayout(bids_study_row)
+
+        if self.enable_redcap:
+            redcap_group = QGroupBox("REDCap Data")
+            redcap_group_layout = QVBoxLayout(redcap_group)
+            redcap_group_layout.setContentsMargins(12, 12, 12, 12)
+            redcap_group_layout.setSpacing(8)
+
+            redcap_description = QLabel(
+                "Download the configured REDCap report for this study "
+                "and save it into the selected Raw folder."
+            )
+            redcap_description.setWordWrap(True)
+            redcap_group_layout.addWidget(redcap_description)
+
+            redcap_task_label = QLabel(
+                f"Task: {self.dataset_config.dataset_name.capitalize()}"
+            )
+            redcap_task_label.setStyleSheet("color: #555555;")
+            redcap_group_layout.addWidget(redcap_task_label)
+
+            redcap_row = QHBoxLayout()
+            redcap_row.setSpacing(8)
+
+            self.redcap_setup_button = QPushButton("Setup REDCap")
+            self.redcap_setup_button.setToolTip(
+                wrap_tooltip(
+                    "Configure the REDCap project for this Study ID and crosscheck."
+                )
+            )
+            self.redcap_setup_button.clicked.connect(self._on_setup_redcap)
+            redcap_row.addWidget(self.redcap_setup_button)
+
+            self.redcap_pull_button = QPushButton("Pull REDCap Data")
+            self.redcap_pull_button.setToolTip(
+                wrap_tooltip(
+                    "Download the configured REDCap report into the raw folder "
+                    "using the standard study/crosscheck filename."
+                )
+            )
+            self.redcap_pull_button.clicked.connect(self._on_pull_redcap)
+            redcap_row.addWidget(self.redcap_pull_button)
+
+            redcap_row.addStretch(1)
+            redcap_group_layout.addLayout(redcap_row)
+
+            bids_group_layout.addWidget(redcap_group)
+        
 
         if self.raw_converter is not None:
             # The most visually prominent action in the whole top-left area -- full-width,
@@ -997,19 +1054,37 @@ class BidsCrosscheckWindow(QMainWindow):
         self._update_override_file_label()
 
     def _effective_override_file(self) -> Path | None:
-        """The file this window is actually about to use for `override_file_label` -- the
-        human's explicit pick if there is one, otherwise whatever `override_file_autodetect`
-        currently resolves to (or None if neither applies). Shared by
-        `_update_override_file_label` (what to display) and `_on_reveal_override_file`
-        (what to open), so the two never disagree about what "the debrief file" means.
+        """Return the debrief/override file currently relevant to this window.
+
+        An explicitly selected file always wins. When REDCap integration is
+        enabled, the standardized REDCap file for the current study is shown
+        instead of running the legacy auto-detection. Otherwise the existing
+        dataset-specific auto-detection is preserved.
         """
         if self.override_file is not None:
             return self.override_file
+
+        if self.enable_redcap and self.raw_folder is not None:
+            study_id = self._current_study_id()
+
+            if study_id and study_id != DEFAULT_STUDY_ID_PLACEHOLDER:
+                redcap_file = redcap_output_path(
+                    raw_folder=self.raw_folder,
+                    study_id=study_id,
+                    crosscheck_id=self.dataset_config.dataset_name,
+                )
+
+                if redcap_file.exists():
+                    return redcap_file
+
+            return None
+
         if self.override_file_autodetect is not None and self.raw_folder is not None:
             try:
                 return self.override_file_autodetect(self.raw_folder)
             except OSError:
                 return None
+
         return None
 
     def _update_override_file_label(self) -> None:
@@ -1149,20 +1224,76 @@ class BidsCrosscheckWindow(QMainWindow):
     def _on_convert_to_bids(self) -> None:
         if self.raw_converter is None or self.raw_folder is None or self.bids_folder is None:
             return
+
         self.convert_button.setEnabled(False)
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+
         try:
-            lines = self.raw_converter(self.raw_folder, self.bids_folder, self.override_file)
+            override_file = self.override_file
+
+            # A manually selected debrief file always takes priority.
+            # Otherwise try to pull the latest REDCap report. If REDCap is
+            # unavailable, fall back to the last stable REDCap CSV already
+            # present in the raw folder. If neither is available, continue
+            # without debrief data, matching the converter's original
+            # optional-debrief behaviour.
+            if self.enable_redcap and override_file is None:
+                study_id = self._current_study_id()
+
+                if not study_id or study_id == DEFAULT_STUDY_ID_PLACEHOLDER:
+                    raise RuntimeError(
+                        "Set the Study ID before refreshing BIDS with REDCap data."
+                    )
+
+                existing_redcap_file = redcap_output_path(
+                    raw_folder=self.raw_folder,
+                    study_id=study_id,
+                    crosscheck_id=self.dataset_config.dataset_name,
+                )
+
+                try:
+                    override_file = self._pull_redcap_to_raw(study_id)
+                    self._log_activity(
+                        f"Latest REDCap data saved to {override_file}."
+                    )
+                except Exception as redcap_error:  # noqa: BLE001 -- fallback is intentional
+                    if existing_redcap_file.exists():
+                        override_file = existing_redcap_file
+                        self._log_activity(
+                            "Could not pull the latest REDCap data. "
+                            f"Using the existing REDCap file instead:\n{existing_redcap_file}\n\n"
+                            f"REDCap error: {redcap_error}"
+                        )
+                    else:
+                        override_file = None
+                        self._log_activity(
+                            "Could not pull REDCap data and no existing REDCap file was "
+                            "found in the raw folder. Refresh BIDS will continue without "
+                            "debrief data.\n\n"
+                            f"REDCap error: {redcap_error}\n\n"
+                            f'You can also use the "{self.override_file_label or "override file"}" '
+                            "file picker to select an exported CSV manually.",
+                            is_error=True,
+                        )
+
+            lines = self.raw_converter(
+                self.raw_folder,
+                self.bids_folder,
+                override_file,
+            )
             error = None
+
         except Exception as error_raised:  # noqa: BLE001 -- arbitrary converter, shown not swallowed
             logger.exception("Raw-to-BIDS conversion failed")
             lines = []
             error = str(error_raised)
+
         finally:
             QApplication.restoreOverrideCursor()
             self.convert_button.setEnabled(True)
 
         self._update_conversion_status_panel(lines, error)
+
         if error is None:
             self.load_bids_folder(self.bids_folder)
 
@@ -1886,6 +2017,95 @@ class BidsCrosscheckWindow(QMainWindow):
             / self._settings.applicationName()
             / CROSSCHECK_DATA_BACKUP_DIRNAME
             / _sanitize_for_filesystem(study_id)
+        )
+
+    def _app_data_dir(self) -> Path:
+        """Return this crosscheck application's local data directory."""
+        app_data_location = QStandardPaths.StandardLocation.AppDataLocation
+        app_data_root = Path(QStandardPaths.writableLocation(app_data_location))
+
+        return (
+            app_data_root
+            / SETTINGS_ORGANIZATION
+            / self._settings.applicationName()
+        )
+
+    def _redcap_config_file(self, study_id: str) -> Path:
+        """Return the REDCap config file for this study and crosscheck."""
+        return (
+            self._app_data_dir()
+            / REDCAP_CONFIG_DIRNAME
+            / _sanitize_for_filesystem(study_id)
+            / "redcap_config.json"
+        )
+
+    def _on_setup_redcap(self) -> None:
+        study_id = self._current_study_id()
+
+        if not study_id or study_id == DEFAULT_STUDY_ID_PLACEHOLDER:
+            QMessageBox.warning(
+                self,
+                "Study ID required",
+                "Set the Study ID before configuring REDCap.",
+            )
+            return
+
+        dialog = RedcapSetupDialog(
+            study_id=study_id,
+            crosscheck_id=self.dataset_config.dataset_name,
+            config_file=self._redcap_config_file(study_id),
+            parent=self,
+        )
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self._log_activity(
+                f"REDCap configured for {study_id} / "
+                f"{self.dataset_config.dataset_name}."
+            )
+
+    def _pull_redcap_to_raw(self, study_id: str) -> Path:
+        """Pull the configured REDCap report into the selected raw folder."""
+        if self.raw_folder is None:
+            raise RuntimeError("Select the raw folder before pulling REDCap data.")
+
+        config = load_config(self._redcap_config_file(study_id))
+
+        if config is None:
+            raise RuntimeError(
+                "REDCap is not configured for this study. Click Setup REDCap first."
+            )
+
+        return pull_report_to_raw(
+            raw_folder=self.raw_folder,
+            study_id=study_id,
+            crosscheck_id=self.dataset_config.dataset_name,
+            report_id=config["report_id"],
+            redcap_url=config["redcap_url"],
+        )
+
+    def _on_pull_redcap(self) -> None:
+        study_id = self._current_study_id()
+
+        if not study_id or study_id == DEFAULT_STUDY_ID_PLACEHOLDER:
+            QMessageBox.warning(
+                self,
+                "Study ID required",
+                "Set the Study ID before pulling REDCap data.",
+            )
+            return
+
+        try:
+            output_file = self._pull_redcap_to_raw(study_id)
+        except Exception as error:
+            QMessageBox.warning(
+                self,
+                "REDCap pull failed",
+                str(error),
+            )
+            return
+
+        self._log_activity(
+            f"REDCap data saved to {output_file}."
         )
 
     def _save_crosscheck_data(self, study_id: str) -> tuple[list[Path], Path]:
@@ -2879,6 +3099,7 @@ def run_bids_crosscheck_app(
     | None = None,
     convert_button_tooltip: str = DEFAULT_CONVERT_BUTTON_TOOLTIP,
     extra_backup_filenames: tuple[str, ...] = (),
+    enable_redcap: bool = False,
 ) -> None:
     app = QApplication.instance() or QApplication([])
     # Consistent tooltip look regardless of OS/theme default -- black text on white, matching
@@ -2901,6 +3122,7 @@ def run_bids_crosscheck_app(
         extra_raw_actions,
         convert_button_tooltip,
         extra_backup_filenames,
+        enable_redcap,
     )
     window.show()
     app.exec()
