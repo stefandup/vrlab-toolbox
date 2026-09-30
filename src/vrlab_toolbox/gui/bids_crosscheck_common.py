@@ -62,6 +62,7 @@ from vrlab_toolbox.gui.qt_common import primary_action_stylesheet as _primary_ac
 from vrlab_toolbox.gui.qt_common import set_path_display as _set_path_display
 from vrlab_toolbox.gui.qt_common import style_name_label as _style_name_label
 from vrlab_toolbox.gui.qt_common import style_secondary_label as _style_secondary_label
+from vrlab_toolbox.gui.redcap_crosscheck import RedcapSetupDialog
 from vrlab_toolbox.processing.bids import (
     is_bids_like_folder,
     is_effectively_empty_folder,
@@ -107,8 +108,6 @@ from vrlab_toolbox.processing.bids_crosscheck import (
     scans_tsv_reference_date,
     set_crosschecked,
 )
-
-from vrlab_toolbox.gui.redcap_crosscheck import RedcapSetupDialog
 from vrlab_toolbox.processing.redcap import (
     load_config,
     pull_report_to_raw,
@@ -723,9 +722,7 @@ class BidsCrosscheckWindow(QMainWindow):
             redcap_description.setWordWrap(True)
             redcap_group_layout.addWidget(redcap_description)
 
-            redcap_task_label = QLabel(
-                f"Task: {self.dataset_config.dataset_name.capitalize()}"
-            )
+            redcap_task_label = QLabel(f"Task: {self.dataset_config.dataset_name.capitalize()}")
             redcap_task_label.setStyleSheet("color: #555555;")
             redcap_group_layout.addWidget(redcap_task_label)
 
@@ -734,9 +731,7 @@ class BidsCrosscheckWindow(QMainWindow):
 
             self.redcap_setup_button = QPushButton("Setup REDCap")
             self.redcap_setup_button.setToolTip(
-                wrap_tooltip(
-                    "Configure the REDCap project for this Study ID and crosscheck."
-                )
+                wrap_tooltip("Configure the REDCap project for this Study ID and crosscheck.")
             )
             self.redcap_setup_button.clicked.connect(self._on_setup_redcap)
             redcap_row.addWidget(self.redcap_setup_button)
@@ -755,7 +750,6 @@ class BidsCrosscheckWindow(QMainWindow):
             redcap_group_layout.addLayout(redcap_row)
 
             bids_group_layout.addWidget(redcap_group)
-        
 
         if self.raw_converter is not None:
             # The most visually prominent action in the whole top-left area -- full-width,
@@ -1253,9 +1247,7 @@ class BidsCrosscheckWindow(QMainWindow):
                 study_id = self._current_study_id()
 
                 if not study_id or study_id == DEFAULT_STUDY_ID_PLACEHOLDER:
-                    raise RuntimeError(
-                        "Set the Study ID before refreshing BIDS with REDCap data."
-                    )
+                    raise RuntimeError("Set the Study ID before refreshing BIDS with REDCap data.")
 
                 existing_redcap_file = redcap_output_path(
                     raw_folder=self.raw_folder,
@@ -1265,9 +1257,7 @@ class BidsCrosscheckWindow(QMainWindow):
 
                 try:
                     override_file = self._pull_redcap_to_raw(study_id)
-                    self._log_activity(
-                        f"Latest REDCap data saved to {override_file}."
-                    )
+                    self._log_activity(f"Latest REDCap data saved to {override_file}.")
                 except Exception as redcap_error:  # noqa: BLE001 -- fallback is intentional
                     if existing_redcap_file.exists():
                         override_file = existing_redcap_file
@@ -2063,11 +2053,7 @@ class BidsCrosscheckWindow(QMainWindow):
         app_data_location = QStandardPaths.StandardLocation.AppDataLocation
         app_data_root = Path(QStandardPaths.writableLocation(app_data_location))
 
-        return (
-            app_data_root
-            / SETTINGS_ORGANIZATION
-            / self._settings.applicationName()
-        )
+        return app_data_root / SETTINGS_ORGANIZATION / self._settings.applicationName()
 
     def _redcap_config_file(self, study_id: str) -> Path:
         """Return the REDCap config file for this study and crosscheck."""
@@ -2098,8 +2084,7 @@ class BidsCrosscheckWindow(QMainWindow):
 
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self._log_activity(
-                f"REDCap configured for {study_id} / "
-                f"{self.dataset_config.dataset_name}."
+                f"REDCap configured for {study_id} / {self.dataset_config.dataset_name}."
             )
 
     def _pull_redcap_to_raw(self, study_id: str) -> Path:
@@ -2110,9 +2095,7 @@ class BidsCrosscheckWindow(QMainWindow):
         config = load_config(self._redcap_config_file(study_id))
 
         if config is None:
-            raise RuntimeError(
-                "REDCap is not configured for this study. Click Setup REDCap first."
-            )
+            raise RuntimeError("REDCap is not configured for this study. Click Setup REDCap first.")
 
         return pull_report_to_raw(
             raw_folder=self.raw_folder,
@@ -2143,9 +2126,7 @@ class BidsCrosscheckWindow(QMainWindow):
             )
             return
 
-        self._log_activity(
-            f"REDCap data saved to {output_file}."
-        )
+        self._log_activity(f"REDCap data saved to {output_file}.")
 
     def _save_crosscheck_data(self, study_id: str) -> tuple[list[Path], Path]:
         """Copies this BIDS folder's recorded decisions into its crosscheck data folder --
