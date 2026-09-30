@@ -66,6 +66,7 @@ from vrlab_toolbox.gui.qt_common import (
     default_browse_dir,
     primary_action_stylesheet,
     set_path_display,
+    set_window_icon,
     style_name_label,
     style_secondary_label,
     wrap_tooltip,
@@ -202,6 +203,11 @@ class ProcessResultsConfig:
     (as HTML-escaped text) whenever the Summary Stats tab is the active detail tab.
     `None`, or an empty list back from it, leaves the Activity Log showing whatever it
     otherwise would (the focused subject's log, or a run-status message).
+
+    `window_icon_path`, if given, is a repo-root-relative path (e.g. `Path("assets") /
+    "crane_icon.png"`) to this dataset's title-bar/taskbar icon -- resolved via
+    `qt_common.set_window_icon`, which degrades quietly to no icon if the file isn't
+    found. `None` (the default) leaves the window with Qt's own default icon.
     """
 
     dataset_name: str
@@ -214,6 +220,7 @@ class ProcessResultsConfig:
     bids_subject_id_from_path: Callable[[Path], str] = get_subject_id_from_mat
     build_group_dashboard: Callable[[Figure, pd.DataFrame, list[str]], None] | None = None
     dashboard_overhead_lines: Callable[[pd.DataFrame, list[str]], list[str]] | None = None
+    window_icon_path: Path | None = None
 
 
 def _find_batch_csv(output_folder: Path, csv_glob: str) -> Path | None:
@@ -528,6 +535,7 @@ class ProcessResultsWindow(QMainWindow):
         self._settings = QSettings(SETTINGS_ORGANIZATION, settings_app_name)
 
         self.setWindowTitle(f"{config.window_title} (v{__version__})")
+        set_window_icon(self, config.window_icon_path)
         self.resize(1250, 750)
         self._build_ui()
         self._restore_last_bids_folder()

@@ -37,6 +37,7 @@ LONGWALK_PROCESS_RESULTS_CONFIG = ProcessResultsConfig(
     csv_glob="*vrlab_longwalk_process_batch_data_out.csv",
     process_bids_folder=_process_bids_folder,
     bids_physio_glob=PHYSIO_GLOB_PATTERN,
+    window_icon_path=Path("assets") / "longwalk_icon.png",
 )
 
 

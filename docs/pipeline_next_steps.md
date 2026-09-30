@@ -1385,3 +1385,113 @@ history along (item 26's dead-code history included either way).
    an OS-level rename only doable from outside a running session that's working inside it.
 6. Once public, item 20's GitHub Pages deferral is unblocked — add the
    `mkdocs gh-deploy`-equivalent Actions job it already describes as "not needed yet."
+
+### 30. LongWalkV3 pipeline: multi-session behaviour import design (open decisions)
+
+Not started — design discussion only, 2026-09-23. `longwalk3_pipeline.py` has basics wired up
+(crosscheck, debrief export); next up is `ImportLongWalkV3BehaviourDataStrategyStep`, which
+surfaced a real architectural mismatch: `ParticipantConfig`/`ParticipantConfig.from_bids_data`
+(`input_data.py`) assumes one file per behaviour type per subject — it globs and takes
+`behav_file_matches[0]`, warning on extras as if they were duplicate-data errors. That's true for
+Crane/FOH but not LongWalkV3: a subject can have up to 3 real-world sessions, each with multiple
+city/run `events.tsv` files (see `longwalk3_bids.py`'s module docstring) — behaviour import there
+is inherently multi-file, not a duplicate to resolve down to one.
+
+**Direction agreed:** don't touch `pipeline.py` or `input_data.py` (both shared with Crane/FOH).
+Loop over sessions at the `longwalk3_pipeline.py` level instead — call the unmodified
+`PipelineTemplate.run()` once per session, with a session-scoped `ParticipantConfig` and a
+session-scoped output folder (`output_folder_session01`, etc.). A separate, later merge script
+combines the per-session output CSVs into one spreadsheet, suffixing column headers per session
+(`_session1`, `_session2`, ...) — done entirely outside pipeline code, so `PipelineOutputData.merge()`'s
+same-row column-concat (which requires disjoint column names between the two frames being merged,
+see item 1) never has to reconcile columns across sessions.
+
+**Two implementation details to get right, not design decisions:**
+
+- Construct `PipelineTemplate` and all its step objects **fresh inside each loop iteration**, not
+  once and reused. `SequentialBehaviourImportSteps`/`SequentialPhysiolgyImportSteps` hold their
+  `RawBehaviourDataStore`/`RawPhysiologyDataStore` as instance state created once via
+  `field(default_factory=...)`. If the same instances were reused across the session loop, a
+  session whose import fails partway (exception caught, `.add()` never called) would silently fall
+  through to the *previous* session's still-present entry for that type — processing would run on
+  stale prior-session data while reporting that session's import as `ERROR`. Rebuilding everything
+  fresh per iteration (matching how `run_pipeline()`'s body already builds it once today) avoids
+  this entirely.
+- Pass `session_nr` into `FindLongWalkV3ParticipantFilesStrategyStep`'s constructor, not as a new
+  required `run()` parameter — the shared `FindParticipantFilesStrategyStep` Protocol (`pipeline.py`)
+  fixes `run()`'s signature to `(participant_id_in, data_folder_in, output_folder_in=None)`, and a
+  new required param there would break structural conformance.
+
+**Open decision — LongWalkV3 debrief handling in a per-session loop, not yet picked:** the
+debrief file is anchored to a subject's `ses-01` only (`longwalk3_bids.py`'s `DEBRIEF_SESSION_NR`
+— it isn't tied to any one VR session), but the per-session loop reruns the whole
+`PipelineTemplate`, including `ImportLongWalkV3DebriefDataProcessStrategyStep`, every iteration.
+Three options on the table:
+
+1. **Exclude debrief from non-primary sessions** — condition `behaviour_data_types_in` on
+   `session_nr == 1` in the find-step. Needs care: `RawBehaviourData.load_from_bids_behaviour_type`
+   (`behaviour.py:50`) does a plain `config_in._behaviour_file_names[behaviour_type]` dict lookup,
+   not `.get()` — if a session's config simply omits the type from `behaviour_data_types_in`, the
+   key is absent (not `None`), which raises an uncaught `KeyError` instead of the catchable
+   `FileNotFoundError` `SequentialBehaviourImportSteps.run()` expects. So the find-step must still
+   include the type for every session (value resolves to `None` on non-primary sessions), just
+   never search for it there.
+2. **Attempt debrief every session, accept the status noise** — sessions 2/3 will report
+   `RawLongWalkV3DebriefBehaviourData=ERROR` in their per-session `Processing_Status`, which is
+   expected-by-design rather than a real fault. Any downstream status check (including the eventual
+   merge script) needs to know to disregard debrief status outside the `ses-01` row.
+3. **Add a real "not applicable" `ProcessingStatus` value** — today's enum
+   (`processing_status.py`) is only `NOT_RUN/OK/PARTIAL/CORRECTED/ERROR`, nothing represents
+   "correctly skipped, not a failure." The only option of the three that touches a shared file used
+   by every pipeline, not just LongWalkV3 — `OVERRIDE`-gated.
+
+Whichever is picked, keep it separate from genuinely missing per-session data (e.g. a session
+folder that exists but is missing its physiology file) — that's a real gap and should very likely
+stay `ERROR`, not get silently downgraded by whatever debrief fix lands.
+
+Not to be conflated with the older, unrelated `long_walk_pipeline.py`/`long walk` entries in the
+"Deferred: FOH & LongWalk" section above — those are about the previous long-walk pipeline
+(single-session, no behavioural data at all), not `longwalk3_*`.
+
+### 31. LongWalkV3: needed Unreal-side export changes
+
+Running list, started 2026-09-29, of problems in the raw LongWalkV3 files that should be fixed
+in the Unreal export itself, not worked around in the toolbox. The evidence is the two real
+recordings in `longwalkv3_examples/`: `testEDA01` (2026-09-16) and `Test 1` (2026-09-18). Add
+to this list as new ones turn up, and tick items off once a new export confirms the fix.
+
+- [ ] **`behaviour.csv` `TimeStamp` is always `0.0`.** Every data row in both recordings has
+  it. `longwalk3_bids.combine_events_df_files` parses it with `DATESTR_FORMAT`
+  (`%Y%m%d%H%M%S%f`, 17 digits, e.g. `20260916173007551`), so `0.0` becomes `NaT`, and the
+  BIDS events schema rejects the null `onset`. **Needed:** write the real wall-clock time
+  of each rating, in the same 17-digit format the actor logs' `datetime` column already
+  uses. Until then, `longwalk3_dummy_data.py` makes up timestamps spread evenly across each
+  run, so real data will still fail where dummy data passes.
+- [ ] **Header row repeated a varying number of times.** In the `Test 1` export it appears
+  1–11 times per file (`ThreatLevelMarkerNew_C` 11, `BP_NPC_C` 4, `behaviour` 4,
+  `BP_HeatmapManager_C` once), apparently once per logger or actor instance, not once per
+  file. The loader removes the repeats, so this is low priority. **Needed:** write the
+  header once per file.
+- [ ] **`behaviour.csv` filename drops the `_` between `ses-` and `task-`**
+  (`..._ses-01task-city1_...`), while every actor log keeps it. `_RAW_CSV_FILENAME_PATTERN`
+  (`longwalk3_bids.py`) makes the underscore optional to cope. **Needed:** use the same
+  `_ses-XX_task-<city>_` layout as the actor logs.
+- [ ] **`BP_Phone_C` logged nothing in the `Test 1` export** (header only), while the
+  `testEDA01` export has 4 rows for it. **Needed:** confirm whether the phone never fired in
+  that run or the logger is broken. For now, `longwalk3_dummy_data.py` skips a template with
+  no data rows and uses an older one that has them.
+- [ ] **The run number in the filename is unreliable.** It's `run-1` in the `testEDA01`
+  export and `run-0` in `Test 1`, and it doesn't count up across runs. The pipeline works
+  out run order from the filename timestamps instead (see item 30 and
+  `longwalk3_bids.py`'s module docstring). **Decide:** make Unreal write a real per-session
+  run counter, or drop the entity and rely on timestamps permanently.
+- [ ] **An aborted start leaves empty files behind.** `Test 1` has a `202609181330_...`
+  set of three actor logs (`BP_AudioCueTrigger_C`, `BP_PanicCooldownTimersManager_C`,
+  `ThreatLevelMarkerNew_C`) with headers only and no `behaviour.csv`, 7 minutes before the
+  real `202609181337_...` run. **Decide:** should Unreal skip writing files for a run that
+  never started, or should the crosscheck flag these?
+
+Already fixed in newer exports, kept for reference: the `testEDA01` export split time into
+`year,month,...,millisecond` columns with `millisecond` always `0`, and location into
+`worldLocationX/Y/Z`. The `Test 1` export writes a single 17-digit `datetime` with real
+milliseconds, plus a single `worldLocation` column.

@@ -4,11 +4,11 @@ This is step 1: before your data can be [processed](processing.md), your
 raw recordings need to be converted into the standard folder layout
 analysis expects (called "BIDS") and crosschecked. This page explains what
 that means and why it matters — it applies whether your data is from FOH,
-Crane, or both. Once you've read this, go to [FOH
-Crosscheck](foh-crosscheck.md) or [Crane Crosscheck](crane-crosscheck.md)
-for the tool-specific walkthrough. You may use one or the other, or both,
-depending on which experiment(s) your data comes from — neither tool
-depends on the other.
+Crane, or LongwalkV3. Once you've read this, go to [FOH
+Crosscheck](foh-crosscheck.md), [Crane Crosscheck](crane-crosscheck.md),
+or [LongwalkV3 Crosscheck](longwalkv3-crosscheck.md) for the
+tool-specific walkthrough. You may use whichever ones match your data —
+none of these tools depend on each other.
 
 ## What is "crosschecking"?
 
@@ -70,5 +70,6 @@ recording that turns out to be the wrong one.
 
 ---
 
-**Next: [FOH Crosscheck](foh-crosscheck.md)** or **[Crane
-Crosscheck](crane-crosscheck.md)** — whichever matches your data.
+**Next: [FOH Crosscheck](foh-crosscheck.md)**, **[Crane
+Crosscheck](crane-crosscheck.md)**, or **[LongwalkV3
+Crosscheck](longwalkv3-crosscheck.md)** — whichever matches your data.

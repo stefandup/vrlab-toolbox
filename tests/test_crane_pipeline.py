@@ -19,7 +19,7 @@ from vrlab_toolbox.processing.crane_behaviour import (
     build_crane_raw_behav_file_schema,
 )
 from vrlab_toolbox.processing.crane_bids import convert_crane_to_bids
-from vrlab_toolbox.processing.crane_debrief_behaviour import RawDebriefBehaviourData
+from vrlab_toolbox.processing.crane_debrief_behaviour import RawCraneDebriefBehaviourData
 from vrlab_toolbox.processing.crane_dummy_data import (
     discover_template_pairs,
     generate_dummy_debrief_workbook,
@@ -60,7 +60,7 @@ DUMMY_SHORT_TRIGGER_ID = "DUMMY009"
 ALL_OK_STATUS_STR = PipelineStatus(
     status={
         RawCraneBehaviourData: ProcessingStatus.OK,
-        RawDebriefBehaviourData: ProcessingStatus.OK,
+        RawCraneDebriefBehaviourData: ProcessingStatus.OK,
         RawBioData: ProcessingStatus.OK,
         TrialIntervals: ProcessingStatus.OK,
     }
@@ -69,7 +69,7 @@ ALL_OK_STATUS_STR = PipelineStatus(
 CORRECTED_INTERVAL_STATUS_STR = PipelineStatus(
     status={
         RawCraneBehaviourData: ProcessingStatus.OK,
-        RawDebriefBehaviourData: ProcessingStatus.OK,
+        RawCraneDebriefBehaviourData: ProcessingStatus.OK,
         RawBioData: ProcessingStatus.OK,
         TrialIntervals: ProcessingStatus.ERROR,
     }
@@ -78,7 +78,7 @@ CORRECTED_INTERVAL_STATUS_STR = PipelineStatus(
 MISSING_DEBRIEF_STATUS_STR = PipelineStatus(
     status={
         RawCraneBehaviourData: ProcessingStatus.OK,
-        RawDebriefBehaviourData: ProcessingStatus.ERROR,
+        RawCraneDebriefBehaviourData: ProcessingStatus.ERROR,
         RawBioData: ProcessingStatus.OK,
         TrialIntervals: ProcessingStatus.OK,
     }
@@ -153,7 +153,7 @@ class TestCranePipelineDummyData(unittest.TestCase):
     def test_crane_missing_debrief_correct_label(self):
         pipeline_out = run_pipeline(DUMMY_MISSING_DEBRIEF_ID, EXAMPLES_FOLDER)
         self.assertEqual(
-            pipeline_out.status.status[RawDebriefBehaviourData], ProcessingStatus.ERROR
+            pipeline_out.status.status[RawCraneDebriefBehaviourData], ProcessingStatus.ERROR
         )
         status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
         self.assertEqual(
@@ -180,7 +180,7 @@ class TestCranePipelineDummyData(unittest.TestCase):
         short_trigger_status_str = PipelineStatus(
             status={
                 RawCraneBehaviourData: ProcessingStatus.OK,
-                RawDebriefBehaviourData: ProcessingStatus.OK,
+                RawCraneDebriefBehaviourData: ProcessingStatus.OK,
                 RawBioData: ProcessingStatus.PARTIAL,
                 TrialIntervals: ProcessingStatus.ERROR,
             }
@@ -313,7 +313,7 @@ class TestCranePipelineRealData(unittest.TestCase):
         corrected_interval_str = PipelineStatus(
             status={
                 RawCraneBehaviourData: ProcessingStatus.OK,
-                RawDebriefBehaviourData: ProcessingStatus.ERROR,
+                RawCraneDebriefBehaviourData: ProcessingStatus.ERROR,
                 RawBioData: ProcessingStatus.OK,
                 TrialIntervals: ProcessingStatus.ERROR,
             }

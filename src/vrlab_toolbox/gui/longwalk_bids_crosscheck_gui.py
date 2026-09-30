@@ -45,7 +45,7 @@ from vrlab_toolbox.gui.bids_crosscheck_common import (
 from vrlab_toolbox.processing.bids import strip_duplicate_marker
 from vrlab_toolbox.processing.bids_crosscheck import DatasetConfig, ScanTypeConfig
 from vrlab_toolbox.processing.biodata import ACCEPTED_LABEL_PATTERN, CANONICAL_LABEL_SPELLING
-from vrlab_toolbox.processing.biopac import clean_biopac_labels
+from vrlab_toolbox.processing.biopac import clean_biopac_mat_labels
 from vrlab_toolbox.processing.longwalk_bids import (
     RAW_FILENAME_ID_CORRECTIONS_FILENAME,
     LongWalkConversionSummary,
@@ -112,7 +112,7 @@ def _present_physio_channels(labels: list[str]) -> dict[str, bool]:
 def _parse_physiology_info(file: Path) -> LongwalkPhysiologyInfo:
     try:
         imported_data = sio.loadmat(str(file))
-        labels = clean_biopac_labels(imported_data["labels"])
+        labels = clean_biopac_mat_labels(imported_data["labels"])
         isi_seconds = float(imported_data["isi"].squeeze()) / 1000
         n_samples = imported_data["data"].shape[0]
     except Exception:
@@ -470,7 +470,7 @@ def _run_longwalk_conversion(
     it's always None here.
     """
     handler = _ListLogHandler()
-    converter_logger = logging.getLogger("mooi_toolbox.processing.longwalk_bids")
+    converter_logger = logging.getLogger("vrlab_toolbox.processing.longwalk_bids")
     converter_logger.addHandler(handler)
     try:
         summary = convert_longwalk_to_bids(raw_folder, bids_folder)
@@ -487,6 +487,7 @@ def main() -> None:
         LongwalkCandidateExtras(),
         settings_app_name="LongwalkBidsCrosscheck",
         raw_converter=_run_longwalk_conversion,
+        window_icon_path=Path("assets") / "longwalk_icon.png",
         extra_raw_actions=[
             (
                 "Fix Filenames in Raw Folder",

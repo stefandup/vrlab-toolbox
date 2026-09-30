@@ -11,6 +11,7 @@ import logging
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 from PySide6.QtCore import QItemSelectionModel, QSettings, QStandardPaths, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices, QFont
@@ -48,11 +49,13 @@ from rich.progress import Progress
 
 from vrlab_toolbox import __version__
 from vrlab_toolbox.gui.qt_common import (
+    APP_DATA_DIRNAME,
     HOME_BASE_ACCENT_COLOR,
     HOME_BASE_ACCENT_HOVER_COLOR,
     HOME_BASE_NAME_EXTRA_POINT_INCREASE,
     SETTINGS_ORGANIZATION,
     default_browse_dir,
+    set_window_icon,
     wrap_tooltip,
 )
 from vrlab_toolbox.gui.qt_common import accent_group_box_stylesheet as _accent_group_box_stylesheet
@@ -60,6 +63,7 @@ from vrlab_toolbox.gui.qt_common import primary_action_stylesheet as _primary_ac
 from vrlab_toolbox.gui.qt_common import set_path_display as _set_path_display
 from vrlab_toolbox.gui.qt_common import style_name_label as _style_name_label
 from vrlab_toolbox.gui.qt_common import style_secondary_label as _style_secondary_label
+from vrlab_toolbox.gui.redcap_crosscheck import RedcapSetupDialog
 from vrlab_toolbox.processing.bids import (
     is_bids_like_folder,
     is_effectively_empty_folder,
@@ -77,6 +81,7 @@ from vrlab_toolbox.processing.bids_crosscheck import (
     crosschecked_scan_types,
     ensure_bidsignore,
     fill_missing_scans_tsv_dates,
+    group_scans_tsv_rows_by_session,
     list_scans_tsv_rows,
     load_decisions,
     load_excluded_subjects,
@@ -100,11 +105,10 @@ from vrlab_toolbox.processing.bids_crosscheck import (
     save_pending_selections,
     save_study_id,
     scan_bids_folder,
+    scans_tsv_dates_agree,
     scans_tsv_reference_date,
     set_crosschecked,
 )
-
-from vrlab_toolbox.gui.redcap_crosscheck import RedcapSetupDialog
 from vrlab_toolbox.processing.redcap import (
     load_config,
     pull_report_to_raw,
@@ -119,6 +123,9 @@ PENDING_ICON = "⏳"
 NEEDS_TAG_ICON = "🏷"
 WARNING_ICON = "❗"
 SCANS_TSV_DATE_ISSUE_ICON = "✗"
+# A problem across a subject's files as a whole, not any one file -- see
+# CandidateExtras.subject_issues.
+SUBJECT_ISSUE_ICON = "⚑"
 PLEASE_SELECT_COLOR = "#f39c12"
 PENDING_COLOR = "#9b59b6"
 UNCROSSCHECKED_COLOR = "#e74c3c"
@@ -195,7 +202,8 @@ def _sanitize_for_filesystem(text: str) -> str:
 
 
 STATUS_ICON_TOOLTIP = (
-    f"{STATUS_ICON['ok']} complete -- exactly one file found\n"
+    f"{STATUS_ICON['ok']} complete -- exactly one file found (or, for a scan type that "
+    "allows it, every file found is treated as legitimate)\n"
     f"{STATUS_ICON['missing']} missing -- no file found\n"
     f"{STATUS_ICON['duplicate']} duplicate -- more than one candidate, pick one\n"
     f"{CROSSCHECKED_ICON} crosschecked -- manually marked as reviewed\n"
@@ -308,6 +316,20 @@ class CandidateExtras:
     def task_tag_available(self, scan_type: str) -> bool:
         return False
 
+    def date_correction_available(self, scan_type: str) -> bool:
+        """True (the default) to show the per-file "Correct date..." button for this scan
+        type's effective candidate. A dataset can narrow it to only the scan types whose date
+        can genuinely be wrong -- e.g. longwalkV3, where only a physiology filename's date is
+        ever typed by hand; events dates come from inside the recording itself.
+        """
+        return True
+
+    def scans_tsv_row_actions_available(self) -> bool:
+        """True (the default) to show "Edit date..."/"Remove row..." on each row of the
+        scans.tsv pane. False keeps the pane as a read-only date overview.
+        """
+        return True
+
     def filename_correction_available(self, scan_type: str) -> bool:
         """True to show a free-text "Correct filename..." action for this scan type's
         effective candidate -- a general escape hatch for fixing any part of a filename a
@@ -354,6 +376,27 @@ class CandidateExtras:
         cache filename. Crane's no-op default needs none."""
         return ()
 
+    # Legend line for SUBJECT_ISSUE_ICON in the subject list's status-icon tooltip -- None
+    # (the default) leaves the legend out entirely, for a dataset that never reports
+    # subject-level issues (see `subject_issues`).
+    subject_issue_legend: str | None = None
+
+    def subject_issues(self, subject_id: str, subject_scans: dict[str, SubjectScan]) -> list[str]:
+        """Human-readable problems that only show up across a subject's files taken together,
+        not in any one file on its own -- e.g. longwalkV3's "ses-02 has no physiology
+        recording". Any entry adds SUBJECT_ISSUE_ICON to the subject's row, counts it under
+        "Issues only", and is listed in the detail pane's subject overview. `subject_scans` is
+        this subject's `{scan_type: SubjectScan}` map. Crane/FOH's no-op default reports none.
+        """
+        return []
+
+    def subject_summary(self, subject_id: str, subject_scans: dict[str, SubjectScan]) -> str | None:
+        """Rich-text overview shown at the top of the detail pane for one selected subject
+        (e.g. longwalkV3's per-session city/run layout), alongside any `subject_issues`. None
+        (the default) shows nothing extra.
+        """
+        return None
+
 
 class BidsCrosscheckWindow(QMainWindow):
     def __init__(
@@ -370,7 +413,12 @@ class BidsCrosscheckWindow(QMainWindow):
         | None = None,
         convert_button_tooltip: str = DEFAULT_CONVERT_BUTTON_TOOLTIP,
         extra_backup_filenames: tuple[str, ...] = (),
+        window_icon_path: Path | None = None,
         enable_redcap: bool = False,
+        extra_subject_actions: list[
+            tuple[str, str, Callable[[Path, str, dict[str, SubjectScan], QWidget], bool], bool]
+        ]
+        | None = None,
     ):
         """`raw_converter`, if given, adds a "Raw folder summary" group box and a "Refresh BIDS"
         button in the "BIDS Folder" group box below it -- optional, dataset-specific (crane
@@ -418,6 +466,23 @@ class BidsCrosscheckWindow(QMainWindow):
         `raw_converter` itself reads as input on the next conversion. This window doesn't
         know what these files mean, only that they need to travel with a backup the same way
         `crosscheck.json` does.
+
+        `window_icon_path`, if given, is a repo-root-relative path (e.g. `Path("assets") /
+        "crane_icon.png"`) to this dataset's title-bar/taskbar icon -- resolved via
+        `qt_common.set_window_icon`, which degrades quietly to no icon if the file isn't
+        found. `None` (the default) leaves the window with Qt's own default icon.
+
+        `extra_subject_actions`, if given, adds one button per entry to the Subject Actions
+        panel when exactly one subject is selected -- each `(button_label, tooltip, callback,
+        prominent)`,
+        called as `callback(bids_folder, subject_id, subject_scans, self)` where
+        `subject_scans` is that subject's `{scan_type: SubjectScan}` map. The callback returns
+        True if it changed anything on disk, which triggers a rescan -- e.g. longwalkV3's
+        "Remove events by run..." dialog. Same "this window doesn't know what the callback
+        does" contract as `extra_raw_actions`. `prominent` True places the button at the
+        front of the panel, right after "Remove non-selected files from BIDS", styled as a
+        filled primary action (same grey as the "Fix ..." buttons) so it's easy to spot;
+        False leaves it as a plain button after "Rename subject ID...".
         """
         super().__init__()
         self.dataset_config = dataset_config
@@ -427,6 +492,7 @@ class BidsCrosscheckWindow(QMainWindow):
         self.override_file_filter = override_file_filter
         self.override_file_autodetect = override_file_autodetect
         self.extra_raw_actions = extra_raw_actions or []
+        self.extra_subject_actions = extra_subject_actions or []
         self.convert_button_tooltip = convert_button_tooltip
         self.extra_backup_filenames = extra_backup_filenames
         self.enable_redcap = enable_redcap
@@ -449,6 +515,7 @@ class BidsCrosscheckWindow(QMainWindow):
         )
 
         self.setWindowTitle(f"{window_title} (v{__version__})")
+        set_window_icon(self, window_icon_path)
         self.resize(1100, 650)
         self._build_ui()
         self._restore_last_bids_folder()
@@ -711,9 +778,7 @@ class BidsCrosscheckWindow(QMainWindow):
             redcap_description.setWordWrap(True)
             redcap_group_layout.addWidget(redcap_description)
 
-            redcap_task_label = QLabel(
-                f"Task: {self.dataset_config.dataset_name.capitalize()}"
-            )
+            redcap_task_label = QLabel(f"Task: {self.dataset_config.dataset_name.capitalize()}")
             redcap_task_label.setStyleSheet("color: #555555;")
             redcap_group_layout.addWidget(redcap_task_label)
 
@@ -722,9 +787,7 @@ class BidsCrosscheckWindow(QMainWindow):
 
             self.redcap_setup_button = QPushButton("Setup REDCap")
             self.redcap_setup_button.setToolTip(
-                wrap_tooltip(
-                    "Configure the REDCap project for this Study ID and crosscheck."
-                )
+                wrap_tooltip("Configure the REDCap project for this Study ID and crosscheck.")
             )
             self.redcap_setup_button.clicked.connect(self._on_setup_redcap)
             redcap_row.addWidget(self.redcap_setup_button)
@@ -743,7 +806,6 @@ class BidsCrosscheckWindow(QMainWindow):
             redcap_group_layout.addLayout(redcap_row)
 
             bids_group_layout.addWidget(redcap_group)
-        
 
         if self.raw_converter is not None:
             # The most visually prominent action in the whole top-left area -- full-width,
@@ -1057,9 +1119,10 @@ class BidsCrosscheckWindow(QMainWindow):
         """Return the debrief/override file currently relevant to this window.
 
         An explicitly selected file always wins. When REDCap integration is
-        enabled, the standardized REDCap file for the current study is shown
-        instead of running the legacy auto-detection. Otherwise the existing
-        dataset-specific auto-detection is preserved.
+        enabled, the standardized REDCap file pulled for the current study comes
+        next. Otherwise -- including REDCap-enabled windows that haven't pulled
+        anything yet -- the dataset-specific auto-detection is used, the same
+        fallback the converter itself applies (e.g. a manual REDCap export).
         """
         if self.override_file is not None:
             return self.override_file
@@ -1076,8 +1139,6 @@ class BidsCrosscheckWindow(QMainWindow):
 
                 if redcap_file.exists():
                     return redcap_file
-
-            return None
 
         if self.override_file_autodetect is not None and self.raw_folder is not None:
             try:
@@ -1173,6 +1234,9 @@ class BidsCrosscheckWindow(QMainWindow):
 
     def _on_study_id_committed(self) -> None:
         study_id = self._current_study_id()
+        # The pulled REDCap file is named after the study id, so "Debrief Data" may now
+        # resolve to a different file (or none).
+        self._update_override_file_label()
         # Never persist the placeholder itself as a real study id -- it's only there to
         # keep backups running under its own name until a human types the actual one.
         if study_id == DEFAULT_STUDY_ID_PLACEHOLDER:
@@ -1241,9 +1305,7 @@ class BidsCrosscheckWindow(QMainWindow):
                 study_id = self._current_study_id()
 
                 if not study_id or study_id == DEFAULT_STUDY_ID_PLACEHOLDER:
-                    raise RuntimeError(
-                        "Set the Study ID before refreshing BIDS with REDCap data."
-                    )
+                    raise RuntimeError("Set the Study ID before refreshing BIDS with REDCap data.")
 
                 existing_redcap_file = redcap_output_path(
                     raw_folder=self.raw_folder,
@@ -1253,9 +1315,8 @@ class BidsCrosscheckWindow(QMainWindow):
 
                 try:
                     override_file = self._pull_redcap_to_raw(study_id)
-                    self._log_activity(
-                        f"Latest REDCap data saved to {override_file}."
-                    )
+                    self._log_activity(f"Latest REDCap data saved to {override_file}.")
+                    self._update_override_file_label()
                 except Exception as redcap_error:  # noqa: BLE001 -- fallback is intentional
                     if existing_redcap_file.exists():
                         override_file = existing_redcap_file
@@ -1540,24 +1601,37 @@ class BidsCrosscheckWindow(QMainWindow):
         icons_text = " ".join(icons)
         if self.dataset_config.dates_in_scans_tsv and self._scans_tsv_has_date_issue(subject_id):
             icons_text += f" {SCANS_TSV_DATE_ISSUE_ICON}"
+        if self._subject_issues(subject_id):
+            icons_text += f" {SUBJECT_ISSUE_ICON}"
         return icons_text
+
+    def _subject_issues(self, subject_id: str) -> list[str]:
+        if self.scan is None:
+            return []
+        return self.extras.subject_issues(subject_id, self.scan.scans[subject_id])
 
     def _scans_tsv_has_date_issue(self, subject_id: str) -> bool:
         """True if any of this subject's scans.tsv rows fails the scans.tsv pane's own
-        tick/cross check -- doesn't parse as YYYYMMDDHHMM, or disagrees with the subject's
-        other rows (see `_build_scans_tsv_row`). Powers the master subject list's at-a-glance
-        SCANS_TSV_DATE_ISSUE_ICON, so a date problem is visible without opening the subject.
+        tick/cross check -- doesn't parse as YYYYMMDDHHMM, or disagrees with its own session's
+        other rows (see `_build_scans_tsv_row`) at this dataset's configured granularity.
+        Powers the master subject list's at-a-glance SCANS_TSV_DATE_ISSUE_ICON, so a date
+        problem is visible without opening the subject.
         """
         if self.bids_folder is None:
             return False
         rows = list_scans_tsv_rows(self.bids_folder, subject_id)
         if not rows:
             return False
-        reference_date = scans_tsv_reference_date(rows)
-        for row in rows:
-            parsed = parse_scans_tsv_date(row.get("acq_time"))
-            if parsed is None or (reference_date is not None and parsed != reference_date):
-                return True
+        granularity = self.dataset_config.scans_tsv_date_granularity
+        for session_rows in group_scans_tsv_rows_by_session(rows):
+            reference_date = scans_tsv_reference_date(session_rows)
+            for row in session_rows:
+                parsed = parse_scans_tsv_date(row.get("acq_time"))
+                if parsed is None or (
+                    reference_date is not None
+                    and not scans_tsv_dates_agree(parsed, reference_date, granularity)
+                ):
+                    return True
         return False
 
     def _status_icon_tooltip(self) -> str:
@@ -1568,21 +1642,21 @@ class BidsCrosscheckWindow(QMainWindow):
                 "doesn't parse as YYYYMMDDHHMM, or disagrees with its other rows -- see the "
                 "scans.tsv pane below"
             )
+        if self.extras.subject_issue_legend:
+            tooltip += f"\n{SUBJECT_ISSUE_ICON} {self.extras.subject_issue_legend}"
         return tooltip
 
     def _has_candidate_warning(self, subject_id: str, scan_type: str) -> bool:
-        """True if the file currently in effect for this scan type has a flagged issue.
+        """True if any file currently in effect for this scan type has a flagged issue.
 
-        Mirrors `_needs_task_tag`: checks the effective candidate only, so a duplicate
+        Mirrors `_needs_task_tag`: checks the effective candidate(s) only, so a duplicate
         with no pick made yet doesn't get judged before there's anything to judge.
         """
         if self.scan is None:
             return False
         subject_scan = self.scan.scans[subject_id][scan_type]
-        file = self._effective_candidate_file(subject_id, scan_type, subject_scan)
-        if file is None:
-            return False
-        return self.extras.has_warning(scan_type, file)
+        files = self._effective_candidate_files(subject_id, scan_type, subject_scan)
+        return any(self.extras.has_warning(scan_type, file) for file in files)
 
     def _needs_task_tag(self, subject_id: str, scan_type: str) -> bool:
         """True if a file counts as "the one" for this scan type but hasn't been tagged yet.
@@ -1606,7 +1680,7 @@ class BidsCrosscheckWindow(QMainWindow):
         return f"task-{self.dataset_config.task_tag_task}"
 
     def _subject_has_issues(self, subject_id: str) -> bool:
-        if self.scan.has_issues(subject_id):
+        if self.scan.has_issues(subject_id) or self._subject_issues(subject_id):
             return True
         return any(
             self._needs_task_tag(subject_id, scan_type)
@@ -1711,9 +1785,20 @@ class BidsCrosscheckWindow(QMainWindow):
                     f'<span style="color:{UNCROSSCHECKED_COLOR}">{scan_type.capitalize()} ✗</span>'
                 )
                 extra_tooltip = f"No {scan_type} file found for this subject."
-            elif subject_scan.status == "ok":
+            elif subject_scan.status == "ok" and len(subject_scan.files) == 1:
                 extra_html = self.extras.describe(scan_type, subject_scan.files[0])
                 extra_tooltip = self.extras.describe_tooltip(scan_type, subject_scan.files[0])
+            elif subject_scan.status == "ok":
+                # allow_multiple scan type with more than one legitimate file (e.g.
+                # longwalkV3's per-session physiology) -- each file's own describe() joined
+                # into one compact line rather than picking just the first.
+                described = [
+                    text
+                    for file in subject_scan.files
+                    if (text := self.extras.describe(scan_type, file))
+                ]
+                extra_html = " &nbsp;|&nbsp; ".join(described) if described else None
+                extra_tooltip = None
             elif subject_scan.status == "duplicate":
                 pending_file = pending_for_subject.get(scan_type)
                 if pending_file is not None:
@@ -1823,6 +1908,9 @@ class BidsCrosscheckWindow(QMainWindow):
 
     def _render_single_subject_detail(self, subject_id: str) -> None:
         self._pending_selections.setdefault(subject_id, {})
+        overview_group = self._build_subject_overview_group(subject_id)
+        if overview_group is not None:
+            self.detail_layout.insertWidget(self.detail_layout.count() - 1, overview_group)
         for scan_type in self.dataset_config.scan_type_names():
             subject_scan = self.scan.scans[subject_id][scan_type]
             self.detail_layout.insertWidget(
@@ -1852,16 +1940,14 @@ class BidsCrosscheckWindow(QMainWindow):
                 widget.deleteLater()
         for scan_type in self.dataset_config.scan_type_names():
             subject_scan = self.scan.scans[subject_id][scan_type]
-            file = self._effective_candidate_file(subject_id, scan_type, subject_scan)
-            if file is None:
-                continue
-            detail_html = self.extras.detail(scan_type, file)
-            if not detail_html:
-                continue
-            detail_label = QLabel(detail_html)
-            detail_label.setTextFormat(Qt.TextFormat.RichText)
-            detail_label.setWordWrap(True)
-            self.detail_extra_layout.addWidget(detail_label)
+            for file in self._effective_candidate_files(subject_id, scan_type, subject_scan):
+                detail_html = self.extras.detail(scan_type, file)
+                if not detail_html:
+                    continue
+                detail_label = QLabel(detail_html)
+                detail_label.setTextFormat(Qt.TextFormat.RichText)
+                detail_label.setWordWrap(True)
+                self.detail_extra_layout.addWidget(detail_label)
 
     def _update_commit_all_button(self) -> None:
         total_pending = sum(len(picks) for picks in self._pending_selections.values())
@@ -1876,16 +1962,30 @@ class BidsCrosscheckWindow(QMainWindow):
             self.commit_all_button.setStyleSheet("")
         self.commit_all_button.setEnabled(bool(total_pending))
 
+    def _effective_candidate_files(
+        self, subject_id: str, scan_type: str, subject_scan: SubjectScan
+    ) -> list[Path]:
+        """Every file currently in effect for this scan type: all of them for "ok" (usually
+        just one, but every file for an allow_multiple scan type -- see
+        ScanTypeConfig.allow_multiple), or whichever single candidate is radio-picked
+        (possibly still pending commit) for a duplicate, or none yet."""
+        if subject_scan.status == "ok":
+            return list(subject_scan.files)
+        if subject_scan.status == "duplicate":
+            pending = self._pending_selections.get(subject_id, {}).get(scan_type)
+            return [pending] if pending is not None else []
+        return []
+
     def _effective_candidate_file(
         self, subject_id: str, scan_type: str, subject_scan: SubjectScan
     ) -> Path | None:
-        """The file currently in effect for this scan type: the sole "ok" file, or whichever
-        candidate is radio-picked (possibly still pending commit) for a duplicate."""
-        if subject_scan.status == "ok":
-            return subject_scan.files[0]
-        if subject_scan.status == "duplicate":
-            return self._pending_selections.get(subject_id, {}).get(scan_type)
-        return None
+        """The first file currently in effect for this scan type -- see
+        `_effective_candidate_files`. Used by call sites (task tagging) that only ever expect
+        a single effective file; an allow_multiple scan type never enables tagging today, so
+        this narrowing doesn't lose anything in practice.
+        """
+        files = self._effective_candidate_files(subject_id, scan_type, subject_scan)
+        return files[0] if files else None
 
     def _pending_task_tag_file(self, subject_id: str, scan_type: str) -> Path | None:
         if self.scan is None or not self.extras.task_tag_available(scan_type):
@@ -1996,7 +2096,7 @@ class BidsCrosscheckWindow(QMainWindow):
         elif not restored:
             self._log_activity(
                 "Nothing to restore -- none of the selected subject(s) have a committed "
-                "duplicate pick to undo."
+                "duplicate pick or removed file to undo."
             )
         self._rescan(reload_pending=True)
 
@@ -2013,7 +2113,7 @@ class BidsCrosscheckWindow(QMainWindow):
         app_data_root = Path(QStandardPaths.writableLocation(app_data_location))
         return (
             app_data_root
-            / SETTINGS_ORGANIZATION
+            / APP_DATA_DIRNAME
             / self._settings.applicationName()
             / CROSSCHECK_DATA_BACKUP_DIRNAME
             / _sanitize_for_filesystem(study_id)
@@ -2024,11 +2124,7 @@ class BidsCrosscheckWindow(QMainWindow):
         app_data_location = QStandardPaths.StandardLocation.AppDataLocation
         app_data_root = Path(QStandardPaths.writableLocation(app_data_location))
 
-        return (
-            app_data_root
-            / SETTINGS_ORGANIZATION
-            / self._settings.applicationName()
-        )
+        return app_data_root / APP_DATA_DIRNAME / self._settings.applicationName()
 
     def _redcap_config_file(self, study_id: str) -> Path:
         """Return the REDCap config file for this study and crosscheck."""
@@ -2059,8 +2155,7 @@ class BidsCrosscheckWindow(QMainWindow):
 
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self._log_activity(
-                f"REDCap configured for {study_id} / "
-                f"{self.dataset_config.dataset_name}."
+                f"REDCap configured for {study_id} / {self.dataset_config.dataset_name}."
             )
 
     def _pull_redcap_to_raw(self, study_id: str) -> Path:
@@ -2071,9 +2166,7 @@ class BidsCrosscheckWindow(QMainWindow):
         config = load_config(self._redcap_config_file(study_id))
 
         if config is None:
-            raise RuntimeError(
-                "REDCap is not configured for this study. Click Setup REDCap first."
-            )
+            raise RuntimeError("REDCap is not configured for this study. Click Setup REDCap first.")
 
         return pull_report_to_raw(
             raw_folder=self.raw_folder,
@@ -2104,9 +2197,11 @@ class BidsCrosscheckWindow(QMainWindow):
             )
             return
 
-        self._log_activity(
-            f"REDCap data saved to {output_file}."
-        )
+        self._log_activity(f"REDCap data saved to {output_file}.")
+        # The pulled csv is now the file "Debrief Data" resolves to, and one more file in the
+        # raw folder -- refresh both panels so they don't keep showing "(none found yet)".
+        self._update_override_file_label()
+        self._update_raw_folder_summary_label()
 
     def _save_crosscheck_data(self, study_id: str) -> tuple[list[Path], Path]:
         """Copies this BIDS folder's recorded decisions into its crosscheck data folder --
@@ -2225,6 +2320,33 @@ class BidsCrosscheckWindow(QMainWindow):
             )
         self.load_bids_folder(self.bids_folder)
 
+    def _build_subject_overview_group(self, subject_id: str) -> QGroupBox | None:
+        """The dataset's `subject_summary`/`subject_issues` for this subject, above its
+        per-scan-type groups -- None if the dataset reports neither (Crane/FOH), so nothing
+        extra is shown there."""
+        if self.scan is None:
+            return None
+        summary_html = self.extras.subject_summary(subject_id, self.scan.scans[subject_id])
+        issues = self._subject_issues(subject_id)
+        if not summary_html and not issues:
+            return None
+
+        group = QGroupBox("Overview")
+        layout = QVBoxLayout(group)
+        if summary_html:
+            summary_label = QLabel(summary_html)
+            summary_label.setTextFormat(Qt.TextFormat.RichText)
+            summary_label.setWordWrap(True)
+            layout.addWidget(summary_label)
+        for issue in issues:
+            issue_label = QLabel(
+                f'<span style="color:{UNCROSSCHECKED_COLOR}">{SUBJECT_ISSUE_ICON} {issue}</span>'
+            )
+            issue_label.setTextFormat(Qt.TextFormat.RichText)
+            issue_label.setWordWrap(True)
+            layout.addWidget(issue_label)
+        return group
+
     def _build_scan_type_group(self, subject_id: str, subject_scan: SubjectScan) -> QGroupBox:
         file_word = "file" if len(subject_scan.files) == 1 else "files"
         group = QGroupBox(f"{subject_scan.scan_type} ({len(subject_scan.files)} {file_word})")
@@ -2233,11 +2355,14 @@ class BidsCrosscheckWindow(QMainWindow):
         if subject_scan.status == "missing":
             layout.addWidget(QLabel("MISSING"))
         elif subject_scan.status == "ok":
-            layout.addWidget(
-                self._build_candidate_row(
-                    subject_id, subject_scan.scan_type, subject_scan.files[0], None
+            # Normally exactly one file; for an allow_multiple scan type (see
+            # ScanTypeConfig.allow_multiple) there can legitimately be several -- each shown
+            # the same way, individually correctable, with no "pick one" radio needed since
+            # none of them are being discarded.
+            for file in subject_scan.files:
+                layout.addWidget(
+                    self._build_candidate_row(subject_id, subject_scan.scan_type, file, None)
                 )
-            )
         else:
             layout.addWidget(QLabel("Pick one:"))
             radio_group = QButtonGroup(group)
@@ -2291,7 +2416,7 @@ class BidsCrosscheckWindow(QMainWindow):
         reveal_button.clicked.connect(lambda: self._on_reveal_subject_folder(subject_id))
         row_layout.addWidget(reveal_button)
 
-        if is_effective_candidate:
+        if is_effective_candidate and self.extras.date_correction_available(scan_type):
             date_button = QPushButton("Correct date...")
             if self.dataset_config.dates_in_scans_tsv:
                 date_tooltip = (
@@ -2307,6 +2432,7 @@ class BidsCrosscheckWindow(QMainWindow):
             date_button.clicked.connect(lambda: self._on_correct_date(subject_id, scan_type, file))
             row_layout.addWidget(date_button)
 
+        if is_effective_candidate:
             if self.extras.task_tag_available(scan_type):
                 task = self.dataset_config.task_tag_task
                 tagged = self._task_tag_marker().lower() in file.stem.lower()
@@ -2355,13 +2481,18 @@ class BidsCrosscheckWindow(QMainWindow):
         return row
 
     def _build_scans_tsv_group(self, subject_id: str) -> QGroupBox | None:
-        """`scans.tsv` sidecar pane: every row (filename, acq_time) this subject's sidecar
-        currently tracks -- not just the one file "Correct date..." can reach per scan type
-        above, since a scans.tsv can outlive a resolved duplicate or list a file that's since
-        stopped matching any scan type's glob. Each row gets a green tick if its acq_time
-        parses as YYYYMMDDHHMM *and* agrees with the subject's other rows, a red cross
-        otherwise (unparseable, or disagrees) -- see `_build_scans_tsv_row`. None if this
-        subject has no scans.tsv yet (e.g. not converted).
+        """`scans.tsv` sidecar pane: every row (filename, acq_time) every one of this
+        subject's scans.tsv sidecars currently tracks -- not just the one file "Correct
+        date..." can reach per scan type above, since a scans.tsv can outlive a resolved
+        duplicate or list a file that's since stopped matching any scan type's glob. A subject
+        can have more than one scans.tsv (e.g. longwalkV3's one-per-session layout); rows are
+        grouped by their own session entity (`group_scans_tsv_rows_by_session`) so a row is
+        only ever compared against its *own* session's other rows, never a different,
+        genuinely-different-dated session. Each row gets a green tick if its acq_time parses
+        as YYYYMMDDHHMM *and* agrees with its session's other rows (at this dataset's
+        configured `scans_tsv_date_granularity`), a red cross otherwise (unparseable, or
+        disagrees) -- see `_build_scans_tsv_row`. None if this subject has no scans.tsv yet
+        (e.g. not converted).
         """
         rows = list_scans_tsv_rows(self.bids_folder, subject_id)
         if rows is None:
@@ -2371,15 +2502,22 @@ class BidsCrosscheckWindow(QMainWindow):
         group = QGroupBox(f"scans.tsv ({len(rows)} {row_word})")
         layout = QVBoxLayout(group)
 
-        reference_date = scans_tsv_reference_date(rows)
-
-        for row in rows:
-            layout.addWidget(self._build_scans_tsv_row(subject_id, row, reference_date))
+        granularity = self.dataset_config.scans_tsv_date_granularity
+        for session_rows in group_scans_tsv_rows_by_session(rows):
+            reference_date = scans_tsv_reference_date(session_rows)
+            for row in session_rows:
+                layout.addWidget(
+                    self._build_scans_tsv_row(subject_id, row, reference_date, granularity)
+                )
 
         return group
 
     def _build_scans_tsv_row(
-        self, subject_id: str, row: dict[str, str], reference_date: datetime | None
+        self,
+        subject_id: str,
+        row: dict[str, str],
+        reference_date: datetime | None,
+        granularity: Literal["minute", "day"],
     ) -> QWidget:
         relative_filename = row.get("filename", "")
         raw_date = row.get("acq_time", "")
@@ -2387,15 +2525,22 @@ class BidsCrosscheckWindow(QMainWindow):
         if parsed is None:
             icon, color = "✗", UNCROSSCHECKED_COLOR
             tooltip = f"{raw_date or '(empty)'!r} doesn't parse as YYYYMMDDHHMM"
-        elif reference_date is not None and parsed != reference_date:
+        elif reference_date is not None and not scans_tsv_dates_agree(
+            parsed, reference_date, granularity
+        ):
             icon, color = "✗", UNCROSSCHECKED_COLOR
+            agreement = "day" if granularity == "day" else "exact time"
             tooltip = (
-                f"{raw_date} doesn't match this subject's other scans.tsv rows "
-                f"({reference_date.strftime(SCANS_TSV_DATE_FORMAT)})"
+                f"{raw_date} doesn't share the same {agreement} as this session's other "
+                f"scans.tsv rows ({reference_date.strftime(SCANS_TSV_DATE_FORMAT)})"
             )
         else:
             icon, color = "✓", FOUND_EVERYWHERE_COLOR
-            tooltip = "Parses as YYYYMMDDHHMM and matches this subject's other rows"
+            agreement = "day" if granularity == "day" else "exact time"
+            tooltip = (
+                f"Parses as YYYYMMDDHHMM and shares the same {agreement} as this "
+                "session's other rows"
+            )
 
         row_widget = QWidget()
         row_layout = QHBoxLayout(row_widget)
@@ -2409,6 +2554,9 @@ class BidsCrosscheckWindow(QMainWindow):
         text_label = QLabel(f"{relative_filename}  —  {raw_date or '(empty)'}")
         text_label.setToolTip(tooltip)
         row_layout.addWidget(text_label, 1)
+
+        if not self.extras.scans_tsv_row_actions_available():
+            return row_widget
 
         edit_button = QPushButton("Edit date...")
         edit_button.setToolTip(
@@ -2592,6 +2740,8 @@ class BidsCrosscheckWindow(QMainWindow):
         if pending_count:
             commit_button.setStyleSheet(f"font-weight: bold; color: {PENDING_COLOR};")
         layout.addWidget(commit_button)
+        if len(subject_ids) == 1:
+            self._add_extra_subject_action_buttons(layout, subject_ids[0], prominent=True)
 
         if self._refresh_supported:
             refresh_button = QPushButton("Refresh")
@@ -2635,6 +2785,8 @@ class BidsCrosscheckWindow(QMainWindow):
             )
             rename_button.clicked.connect(lambda: self._on_rename_subject(subject_id))
             layout.addWidget(rename_button)
+
+            self._add_extra_subject_action_buttons(layout, subject_id, prominent=False)
         else:
             if self._task_tag_supported:
                 task = self.dataset_config.task_tag_task
@@ -2669,7 +2821,8 @@ class BidsCrosscheckWindow(QMainWindow):
         restore_button = QPushButton(restore_label)
         restore_button.setToolTip(
             wrap_tooltip(
-                "Undoes a committed duplicate pick for just this subject (or each selected "
+                "Undoes a committed duplicate pick or removed file(s) for just this subject "
+                "(or each selected "
                 "subject), so the next Refresh BIDS re-derives their whole record fresh from "
                 "the raw folder -- any other correction already made for them (date fixes, "
                 "crosschecked marks) goes with it. Nothing to do here for a subject that was "
@@ -2723,6 +2876,30 @@ class BidsCrosscheckWindow(QMainWindow):
             # Same placement/treatment as the group version above, for the single-subject
             # case -- see _build_subject_crosscheck_widget.
             layout.addWidget(self._build_subject_crosscheck_widget(subject_ids[0]))
+
+    def _add_extra_subject_action_buttons(
+        self, layout: QHBoxLayout, subject_id: str, prominent: bool
+    ) -> None:
+        """Appends every `extra_subject_actions` entry whose `prominent` flag matches to
+        `layout` -- prominent ones get the same filled grey `FIX_ACTION_COLOR` treatment as the
+        "Fix ..." buttons (see `_add_extra_action_buttons`), at the "Mark crosschecked"
+        button's height."""
+        for label, tooltip, callback, is_prominent in self.extra_subject_actions:
+            if is_prominent != prominent:
+                continue
+            action_button = QPushButton(label)
+            action_button.setToolTip(wrap_tooltip(tooltip))
+            if prominent:
+                action_button.setMinimumHeight(34)
+                action_button.setStyleSheet(
+                    _primary_action_stylesheet(FIX_ACTION_COLOR, FIX_ACTION_HOVER_COLOR)
+                )
+            action_button.clicked.connect(
+                lambda _checked=False, callback=callback: self._on_extra_subject_action(
+                    subject_id, callback
+                )
+            )
+            layout.addWidget(action_button)
 
     def _effective_candidates_for(self, subject_ids: list[str]) -> list[tuple[str, str, Path]]:
         """(subject_id, scan_type, file) for every selected subject's effective candidate.
@@ -2989,15 +3166,21 @@ class BidsCrosscheckWindow(QMainWindow):
             return
         uses_scans_tsv = self.dataset_config.dates_in_scans_tsv
         if uses_scans_tsv:
+            # Same date/time picker as the scans.tsv pane's "Edit date..." -- it can only ever
+            # hold a real date, so the saved acq_time is always a valid YYYYMMDDHHMM.
             original_date = read_scans_tsv_date(self.bids_folder, file) or ""
-            prompt = f"Corrected acquisition date for {file.name}:"
+            dialog = ScansTsvDateCorrectionDialog(file.name, original_date, self)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+            corrected_date = dialog.corrected_date()
         else:
             original_date = file.name.split("_")[0]
-            prompt = f"Corrected date prefix for {file.name}:"
-        corrected_date, confirmed = QInputDialog.getText(
-            self, "Correct date", prompt, text=original_date
-        )
-        if not confirmed or not corrected_date or corrected_date == original_date:
+            corrected_date, confirmed = QInputDialog.getText(
+                self, "Correct date", f"Corrected date prefix for {file.name}:", text=original_date
+            )
+            if not confirmed:
+                return
+        if not corrected_date or corrected_date == original_date:
             return
         try:
             if uses_scans_tsv:
@@ -3013,6 +3196,19 @@ class BidsCrosscheckWindow(QMainWindow):
             QMessageBox.warning(self, "Could not correct date", str(error))
         # reload_pending=True -- see _on_rename_all_selected for why.
         self._rescan(reload_pending=True)
+
+    def _on_extra_subject_action(
+        self,
+        subject_id: str,
+        callback: Callable[[Path, str, dict[str, SubjectScan], QWidget], bool],
+    ) -> None:
+        """Runs one `extra_subject_actions` callback for `subject_id`, rescanning if it
+        reports a change."""
+        if self.bids_folder is None or self.scan is None or subject_id not in self.scan.scans:
+            return
+        if callback(self.bids_folder, subject_id, self.scan.scans[subject_id], self):
+            # reload_pending=True -- see _on_rename_all_selected for why.
+            self._rescan(reload_pending=True)
 
     def _on_correct_filename(self, subject_id: str, scan_type: str, file: Path) -> None:
         if self.bids_folder is None:
@@ -3099,7 +3295,12 @@ def run_bids_crosscheck_app(
     | None = None,
     convert_button_tooltip: str = DEFAULT_CONVERT_BUTTON_TOOLTIP,
     extra_backup_filenames: tuple[str, ...] = (),
+    window_icon_path: Path | None = None,
     enable_redcap: bool = False,
+    extra_subject_actions: list[
+        tuple[str, str, Callable[[Path, str, dict[str, SubjectScan], QWidget], bool], bool]
+    ]
+    | None = None,
 ) -> None:
     app = QApplication.instance() or QApplication([])
     # Consistent tooltip look regardless of OS/theme default -- black text on white, matching
@@ -3122,7 +3323,9 @@ def run_bids_crosscheck_app(
         extra_raw_actions,
         convert_button_tooltip,
         extra_backup_filenames,
+        window_icon_path,
         enable_redcap,
+        extra_subject_actions,
     )
     window.show()
     app.exec()

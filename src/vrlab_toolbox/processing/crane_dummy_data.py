@@ -7,7 +7,7 @@ import pandas as pd
 import pandera.pandas as pa
 import scipy.io as sio
 
-from vrlab_toolbox.processing.biopac import clean_biopac_labels
+from vrlab_toolbox.processing.biopac import clean_biopac_mat_labels
 from vrlab_toolbox.processing.crane_behaviour import (
     BLOCK_TYPES,
     EMOTIONS_TESTED,
@@ -165,7 +165,7 @@ def _unbalance_trial_conditions(behav_df: pd.DataFrame, rng: np.random.Generator
 
 
 def _trigger_channel_index(mat_dict: dict) -> int:
-    return clean_biopac_labels(mat_dict["labels"]).index("Trigger")
+    return clean_biopac_mat_labels(mat_dict["labels"]).index("Trigger")
 
 
 def _sampling_freq_hz(mat_dict: dict) -> float:

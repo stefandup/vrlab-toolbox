@@ -24,6 +24,7 @@ nav:
           - Crosschecking: crosschecking.md
           - FOH Crosscheck: foh-crosscheck.md
           - Crane Crosscheck: crane-crosscheck.md
+          - LongwalkV3 Crosscheck: longwalkv3-crosscheck.md
       - 2. Process Your Data: processing.md
       - 3. Check Your Output:
           - EDA & SCRs: eda.md
