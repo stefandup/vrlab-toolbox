@@ -57,13 +57,25 @@ RAW_FILENAME_ID_CORRECTIONS_FILENAME = "raw_filename_id_corrections.json"
 
 logger = logging.getLogger(__name__)
 
-PHYSIOLOGY_GLOB = "*_LongWalkV3Out.acq"
+# Every .acq, not just "*_LongWalkV3Out.acq": a physiology file whose name no longer matches
+# the expected shape (a " (1)" duplicate-copy suffix, a missing subject id, ...) must still be
+# found, so it's reported as unparseable and listed in the crosscheck GUI's "Fix Filenames in
+# Raw Folder" dialog -- instead of silently never being seen at all. Files that don't resolve
+# to a subject are still never copied (see _convert_subject_physiology).
+PHYSIOLOGY_GLOB = "*.acq"
 BEHAVIOUR_GLOB = "*_behaviour.csv"
 # Real REDCap exports are named "{ProjectName}_DATA_{YYYY-MM-DD}_{HHMM}.csv" (see
 # longwalk3_dummy_data.py's _REDCAP_EXPORT_PATTERN) -- project name varies per study, unlike
 # crane's single fixed project export name, so the glob only pins down the shared "_DATA_"
 # marker.
 GROUP_REDCAP_GLOB = "*_DATA_*.csv"
+# What the crosscheck GUI's "Pull REDCap Data" button saves into the raw folder --
+# `processing/redcap.redcap_output_path` names it "redcap_{study_id}_{crosscheck_id}.csv", and
+# the LongwalkV3 crosscheck's crosscheck_id is its dataset name. The study id is only known to
+# the GUI, so it's wildcarded here. Preferred over GROUP_REDCAP_GLOB: it's the latest data
+# straight from the REDCap API, while a "_DATA_" file is a manual export that may be older.
+REDCAP_CROSSCHECK_ID = "longwalkv3"
+REDCAP_PULL_GLOB = f"redcap_*_{REDCAP_CROSSCHECK_ID}.csv"
 # The REDCap column that identifies which subject a debrief row belongs to -- "study_id" here,
 # not crane's "record_id".
 DEBRIEF_ID_COLUMN = "study_id"
@@ -89,6 +101,11 @@ DATESTR_FORMAT = "%Y%m%d%H%M%S%f"
 _PHYSIOLOGY_FILENAME_PATTERN = re.compile(
     r"^(?P<date>\d+)_(?P<subject_id>.+)_LongWalkV3Out$", re.IGNORECASE
 )
+# Fallback for a physiology filename that doesn't match _PHYSIOLOGY_FILENAME_PATTERN (so its
+# subject id can't be parsed) but a human has declared its subject id via a correction -- the
+# leading minute-precision date (FILENAME_DATESTR_FORMAT) is still recoverable on its own,
+# e.g. "202609161717__LongWalkV3Out" (id never typed) or "..._LongWalkV3Out (1)".
+_PHYSIOLOGY_LEADING_DATE_PATTERN = re.compile(r"^(?P<date>\d{12})(?!\d)")
 # Real behaviour/actor-log filenames are
 # "{date}_{subject_id}_ses-{session_nr}_task-{city_label}_run-{n}_{bp_id}" -- except real
 # behaviour.csv exports sometimes drop the underscore between the ses- and task- entities
@@ -166,9 +183,11 @@ def resolve_physiology_filename(
 ) -> ParsedPhysiologyFilename | None:
     """Like `parse_physiology_filename`, but checks a human-declared correction first (see
     `load_raw_filename_id_corrections`), keyed by the file's path relative to `input_folder`.
-    Still requires the filename to match the expected "{date}_..._LongWalkV3Out" shape to
-    recover a date -- a correction can override the subject id, not conjure a date out of an
-    unrecognizable filename.
+    A corrected file still needs a recoverable date: the full "{date}_..._LongWalkV3Out" shape
+    if it matches, else just a leading 12-digit date (`_PHYSIOLOGY_LEADING_DATE_PATTERN`) -- so
+    a filename whose subject id can't be parsed at all can still be fixed by a correction. A
+    correction can override the subject id, not conjure a date out of an unrecognizable
+    filename.
     """
     try:
         key = file.relative_to(input_folder).as_posix()
@@ -176,7 +195,9 @@ def resolve_physiology_filename(
         key = file.name
     corrected_subject_id = corrections.get(key)
     if corrected_subject_id:
-        match = _PHYSIOLOGY_FILENAME_PATTERN.match(file.stem)
+        match = _PHYSIOLOGY_FILENAME_PATTERN.match(
+            file.stem
+        ) or _PHYSIOLOGY_LEADING_DATE_PATTERN.match(file.stem)
         if match is None:
             return None
         return ParsedPhysiologyFilename(
@@ -225,28 +246,35 @@ def resolve_subject_id(file: Path, input_folder: Path, corrections: dict[str, st
 
 def find_debrief_export(input_folder: Path, override: Path | None = None) -> Path | None:
     """Locate the shared REDCap group export -- same contract as crane_bids.find_debrief_export.
-    `override`, given, is used as-is. Otherwise searches recursively for `GROUP_REDCAP_GLOB`.
+    `override`, given, is used as-is. Otherwise searches recursively for a REDCap API pull
+    (`REDCAP_PULL_GLOB`) first, then falls back to a manual REDCap export (`GROUP_REDCAP_GLOB`).
+
+    Public so `gui/longwalk3_bids_crosscheck_gui.py` can also call it with just `input_folder`,
+    to show which file auto-detection currently resolves to.
     """
     if override is not None:
         return override
 
-    candidates = sorted(input_folder.rglob(GROUP_REDCAP_GLOB))
-    if not candidates:
-        logger.warning(
-            "No file matching %r found in %s -- skipping debrief entirely",
-            GROUP_REDCAP_GLOB,
-            input_folder,
-        )
-        return None
+    for pattern in (REDCAP_PULL_GLOB, GROUP_REDCAP_GLOB):
+        candidates = sorted(input_folder.rglob(pattern))
+        if not candidates:
+            continue
+        if len(candidates) > 1:
+            logger.warning(
+                "Multiple files matching %r found -- using %s: %s",
+                pattern,
+                candidates[0].name,
+                ", ".join(path.name for path in candidates),
+            )
+        return candidates[0]
 
-    if len(candidates) > 1:
-        logger.warning(
-            "Multiple files matching %r found -- using %s: %s",
-            GROUP_REDCAP_GLOB,
-            candidates[0].name,
-            ", ".join(path.name for path in candidates),
-        )
-    return candidates[0]
+    logger.warning(
+        "No file matching %r or %r found in %s -- skipping debrief entirely",
+        REDCAP_PULL_GLOB,
+        GROUP_REDCAP_GLOB,
+        input_folder,
+    )
+    return None
 
 
 def load_debrief_export(input_folder: Path, override: Path | None = None) -> pd.DataFrame | None:
@@ -265,7 +293,9 @@ def discover_raw_files_for_review(input_folder: Path) -> list[Path]:
     of whether it currently resolves to a subject id -- lets the crosscheck GUI's
     raw-filename correction dialog review or override any of them, not only ones that fail to
     parse. Every raw csv (not just BEHAVIOUR_GLOB's `*_behaviour.csv`) is included, since
-    `get_all_dfs` pulls in a subject's sibling actor-location logs the same way.
+    `get_all_dfs` pulls in a subject's sibling actor-location logs the same way. Every `.acq`
+    is included too (`PHYSIOLOGY_GLOB`), including one whose name no longer matches the
+    expected physiology filename shape.
     """
     return sorted(
         (*input_folder.rglob(PHYSIOLOGY_GLOB), *input_folder.rglob("*.csv")),

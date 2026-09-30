@@ -72,6 +72,12 @@ TOOLS = [
         [],
     ),
     (
+        "vrlab_longwalk3_convert_to_bids",
+        os.path.join("cli", "longwalk3_convert_to_bids.py"),
+        True,
+        [],
+    ),
+    (
         "vrlab_longwalk3_bids_crosscheck",
         os.path.join("gui", "longwalk3_bids_crosscheck_gui.py"),
         False,

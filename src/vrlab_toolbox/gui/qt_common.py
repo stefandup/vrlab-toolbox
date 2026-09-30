@@ -13,6 +13,11 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QLabel, QMainWindow
 
 SETTINGS_ORGANIZATION = "MooiToolbox"
+# Folder under the OS app-data location that crosscheck backups/REDCap configs live in --
+# named after the toolbox itself (matches the installer's `VRLabToolbox` install folder).
+# Kept separate from SETTINGS_ORGANIZATION so renaming this doesn't reset every tool's
+# remembered QSettings (last-used folders etc.).
+APP_DATA_DIRNAME = "VRLabToolbox"
 
 # Qt's plain-text QToolTip never wraps on its own -- a long tooltip string renders as one
 # unbroken line stretching off-screen unless it already contains manual line breaks. Kept
@@ -124,9 +129,14 @@ def resolve_asset_path(relative_path: Path) -> Path:
     specs/toolbox.spec's per-tool `extra_datas`) when packaged, or the real repo root in
     dev mode. Same dual-path logic `toolbox_launcher.py` uses for its own logo, shared here
     so every tool's window icon resolves the same way instead of each reimplementing it.
+
+    When frozen, PyInstaller (6+) unpacks bundled data files under `sys._MEIPASS` -- the
+    `_internal/` folder beside the exe for a onedir build, the .app's resources on macOS --
+    not beside the exe itself, so that's checked first.
     """
     if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent / relative_path
+        bundle_dir = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+        return bundle_dir / relative_path
     # src/vrlab_toolbox/gui/qt_common.py -> repo root is three parents up.
     return Path(__file__).resolve().parents[3] / relative_path
 

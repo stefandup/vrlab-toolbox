@@ -74,6 +74,78 @@ or deleted by this step. Safe to click any time, including repeatedly.
 (Explorer on Windows, Finder on macOS) — handy if you want to look at
 what's actually in there yourself.
 
+#### Debrief data from REDCap
+
+Each subject's debrief comes from REDCap, and you can get it in one of
+two ways:
+
+- **Pull it (recommended).** Click **Setup REDCap** once for your Study ID
+  and enter the REDCap project details. After that, every **Refresh BIDS**
+  pulls the latest data first and saves it into the raw folder as
+  `redcap_<study>_longwalkv3.csv`. If REDCap can't be reached, the last
+  pulled file is used instead. **Pull REDCap Data** fetches it without
+  converting anything.
+- **Use a manual export.** A REDCap export saved into the raw folder
+  (`<Project>_DATA_<date>_<time>.csv`) is picked up automatically when
+  there's no pulled file. You can also choose any csv with the **Debrief
+  Data** picker.
+
+The **Debrief Data** panel always shows which file will be used. A subject
+that's already in BIDS without a debrief gets one added on the next
+Refresh BIDS, once REDCap has their row. Nothing else about that subject
+changes.
+
+##### Setting up REDCap the first time
+
+**Setup REDCap** asks for three things. The URL is already filled in; the
+other two come from your REDCap project.
+
+**Report ID** — the number of a saved report in your REDCap project. The
+pull downloads exactly what that report contains. REDCap's two built-in
+reports ("A: All data" and "B: Selected instruments") have no Report ID,
+so you need to make your own:
+
+1. In the REDCap project, open **Data Exports, Reports, and Stats** in the
+   left menu and click **+ Create New Report**.
+2. Name it something the lab will recognise as belonging to the crosscheck
+   (e.g. `Longwalk data for crosscheck`), so nobody edits or deletes it by
+   accident.
+3. Under **Fields to include**, add `study_id` first — it's how each
+   debrief row is matched to a subject — then the debrief fields. The
+   "add all fields from instrument" dropdown is the quickest way.
+4. Leave the filters empty so every record is included.
+5. Under **Additional report options**: tick *Include the survey identifier
+   and survey timestamp fields* (records when the debrief was done), leave
+   *Combine checkbox options* unticked (keeps one 0/1 column per option),
+   and keep *Remove line breaks* ticked (a line break inside a free-text
+   answer can split a row in two). The two display dropdowns only affect
+   REDCap's own screen, not the pull.
+6. Save. Back in **My Reports & Exports**, copy the number from the
+   **Report ID** column (e.g. `15195`) — not the "Unique report name" next
+   to it. The crosscheck can only find a report by this number, not by its
+   name.
+
+**API token** — a long code that lets the crosscheck read this one project
+as you. To get one:
+
+1. Your REDCap user needs **API Export** rights on the project (project
+   owner: **User Rights** → your user → tick *API Export*).
+2. Click **API** in the project's left menu and request a token. Depending
+   on your REDCap install, an administrator may need to approve it first.
+3. Once issued, copy the token from that same **API** page.
+
+The token is personal and gives access to the project's data, so treat it
+like a password. The crosscheck stores it in your operating system's
+credential store, never in a file in the BIDS or raw folder. Tokens are
+per project: one from a different REDCap project won't be able to see this
+report.
+
+After saving, click **Pull REDCap Data** and check the csv that appears in
+the raw folder: it should have a `study_id` column whose values match the
+subject ids in your filenames (e.g. `dummy01`). Values are exported raw, so
+multiple-choice answers arrive as codes (`1`, `2`, …) — REDCap's codebook
+says what each code means.
+
 Every raw physiology (`.acq`) or behaviour/actor-log (`.csv`) file's
 subject id is normally read straight from its filename. Occasionally that
 fails outright, or it succeeds but lands on the wrong id. Click **"Fix
@@ -106,21 +178,23 @@ you've already worked on.
 ### 4. Read the subject list
 
 The **BIDS folder summary** panel gives you the folder's overall state at
-a glance — total subject count, how many physiology/events files were
-found — and, in **bold red**, how many subjects still need crosschecking
+a glance — total subject count, how many physiology/events/debrief files
+were found — and, in **bold red**, how many subjects still need crosschecking
 (i.e. haven't been marked ☑). That count disappears once everyone's been
 reviewed.
 
 The left-hand panel lists every subject, with a small icon (or icons)
 next to each one telling you, at a glance, whether it needs your
-attention:
+attention. There's one icon per file type, in the order **physiology,
+events, debrief**, then an optional ⚑ for the subject as a whole:
 
 | Icon | Meaning |
 | --- | --- |
 | ● | Fine — one or more files found (normal for LongwalkV3, see above), nothing missing. |
 | ○ | Missing — no file found at all for this scan type. |
 | ☑ | You've personally reviewed and approved this one. |
-| ❗ | An events file couldn't be read, or is missing its expected `onset` column — worth a look before you rely on it. |
+| ❗ | A file has a problem — see [What gets checked](#what-gets-checked) below. Hover it in the detail panel for the exact reason. |
+| ⚑ | A problem with the subject's **sessions** as a whole, not one file — e.g. a session with no physiology, or two cities in one session. The **Overview** at the top of the detail panel spells it out. |
 
 !!! note "No ⚠ (duplicate) or 🏷 (needs tagging) icons here"
     You won't see either of these for LongwalkV3. ⚠ doesn't apply because
@@ -131,26 +205,72 @@ attention:
     way FOH has.
 
 Tick **Issues only** above the list to hide every subject that's already
-fine, so you only see the ones missing data or flagged with ❗.
+fine, so you only see the ones missing data or flagged with ❗ or ⚑.
+
+#### What gets checked
+
+**Each physiology `.acq` file** (only the file's header is read, so this
+is quick even for long recordings):
+
+- It opens as a real AcqKnowledge file.
+- It has an **EDA** channel, and that channel isn't empty. EDA is the
+  only signal LongwalkV3 processes, so ECG/Trigger are listed but not
+  required.
+- It's at least **5 minutes** long. Anything shorter is probably an
+  aborted or truncated recording.
+
+**Each events file:**
+
+- It opens, and has at least one row (not just a header).
+- It has an `onset` column, and **every** onset is a number. Missing
+  onsets are shown in red. Real exports will fail this until the
+  Unreal-side `TimeStamp` fix lands (see item 31 in `pipeline_next_steps.md`).
+- Its city (the `acq-cityN` part of the filename) is one of city1, city2
+  or city3.
+
+**The debrief file:** it opens and has at least one row. It's one REDCap
+debrief per subject for now, in `ses-01`. A subject without one shows ○
+in the debrief column. Per-session debriefs will come later.
+
+**Each subject's sessions as a whole (⚑):**
+
+- Every session has exactly **one** physiology recording and at least
+  one events file.
+- Every session has exactly **one city**. Each participant walks the
+  cities in their own random order, so any city can turn up in any
+  session. Two cities in one session usually means the wrong city was
+  started by mistake and then restarted. Keep the real run and remove the
+  wrong one.
+- No city is walked in more than one session.
+- No more than 3 sessions, and the debrief sits in `ses-01`.
+
+Fewer than 3 sessions is **not** flagged. A participant who hasn't done
+all their sessions yet is normal, so the Overview just shows the missing
+ones as "not recorded yet".
 
 ### 5. Click a subject to see its details
 
 The right-hand panel shows full detail for whichever subject is selected
-on the left — every physiology file and every events file found for
-them, each listed with its own info, individually correctable (see step
-6). You can also select more than one subject at once (Ctrl-click or
+on the left. At the top, an **Overview** box shows how many of the 3
+planned sessions were found, which city and how long a physiology
+recording each session has, whether the debrief is there, and any ⚑
+session-level problems in red. Below that you'll see every physiology,
+events and debrief file found for them, each listed with its own info and
+individually correctable (see step 6). You can also select more than one subject at once (Ctrl-click or
 Shift-click) for the bulk actions in [Working with several subjects at
 once](#working-with-several-subjects-at-once) below.
 
 The **Physiology** panel lists one row per `.acq` file found — normally
-one per real session. No content is read from these files (channel
-checks aren't available for this raw format yet), so each row just shows
-the filename with a ✓.
+one per real session — showing its session, length and a ✓/✗ for the
+EDA checks above. The details under it list the sample rate and every
+channel in the recording.
 
 The **Events** panel lists one row per events file found — one per
-session/city/run. Each row shows its row count and a ✓/✗ for whether it
-read cleanly and has the `onset` column every events file needs; hover
-the ✓/✗ for more detail.
+session/city/run. Each row shows its session, city, row count and a ✓/✗
+for the events checks above. Hover the ✓/✗ for the exact reason.
+
+The **Debrief** panel shows the subject's REDCap debrief file, if there
+is one.
 
 ### 6. Look at the files, or fix a wrong date
 
@@ -207,8 +327,10 @@ You'll see this button near the top of the window, same as Crane/FOH
 Crosscheck — but for LongwalkV3 it will almost always stay disabled or
 show "0 picks." That's expected: this button commits a *duplicate pick*,
 and, as explained above, physiology and events files are never treated
-as duplicates here. It only comes into play if a future scan type added
-to this tool doesn't allow multiple files the way physiology/events do.
+as duplicates here. The one exception is the **debrief**. Only one
+debrief per subject is allowed, so if a subject somehow ends up with two,
+you'll see ⚠ and "Please select correct file". Pick the right one, and
+this button removes the other.
 
 ## Working with several subjects at once
 

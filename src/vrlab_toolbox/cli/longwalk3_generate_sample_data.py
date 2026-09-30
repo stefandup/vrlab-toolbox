@@ -77,10 +77,17 @@ def main(
       started by mistake), then that session's actually-planned city. Both are written as
       run-000, the same as the real Unreal-side export always does -- exercising detection of
       a session with more than one run/city, without it always being the same session.
-    - "unparsable_physiology_filename": otherwise a normal, well-formed layout, but one
-      randomly chosen session's physiology .acq file is renamed the way a file browser names
-      an accidental duplicate copy -- " (1)" inserted before the extension -- a common real
-      mistake that leaves a raw filename no longer matching the expected pattern at all.
+    - "malformed_subject_id_in_physiology_filename": otherwise a normal, well-formed layout,
+      but one randomly chosen session's physiology .acq file has its subject id mistyped
+      (e.g. "dummy(7)" instead of "dummy07"), so it resolves to a stray extra subject until
+      the correct id is typed in the crosscheck GUI's "Fix Filenames in Raw Folder" dialog.
+    - "missing_subject_id_in_physiology_filename": one randomly chosen session's physiology
+      .acq file is saved without a subject id ("{date}__LongWalkV3Out.acq"), so no subject id
+      can be parsed from it -- shows as "(unparseable)" in the crosscheck GUI's "Fix Filenames
+      in Raw Folder" dialog until a corrected id is typed there.
+    - "mislabeled_physiology_date": the last session's physiology .acq filename carries a date
+      a month after the real session day, so its scans.tsv date no longer matches that
+      session's events.
 
     Each actor-location log's year/month/day/hour/minute/second/millisecond columns are combined
     into a single "date" column (concatenated yyyyMMddHHmmssSSS, e.g. "20260916175501873" -- the

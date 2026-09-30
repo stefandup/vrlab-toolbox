@@ -102,6 +102,8 @@ CLI_TOOLS = (
     "vrlab_foh_import_to_bids",
     "vrlab_longwalk_convert_to_bids",
     "vrlab_longwalk_process",
+    "vrlab_longwalk3_convert_to_bids",
+    "vrlab_longwalk3_generate_sample_data",
     "vrlab_plot_target_data",
 )
 

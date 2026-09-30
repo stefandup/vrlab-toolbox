@@ -31,28 +31,54 @@ CLEAN_SCENARIO_LABEL = "clean"
 # 3 planned sessions -- see longwalk3_bids.py's SESSION_TOKEN comment). Each named error type
 # below instead produces a specific known-wrong session/city layout, to exercise the BIDS
 # crosscheck's ability to flag it.
-ERROR_TYPES = ("multiple_cities_per_session", "unparsable_physiology_filename")
+ERROR_TYPES = (
+    "multiple_cities_per_session",
+    "malformed_subject_id_in_physiology_filename",
+    "missing_subject_id_in_physiology_filename",
+    "mislabeled_physiology_date",
+)
+# How far "mislabeled_physiology_date" moves the last session's physiology filename date -- a
+# wrong month on the recording PC's clock. Always forward, and always on the *last* session, so
+# the converter's chronological session numbering (see longwalk3_bids._convert_subject_physiology)
+# still puts it in the right session -- only its scans.tsv date ends up wrong.
+MISLABELED_PHYSIOLOGY_DATE_SHIFT = dt.timedelta(days=30)
 SCENARIO_DESCRIPTIONS: dict[str, str] = {
     CLEAN_SCENARIO_LABEL: (
-        "One city's behaviour/actor-log file set per session (ses-01=city1, ses-02=city2, "
-        "...) -- the well-formed layout."
+        "One city's behaviour/actor-log file set per session, with each participant getting "
+        "the cities in their own random order (e.g. ses-01=city3, ses-02=city1, "
+        "ses-03=city2) -- the well-formed layout. Matches the real study design: the city "
+        "per session is randomized per participant, never more than one city per session."
     ),
     "multiple_cities_per_session": (
-        "Still the standard number of sessions (one per requested city), but one randomly "
-        "chosen session gets two runs instead of one -- the wrong city first (as if it was "
-        "started by mistake), then that session's actually-planned city. Both are written as "
-        "run-000, the same as the real Unreal-side export always does -- exercises detection "
-        "of a session with more than one run/city, without it always being the same session."
+        "Still the standard number of sessions (one per requested city, in a random order), "
+        "but one randomly chosen session gets two runs instead of one -- the wrong city "
+        "first (as if it was started by mistake), then that session's actually-planned city "
+        "(the restart). Both are written as run-000, the same as the real Unreal-side export "
+        "always does -- exercises detection of a session with more than one run/city, "
+        "without it always being the same session."
     ),
-    "unparsable_physiology_filename": (
+    "malformed_subject_id_in_physiology_filename": (
         "Otherwise a normal, well-formed layout, but one randomly chosen session's physiology "
-        ".acq file is renamed the way a file browser names an accidental duplicate copy -- "
-        '" (1)" inserted before the extension -- so it no longer matches the expected '
-        '"{date}_{subject_id}_LongWalkV3Out" pattern at all. A common real mistake '
-        "(re-exporting into a folder that already has that filename, or copying the file for "
-        'a manual backup) -- exercises the crosscheck GUI\'s "Fix Filenames in Raw Folder" '
-        "dialog flagging a genuinely unparseable raw file, rather than one that resolves to "
-        "the wrong subject."
+        '.acq file has its subject id mistyped -- e.g. "dummy(7)" instead of "dummy07" '
+        "(see _malformed_subject_id). The filename still has the expected "
+        '"{date}_{subject_id}_LongWalkV3Out" shape, so it resolves to that wrong id and '
+        "turns into a stray extra subject -- exercises the crosscheck GUI's \"Fix Filenames in "
+        'Raw Folder" dialog, where typing the correct id pulls it back into the right subject '
+        "on the next Refresh BIDS."
+    ),
+    "missing_subject_id_in_physiology_filename": (
+        "Otherwise a normal, well-formed layout, but one randomly chosen session's physiology "
+        '.acq file was saved without the subject id ever being typed -- "{date}__LongWalkV3Out"'
+        " -- so no subject id can be parsed from it. Exercises the crosscheck GUI's "
+        '"Fix Filenames in Raw Folder" dialog showing it as "(unparseable)", and a typed '
+        "correction pulling it back into the right subject on the next Refresh BIDS."
+    ),
+    "mislabeled_physiology_date": (
+        "Otherwise a normal, well-formed layout, but the last session's physiology .acq "
+        "filename carries the wrong date (a month later than the real session day -- a wrong "
+        "clock on the recording PC). The converter copies that date into scans.tsv, so the "
+        "physiology's date no longer matches its session's events -- exercises the crosscheck "
+        'GUI flagging it red in the physiology pane, and correcting it with "Correct date...".'
     ),
 }
 
@@ -438,24 +464,33 @@ def _run_csv_timestamp(session_day: dt.datetime, run_index: int) -> str:
     return (session_day + run_index * RUN_TIME_STEP).strftime("%Y%m%d%H%M")
 
 
+def _randomized_session_cities(city_labels: tuple[str, ...], rng: random.Random) -> list[str]:
+    """Each city exactly once, in a random order -- one participant's planned city per
+    session (index 0 = ses-01). The real study randomizes which city a participant walks in
+    each session, so a fixed ses-01=city1, ses-02=city2, ... layout would never exercise
+    anything that wrongly assumes that mapping.
+    """
+    return rng.sample(list(city_labels), k=len(city_labels))
+
+
 def _multiple_cities_per_session_layout(
-    city_labels: tuple[str, ...], rng: random.Random
+    planned_cities: list[str], rng: random.Random
 ) -> list[list[str]]:
     """One randomly chosen session's planned city is preceded by a run in a different, randomly
     chosen city -- e.g. ses-02 was planned as city2, but city3 got run first by mistake, then
-    city2 was run afterwards to correct it (both written as run-000 -- see
+    city2 was restarted afterwards to correct it (both written as run-000 -- see
     generate_dummy_longwalkv3_participant). Every other session keeps its single planned-city
-    run. Still exactly len(city_labels) sessions -- only the run count within one of them
+    run. Still exactly len(planned_cities) sessions -- only the run count within one of them
     changes.
     """
-    if len(city_labels) < 2:
+    if len(planned_cities) < 2:
         raise ValueError("Need at least 2 cities to model a wrong-city run.")
 
-    session_city_runs: list[list[str]] = [[city] for city in city_labels]
+    session_city_runs: list[list[str]] = [[city] for city in planned_cities]
 
-    error_session_index = rng.randrange(len(city_labels))
-    planned_city = city_labels[error_session_index]
-    wrong_city = rng.choice([city for city in city_labels if city != planned_city])
+    error_session_index = rng.randrange(len(planned_cities))
+    planned_city = planned_cities[error_session_index]
+    wrong_city = rng.choice([city for city in planned_cities if city != planned_city])
     session_city_runs[error_session_index] = [wrong_city, planned_city]
 
     return session_city_runs
@@ -467,23 +502,24 @@ def build_session_city_layout(
     """Maps each session token to the ordered list of cities run under it -- one entry per run
     (see generate_dummy_longwalkv3_participant for how each is turned into a filename).
 
-    error_type=None (clean): one city, one run, per session -- ses-01=city_labels[0],
-    ses-02=city_labels[1], ... error_type="multiple_cities_per_session": still exactly that many
-    sessions, but one of them instead gets two runs, a wrong city then its correct one (see
-    _multiple_cities_per_session_layout) -- requires rng.
+    error_type=None (clean): one city, one run, per session, each city used exactly once in a
+    random order (see _randomized_session_cities). error_type="multiple_cities_per_session":
+    still exactly that many sessions, but one of them instead gets two runs, a wrong city then
+    its correct one (see _multiple_cities_per_session_layout). rng falls back to an unseeded
+    Random when not given.
 
     Only these two values are meaningful here -- a session/city *layout* shape. Other
-    ERROR_TYPES entries (e.g. "unparsable_physiology_filename") don't affect this layout at
-    all; generate_dummy_longwalkv3_participant applies those separately, after the (otherwise
-    clean) file set this function's layout produces has been written, so callers pass this
-    function None for any such error_type.
+    ERROR_TYPES entries (e.g. "malformed_subject_id_in_physiology_filename") don't affect this
+    layout at all; generate_dummy_longwalkv3_participant applies those separately, after the
+    (otherwise clean) file set this function's layout produces has been written, so callers
+    pass this function None for any such error_type.
     """
+    rng = rng or random.Random()
+    planned_cities = _randomized_session_cities(city_labels, rng)
     if error_type is None:
-        session_city_runs: list[list[str]] = [[city] for city in city_labels]
+        session_city_runs: list[list[str]] = [[city] for city in planned_cities]
     elif error_type == "multiple_cities_per_session":
-        if rng is None:
-            raise ValueError("rng is required for error_type='multiple_cities_per_session'")
-        session_city_runs = _multiple_cities_per_session_layout(city_labels, rng)
+        session_city_runs = _multiple_cities_per_session_layout(planned_cities, rng)
     else:
         raise ValueError(
             "error_type must be None or 'multiple_cities_per_session' for this layout "
@@ -493,20 +529,47 @@ def build_session_city_layout(
     return [(f"ses-{index + 1:02d}", cities) for index, cities in enumerate(session_city_runs)]
 
 
-def _natural_duplicate_copy_name(path: Path) -> Path:
-    """`path` renamed the way a file browser (Explorer, Finder, a browser's download manager)
-    names an accidental second copy of the same file -- " (1)" inserted right before the
-    extension. One of the most common real mistakes a research assistant makes (re-exporting
-    into a folder that already has that filename, or copying a file for a manual backup) --
-    used by ERROR_TYPES' "unparsable_physiology_filename" to produce a raw filename that no
-    longer matches longwalk3_bids.py's `_PHYSIOLOGY_FILENAME_PATTERN` at all (its trailing
-    "_LongWalkV3Out" is anchored to the end of the filename stem).
+_SUBJECT_ID_NUMBER_PATTERN = re.compile(r"^(?P<prefix>\D*?)0*(?P<number>\d+)$")
 
-    Deliberately not reused for a raw csv file: `_RAW_CSV_FILENAME_PATTERN`'s trailing
-    `bp_id` group matches anything up to the end of the stem, so the exact same "(1)" suffix
-    would still parse there (just with a slightly garbled bp_id) rather than failing outright.
+
+def _malformed_subject_id(subject_id: str) -> str:
+    """A mistyped version of `subject_id` for "malformed_subject_id_in_physiology_filename":
+    its number in brackets with the zero-padding dropped -- "dummy07" -> "dummy(7)". Falls
+    back to appending "(1)" for an id without a trailing number.
     """
-    return path.with_name(f"{path.stem} (1){path.suffix}")
+    match = _SUBJECT_ID_NUMBER_PATTERN.match(subject_id)
+    if match is None:
+        return f"{subject_id}(1)"
+    return f"{match.group('prefix')}({match.group('number')})"
+
+
+def _acq_filename(
+    session_day: dt.datetime,
+    subject_id: str,
+    session_index: int,
+    session_count: int,
+    error_type: str | None,
+    error_session_index: int | None,
+) -> str:
+    """The raw physiology filename for one session, with any physiology-filename error_type
+    applied: "malformed_subject_id_in_physiology_filename" mistypes the id on
+    `error_session_index` (see _malformed_subject_id),
+    "missing_subject_id_in_physiology_filename" leaves the id out there instead (the id field
+    is empty -- "{date}__LongWalkV3Out.acq", which longwalk3_bids.py's
+    `_PHYSIOLOGY_FILENAME_PATTERN` can't parse a subject id from), and
+    "mislabeled_physiology_date" shifts the *last* session's date by
+    MISLABELED_PHYSIOLOGY_DATE_SHIFT (see its comment for why the last one).
+    """
+    timestamp = _acq_timestamp(session_day)
+    if error_type == "mislabeled_physiology_date" and session_index == session_count - 1:
+        timestamp = _acq_timestamp(session_day + MISLABELED_PHYSIOLOGY_DATE_SHIFT)
+    filename_subject_id = subject_id
+    if session_index == error_session_index:
+        if error_type == "malformed_subject_id_in_physiology_filename":
+            filename_subject_id = _malformed_subject_id(subject_id)
+        elif error_type == "missing_subject_id_in_physiology_filename":
+            filename_subject_id = ""
+    return f"{timestamp}_{filename_subject_id}_LongWalkV3Out.acq"
 
 
 def generate_dummy_longwalkv3_participant(
@@ -518,9 +581,9 @@ def generate_dummy_longwalkv3_participant(
     error_type: str | None = None,
     rng: random.Random | None = None,
 ) -> DummyLongWalkV3ParticipantResult:
-    # Only required by build_session_city_layout for error_type="multiple_cities_per_session",
-    # but also used below to randomize each actor-log row's millisecond value -- falls back to
-    # an unseeded Random so a direct call without rng (the clean-scenario case) still works.
+    # Drives the per-participant city order (see build_session_city_layout) and each
+    # actor-log row's millisecond value -- falls back to an unseeded Random so a direct call
+    # without rng still works.
     rng = rng or random.Random()
     acq_template = discover_acq_template(template_folder)
     behaviour_template = discover_behaviour_template(template_folder)
@@ -530,15 +593,19 @@ def generate_dummy_longwalkv3_participant(
         behaviour_template
     )
 
-    # unparsable_physiology_filename corrupts one session's .acq filename after it's written
-    # below, not the session/city layout itself -- build_session_city_layout only knows about
-    # the layout-shape error (multiple_cities_per_session), so any other error_type is passed
+    # The physiology-filename errors only change one session's .acq filename (see
+    # _acq_filename), not the session/city layout itself -- build_session_city_layout only knows
+    # about the layout-shape error (multiple_cities_per_session), so any other error_type is passed
     # to it as None (see its own docstring).
     layout_error_type = error_type if error_type == "multiple_cities_per_session" else None
     session_city_layout = build_session_city_layout(city_labels, layout_error_type, rng)
     corrupt_physiology_session_index = (
         rng.randrange(len(session_city_layout))
-        if error_type == "unparsable_physiology_filename"
+        if error_type
+        in (
+            "malformed_subject_id_in_physiology_filename",
+            "missing_subject_id_in_physiology_filename",
+        )
         else None
     )
 
@@ -550,12 +617,15 @@ def generate_dummy_longwalkv3_participant(
 
         # One physiology recording per session -- it can't span the multiple days different
         # sessions now fall on -- started once, before that session's first exported run.
-        acq_path = output_folder / f"{_acq_timestamp(session_day)}_{subject_id}_LongWalkV3Out.acq"
+        acq_path = output_folder / _acq_filename(
+            session_day,
+            subject_id,
+            session_index,
+            len(session_city_layout),
+            error_type,
+            corrupt_physiology_session_index,
+        )
         shutil.copyfile(acq_template, acq_path)
-        if session_index == corrupt_physiology_session_index:
-            corrupted_acq_path = _natural_duplicate_copy_name(acq_path)
-            acq_path.rename(corrupted_acq_path)
-            acq_path = corrupted_acq_path
         acq_paths.append(acq_path)
 
         for run_index, city_label in enumerate(session_city_runs):

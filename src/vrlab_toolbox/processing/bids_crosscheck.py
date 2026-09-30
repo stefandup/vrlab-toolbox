@@ -379,6 +379,11 @@ def record_subject_excluded(bids_folder: Path, subject_id: str, reason: str | No
     return original_folder
 
 
+# Decisions that deleted files outright from a subject's folder -- undoing either means
+# re-deriving the whole subject from raw (see `_restore_subjects`).
+_SUBJECT_RESTORE_DECISION_TYPES = ("selected_run", "files_removed")
+
+
 def _restore_subjects(
     bids_folder: Path, subject_ids: set[str] | None
 ) -> tuple[list[str], list[str]]:
@@ -408,7 +413,7 @@ def _restore_subjects(
     selected_run_keys: dict[str, dict] = {}
     for key, entries in decisions.items():
         for entry in entries:
-            if entry.get("type") == "selected_run" and (
+            if entry.get("type") in _SUBJECT_RESTORE_DECISION_TYPES and (
                 subject_ids is None or entry.get("subject_id") in subject_ids
             ):
                 selected_run_keys[key] = entry
@@ -497,6 +502,47 @@ def record_selected_run(
         if file != selected_file:
             _remove_scans_tsv_row(bids_folder, file)
             file.unlink()
+
+
+def record_files_removed(
+    bids_folder: Path,
+    subject_id: str,
+    scan_type: str,
+    files: list[Path],
+    reason: str | None = None,
+) -> None:
+    """Delete specific files of one subject's `scan_type` from BIDS outright -- e.g. longwalkV3's
+    wrong-city run that was restarted, or a physiology/debrief file that doesn't belong. Each
+    file's `scans.tsv` row goes with it.
+
+    Deleted, not moved aside -- same guarantee as `record_selected_run`: the raw folder still
+    has the original. Recorded as a `files_removed` decision (with `reason`, if given, so it
+    stays auditable) so `rebuild_from_raw` can replay it, and so `restore_subjects_from_bids`
+    can undo it by re-deriving the whole subject fresh from raw on the next refresh.
+    """
+    if not files:
+        raise BidsCrosscheckError("No files given to remove")
+    missing = [file.name for file in files if not file.is_file()]
+    if missing:
+        raise BidsCrosscheckError(f"Not found: {', '.join(missing)}")
+
+    decisions = load_decisions(bids_folder)
+    _append_decision(
+        decisions,
+        _decision_key(subject_id, scan_type),
+        {
+            "type": "files_removed",
+            "subject_id": subject_id,
+            "scan_type": scan_type,
+            "removed_files": [file.name for file in files],
+            "reason": reason,
+        },
+    )
+    _write_decisions_atomic(bids_folder, decisions)
+
+    for file in files:
+        _remove_scans_tsv_row(bids_folder, file)
+        file.unlink()
 
 
 def record_date_correction(
@@ -678,7 +724,15 @@ def record_scans_tsv_date_correction(
     leading filename prefix -- see docs/bids_converter_plan.md. Rewrites the matching row's
     `acq_time` value in place; `file` itself is never renamed, so this returns `file` unchanged
     (there's nothing for a caller to follow, unlike `record_date_correction`'s rename).
+
+    `corrected_date` must parse as YYYYMMDDHHMM (`parse_scans_tsv_date`) -- a correction is
+    never allowed to write another malformed date into scans.tsv.
     """
+    if parse_scans_tsv_date(corrected_date) is None:
+        raise BidsCrosscheckError(
+            f"{corrected_date!r} isn't a valid date -- expected YYYYMMDDHHMM "
+            f"(e.g. {datetime.now().strftime(SCANS_TSV_DATE_FORMAT)})"
+        )
     scans_tsv = _find_scans_tsv(bids_folder, file)
     if scans_tsv is None:
         raise BidsCrosscheckError(f"No scans.tsv found for {file.name} -- nothing to correct")
@@ -1468,6 +1522,16 @@ def _replay_decision(bids_folder: Path, entry: dict) -> str | None:
                 if candidate is not None:
                     _remove_scans_tsv_row(bids_folder, candidate)
                     candidate.unlink()
+            return None
+        if entry_type == "files_removed":
+            subject_folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{entry['subject_id']}"
+            if not subject_folder.is_dir():
+                return f"sub-{entry['subject_id']} not found"
+            for filename in entry["removed_files"]:
+                removed = next(subject_folder.rglob(filename), None)
+                if removed is not None:
+                    _remove_scans_tsv_row(bids_folder, removed)
+                    removed.unlink()
             return None
         if entry_type == "id_correction":
             original_folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{entry['original_id']}"

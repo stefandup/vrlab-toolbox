@@ -30,15 +30,25 @@ Examples:
     "input_folder", type=click.Path(exists=True, dir_okay=True, path_type=Path), required=True
 )
 @click.argument("output_folder", type=click.Path(path_type=Path), required=True)
+@click.option(
+    "--debrief-export",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=None,
+    help="Use this REDCap csv as the debrief source instead of auto-detecting one in "
+    "input_folder (a pulled redcap_<study>_longwalkv3.csv, else a *_DATA_*.csv export).",
+)
 @click.option("--verbose", is_flag=True, help="Give verbose output")
-def main(input_folder: Path, output_folder: Path, verbose: bool) -> None:
+def main(
+    input_folder: Path, output_folder: Path, debrief_export: Path | None, verbose: bool
+) -> None:
     """Copy-only converter: raw longwalkV3 data folder -> BIDS-shaped output folder.
 
     Incremental: subjects that already have a sub-XXX/ folder under output_folder are
     skipped entirely (not re-copied, not touched) -- safe to re-run against a source folder
-    that's gained new subjects since the last run.
+    that's gained new subjects since the last run. The one exception: an already-converted
+    subject without a debrief file yet gets one backfilled if the REDCap data now has them.
     """
-    summary = convert_longwalkv3_to_bids(input_folder, output_folder)
+    summary = convert_longwalkv3_to_bids(input_folder, output_folder, debrief_export)
     print_longwalkv3_conversion_summary(summary)
 
 

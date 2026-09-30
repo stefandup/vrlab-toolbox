@@ -13,12 +13,37 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from vrlab_toolbox.gui.qt_common import wrap_tooltip
 from vrlab_toolbox.processing.redcap import (
     DEFAULT_REDCAP_URL,
     get_token,
     load_config,
     save_config,
     save_token,
+)
+
+# Step-by-step versions of both live in the docs ("Setting up REDCap the first time" in
+# docs/longwalkv3-crosscheck.md) -- these are the short, in-place reminders.
+REPORT_ID_TOOLTIP = (
+    "The number of a saved report in your REDCap project -- the pull downloads exactly what "
+    "that report contains.\n\n"
+    "To make one: in REDCap open Data Exports, Reports, and Stats, click Create New Report, "
+    "add the participant id field (study_id for LongwalkV3, record_id for Crane) plus the "
+    "debrief fields, and save. Then copy the number in its Report ID "
+    "column (e.g. 15195). The built-in reports A and B have no Report ID, so they can't be "
+    "used."
+)
+API_TOKEN_TOOLTIP = (
+    "A personal code that lets this tool read your REDCap project as you -- treat it like "
+    "a password. It's saved in your operating system's credential store, never in a file.\n\n"
+    "To get one: your REDCap user needs API Export rights on the project (User Rights). "
+    "Then click API in the project's left menu and request a token; an administrator may "
+    "have to approve it. Copy it from that same API page. A token only works for the "
+    "project it was issued for."
+)
+REDCAP_URL_TOOLTIP = (
+    "Your institution's REDCap API address -- usually the REDCap web address ending in "
+    "/api/. The default is Stellenbosch University's."
 )
 
 
@@ -88,7 +113,9 @@ class RedcapSetupDialog(QDialog):
         connection_layout.setHorizontalSpacing(12)
         connection_layout.setVerticalSpacing(10)
 
-        connection_layout.addWidget(QLabel("REDCap API URL"), 0, 0, 1, 2)
+        url_label = QLabel("REDCap API URL")
+        url_label.setToolTip(wrap_tooltip(REDCAP_URL_TOOLTIP))
+        connection_layout.addWidget(url_label, 0, 0, 1, 2)
 
         self.url_edit = QLineEdit(
             existing_config.get(
@@ -97,32 +124,34 @@ class RedcapSetupDialog(QDialog):
             )
         )
         self.url_edit.setMinimumWidth(430)
+        self.url_edit.setToolTip(wrap_tooltip(REDCAP_URL_TOOLTIP))
         connection_layout.addWidget(self.url_edit, 1, 0, 1, 2)
 
-        connection_layout.addWidget(QLabel("Report ID"), 2, 0, 1, 2)
+        report_id_label = QLabel("Report ID  ⓘ")
+        report_id_label.setToolTip(wrap_tooltip(REPORT_ID_TOOLTIP))
+        connection_layout.addWidget(report_id_label, 2, 0, 1, 2)
 
-        self.report_id_edit = QLineEdit(
-            str(existing_config.get("report_id", ""))
-        )
+        self.report_id_edit = QLineEdit(str(existing_config.get("report_id", "")))
         self.report_id_edit.setMaximumWidth(180)
+        self.report_id_edit.setPlaceholderText("e.g. 15195")
+        self.report_id_edit.setToolTip(wrap_tooltip(REPORT_ID_TOOLTIP))
         connection_layout.addWidget(self.report_id_edit, 3, 0, 1, 2)
 
-        connection_layout.addWidget(QLabel("API token"), 4, 0, 1, 2)
+        token_label = QLabel("API token  ⓘ")
+        token_label.setToolTip(wrap_tooltip(API_TOKEN_TOOLTIP))
+        connection_layout.addWidget(token_label, 4, 0, 1, 2)
 
         self.token_edit = QLineEdit()
         self.token_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.token_edit.setToolTip(wrap_tooltip(API_TOKEN_TOOLTIP))
         connection_layout.addWidget(self.token_edit, 5, 0, 1, 2)
 
         if self._token_exists():
             token_text = (
-                "API token: securely stored. "
-                "Leave this field blank to keep the existing token."
+                "API token: securely stored. Leave this field blank to keep the existing token."
             )
         else:
-            token_text = (
-                "API token: not configured. "
-                "Enter the project API token before saving."
-            )
+            token_text = "API token: not configured. Enter the project API token before saving."
 
         self.token_status = QLabel(token_text)
         self.token_status.setWordWrap(True)
