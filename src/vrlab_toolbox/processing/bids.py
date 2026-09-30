@@ -102,9 +102,13 @@ def session_folder(output_folder: Path, subject_id: str, session_token: str) -> 
     caller-built full token (e.g. "ses-01") -- fixed for a converter with no real multi-session
     concept (crane, longwalk), or computed per real session (longwalk3).
     """
-    folder = output_folder / f"sub-{subject_id}" / session_token
+    folder = get_session_folder_path(output_folder, subject_id, session_token)
     folder.mkdir(parents=True, exist_ok=True)
     return folder
+
+
+def get_session_folder_path(root: Path, subject_id: str, session_token: str) -> Path:
+    return root / f"sub-{subject_id}" / session_token
 
 
 def datatype_folder(

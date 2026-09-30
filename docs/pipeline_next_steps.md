@@ -1452,3 +1452,46 @@ stay `ERROR`, not get silently downgraded by whatever debrief fix lands.
 Not to be conflated with the older, unrelated `long_walk_pipeline.py`/`long walk` entries in the
 "Deferred: FOH & LongWalk" section above — those are about the previous long-walk pipeline
 (single-session, no behavioural data at all), not `longwalk3_*`.
+
+### 31. LongWalkV3: needed Unreal-side export changes
+
+Running list, started 2026-09-29, of problems in the raw LongWalkV3 files that should be fixed
+in the Unreal export itself, not worked around in the toolbox. The evidence is the two real
+recordings in `longwalkv3_examples/`: `testEDA01` (2026-09-16) and `Test 1` (2026-09-18). Add
+to this list as new ones turn up, and tick items off once a new export confirms the fix.
+
+- [ ] **`behaviour.csv` `TimeStamp` is always `0.0`.** Every data row in both recordings has
+  it. `longwalk3_bids.combine_events_df_files` parses it with `DATESTR_FORMAT`
+  (`%Y%m%d%H%M%S%f`, 17 digits, e.g. `20260916173007551`), so `0.0` becomes `NaT`, and the
+  BIDS events schema rejects the null `onset`. **Needed:** write the real wall-clock time
+  of each rating, in the same 17-digit format the actor logs' `datetime` column already
+  uses. Until then, `longwalk3_dummy_data.py` makes up timestamps spread evenly across each
+  run, so real data will still fail where dummy data passes.
+- [ ] **Header row repeated a varying number of times.** In the `Test 1` export it appears
+  1–11 times per file (`ThreatLevelMarkerNew_C` 11, `BP_NPC_C` 4, `behaviour` 4,
+  `BP_HeatmapManager_C` once), apparently once per logger or actor instance, not once per
+  file. The loader removes the repeats, so this is low priority. **Needed:** write the
+  header once per file.
+- [ ] **`behaviour.csv` filename drops the `_` between `ses-` and `task-`**
+  (`..._ses-01task-city1_...`), while every actor log keeps it. `_RAW_CSV_FILENAME_PATTERN`
+  (`longwalk3_bids.py`) makes the underscore optional to cope. **Needed:** use the same
+  `_ses-XX_task-<city>_` layout as the actor logs.
+- [ ] **`BP_Phone_C` logged nothing in the `Test 1` export** (header only), while the
+  `testEDA01` export has 4 rows for it. **Needed:** confirm whether the phone never fired in
+  that run or the logger is broken. For now, `longwalk3_dummy_data.py` skips a template with
+  no data rows and uses an older one that has them.
+- [ ] **The run number in the filename is unreliable.** It's `run-1` in the `testEDA01`
+  export and `run-0` in `Test 1`, and it doesn't count up across runs. The pipeline works
+  out run order from the filename timestamps instead (see item 30 and
+  `longwalk3_bids.py`'s module docstring). **Decide:** make Unreal write a real per-session
+  run counter, or drop the entity and rely on timestamps permanently.
+- [ ] **An aborted start leaves empty files behind.** `Test 1` has a `202609181330_...`
+  set of three actor logs (`BP_AudioCueTrigger_C`, `BP_PanicCooldownTimersManager_C`,
+  `ThreatLevelMarkerNew_C`) with headers only and no `behaviour.csv`, 7 minutes before the
+  real `202609181337_...` run. **Decide:** should Unreal skip writing files for a run that
+  never started, or should the crosscheck flag these?
+
+Already fixed in newer exports, kept for reference: the `testEDA01` export split time into
+`year,month,...,millisecond` columns with `millisecond` always `0`, and location into
+`worldLocationX/Y/Z`. The `Test 1` export writes a single 17-digit `datetime` with real
+milliseconds, plus a single `worldLocation` column.

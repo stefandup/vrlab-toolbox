@@ -12,6 +12,7 @@ from vrlab_toolbox.processing.longwalk3_behaviour import (
     ImportLongWalkV3BehaviourDataStrategyStep,
     ProcessLongWalkV3BehaviourDataStrategyStep,
 )
+from vrlab_toolbox.processing.longwalk3_bids import _session_token
 from vrlab_toolbox.processing.longwalk3_debrief_behaviour import (
     ImportLongWalkV3DebriefDataProcessStrategyStep,
     ProcessLongWalkV3DebriefBehaviourDataStrategyStep,
@@ -22,21 +23,27 @@ from vrlab_toolbox.processing.longwalk3_trial_intervals import (
 from vrlab_toolbox.processing.output_data import PipelineOutputData
 
 
+@dataclass
 class FindLongWalkV3ParticipantFilesStrategyStep:
     physiology_data_type = PhysiologyFileFormat.BIOPAC
     behaviour_data_types = [
         ProcessLongWalkV3BehaviourDataStrategyStep.input_data_type,
         ProcessLongWalkV3DebriefBehaviourDataStrategyStep.input_data_type,
     ]
+    session_nr: int = 1
 
     def run(
-        self, participant_id_in: str, data_folder_in: Path, output_folder_in: Path | None = None
+        self,
+        participant_id_in: str,
+        data_folder_in: Path,
+        output_folder_in: Path | None = None,
     ) -> ParticipantConfig:
 
         return ParticipantConfig.from_bids_data(
             id_in=participant_id_in,
             physiology_data_type_in=self.physiology_data_type,
             data_folder_in=data_folder_in,
+            session_id=_session_token(self.session_nr),
             behaviour_data_types_in=self.behaviour_data_types,
             output_folder_in=output_folder_in,
         )
@@ -53,7 +60,10 @@ class LongWalkV3PipelineOutputData(PipelineOutputData):
 
 
 def run_pipeline(
-    participant_id_in: str, data_folder_in: Path, output_folder_in: Path | None = None
+    participant_id_in: str,
+    data_folder_in: Path,
+    session_nr_in: int,
+    output_folder_in: Path | None = None,
 ) -> LongWalkV3PipelineOutputData:
     """Run the longwalkV3 behaviour/physiology pipeline for a single participant.
 
@@ -86,7 +96,9 @@ def run_pipeline(
     )
 
     longwalkV3_pipeline = pipeline.PipelineTemplate(
-        find_participant_strategy_step=FindLongWalkV3ParticipantFilesStrategyStep(),
+        find_participant_strategy_step=FindLongWalkV3ParticipantFilesStrategyStep(
+            session_nr=session_nr_in
+        ),
         sequential_physiology_import_steps=import_physiology_steps,
         sequential_behaviour_data_import_steps=import_behav_steps,
         get_intervals_strategy=LongWalkV3GetTrialIntervalStrategyStep(),

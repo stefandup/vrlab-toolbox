@@ -43,6 +43,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, TypedDict, cast
 
+import numpy as np
 import pandas as pd
 import pandera.pandas as pa
 from rich.console import Console
@@ -415,15 +416,18 @@ def combine_events_df_files(
 
     for df in dfs_by_date:
         df.rename(
-            columns={"TimeStamp": "onset", "date": "onset", "datetime": "onset"}, inplace=True
+            columns={"TimeStamp": "time_stamp", "date": "time_stamp", "datetime": "time_stamp"},
+            inplace=True,
         )
-        df["onset"] = pd.to_datetime(df["onset"], format=DATESTR_FORMAT, errors="coerce")
+
+        df["onset"] = (
+            pd.to_datetime(df["time_stamp"], format=DATESTR_FORMAT, errors="coerce")
+            - df.attrs["date"]
+        ).dt.total_seconds()
         df = df.add_suffix(f"_{df.attrs['bp_id']}")
         df.rename(columns={f"onset_{df.attrs['bp_id']}": "onset"}, inplace=True)
 
-        # Extract float values from Unreal world location -- at most one BP_ACTOR_IDS entry
-        # ever matches a single source file (a source file is always one actor's own log, or
-        # behaviour.csv with no location columns at all).
+        # Extract float values from Unreal world location
         for BP_ACTOR_ID in BP_ACTOR_IDS:
             word_location_df = df.filter(regex=f"^worldLocation_{BP_ACTOR_ID}$")
             if word_location_df.empty:
@@ -448,9 +452,12 @@ def combine_events_df_files(
         runs_by_session.setdefault(run_key[0], []).append(run_key)
 
     session_dfs_by_fn_out_dict: dict[str, pd.DataFrame] = {}
+    # Create output filenames
     for session_nr, run_keys in runs_by_session.items():
         for run_nr, run_key in enumerate(sorted(run_keys, key=lambda k: k[1]), start=1):
             combined_df_out = pd.concat(runs[run_key], ignore_index=True)
+            combined_df_out.attrs["date"] = run_key[1]
+            combined_df_out["duration"] = np.nan
             target_fn_out = bids.build_bids_filename(
                 subject_id_in,
                 _session_token(session_nr),
@@ -540,12 +547,10 @@ def _convert_subject_events(
         destination = _datatype_folder(output_folder, subject_id, session_nr) / filename
         events_df.to_csv(destination, sep="\t", index=False)
 
-        onset_min = events_df["onset"].min() if not events_df.empty else None
-        # isinstance rather than pd.notna: also excludes pd.NaT (an all-unparseable "onset"
-        # column), which isn't a pd.Timestamp instance either.
+        run_start = events_df.attrs["date"] if not events_df.empty else None
         acq_time = (
-            onset_min.strftime(SCANS_TSV_DATE_FORMAT)
-            if isinstance(onset_min, pd.Timestamp)
+            run_start.strftime(SCANS_TSV_DATE_FORMAT)
+            if isinstance(run_start, datetime)
             else "nodate"
         )
         relative_name = destination.relative_to(

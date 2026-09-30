@@ -179,14 +179,23 @@ def discover_actor_log_templates(template_folder: Path) -> dict[str, Path]:
     """Maps each actor-location log's filename suffix (e.g. "BP_NPC_C.csv") to its template
     path, for every *_run-<n>_<suffix>.csv file under template_folder that isn't the behaviour
     file.
+
+    When several recordings ship the same suffix, the newest (last by filename timestamp) wins
+    -- unless it has no data rows and an older one does. A real export can log an actor type
+    with a header only (e.g. BP_Phone_C when the phone never fired that run), which would
+    otherwise leave every generated run with an empty log for it.
     """
     templates: dict[str, Path] = {}
     for csv_path in sorted(template_folder.glob("*.csv")):
         if _BEHAVIOUR_SUFFIX_PATTERN.search(csv_path.name):
             continue
         match = _ACTOR_LOG_SUFFIX_PATTERN.search(csv_path.name)
-        if match:
-            templates[match.group("suffix")] = csv_path
+        if not match:
+            continue
+        suffix = match.group("suffix")
+        if suffix in templates and not _read_repeated_header_csv(csv_path)[2]:
+            continue
+        templates[suffix] = csv_path
 
     if not templates:
         raise FileNotFoundError(
@@ -295,6 +304,50 @@ def _shift_combined_datetime_rows(
         return new_row
 
     return [shift_row(row) for row in rows]
+
+
+def _combined_datetime_values(header: list[str], rows: list[list[str]]) -> list[dt.datetime]:
+    """Every parseable timestamp in a (reshaped) actor log's combined date/datetime column --
+    empty if it has no such column (see _COMBINED_DATETIME_COLUMN_NAMES).
+    """
+    header_lower = [column.lower() for column in header]
+    timestamp_name = next(
+        (name for name in _COMBINED_DATETIME_COLUMN_NAMES if name in header_lower), None
+    )
+    if timestamp_name is None:
+        return []
+
+    timestamp_index = header_lower.index(timestamp_name)
+    return [
+        parsed
+        for row in rows
+        if (parsed := _parse_digit_timestamp(row[timestamp_index])) is not None
+    ]
+
+
+def _spread_behaviour_timestamps(
+    header: list[str], rows: list[list[str]], run_start: dt.datetime, run_end: dt.datetime
+) -> list[list[str]]:
+    """Replaces each behaviour row's TimeStamp with a DATESTR_FORMAT value spread evenly (in
+    increasing order) strictly inside [run_start, run_end] -- the template's own TimeStamp cells
+    aren't a usable recorded value (always 0.0), which the converter would otherwise coerce to
+    NaT (see longwalk3_bids.combine_events_df_files). Every other column is kept as-is. Returns
+    `rows` unchanged if header has no TimeStamp column.
+    """
+    header_lower = [column.lower() for column in header]
+    if "timestamp" not in header_lower:
+        return rows
+
+    timestamp_index = header_lower.index("timestamp")
+    step = (run_end - run_start) / (len(rows) + 1)
+
+    def spread_row(index: int, row: list[str]) -> list[str]:
+        timestamp = run_start + step * (index + 1)
+        new_row = list(row)
+        new_row[timestamp_index] = f"{timestamp:%Y%m%d%H%M%S}{timestamp.microsecond // 1000:03d}"
+        return new_row
+
+    return [spread_row(index, row) for index, row in enumerate(rows)]
 
 
 def reshape_actor_log(
@@ -517,20 +570,32 @@ def generate_dummy_longwalkv3_participant(
             run_filename_prefix = (
                 f"{csv_timestamp}_{subject_id}_{session_token}_task-{city_label}_{run_token}"
             )
-            behaviour_path = output_folder / f"{run_filename_prefix}_behaviour.csv"
-            _write_repeated_header_csv(
-                behaviour_path, behaviour_header, behaviour_header_repeat_count, behaviour_rows
-            )
-            behaviour_paths.append(behaviour_path)
-
+            run_timestamps: list[dt.datetime] = []
             for suffix, template_path in actor_log_templates.items():
                 header, header_repeat_count, rows = _read_repeated_header_csv(template_path)
                 new_header, new_rows = reshape_actor_log(header, rows, rng, run_start)
+                run_timestamps += _combined_datetime_values(new_header, new_rows)
                 actor_log_path = output_folder / f"{run_filename_prefix}_{suffix}"
                 _write_repeated_header_csv(
                     actor_log_path, new_header, header_repeat_count, new_rows
                 )
                 actor_log_paths.append(actor_log_path)
+
+            # Behaviour ratings are spread across this run's own actor-log time span, so they
+            # land within the run rather than all on the filename's minute. Falls back to one
+            # RUN_TIME_STEP from run_start if no actor log carried a parseable timestamp.
+            behaviour_run_start = min(run_timestamps, default=run_start)
+            behaviour_run_end = max(run_timestamps, default=run_start + RUN_TIME_STEP)
+            behaviour_path = output_folder / f"{run_filename_prefix}_behaviour.csv"
+            _write_repeated_header_csv(
+                behaviour_path,
+                behaviour_header,
+                behaviour_header_repeat_count,
+                _spread_behaviour_timestamps(
+                    behaviour_header, behaviour_rows, behaviour_run_start, behaviour_run_end
+                ),
+            )
+            behaviour_paths.append(behaviour_path)
 
     scenario = error_type or CLEAN_SCENARIO_LABEL
     return DummyLongWalkV3ParticipantResult(

@@ -20,6 +20,7 @@ class RawLongWalkV3BehaviourData(RawBehaviourData):
     validation_schema: pa.DataFrameSchema = field(
         default_factory=build_longwalkv3_raw_session_events_behav_file_schema
     )
+    filename_glob = "sub-{participant_id}*_events.tsv"
 
 
 @dataclass
