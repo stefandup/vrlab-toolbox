@@ -58,7 +58,7 @@ from vrlab_toolbox.processing.bids_crosscheck import (
     existing_subject_ids,
 )
 from vrlab_toolbox.processing.biodata import ACCEPTED_LABEL_PATTERN, CANONICAL_LABEL_SPELLING
-from vrlab_toolbox.processing.biopac import clean_biopac_labels
+from vrlab_toolbox.processing.biopac import clean_biopac_mat_labels
 from vrlab_toolbox.processing.crane_behaviour import build_crane_raw_behav_file_schema
 from vrlab_toolbox.processing.crane_bids import (
     DEBRIEF_ID_CORRECTIONS_FILENAME,
@@ -169,7 +169,7 @@ def _present_physio_channels(labels: list[str]) -> dict[str, bool]:
 def _parse_physiology_info(file: Path) -> CranePhysiologyInfo:
     try:
         imported_data = sio.loadmat(str(file))
-        labels = clean_biopac_labels(imported_data["labels"])
+        labels = clean_biopac_mat_labels(imported_data["labels"])
         isi_seconds = float(imported_data["isi"].squeeze()) / 1000
         n_samples = imported_data["data"].shape[0]
     except Exception:
