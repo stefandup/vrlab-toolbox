@@ -24,7 +24,6 @@ python -m PyInstaller \
   --hidden-import "vrlab_toolbox.gui.crane_process_results_gui" \
   --hidden-import "vrlab_toolbox.gui.foh_process_results_gui" \
   --hidden-import "vrlab_toolbox.gui.longwalk_process_results_gui" \
-  --hidden-import "vrlab_toolbox.gui.redcap_pull_gui" \
   src/vrlab_toolbox/gui/toolbox_launcher.py
 
 echo "macOS build complete:"
