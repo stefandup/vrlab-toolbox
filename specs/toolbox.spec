@@ -31,6 +31,19 @@ TOOLS = [
         False,
         [],
     ),
+    ("vrlab_spiral_process", os.path.join("cli", "vrlab_spiral_process.py"), True, []),
+    (
+    "vrlab_spiral_process_GUI",
+    os.path.join("gui", "spiral_process_results_gui.py"),
+    False,
+    [],
+    ),
+    (
+    "vrlab_spiral_bids_crosscheck",
+    os.path.join("gui", "spiral_bids_crosscheck_gui.py"),
+    False,
+    [],
+    ),
     ("vrlab_foh_bids_crosscheck", os.path.join("gui", "foh_bids_crosscheck_gui.py"), False, []),
     ("vrlab_foh_import_to_bids", os.path.join("cli", "foh_import_to_bids.py"), True, []),
     (

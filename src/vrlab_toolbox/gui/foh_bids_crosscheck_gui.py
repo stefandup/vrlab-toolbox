@@ -83,7 +83,7 @@ def _recording_duration_minutes(streams: list) -> float | None:
 
     The xdf file header has no duration field, only a start `datetime` (see
     `get_start_time`) -- so duration has to be derived from timestamps, same as
-    `processing/eeg.py` and `cli/mobi_spiral_process_batch.py` already do per-stream.
+    `processing/eeg.py` and `cli/vrlab_spiral_process.py` already do per-stream.
     Using every stream rather than just OpenSignals/VR_trial_events means this still
     resolves even when neither of those happens to be present.
     """

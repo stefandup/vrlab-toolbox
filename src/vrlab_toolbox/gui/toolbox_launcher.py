@@ -41,6 +41,7 @@ GUI_TOOL_GROUPS = (
             ("FOH BIDS Crosscheck", "vrlab_foh_bids_crosscheck.exe", "vrlab_toolbox.gui.foh_bids_crosscheck_gui"),
             ("Crane BIDS Crosscheck", "vrlab_crane_bids_crosscheck.exe", "vrlab_toolbox.gui.crane_bids_crosscheck_gui"),
             ("Longwalk BIDS Crosscheck", "vrlab_longwalk_bids_crosscheck.exe", "vrlab_toolbox.gui.longwalk_bids_crosscheck_gui"),
+            ("Spiral BIDS Crosscheck", "vrlab_spiral_bids_crosscheck.exe", "vrlab_toolbox.gui.spiral_bids_crosscheck_gui"),
         ),
     ),
     (
@@ -49,6 +50,7 @@ GUI_TOOL_GROUPS = (
             ("Crane Process Results", "vrlab_crane_process_GUI.exe", "vrlab_toolbox.gui.crane_process_results_gui"),
             ("FOH Process Results", "vrlab_foh_process_GUI.exe", "vrlab_toolbox.gui.foh_process_results_gui"),
             ("Longwalk Process Results", "vrlab_longwalk_process_GUI.exe", "vrlab_toolbox.gui.longwalk_process_results_gui"),
+            ("Spiral Process Results", "vrlab_spiral_process_GUI.exe", "vrlab_toolbox.gui.spiral_process_results_gui"),
         ),
     ),
 )
@@ -63,6 +65,7 @@ CLI_TOOLS = (
     "vrlab_foh_import_to_bids",
     "vrlab_longwalk_convert_to_bids",
     "vrlab_longwalk_process",
+    "vrlab_spiral_process",
     "vrlab_plot_target_data",
 )
 
