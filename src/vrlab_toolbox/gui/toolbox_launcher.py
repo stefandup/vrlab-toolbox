@@ -15,8 +15,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtCore import QEvent, Qt
+from PySide6.QtGui import QEnterEvent, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
@@ -142,8 +142,10 @@ COLOR_TEXT = "#e8e8ea"
 COLOR_HEADER_TEXT = "#c7c8cc"
 COLOR_BUTTON_BG = "#2a2b2f"
 COLOR_BUTTON_BORDER = "#3a3b40"
-COLOR_BUTTON_HOVER_BG = "#35363b"
-COLOR_BUTTON_PRESSED_BG = "#202124"
+COLOR_BUTTON_HOVER_BG = "#3a3b41"
+COLOR_BUTTON_HOVER_BORDER = "#5a5b62"
+COLOR_BUTTON_PRESSED_BG = "#1f2023"
+COLOR_BUTTON_PRESSED_BORDER = "#6a6b72"
 COLOR_GROUPBOX_BORDER = "#3a3b40"
 
 STYLESHEET = f"""
@@ -176,13 +178,13 @@ QLabel#iconBox, QLabel#textBox {{
 QLabel#textBox {{
     padding-left: {TEXT_BOX_PADDING_LEFT}px;
 }}
-QPushButton#toolRow:hover QLabel#iconBox,
-QPushButton#toolRow:hover QLabel#textBox {{
+QLabel#iconBox[rowState="hover"], QLabel#textBox[rowState="hover"] {{
     background-color: {COLOR_BUTTON_HOVER_BG};
+    border: 1px solid {COLOR_BUTTON_HOVER_BORDER};
 }}
-QPushButton#toolRow:pressed QLabel#iconBox,
-QPushButton#toolRow:pressed QLabel#textBox {{
+QLabel#iconBox[rowState="pressed"], QLabel#textBox[rowState="pressed"] {{
     background-color: {COLOR_BUTTON_PRESSED_BG};
+    border: 1px solid {COLOR_BUTTON_PRESSED_BORDER};
 }}
 QFrame#cliBox {{
     border: 1px solid {COLOR_GROUPBOX_BORDER};
@@ -220,13 +222,46 @@ def _run_gui_module(module_name: str) -> None:
     module.main()
 
 
+class _ToolRow(QPushButton):
+    """The row button behind `_build_tool_row`. QSS can't style a child off its parent's
+    :hover/:pressed state (`QPushButton:hover QLabel` never re-evaluates), so the row pushes
+    its own hover/pressed state onto its card labels as a `rowState` dynamic property that
+    STYLESHEET matches on instead.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._hovered = False
+        self.card_boxes: list[QLabel] = []
+        self.pressed.connect(self._refresh_row_state)
+        self.released.connect(self._refresh_row_state)
+
+    def enterEvent(self, event: QEnterEvent) -> None:
+        self._hovered = True
+        self._refresh_row_state()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event: QEvent) -> None:
+        self._hovered = False
+        self._refresh_row_state()
+        super().leaveEvent(event)
+
+    def _refresh_row_state(self) -> None:
+        state = "pressed" if self.isDown() else "hover" if self._hovered else ""
+        for box in self.card_boxes:
+            box.setProperty("rowState", state)
+            # Dynamic-property selectors only re-match on a re-polish.
+            box.style().unpolish(box)
+            box.style().polish(box)
+
+
 def _build_tool_row(label: str, icon_source: QPixmap) -> QPushButton:
     """A clickable row: a bordered icon box and a bordered text box, side by side with a
     gap -- two separate elements, not one nested inside the other. The row itself is a
     borderless/transparent QPushButton so the whole row (including the gap) is clickable,
     while QLabel#iconBox/#textBox (styled via STYLESHEET) supply the visible card chrome.
     """
-    row_button = QPushButton()
+    row_button = _ToolRow()
     row_button.setObjectName("toolRow")
     row_button.setFixedHeight(ROW_HEIGHT)
 
@@ -258,6 +293,7 @@ def _build_tool_row(label: str, icon_source: QPixmap) -> QPushButton:
     text_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
     row.addWidget(text_label, 1)
 
+    row_button.card_boxes = [icon_label, text_label]
     return row_button
 
 

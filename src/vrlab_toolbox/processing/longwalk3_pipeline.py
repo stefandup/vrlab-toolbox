@@ -12,7 +12,6 @@ from vrlab_toolbox.processing.longwalk3_behaviour import (
     ImportLongWalkV3BehaviourDataStrategyStep,
     ProcessLongWalkV3BehaviourDataStrategyStep,
 )
-from vrlab_toolbox.processing.longwalk3_bids import _session_token
 from vrlab_toolbox.processing.longwalk3_debrief_behaviour import (
     ImportLongWalkV3DebriefDataProcessStrategyStep,
     ProcessLongWalkV3DebriefBehaviourDataStrategyStep,
@@ -43,7 +42,7 @@ class FindLongWalkV3ParticipantFilesStrategyStep:
             id_in=participant_id_in,
             physiology_data_type_in=self.physiology_data_type,
             data_folder_in=data_folder_in,
-            session_id=_session_token(self.session_nr),
+            session_nr=self.session_nr,
             behaviour_data_types_in=self.behaviour_data_types,
             output_folder_in=output_folder_in,
         )

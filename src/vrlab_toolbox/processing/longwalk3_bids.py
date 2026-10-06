@@ -511,6 +511,7 @@ def _session_nr_from_events_filename(filename: str) -> int:
     return int(match.group("session_nr"))
 
 
+# TODO: Move to BIDS??
 def _session_token(session_nr: int) -> str:
     return f"ses-{session_nr:02d}"
 

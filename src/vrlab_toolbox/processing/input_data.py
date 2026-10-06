@@ -4,6 +4,7 @@ from enum import Enum
 from pathlib import Path
 
 from vrlab_toolbox.processing.bids import get_session_folder_path, is_bids_like_folder
+from vrlab_toolbox.processing.longwalk3_bids import _session_token
 
 
 # TODO: fix consistency here, i.e. BIOPAC vs LSL better
@@ -34,6 +35,7 @@ def _scoped_root(folder: Path, subject_id_in: str, session_in: str | None) -> Pa
 @dataclass(frozen=True)
 class ParticipantConfig:
     subject_id: str
+    session_nr: int | None
     physiology_fn: str
     physiology_data_type: PhysiologyFileFormat
     data_folder: Path
@@ -50,7 +52,7 @@ class ParticipantConfig:
         id_in: str,
         physiology_data_type_in: PhysiologyFileFormat,
         data_folder_in: Path,
-        session_id: str | None = None,
+        session_nr: int | None = None,
         behaviour_data_types_in: list[type] | None = None,
         behav_folder_in: Path | None = None,
         output_folder_in: Path | None = None,
@@ -68,8 +70,11 @@ class ParticipantConfig:
                 f"Participant ID {id_in} is not valid as it contains non alphanumeric characters."
                 f" Please correct."
             )
+        if session_nr is not None:
+            data_search_root = _scoped_root(data_folder_in, id_in, _session_token(session_nr))
+        else:
+            data_search_root = data_folder_in
 
-        data_search_root = _scoped_root(data_folder_in, id_in, session_id)
         physiology_fn_list = list(
             data_search_root.rglob(f"sub-{id_in}_*{physiology_data_type_in.value}")
         )
@@ -123,6 +128,7 @@ class ParticipantConfig:
         return cls(
             subject_id=id_in,
             physiology_fn=str(physiology_fn) if physiology_fn else "",
+            session_nr=session_nr,
             physiology_data_type=physiology_data_type_in,
             data_folder=data_folder_in,
             behav_folder=behav_folder_in,
@@ -224,6 +230,7 @@ class ParticipantConfig:
         return cls(
             subject_id=id_in,
             physiology_fn=str(physiology_fn) if physiology_fn else "",
+            session_nr=None,
             physiology_data_type=physiology_data_type_in,
             data_folder=data_folder_in,
             behav_folder=behav_folder_in,
@@ -246,7 +253,7 @@ class ParticipantConfig:
         verbose: bool = False,
         show_plots: bool = False,
     ):
-
+        # TODO: We can consider extracting session nr here as well...
         if behav_folder_in is None:
             behav_folder_in = data_folder_in
 
@@ -281,6 +288,7 @@ class ParticipantConfig:
         return cls(
             subject_id=id_in,
             physiology_fn=str(selected_stream_fn),
+            session_nr=None,
             physiology_data_type=physiology_data_type_in,
             data_folder=data_folder_in,
             behav_folder=behav_folder_in,

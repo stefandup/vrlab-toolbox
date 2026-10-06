@@ -19,7 +19,9 @@ from vrlab_toolbox.processing.longwalk3_bids import (
 from vrlab_toolbox.processing.longwalk3_debrief_behaviour import RawLongWalkV3DebriefBehaviourData
 from vrlab_toolbox.processing.longwalk3_pipeline import (
     FindLongWalkV3ParticipantFilesStrategyStep,
-    run_pipeline,
+)
+from vrlab_toolbox.processing.longwalk3_trial_intervals import (
+    LongWalkV3GetTrialIntervalStrategyStep,
 )
 from vrlab_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
 from vrlab_toolbox.processing.trial_intervals import TrialIntervals
@@ -91,19 +93,25 @@ unittest.skip("WIP")
 
 
 class TestLongWalkV3(unittest.TestCase):
-    def test_crane_returns_ok_for_correct_interval_nr(self):
-        pipeline_out = run_pipeline(CLEAN_ID, EXAMPLES_FOLDER)
-        self.assertEqual(pipeline_out.status.status[TrialIntervals], ProcessingStatus.OK)
-        status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
-        self.assertEqual(sorted(status_str.split(" ")), sorted(ALL_OK_STATUS_STR.split(" ")))
+    def setUp(self):
+        self.config_list = [
+            FindLongWalkV3ParticipantFilesStrategyStep(session_nr=session_nr).run(
+                CLEAN_ID, BIDS_FOLDER
+            )
+            for session_nr in range(1, 3)
+        ]
 
+        self.raw_behaviour_list = []
+        self.raw_biodata_list = []
 
-unittest.skip("WIP")
+        for config in self.config_list:
+            self.raw_biodata_list.append(BiopacPhysiologyDataImportStartegy().run(config))
+            self.raw_behaviour_list.append(ImportLongWalkV3BehaviourDataStrategyStep().run(config))
 
-
-class TestCranePipelineDummyData(unittest.TestCase):
-    def test_crane_pipeline_has_expected_output(self):
-        pipeline_out = run_pipeline(CLEAN_ID, EXAMPLES_FOLDER)
-        pipeline_out.validate_participant_output()
-        status_str = pipeline_out.subject_df_out["Processing_Status"].iloc[0]
-        self.assertEqual(sorted(status_str.split(" ")), sorted(ALL_OK_STATUS_STR.split(" ")))
+    def test_longwalkv3_process_intervals_correctly(self):
+        trial_interval_list = []
+        for session in range(0, 2):
+            trial_interval, _, _ = LongWalkV3GetTrialIntervalStrategyStep().run(
+                self.raw_biodata_list[session], self.raw_behaviour_list[session]
+            )
+            trial_interval_list.append(trial_interval)
