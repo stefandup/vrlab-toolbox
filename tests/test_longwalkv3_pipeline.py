@@ -89,9 +89,6 @@ class TestLongWalkV3BehaviourStrategy(unittest.TestCase):
             self.assertEqual(processed.subject_df_out["Subject_ID"].iloc[0], CLEAN_ID)
 
 
-unittest.skip("WIP")
-
-
 class TestLongWalkV3(unittest.TestCase):
     def setUp(self):
         self.config_list = [

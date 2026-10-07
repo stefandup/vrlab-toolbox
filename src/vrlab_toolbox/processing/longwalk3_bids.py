@@ -427,6 +427,10 @@ def build_longwalkv3_raw_session_events_behav_file_schema() -> pa.DataFrameSchem
             for BP_ACTOR_ID in BP_ACTOR_IDS
         },
         **{
+            f"trigger_{BP_ACTOR_ID}": pandera_defaults.optional_str_col()
+            for BP_ACTOR_ID in BP_ACTOR_IDS
+        },
+        **{
             f"^worldLocation_{BP_ACTOR_ID}_[xyz]$": pandera_defaults.coord_axis_col()
             for BP_ACTOR_ID in BP_ACTOR_IDS
         },
@@ -455,6 +459,9 @@ def combine_events_df_files(
             - df.attrs["date"]
         ).dt.total_seconds()
         df = df.add_suffix(f"_{df.attrs['bp_id']}")
+
+        # Rename all cols according the class ID
+
         df.rename(columns={f"onset_{df.attrs['bp_id']}": "onset"}, inplace=True)
 
         # Extract float values from Unreal world location

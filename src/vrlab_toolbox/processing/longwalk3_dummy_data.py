@@ -7,9 +7,16 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
+from bioread.reader import Reader
 
 from vrlab_toolbox.processing.longwalk3_bids import DATESTR_FORMAT
+from vrlab_toolbox.processing.longwalk_dummy_data import (
+    TRIGGER_BASELINE_VOLTS,
+    TRIGGER_HIGH_VOLTS,
+    TRIGGER_PULSE_DURATION_SECONDS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +95,36 @@ WORLD_LOCATION_AXES = ("X", "Y", "Z")
 # "datetime" column in DATESTR_FORMAT instead of separate DATE_PART_COLUMNS -- both names are
 # accepted since longwalk3_bids.combine_events_df_files renames either to "onset".
 _COMBINED_DATETIME_COLUMN_NAMES = ("date", "datetime")
+
+# Proposed (not yet in the real Unreal-side export): every actor log gets a "trigger" column.
+# When a class sends a Biopac TTL it logs an extra row of its own: date/datetime is the send
+# time and "trigger" names the sending class instance (e.g. "ThreatLevelMarkerNew2"); every
+# other cell on that row is empty. Ordinary event rows leave "trigger" empty. The converter
+# already turns date/datetime into "onset" and the column into "trigger_<bp_id>" (see
+# longwalk3_bids.combine_events_df_files), so a class's pulse onsets are just its rows with a
+# non-empty trigger_<bp_id>.
+TRIGGER_COLUMN = "trigger"
+ACTOR_COLUMN = "actor"
+# Placeholder until the real list of TTL-sending classes is confirmed: every actor class except
+# these is assumed to send one pulse per logged row (the heatmap manager logs continuously).
+NON_TRIGGER_ACTOR_LOG_SUFFIXES = ("BP_HeatmapManager_C.csv",)
+# Send lag after the row's own logged time -- roughly one to a few frames at 90 Hz -- so the
+# dummy data doesn't pretend the logged event and the pulse send are simultaneous.
+TRIGGER_LAG_MS_RANGE = (5, 50)
+# On top of that per-trigger jitter, Unreal's send delay builds up over a run with no re-sync
+# (the same cumulative drift align_biopac_trigger_drift_from_behav_file corrects for in crane).
+# Partially simulated as a per-run rate drawn from this range, applied linearly to the time since
+# run start -- the magnitude is a guess, tune it against real crane/longwalk QC plots.
+TRIGGER_DRIFT_MS_PER_MINUTE_RANGE = (20.0, 100.0)
+# The copied .acq template's own Trigger channel is overwritten with one pulse per logged
+# trigger time (see write_acq_trigger_pulses), placed this long after the recording starts for
+# the session's first run start. Only relative pulse timing matters to the pipeline (it matches
+# pulse patterns, not wall-clock time), so this deliberately ignores ACQ_TIME_OFFSET -- the
+# template recordings are shorter than that offset, so honouring it would push every pulse past
+# the end of the recording.
+ACQ_TRIGGER_LEAD_IN = dt.timedelta(seconds=5)
+ACQ_TRIGGER_CHANNEL_NAME = "Trigger"
+ACQ_TRIGGER_NOISE_VOLTS = 0.01
 
 # Suffix (everything after "..._run-<n>_") of each actor-location log template found in
 # longwalkv3_examples/ -- used to find each one under template_folder regardless of its
@@ -349,6 +386,139 @@ def _combined_datetime_values(header: list[str], rows: list[list[str]]) -> list[
         for row in rows
         if (parsed := _parse_digit_timestamp(row[timestamp_index])) is not None
     ]
+
+
+def add_trigger_column(
+    header: list[str],
+    rows: list[list[str]],
+    rng: random.Random,
+    sends_triggers: bool,
+    run_start: dt.datetime,
+    drift_ms_per_minute: float = 0.0,
+) -> tuple[list[str], list[list[str]]]:
+    """Appends TRIGGER_COLUMN to a (reshaped) actor log (empty on every existing row). If
+    `sends_triggers`, each row with a parseable combined date/datetime is followed by a trigger
+    row (see TRIGGER_COLUMN): its date/datetime is the event time plus a send lag, in
+    DATESTR_FORMAT, and its trigger cell is the event row's actor instance name. The lag is a
+    random TRIGGER_LAG_MS_RANGE jitter plus `drift_ms_per_minute` times the minutes elapsed
+    since `run_start` -- the cumulative delay (see TRIGGER_DRIFT_MS_PER_MINUTE_RANGE). Shared by
+    every actor log in a run, so all classes drift together, as they would off the one Unreal
+    game thread.
+    """
+    new_header = [*header, TRIGGER_COLUMN]
+    header_lower = [column.lower() for column in header]
+    timestamp_name = next(
+        (name for name in _COMBINED_DATETIME_COLUMN_NAMES if name in header_lower), None
+    )
+    if timestamp_name is None or not sends_triggers:
+        return new_header, [[*row, ""] for row in rows]
+
+    timestamp_index = header_lower.index(timestamp_name)
+    actor_index = header_lower.index(ACTOR_COLUMN) if ACTOR_COLUMN in header_lower else None
+
+    new_rows = []
+    for row in rows:
+        new_rows.append([*row, ""])
+        parsed = _parse_digit_timestamp(row[timestamp_index])
+        if parsed is None:
+            continue
+        minutes_since_start = max((parsed - run_start).total_seconds(), 0.0) / 60
+        lag_ms = rng.randint(*TRIGGER_LAG_MS_RANGE) + drift_ms_per_minute * minutes_since_start
+        sent = parsed + dt.timedelta(milliseconds=lag_ms)
+        trigger_row = [""] * len(new_header)
+        trigger_row[timestamp_index] = f"{sent:%Y%m%d%H%M%S}{sent.microsecond // 1000:03d}"
+        trigger_row[-1] = row[actor_index] if actor_index is not None else TRIGGER_COLUMN
+        new_rows.append(trigger_row)
+
+    return new_header, new_rows
+
+
+def _trigger_row_times(header: list[str], rows: list[list[str]]) -> list[dt.datetime]:
+    """The date/datetime of every trigger row (non-empty TRIGGER_COLUMN -- see
+    add_trigger_column), i.e. each pulse's logged send time."""
+    header_lower = [column.lower() for column in header]
+    timestamp_name = next(
+        (name for name in _COMBINED_DATETIME_COLUMN_NAMES if name in header_lower), None
+    )
+    if timestamp_name is None or TRIGGER_COLUMN not in header:
+        return []
+    timestamp_index = header_lower.index(timestamp_name)
+    trigger_index = header.index(TRIGGER_COLUMN)
+    return [
+        parsed
+        for row in rows
+        if row[trigger_index] and (parsed := _parse_digit_timestamp(row[timestamp_index]))
+    ]
+
+
+def write_acq_trigger_pulses(
+    acq_path: Path,
+    trigger_times: list[dt.datetime],
+    recording_start: dt.datetime,
+    rng: random.Random,
+) -> int:
+    """Overwrites, in place, the Trigger channel of an uncompressed .acq (a copied template)
+    with a noisy TRIGGER_BASELINE_VOLTS baseline plus one TRIGGER_PULSE_DURATION_SECONDS pulse
+    at TRIGGER_HIGH_VOLTS per trigger time, measured from `recording_start`. Every other channel
+    and the file's headers are left untouched, so bioread still reads it as before. Pulses that
+    fall outside the recording are dropped. Returns how many pulses were written.
+
+    Only handles the layout the longwalkV3 templates use -- uncompressed, every channel at the
+    same rate (frequency divider 1), interleaved sample by sample -- and raises ValueError for
+    anything else rather than silently corrupting the file.
+    """
+    with acq_path.open("rb") as f:
+        reader = Reader.read_headers(f)
+    if reader.is_compressed:
+        raise ValueError(f"{acq_path} is compressed -- can't overwrite its Trigger channel")
+    channel_headers = reader.channel_headers
+    dtype_headers = reader.channel_dtype_headers
+    if any(ch.frequency_divider != 1 for ch in channel_headers) or any(
+        dh.type_code != 2 for dh in dtype_headers
+    ):
+        raise ValueError(f"{acq_path} doesn't have the expected uniform int16 channel layout")
+    channel_names = [ch.name for ch in channel_headers]
+    if ACQ_TRIGGER_CHANNEL_NAME not in channel_names:
+        raise ValueError(f"{acq_path} has no {ACQ_TRIGGER_CHANNEL_NAME!r} channel")
+    data_start_offset = reader.data_start_offset
+    samples_per_second = reader.samples_per_second
+    if data_start_offset is None or samples_per_second is None:
+        raise ValueError(f"{acq_path} is missing its data offset or sample rate header")
+
+    trigger_channel_index = channel_names.index(ACQ_TRIGGER_CHANNEL_NAME)
+    trigger_header = channel_headers[trigger_channel_index]
+    n_samples = int(trigger_header.point_count)
+    samples = np.memmap(
+        acq_path,
+        dtype=np.dtype(f"{reader.byte_order_char}i2"),
+        mode="r+",
+        offset=data_start_offset,
+        shape=(n_samples, len(channel_headers)),
+    )
+
+    np_rng = np.random.default_rng(rng.getrandbits(32))
+    volts = TRIGGER_BASELINE_VOLTS + np_rng.normal(0, ACQ_TRIGGER_NOISE_VOLTS, size=n_samples)
+    pulse_samples = int(round(TRIGGER_PULSE_DURATION_SECONDS * samples_per_second))
+    n_written = 0
+    for trigger_time in trigger_times:
+        start = int(round((trigger_time - recording_start).total_seconds() * samples_per_second))
+        if start < 0 or start + pulse_samples > n_samples:
+            continue
+        volts[start : start + pulse_samples] = TRIGGER_HIGH_VOLTS
+        n_written += 1
+    if n_written < len(trigger_times):
+        logger.debug(
+            "%d of %d trigger pulses fell outside %s's recording and were dropped.",
+            len(trigger_times) - n_written,
+            len(trigger_times),
+            acq_path.name,
+        )
+
+    raw = np.round((volts - trigger_header.raw_offset) / trigger_header.raw_scale)
+    samples[:, trigger_channel_index] = np.clip(raw, -32768, 32767).astype(np.int16)
+    samples.flush()
+    del samples
+    return n_written
 
 
 def _spread_behaviour_timestamps(
@@ -627,6 +797,7 @@ def generate_dummy_longwalkv3_participant(
         )
         shutil.copyfile(acq_template, acq_path)
         acq_paths.append(acq_path)
+        session_trigger_times: list[dt.datetime] = []
 
         for run_index, city_label in enumerate(session_city_runs):
             run_start = session_day + run_index * RUN_TIME_STEP
@@ -641,10 +812,20 @@ def generate_dummy_longwalkv3_participant(
                 f"{csv_timestamp}_{subject_id}_{session_token}_task-{city_label}_{run_token}"
             )
             run_timestamps: list[dt.datetime] = []
+            run_drift_ms_per_minute = rng.uniform(*TRIGGER_DRIFT_MS_PER_MINUTE_RANGE)
             for suffix, template_path in actor_log_templates.items():
                 header, header_repeat_count, rows = _read_repeated_header_csv(template_path)
                 new_header, new_rows = reshape_actor_log(header, rows, rng, run_start)
                 run_timestamps += _combined_datetime_values(new_header, new_rows)
+                new_header, new_rows = add_trigger_column(
+                    new_header,
+                    new_rows,
+                    rng,
+                    suffix not in NON_TRIGGER_ACTOR_LOG_SUFFIXES,
+                    run_start,
+                    run_drift_ms_per_minute,
+                )
+                session_trigger_times += _trigger_row_times(new_header, new_rows)
                 actor_log_path = output_folder / f"{run_filename_prefix}_{suffix}"
                 _write_repeated_header_csv(
                     actor_log_path, new_header, header_repeat_count, new_rows
@@ -666,6 +847,12 @@ def generate_dummy_longwalkv3_participant(
                 ),
             )
             behaviour_paths.append(behaviour_path)
+
+        # One shared Trigger channel per recording, so every sending class's pulses from every
+        # run in this session land on it -- see ACQ_TRIGGER_LEAD_IN for why it's anchored here.
+        write_acq_trigger_pulses(
+            acq_path, session_trigger_times, session_day - ACQ_TRIGGER_LEAD_IN, rng
+        )
 
     scenario = error_type or CLEAN_SCENARIO_LABEL
     return DummyLongWalkV3ParticipantResult(
