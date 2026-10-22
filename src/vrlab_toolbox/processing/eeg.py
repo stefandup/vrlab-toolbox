@@ -20,7 +20,6 @@ BAD_CHANNELS = [
     "X2",
     "X3",
     "A2",
-    "Cz",
 ]
 
 
@@ -76,7 +75,9 @@ def clean_eeg(data: np.ndarray, sampling_rate: float) -> np.ndarray:
         fs=sampling_rate,
         output="sos",
     )
-    return sosfiltfilt(sos, data, axis=0)
+    data = sosfiltfilt(sos, data, axis=0)
+
+    return data - np.nanmean(data, axis=1, keepdims=True)
 
 
 def get_interval_signal(

@@ -22,13 +22,16 @@ python -m PyInstaller \
   --add-data "assets/FOH_icon.png:assets" \
   --add-data "assets/longwalk_icon.png:assets" \
   --add-data "assets/longwalkv3_icon.png:assets" \
+  --add-data "assets/spiral_icon.png:assets" \
   --hidden-import "vrlab_toolbox.gui.foh_bids_crosscheck_gui" \
   --hidden-import "vrlab_toolbox.gui.crane_bids_crosscheck_gui" \
   --hidden-import "vrlab_toolbox.gui.longwalk_bids_crosscheck_gui" \
+  --hidden-import "vrlab_toolbox.gui.spiral_bids_crosscheck_gui" \
   --hidden-import "vrlab_toolbox.gui.longwalk3_bids_crosscheck_gui" \
   --hidden-import "vrlab_toolbox.gui.crane_process_results_gui" \
   --hidden-import "vrlab_toolbox.gui.foh_process_results_gui" \
   --hidden-import "vrlab_toolbox.gui.longwalk_process_results_gui" \
+  --hidden-import "vrlab_toolbox.gui.spiral_process_results_gui" \
   src/vrlab_toolbox/gui/toolbox_launcher.py
 
 echo "macOS build complete:"
