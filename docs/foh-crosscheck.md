@@ -1,5 +1,7 @@
 # FOH Crosscheck
 
+![FOH icon](assets/images/FOH_icon.png){ width="72" }
+
 This is step 1: before your data can be [processed](processing.md), your
 raw recordings need to be converted into BIDS and crosschecked. This page
 is for anyone using the FOH Crosscheck tool to do that — no coding
@@ -440,15 +442,17 @@ Two things stay single-subject only, on purpose:
   actual file to work with (e.g. **Remove non-selected files from BIDS
   for selected** or bulk FOH-tagging).
 
-## Crane has its own version of this tool
+## Crane and LongwalkV3 have their own versions of this tool
 
-The Crane experiment has its own crosscheck tool, covered on its own page:
-[Crane Crosscheck](crane-crosscheck.md). It's built the same way and works
-the same way — same idea, same layout, same "raw folder is never touched"
-guarantee — just checking `physiology`/`behaviour`/`debrief` files instead
-of a single FOH recording. You may use FOH Crosscheck, Crane Crosscheck, or
-both, depending on which experiment(s) your data comes from; neither tool
-depends on the other.
+The Crane and LongwalkV3 experiments each have their own crosscheck tool,
+covered on their own pages: [Crane Crosscheck](crane-crosscheck.md) and
+[LongwalkV3 Crosscheck](longwalkv3-crosscheck.md). Both are built the
+same way and work the same way — same idea, same layout, same "raw
+folder is never touched" guarantee — just checking different file types
+(and, for LongwalkV3, allowing several legitimate files per subject
+instead of exactly one — see its own page for why). You may use any
+combination of these tools, depending on which experiment(s) your data
+comes from; none of them depend on each other.
 
 ---
 

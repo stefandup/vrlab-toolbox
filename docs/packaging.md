@@ -52,7 +52,7 @@ A few things worth knowing:
 - **One `COLLECT`, not one per tool.** Every tool used to be its own
   `--onedir` build (or its own spec file, before 2026-08-28), each carrying
   a full copy of the shared scientific-Python stack (numpy, scipy, mne,
-  PySide6, …). Feeding all eleven tools' `EXE`/`binaries`/`datas` into one
+  PySide6, …). Feeding every tool's `EXE`/`binaries`/`datas` into one
   `COLLECT` instead means identical dependency files are only written to
   disk once, under a single `build_output/dist/vrlab_toolbox/` folder — see
   [The installer](#the-installer) below.
@@ -145,12 +145,17 @@ pathlib` — modern Python already includes `pathlib` in the standard
 library.
 
 !!! note "Going further"
-    `build_mac.sh` only builds two of the toolbox's tools, as plain
-    `--onefile` builds — so it doesn't bundle the reference `.parquet` file
-    or the version metadata the `specs/` builds do, and there's no
-    macOS/Linux equivalent of the toolbox-wide build or the installer below
-    (Inno Setup, which does the installer packaging, is Windows-only). A
-    known gap, not an intentional platform difference.
+    `build_mac.sh`/`build_linux.sh` build a single app around the toolbox
+    launcher instead of one exe per tool. Every GUI tool is bundled into it
+    via `--hidden-import`, and the launcher runs the chosen tool by
+    restarting itself with `--launch-module <module>` (see
+    `toolbox_launcher.py`). **Adding a new GUI tool therefore means adding it
+    in three places**: `specs/toolbox.spec`'s `TOOLS` (Windows), a
+    `--hidden-import` line in both shell scripts (plus an `--add-data` line
+    for its icon), and `GUI_TOOL_GROUPS` in `toolbox_launcher.py`. CLI tools
+    aren't included in the macOS/Linux builds, and there's no macOS/Linux
+    installer (Inno Setup, which does the installer packaging, is
+    Windows-only).
 
 ## The installer
 

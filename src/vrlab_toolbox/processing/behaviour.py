@@ -46,7 +46,7 @@ class RawBehaviourData:
         return cls(config_in, behav_df)
 
     @classmethod
-    def load_from_behaviour_type(cls, config_in: ParticipantConfig, behaviour_type: type):
+    def load_from_bids_behaviour_type(cls, config_in: ParticipantConfig, behaviour_type: type):
         behav_file_found = config_in._behaviour_file_names[behaviour_type]
 
         if not behav_file_found:

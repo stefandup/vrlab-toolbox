@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
+from vrlab_toolbox.processing.bids import get_session_folder_path, is_bids_like_folder
+
 
 # TODO: fix consistency here, i.e. BIOPAC vs LSL better
 class PhysiologyFileFormat(Enum):
@@ -19,6 +21,12 @@ class PhysiologyFileFormat(Enum):
 # guessing (see docs/bids_crosscheck_plan.md's "TODO (deferred, not scoped now)").
 TASK_LABEL = "foh"
 logger = logging.getLogger(__name__)
+
+
+def _scoped_root(folder: Path, subject_id_in: str, session_in: str | None) -> Path:
+    return (
+        folder if session_in is None else get_session_folder_path(folder, subject_id_in, session_in)
+    )
 
 
 # TODO: Add Pipelinestatus to config
@@ -42,6 +50,7 @@ class ParticipantConfig:
         id_in: str,
         physiology_data_type_in: PhysiologyFileFormat,
         data_folder_in: Path,
+        session_id: str | None = None,
         behaviour_data_types_in: list[type] | None = None,
         behav_folder_in: Path | None = None,
         output_folder_in: Path | None = None,
@@ -50,15 +59,19 @@ class ParticipantConfig:
         show_plots: bool = False,
     ) -> "ParticipantConfig":
 
+        if not is_bids_like_folder(data_folder_in):
+            logger.error(f"{data_folder_in} appears not to be a bids folder. Skipping.")
+            raise ValueError
+
         if not id_in.isalnum():
             logger.warning(
                 f"Participant ID {id_in} is not valid as it contains non alphanumeric characters."
                 f" Please correct."
             )
 
-        search_root = data_folder_in
+        data_search_root = _scoped_root(data_folder_in, id_in, session_id)
         physiology_fn_list = list(
-            search_root.rglob(f"sub-{id_in}_*{physiology_data_type_in.value}")
+            data_search_root.rglob(f"sub-{id_in}_*{physiology_data_type_in.value}")
         )
 
         if physiology_fn_list:
@@ -74,7 +87,7 @@ class ParticipantConfig:
             physiology_fn = None
 
         if behav_folder_in is None:
-            behav_folder_in = data_folder_in
+            behav_folder_in = data_search_root
 
         if output_folder_in is None:
             output_folder_in = data_folder_in.parent / "output"

@@ -4,7 +4,7 @@ from pandera import Check
 
 def int_col():
     return pa.Column(
-        pa.Int64,
+        "Int64",
         nullable=True,
         coerce=True,
     )
@@ -46,7 +46,7 @@ def date_col():
 def checkbox_col():
     """Typical REDCap checkbox export: 0 = unchecked, 1 = checked."""
     return pa.Column(
-        pa.Int64,
+        "Int64",
         nullable=True,
         coerce=True,
         checks=Check.isin([0, 1]),
@@ -56,7 +56,7 @@ def checkbox_col():
 def complete_col():
     """Typical REDCap form status: 0=incomplete, 1=unverified, 2=complete."""
     return pa.Column(
-        pa.Int64,
+        "Int64",
         nullable=True,
         coerce=True,
         checks=Check.isin([0, 1, 2]),
@@ -67,4 +67,8 @@ def likert_col():
     """
     Likert scale: 1 = Strongly disagree, 2 = Disagree, 3 = Neutral, 4 = Agree, 5 = Strongly agree
     """
-    return pa.Column(pa.Int64, nullable=True, coerce=True, checks=Check.isin([1, 2, 3, 4, 5]))
+    return pa.Column("Int64", nullable=True, coerce=True, checks=Check.isin([1, 2, 3, 4, 5]))
+
+
+def coord_axis_col():
+    return pa.Column(float, nullable=True, coerce=True, regex=True)

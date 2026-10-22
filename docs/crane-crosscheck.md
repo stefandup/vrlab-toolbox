@@ -1,5 +1,7 @@
 # Crane Crosscheck
 
+![Crane icon](assets/images/crane_icon.png){ width="72" }
+
 This is step 1: before your data can be [processed](processing.md), your
 raw recordings need to be converted into BIDS and crosschecked. This page
 is for anyone using the Crane Crosscheck tool to do that — no coding
@@ -332,8 +334,9 @@ runs, not just the decisions made afterward.
 **Next: [Process Your Data](processing.md)** — step 2, once your data's
 the right files in the right place.
 
-**Also see:** [FOH Crosscheck](foh-crosscheck.md) for the equivalent tool
-for FOH data, [BIDS Crosscheck Plan](bids_crosscheck_plan.md) for the
+**Also see:** [FOH Crosscheck](foh-crosscheck.md) and [LongwalkV3
+Crosscheck](longwalkv3-crosscheck.md) for the equivalent tools for other
+datasets, [BIDS Crosscheck Plan](bids_crosscheck_plan.md) for the
 original design decisions behind this tool, and [BIDS Crosscheck:
 Architecture](bids-crosscheck-architecture.md) if you're looking to change
 how it works rather than just use it.
