@@ -65,6 +65,12 @@ GUI_TOOL_GROUPS = (
                 "vrlab_toolbox.gui.longwalk3_bids_crosscheck_gui",
                 "longwalkv3_icon.png",
             ),
+            (
+                "Spiral BIDS Crosscheck",
+                "vrlab_spiral_bids_crosscheck.exe",
+                "vrlab_toolbox.gui.spiral_bids_crosscheck_gui",
+                "spiral_icon.png",
+            ),
         ),
     ),
     (
@@ -88,6 +94,12 @@ GUI_TOOL_GROUPS = (
                 "vrlab_toolbox.gui.longwalk_process_results_gui",
                 "longwalk_icon.png",
             ),
+            (
+                "Spiral Process Results",
+                "vrlab_spiral_process_GUI.exe",
+                "vrlab_toolbox.gui.spiral_process_results_gui",
+                "spiral_icon.png",
+            ),
         ),
     ),
 )
@@ -102,6 +114,7 @@ CLI_TOOLS = (
     "vrlab_foh_import_to_bids",
     "vrlab_longwalk_convert_to_bids",
     "vrlab_longwalk_process",
+    "vrlab_spiral_process",
     "vrlab_longwalk3_convert_to_bids",
     "vrlab_longwalk3_generate_sample_data",
     "vrlab_plot_target_data",

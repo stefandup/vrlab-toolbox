@@ -1,4 +1,3 @@
-# -*- mode: python ; coding: utf-8 -*-
 # Builds every CLI/GUI tool as one onedir bundle so they share a single copy
 # of their dependencies (numpy, scipy, mne, PySide6, ...) instead of each
 # tool carrying its own full copy, as separate --onefile builds used to.
@@ -13,6 +12,7 @@ CRANE_ICON = os.path.join(REPO_ROOT, "assets", "crane_icon.png")
 FOH_ICON = os.path.join(REPO_ROOT, "assets", "FOH_icon.png")
 LONGWALK_ICON = os.path.join(REPO_ROOT, "assets", "longwalk_icon.png")
 LONGWALKV3_ICON = os.path.join(REPO_ROOT, "assets", "longwalkv3_icon.png")
+SPIRAL_ICON = os.path.join(REPO_ROOT, "assets", "spiral_icon.png")
 
 # (exe_name, script path relative to src/vrlab_toolbox, console window?, extra datas)
 TOOLS = [
@@ -24,7 +24,12 @@ TOOLS = [
         [(CRANE_ICON, "assets")],
     ),
     ("vrlab_crane_convert_to_bids", os.path.join("cli", "crane_convert_to_bids.py"), True, []),
-    ("vrlab_crane_generate_sample_data", os.path.join("cli", "crane_generate_sample_data.py"), True, []),
+    (
+        "vrlab_crane_generate_sample_data",
+        os.path.join("cli", "crane_generate_sample_data.py"),
+        True,
+        [],
+    ),
     ("vrlab_crane_process", os.path.join("cli", "vrlab_crane_process.py"), True, []),
     (
         "vrlab_crane_process_GUI",
@@ -45,6 +50,19 @@ TOOLS = [
         os.path.join("gui", "foh_bids_crosscheck_gui.py"),
         False,
         [(FOH_ICON, "assets")],
+    ),
+    ("vrlab_spiral_process", os.path.join("cli", "vrlab_spiral_process.py"), True, []),
+    (
+        "vrlab_spiral_process_GUI",
+        os.path.join("gui", "spiral_process_results_gui.py"),
+        False,
+        [(SPIRAL_ICON, "assets")],
+    ),
+    (
+        "vrlab_spiral_bids_crosscheck",
+        os.path.join("gui", "spiral_bids_crosscheck_gui.py"),
+        False,
+        [(SPIRAL_ICON, "assets")],
     ),
     ("vrlab_foh_import_to_bids", os.path.join("cli", "foh_import_to_bids.py"), True, []),
     (
