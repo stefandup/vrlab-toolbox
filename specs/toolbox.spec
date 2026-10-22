@@ -12,6 +12,7 @@ CRANE_ICON = os.path.join(REPO_ROOT, "assets", "crane_icon.png")
 FOH_ICON = os.path.join(REPO_ROOT, "assets", "FOH_icon.png")
 LONGWALK_ICON = os.path.join(REPO_ROOT, "assets", "longwalk_icon.png")
 LONGWALKV3_ICON = os.path.join(REPO_ROOT, "assets", "longwalkv3_icon.png")
+SPIRAL_ICON = os.path.join(REPO_ROOT, "assets", "spiral_icon.png")
 
 # (exe_name, script path relative to src/vrlab_toolbox, console window?, extra datas)
 TOOLS = [
@@ -55,13 +56,13 @@ TOOLS = [
         "vrlab_spiral_process_GUI",
         os.path.join("gui", "spiral_process_results_gui.py"),
         False,
-        [],
+        [(SPIRAL_ICON, "assets")],
     ),
     (
         "vrlab_spiral_bids_crosscheck",
         os.path.join("gui", "spiral_bids_crosscheck_gui.py"),
         False,
-        [],
+        [(SPIRAL_ICON, "assets")],
     ),
     ("vrlab_foh_import_to_bids", os.path.join("cli", "foh_import_to_bids.py"), True, []),
     (
