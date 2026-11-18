@@ -4,11 +4,9 @@ An interval starts at the first Biopac pulse sent by an actor instance and ends 
 arrives from a *different* actor instance; its label is the actor instance name (repeats get a
 "__2", "__3" suffix). Consecutive pulses from the same instance extend its interval.
 
-Which rows pulse comes from the combined events.tsv: every `trigger_<class>` cell that is
-filled is one pulse sent by the instance it names -- except the classes in
-NON_PULSE_ACTOR_CLASSES (never pulse) and FIRST_ROW_PULSE_ACTOR_CLASSES (only their first row
-pulses). These mirror the generator's `_NON_PULSE_SUFFIXES`/`_FIRST_ROW_PULSE_SUFFIXES` in
-longwalk3_dummy_data.py and are still a working assumption until the Unreal side confirms it.
+Which rows pulse is decided in longwalk3_trigger_pulses.py (get_behaviour_pulses): every
+class except the heatmap manager. The birds' pulses are used for matching but never start an
+interval (MATCH_ONLY_ACTOR_CLASSES) -- they're ignored as far as intervals go.
 
 Clock drift (same problem as crane, see trial_intervals.align_biopac_trigger_drift_from_behav_
 file): each behaviour pulse is matched to its rising edge on the Biopac Trigger channel,
@@ -19,7 +17,6 @@ no recorded edge (recording started late / stopped early) get their neighbours' 
 """
 
 import logging
-from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -28,6 +25,10 @@ from matplotlib.figure import Figure
 from vrlab_toolbox.processing.biodata import RawBioData
 from vrlab_toolbox.processing.input_data import PhysiologyFileFormat
 from vrlab_toolbox.processing.longwalk3_behaviour import RawLongWalkV3BehaviourData
+from vrlab_toolbox.processing.longwalk3_trigger_pulses import (
+    MATCH_ONLY_ACTOR_CLASSES,
+    get_behaviour_pulses,
+)
 from vrlab_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
 from vrlab_toolbox.processing.trial_intervals import (
     TrialIntervals,
@@ -37,41 +38,11 @@ from vrlab_toolbox.processing.trial_intervals import (
 
 logger = logging.getLogger(__name__)
 
-TRIGGER_COLUMN_PREFIX = "trigger_"
-NON_PULSE_ACTOR_CLASSES: tuple[str, ...] = ("BPBirdsFlyingC",)
-FIRST_ROW_PULSE_ACTOR_CLASSES: tuple[str, ...] = ("BPHeatmapManagerC",)
-# Biopac pulses last ~0.1 s, so pulses sent closer together than this show up as a single
-# rising edge -- behaviour pulses within this gap are merged before matching.
-MIN_PULSE_GAP_SECONDS = 0.15
 # An edge counts as a pulse's match only within this much of where the drift-tracked offset
 # predicts it. Drift is ~0.1 s/min at most, and matches re-anchor the offset every pulse.
 MATCH_TOLERANCE_SECONDS = 0.5
 # Starting alignments tried: each of the first N pulses against each of the first N edges.
 ALIGNMENT_CANDIDATES = 5
-
-
-def get_behaviour_pulses(raw_behav_df: pd.DataFrame) -> pd.DataFrame:
-    """One row per Biopac pulse the run should have sent, in time order: `onset` (seconds,
-    behaviour timeline) and `instance` (the actor instance that sent it)."""
-    pulses = []
-    for column in raw_behav_df.columns:
-        if not str(column).startswith(TRIGGER_COLUMN_PREFIX):
-            continue
-        actor_class = str(column)[len(TRIGGER_COLUMN_PREFIX) :]
-        if actor_class in NON_PULSE_ACTOR_CLASSES:
-            continue
-        rows = raw_behav_df.loc[raw_behav_df[column].notna(), ["onset", column]]
-        rows = rows.dropna(subset=["onset"]).sort_values("onset")
-        if actor_class in FIRST_ROW_PULSE_ACTOR_CLASSES:
-            rows = rows.head(1)
-        pulses.append(
-            pd.DataFrame({"onset": rows["onset"].astype(float), "instance": rows[column]})
-        )
-    if not pulses:
-        return pd.DataFrame({"onset": pd.Series(dtype=float), "instance": pd.Series(dtype=str)})
-    all_pulses = pd.concat(pulses, ignore_index=True).sort_values("onset", kind="stable")
-    keep = all_pulses["onset"].diff().fillna(np.inf) >= MIN_PULSE_GAP_SECONDS
-    return cast(pd.DataFrame, all_pulses[keep].reset_index(drop=True))
 
 
 def get_biopac_pulse_times(raw_trigger_df: pd.DataFrame) -> np.ndarray:
@@ -152,14 +123,18 @@ def map_pulses_to_biopac_time(
     return np.where(is_matched, best_matched, interpolated), ProcessingStatus.CORRECTED
 
 
-def build_actor_instance_intervals(pulse_times: np.ndarray, instances: list[str]) -> TrialIntervals:
+def build_actor_instance_intervals(
+    pulse_times: np.ndarray, instances: list[str], ignored: list[bool] | None = None
+) -> TrialIntervals:
     """D2 intervals from time-ordered pulses: a new interval whenever the sending instance
-    changes; it ends at the next interval's first pulse (the last one at its own last pulse)."""
+    changes; it ends at the next interval's first pulse (the last one at its own last pulse).
+    Pulses flagged in `ignored` (the birds) never start or end an interval."""
     labels: dict[str, int] = {}
     starts: list[tuple[str, float]] = []
     previous_instance = None
-    for time, instance in zip(pulse_times, instances, strict=True):
-        if instance == previous_instance or np.isnan(time):
+    ignored = ignored if ignored is not None else [False] * len(instances)
+    for time, instance, skip in zip(pulse_times, instances, ignored, strict=True):
+        if skip or instance == previous_instance or np.isnan(time):
             continue
         labels[instance] = labels.get(instance, 0) + 1
         label = instance if labels[instance] == 1 else f"{instance}__{labels[instance]}"
@@ -195,9 +170,9 @@ class LongWalkV3GetTrialIntervalStrategyStep:
             pulses["onset"].to_numpy(dtype=float), biopac_edges
         )
         status.set(TrialIntervals, match_status)
-        trial_intervals_out = build_actor_instance_intervals(
-            pulse_times, pulses["instance"].astype(str).tolist()
-        )
+        instances = pulses["instance"].astype(str).tolist()
+        ignored = pulses["actor_class"].isin(MATCH_ONLY_ACTOR_CLASSES).tolist()
+        trial_intervals_out = build_actor_instance_intervals(pulse_times, instances, ignored)
         logger.info(
             "%d behaviour pulses, %d Biopac edges -> %d actor-instance intervals (%s)",
             len(pulses),
@@ -207,7 +182,7 @@ class LongWalkV3GetTrialIntervalStrategyStep:
         )
 
         behaviour_timeline_intervals = build_actor_instance_intervals(
-            pulses["onset"].to_numpy(dtype=float), pulses["instance"].astype(str).tolist()
+            pulses["onset"].to_numpy(dtype=float), instances, ignored
         )
         interval_qc_figure_out = plot_biopac_interval_qc(
             trigger_df,

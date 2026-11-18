@@ -1548,12 +1548,12 @@ SHAPE_ERROR_TYPES = (
 SHAPE_SUBJECT_ID_PREFIX = "dummy"
 # Real exports name the physiology file "<timestamp>_sub-<id>_longwalkv3out.acq".
 SHAPE_ACQ_SUFFIX = "longwalkv3out"
-# Which classes send a Biopac pulse (D2, docs/longwalk3_plan.md, 2026-11-18): every class pulses
-# on every logged row, except the heatmap (logs at ~2 Hz) which only pulses on its first row,
-# and the birds (hundreds of rows in ~4 s), which don't pulse at all. Still a working
-# assumption until the Unreal side confirms it -- adjust these two tuples, not the code.
-_NON_PULSE_SUFFIXES: tuple[str, ...] = ("BP_BirdsFlying_C.csv",)
-_FIRST_ROW_PULSE_SUFFIXES: tuple[str, ...] = ("BP_HeatmapManager_C.csv",)
+# Which classes send a Biopac pulse -- confirmed by the Unreal side 2026-11-18: every class
+# pulses on every logged row except the heatmap manager. (The birds pulse too: hundreds of rows
+# in ~4 s, which merge into one long Trigger-high stretch.) Mirrors
+# longwalk3_trigger_pulses.NON_PULSE_ACTOR_CLASSES / FIRST_ROW_PULSE_ACTOR_CLASSES.
+_NON_PULSE_SUFFIXES: tuple[str, ...] = ("BP_HeatmapManager_C.csv",)
+_FIRST_ROW_PULSE_SUFFIXES: tuple[str, ...] = ()
 # Seen in the real data: an aborted first attempt, then a restart a few minutes later in the
 # same session, each run in its own run-00N subfolder, with the .acq started at the restart.
 _ABORTED_RUN_RESTART_DELAY = dt.timedelta(minutes=4)

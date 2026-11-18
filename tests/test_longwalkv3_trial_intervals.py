@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 from vrlab_toolbox.processing.longwalk3_trial_intervals import (
+    MATCH_ONLY_ACTOR_CLASSES,
     build_actor_instance_intervals,
     get_behaviour_pulses,
     map_pulses_to_biopac_time,
@@ -22,17 +23,23 @@ def test_interval_runs_until_a_different_instance_pulses():
     }
 
 
-def test_birds_never_pulse_and_heatmap_only_once():
+def test_heatmap_never_pulses_and_birds_pulse_but_never_start_an_interval():
     df = pd.DataFrame(
         {
             "onset": [1.0, 1.5, 2.0, 2.5, 3.0],
             "trigger_BPHeatmapManagerC": ["heat_1", "heat_1", None, None, None],
             "trigger_BPBirdsFlyingC": [None, None, "bird_0", None, None],
-            "trigger_BPNPCC": [None, None, None, "npc_0", "npc_0"],
+            "trigger_BPNPCC": ["npc_0", None, None, "npc_1", None],
         }
     )
     pulses = get_behaviour_pulses(df)
-    assert pulses["instance"].tolist() == ["heat_1", "npc_0", "npc_0"]
+    assert pulses["instance"].tolist() == ["npc_0", "bird_0", "npc_1"]  # birds kept for matching
+
+    ignored = pulses["actor_class"].isin(MATCH_ONLY_ACTOR_CLASSES).tolist()
+    intervals = build_actor_instance_intervals(
+        pulses["onset"].to_numpy(), pulses["instance"].tolist(), ignored
+    )
+    assert intervals.intervals == {"npc_0": (1.0, 2.5), "npc_1": (2.5, 2.5)}
 
 
 def test_pulses_too_close_for_biopac_are_merged():
