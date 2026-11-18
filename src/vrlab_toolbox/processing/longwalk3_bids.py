@@ -36,11 +36,12 @@ Output layout:
   decides an .acq's session. The legacy flat layout falls back to chronological order.
 """
 
+import itertools
 import logging
 import re
 from collections.abc import Hashable
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, TypedDict, cast
 
@@ -382,28 +383,104 @@ def csv_to_df_compress_header(csv_fn_in: Path) -> pd.DataFrame:
     return pd.concat(chunks, ignore_index=True) if len(chunks) > 1 else chunks[0]
 
 
-_UNREAL_SECONDS_DIGITS = 14  # yyyyMMddHHmmss
 BEHAVIOUR_HHMM_COLUMN = "TimeStampHHmm"
 
 
-def parse_unreal_datetimes(values: pd.Series) -> pd.Series:
-    """Unreal's digit timestamps: yyyyMMddHHmmss followed by milliseconds.
+_FULL_DATETIME_DIGITS = 17
+# Widths an unpadded field can take: month, day, hour, minute, second (1-2), millisecond (1-3).
+_UNPADDED_FIELD_WIDTHS = ((1, 2),) * 5 + ((1, 2, 3),)
 
-    DECISION D6 (open, docs/longwalk3_plan.md): about 1 in 4 real cells is shorter than 17
-    digits. Working assumption: milliseconds are written without zero-padding, so whatever
-    follows the 14 seconds digits is read as an integer number of milliseconds ("...52" is
-    52 ms, not 520 ms as a plain `%f` parse would give). Anything else becomes NaT.
+
+def unpadded_datetime_candidates(cell: str) -> list[datetime]:
+    """Every datetime a digit cell can be if each field after the 4-digit year was written
+    without zero-padding (D6): all ways to split the digits into month/day/hour/minute/
+    second/millisecond where no multi-digit field starts with "0" (an unpadded writer never
+    writes one) and the result is a real date. E.g. "202611181457742" ->
+    [2026-11-18 14:05:07.742, 14:05:07.042 ... whichever splits are valid]."""
+    if not cell.isdigit() or not 10 <= len(cell) <= _FULL_DATETIME_DIGITS:
+        return []
+    year, rest = int(cell[:4]), cell[4:]
+    candidates = set()
+    for widths in itertools.product(*_UNPADDED_FIELD_WIDTHS):
+        if sum(widths) != len(rest):
+            continue
+        parts, position = [], 0
+        for width in widths:
+            part = rest[position : position + width]
+            position += width
+            if len(part) > 1 and part[0] == "0":
+                break
+            parts.append(int(part))
+        else:
+            month, day, hour, minute, second, millisecond = parts
+            try:
+                candidates.add(datetime(year, month, day, hour, minute, second, millisecond * 1000))
+            except ValueError:
+                continue
+    return sorted(candidates)
+
+
+_RUN_DATE_WINDOW = timedelta(days=1)
+
+
+def _datetime_candidates(cell: object, run_date: datetime | None) -> list[datetime]:
+    if not isinstance(cell, str) or not cell.strip():
+        return []
+    cell = cell.strip()
+    if len(cell) == _FULL_DATETIME_DIGITS and cell.isdigit():
+        # Full length: nothing was left unpadded, so it reads the standard way.
+        try:
+            options = [datetime.strptime(cell, DATESTR_FORMAT)]
+        except ValueError:
+            return []
+    else:
+        options = unpadded_datetime_candidates(cell)
+    if run_date is None:
+        return options
+    return [o for o in options if abs(o - run_date) <= _RUN_DATE_WINDOW]
+
+
+def parse_unreal_datetimes(values: pd.Series, run_date: datetime | None = None) -> pd.Series:
+    """Unreal's digit timestamps, yyyyMMddHHmmssSSS -- except that (D6, settled 2026-11-18 from
+    the real data's shape: 17-digit cells perfectly in order, 21% of cells 16 digits, 1.3% 15)
+    the fields are written *without zero-padding*: 14:05:07.042 comes out as "...1457" + "42".
+
+    Full-length cells read the standard way. A shorter one can split several ways
+    (`unpadded_datetime_candidates`), so the rows' time order decides: cells with exactly one
+    possible reading anchor the timeline, and an ambiguous cell takes the reading that falls
+    between its nearest anchors (the earliest that does). No reading fits: NaT -- counted in
+    the crosscheck's missing-onset breakdown. Rows must be in file order (they're logged
+    chronologically). `run_date` (the raw filename's date), given, rules out readings more than
+    a day away from it.
     """
-    text = values.astype("string").str.strip()
-    valid = text.str.fullmatch(r"\d{14,17}").fillna(False).astype(bool)
-    seconds = pd.to_datetime(
-        text.str[:_UNREAL_SECONDS_DIGITS], format="%Y%m%d%H%M%S", errors="coerce"
-    )
-    milliseconds = pd.Series(
-        pd.to_numeric(text.str[_UNREAL_SECONDS_DIGITS:], errors="coerce"), index=text.index
-    ).fillna(0)
-    parsed = seconds + pd.to_timedelta(milliseconds, unit="ms")
-    return parsed.where(valid)
+    candidates = [_datetime_candidates(cell, run_date) for cell in values.astype(object).tolist()]
+    resolved: list[datetime | None] = [c[0] if len(c) == 1 else None for c in candidates]
+
+    previous_anchor: list[datetime | None] = []
+    last = None
+    for value in resolved:
+        previous_anchor.append(last)
+        if value is not None:
+            last = value
+    next_anchor: list[datetime | None] = [None] * len(resolved)
+    last = None
+    for index in range(len(resolved) - 1, -1, -1):
+        next_anchor[index] = last
+        if resolved[index] is not None:
+            last = resolved[index]
+
+    for index, options in enumerate(candidates):
+        if len(options) < 2:
+            continue
+        low, high = previous_anchor[index], next_anchor[index]
+        fitting = [
+            option
+            for option in options
+            if (low is None or option >= low) and (high is None or option <= high)
+        ]
+        resolved[index] = fitting[0] if fitting else None
+
+    return pd.Series(pd.to_datetime(resolved), index=values.index)
 
 
 def parse_behaviour_hhmm(values: pd.Series, run_date: datetime) -> pd.Series:
@@ -530,7 +607,9 @@ def combine_events_df_files(
                 cast(pd.Series, df[BEHAVIOUR_HHMM_COLUMN]), df.attrs["date"]
             )
         else:
-            event_times = parse_unreal_datetimes(cast(pd.Series, df["time_stamp"]))
+            event_times = parse_unreal_datetimes(
+                cast(pd.Series, df["time_stamp"]), df.attrs["date"]
+            )
         df["onset"] = (event_times - df.attrs["date"]).dt.total_seconds()
         df = df.add_suffix(f"_{df.attrs['bp_id']}")
 

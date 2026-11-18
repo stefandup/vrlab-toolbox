@@ -21,6 +21,7 @@ from vrlab_toolbox.processing.longwalk3_bids import (
     save_debrief_excluded_rows,
     save_debrief_id_corrections,
     subject_session_by_day,
+    unpadded_datetime_candidates,
 )
 
 
@@ -36,14 +37,25 @@ def test_sub_prefix_in_raw_filenames_is_stripped():
     assert legacy is not None and legacy.subject_id == "P001"
 
 
-def test_unreal_datetimes_read_short_milliseconds_as_unpadded():
+def test_unreal_datetimes_with_every_field_unpadded():
+    # 2026-11-18 14:05:06.900, then 14:05:07.042 written unpadded ("...14" "5" "7" "42"),
+    # then 14:05:12.100. The middle cell has several possible splits; time order picks one.
+    run_date = datetime(2026, 11, 18, 14, 0)
     parsed = parse_unreal_datetimes(
-        pd.Series(["20260916173040521", "2026091617304052", "20260916173040", "junk", ""])
+        pd.Series(["20261118140506900", "20261118145742", "20261118140512100", "junk", ""]),
+        run_date,
     )
-    assert parsed[0] == pd.Timestamp("2026-09-16 17:30:40.521")
-    assert parsed[1] == pd.Timestamp("2026-09-16 17:30:40.052")
-    assert parsed[2] == pd.Timestamp("2026-09-16 17:30:40")
+    assert parsed[0] == pd.Timestamp("2026-11-18 14:05:06.900")
+    assert parsed[1] == pd.Timestamp("2026-11-18 14:05:07.042")
+    assert parsed[2] == pd.Timestamp("2026-11-18 14:05:12.100")
     assert pd.isna(parsed[3]) and pd.isna(parsed[4])
+
+
+def test_unpadded_reading_never_has_leading_zeros_and_stays_near_the_run_date():
+    # A month written "09" can't come from an unpadded writer.
+    assert unpadded_datetime_candidates("2026091617304052") == []
+    parsed = parse_unreal_datetimes(pd.Series(["2026111814"]), datetime(2026, 11, 18, 14, 0))
+    assert pd.isna(parsed[0])  # only reading is 2026-01-01 -- not this run's day
 
 
 def test_behaviour_hhmm_takes_the_day_from_the_run_date():

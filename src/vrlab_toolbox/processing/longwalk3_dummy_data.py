@@ -19,6 +19,7 @@ from vrlab_toolbox.processing.longwalk3_bids import (
     DATESTR_FORMAT,
     DEBRIEF_ID_COLUMN,
     REDCAP_PULL_GLOB,
+    unpadded_datetime_candidates,
 )
 from vrlab_toolbox.processing.longwalk_dummy_data import (
     TRIGGER_BASELINE_VOLTS,
@@ -999,7 +1000,10 @@ def _cell_kind(value: str) -> str:
 # milliseconds written without zero-padding ("52" = 52 ms), or trailing zeros dropped
 # ("52" = 520 ms). check_datetime_cells tests which one keeps each short cell in time order
 # between its full-length neighbours -- counts only, never a value.
-DATETIME_HYPOTHESES = ("unpadded_ms", "trailing_zeros_dropped")
+# "all_fields_unpadded": every field after the year written without padding (seconds,
+# minutes, ... too) -- a cell counts as in order if any valid split of it is
+# (longwalk3_bids.unpadded_datetime_candidates). This is the reading the real data supports.
+DATETIME_HYPOTHESES = ("unpadded_ms", "trailing_zeros_dropped", "all_fields_unpadded")
 _SECONDS_DIGITS = 14
 
 
@@ -1050,7 +1054,7 @@ def check_datetime_cells(cells: list[str]) -> dict:
     n_without_neighbours = 0
     full_indices = [index for index, _ in full_times]
     for index, cell in enumerate(cells):
-        if not (cell.isdigit() and _SECONDS_DIGITS < len(cell) < _DIGIT_TIMESTAMP_LENGTH):
+        if not (cell.isdigit() and 10 <= len(cell) < _DIGIT_TIMESTAMP_LENGTH):
             continue
         position = bisect.bisect_left(full_indices, index)
         if position == 0 or position == len(full_times):
@@ -1059,8 +1063,11 @@ def check_datetime_cells(cells: list[str]) -> dict:
         before, after = full_times[position - 1][1], full_times[position][1]
         in_order_by_hypothesis = {}
         for hypothesis in DATETIME_HYPOTHESES:
-            stamp = _datetime_under(cell, hypothesis)
-            ok = stamp is not None and before <= stamp <= after
+            if hypothesis == "all_fields_unpadded":
+                ok = any(before <= c <= after for c in unpadded_datetime_candidates(cell))
+            else:
+                stamp = _datetime_under(cell, hypothesis) if len(cell) > _SECONDS_DIGITS else None
+                ok = stamp is not None and before <= stamp <= after
             in_order_by_hypothesis[hypothesis] = ok
             results[hypothesis]["in_order" if ok else "out_of_order"] += 1
         winners = [h for h, ok in in_order_by_hypothesis.items() if ok]
@@ -1675,7 +1682,6 @@ _FIRST_ROW_PULSE_SUFFIXES: tuple[str, ...] = ()
 _ABORTED_RUN_RESTART_DELAY = dt.timedelta(minutes=4)
 _CSV_LEAD_IN_SECONDS = 5.0
 _ACQ_LEAD_OUT_SECONDS = 5.0
-_UNPADDED_MS_LIMIT = 100
 # Likert scale for behaviour.csv ratings (Nausea/Dizzy/Stressed/Anxious) and REDCap int answers
 # -- 1 to 5, confirmed 2026-11-18 (docs/longwalk3_plan.md, D5).
 LIKERT_RANGE = (1, 5)
@@ -1830,9 +1836,12 @@ def _first_row_only(column_profile: dict | None) -> bool:
 def _format_shape_datetime(moment: dt.datetime, unpadded_ms: bool) -> str:
     millisecond = moment.microsecond // 1000
     if unpadded_ms:
-        # Hypothesis for the real export's shorter-than-17-digit datetime cells (the manifest
-        # shows them as "int"): milliseconds written without zero-padding.
-        return f"{moment:%Y%m%d%H%M%S}{millisecond % 100}"
+        # D6, as the real data's shape shows: every field after the year is written without
+        # zero-padding (14:05:07.042 -> "...14" "5" "7" "42").
+        return (
+            f"{moment.year}{moment.month}{moment.day}{moment.hour}{moment.minute}"
+            f"{moment.second}{millisecond}"
+        )
     return f"{moment:%Y%m%d%H%M%S}{millisecond:03d}"
 
 
@@ -1889,14 +1898,10 @@ def _synthesize_actor_log(
     times = list(times)
     for row_index, actor in enumerate(row_actors):
         moment = times[row_index]
-        # D6 hypothesis: milliseconds written without zero-padding -- so a cell is short
-        # exactly when its ms is under 100 (about 1 in 10), never by moving a row's time.
-        # Only applied when the real export has short cells at all.
-        unpadded = (
-            "datetime" in header
-            and unpadded_fraction > 0
-            and moment.microsecond // 1000 < _UNPADDED_MS_LIMIT
-        )
+        # D6: the real export writes every field unpadded, so a cell comes out short exactly
+        # when one of its fields is small -- never by moving a row's time. Only applied when
+        # the real export has short cells at all.
+        unpadded = "datetime" in header and unpadded_fraction > 0
         cells = []
         for name in header:
             if name in first_row_only and row_index > 0:

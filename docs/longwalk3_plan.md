@@ -74,7 +74,7 @@ Answered 2026-11-18 unless marked open. Open ones stay placeholder-wired, marked
 | D3 | **Sessions in pipeline output** | **One wide row per subject** (sessions as column prefixes). |
 | D4 | **Debrief** | REDCap debrief is **long format: one row per subject per session**. Field details settled once the data JSONs (shape manifests) are updated with a real REDCap profile. |
 | D5 | **Rating scale** | **Likert 1–5** (Stress, Nausea, etc.). Generator updated (`LIKERT_RANGE`). |
-| D6 | **`datetime` ms padding** | **Open — later**, checked against the student's new example data. Placeholder: treat short values as unpadded ms. |
+| D6 | **`datetime` padding** | **Settled 2026-11-18 from the real data's shape:** every field after the year is written without zero-padding (17-digit cells perfectly in order; 21% 16-digit, 1.3% 15-digit). Parser tries every no-leading-zero split and lets time order (and the run's date) pick. |
 
 **Knock-on from D4:** `longwalk3_bids.py` currently writes *one* debrief file per subject
 anchored on `ses-01`. It has to split the long REDCap export by session instead (phase A1).
@@ -147,3 +147,8 @@ Biopac trigger channel, the same way Crane matches behaviour-based intervals to 
   unpadded ms, only ~10% of cells can be short (ms < 100) — the real ~25% is a hint something
   else is going on. **Your step:** re-run `--profile-shape` on the real folder and share the
   printed D6 summary.
+- 2026-11-18 — **D6 settled.** `parse_unreal_datetimes` reads unpadded fields (every valid
+  split, chosen by time order between unambiguous neighbours, within a day of the run's date).
+  Profiler has the matching `all_fields_unpadded` reading; generator writes unpadded fields.
+  Synthetic: 0 of 59,422 onsets missing. **Your step:** re-run `--profile-shape` on the real
+  folder to confirm `all_fields_unpadded` has ~0 out of order, then Refresh in the crosscheck.
