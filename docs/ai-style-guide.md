@@ -161,6 +161,38 @@ BIDS-conversion CLIs standalone, the crosscheck tool, or the
 pipeline/processing CLIs (e.g. `vrlab_crane_process`) on that data, which
 all stay under `AGENTS.md`'s ordinary "only suggest commands" rule.
 
+## Execution exception: LongwalkV3 CLIs on synthetic data
+
+Any `vrlab_longwalk3_*` CLI — sample-data generation, BIDS conversion,
+and processing — may be run directly by an AI assistant, **only** against
+synthetic/dummy data (the generator's output folders, never a real raw or
+BIDS folder). Same reasoning as dummy-data generation above: the input is
+synthetic, so the human step moves to reviewing output afterwards. Pointing
+any of these at real data, or running another project's processing CLI,
+still means only suggesting the command.
+
+## BUILD mode
+
+`BUILD <new task> LIKE <old task>` in `AGENTS.md` is the fully automated
+counterpart to the interaction loop, for when an existing task is a
+sufficient example to generate the new one from — processing and pipeline
+code included. It runs as:
+
+1. **Plan** — a short planning session that writes `docs/<new task>_plan.md`:
+   what the example has that the new task lacks, and the *major decisions*
+   the example can't settle (scientific/analysis choices, data contracts).
+2. **Vibe** — everything else is generated following the example's
+   structure and this page's stack and style rules; no new patterns.
+3. **Stop at decisions** — each major decision goes back to the normal
+   loop with the user.
+
+Every file a BUILD creates or changes goes on `vibe_list.md`. Every
+AI-authored commit is prefixed `[vibe]` and lands only on the task's
+branch (never `master`/`main`), never pushed — `git log --grep "\[vibe\]"`
+is the record to review against the [four rules of vibe
+coding](ai-use.md#the-four-rules-of-vibe-coding) later. The data and
+restricted-folder guardrails are unaffected.
+
 ## Execution exception: code-checking tools
 
 A second exception to the same run-nothing-yourself default (see above):
