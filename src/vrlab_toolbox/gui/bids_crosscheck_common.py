@@ -13,7 +13,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-from PySide6.QtCore import QItemSelectionModel, QSettings, QStandardPaths, Qt, QTimer, QUrl
+from PySide6.QtCore import (
+    QByteArray,
+    QItemSelectionModel,
+    QSettings,
+    QStandardPaths,
+    Qt,
+    QTimer,
+    QUrl,
+)
 from PySide6.QtGui import QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -133,6 +141,7 @@ FOUND_EVERYWHERE_COLOR = "#2ecc71"
 SUBJECT_ID_ROLE = Qt.ItemDataRole.UserRole
 LAST_BIDS_FOLDER_SETTINGS_KEY = "last_bids_folder"
 LAST_RAW_FOLDER_SETTINGS_KEY = "last_raw_folder"
+MAIN_SPLITTER_STATE_SETTINGS_KEY = "main_splitter_state"
 # Every study id this app has ever seen, across every BIDS folder -- app-wide (unlike the
 # study id itself, which lives inside each BIDS folder via `save_study_id`), so the study id
 # combo box has something to suggest for a brand-new folder that doesn't have one yet.
@@ -1018,7 +1027,24 @@ class BidsCrosscheckWindow(QMainWindow):
 
         splitter.addWidget(right_panel)
 
-        splitter.setSizes([500, 700])
+        # Drag the handle to widen the subject list (its Info column gets cut off on smaller
+        # monitors). A wide, visible handle, neither side collapsible to nothing, and the
+        # chosen split remembered per crosscheck tool.
+        splitter.setHandleWidth(8)
+        splitter.setChildrenCollapsible(False)
+        splitter.setStyleSheet(
+            "QSplitter::handle { background: palette(mid); margin: 40px 2px; border-radius: 3px; }"
+            "QSplitter::handle:hover { background: palette(highlight); }"
+        )
+        splitter.handle(1).setToolTip("Drag to resize the subject list")
+        stored_state = self._settings.value(MAIN_SPLITTER_STATE_SETTINGS_KEY)
+        if not (isinstance(stored_state, QByteArray) and splitter.restoreState(stored_state)):
+            splitter.setSizes([500, 700])
+        splitter.splitterMoved.connect(
+            lambda *_: self._settings.setValue(
+                MAIN_SPLITTER_STATE_SETTINGS_KEY, splitter.saveState()
+            )
+        )
 
     def _on_browse(self) -> None:
         start_dir = default_browse_dir(self.bids_folder)
