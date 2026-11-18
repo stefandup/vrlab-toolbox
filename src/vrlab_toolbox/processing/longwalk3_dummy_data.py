@@ -1000,10 +1000,10 @@ def _cell_kind(value: str) -> str:
 # milliseconds written without zero-padding ("52" = 52 ms), or trailing zeros dropped
 # ("52" = 520 ms). check_datetime_cells tests which one keeps each short cell in time order
 # between its full-length neighbours -- counts only, never a value.
-# "all_fields_unpadded": every field after the year written without padding (seconds,
-# minutes, ... too) -- a cell counts as in order if any valid split of it is
+# "seconds_ms_unpadded": yyyyMMddHHmm padded, seconds and milliseconds both unpadded -- a
+# cell counts as in order if any valid split of it is
 # (longwalk3_bids.unpadded_datetime_candidates). This is the reading the real data supports.
-DATETIME_HYPOTHESES = ("unpadded_ms", "trailing_zeros_dropped", "all_fields_unpadded")
+DATETIME_HYPOTHESES = ("unpadded_ms", "trailing_zeros_dropped", "seconds_ms_unpadded")
 _SECONDS_DIGITS = 14
 
 
@@ -1063,7 +1063,7 @@ def check_datetime_cells(cells: list[str]) -> dict:
         before, after = full_times[position - 1][1], full_times[position][1]
         in_order_by_hypothesis = {}
         for hypothesis in DATETIME_HYPOTHESES:
-            if hypothesis == "all_fields_unpadded":
+            if hypothesis == "seconds_ms_unpadded":
                 ok = any(before <= c <= after for c in unpadded_datetime_candidates(cell))
             else:
                 stamp = _datetime_under(cell, hypothesis) if len(cell) > _SECONDS_DIGITS else None
@@ -1836,12 +1836,9 @@ def _first_row_only(column_profile: dict | None) -> bool:
 def _format_shape_datetime(moment: dt.datetime, unpadded_ms: bool) -> str:
     millisecond = moment.microsecond // 1000
     if unpadded_ms:
-        # D6, as the real data's shape shows: every field after the year is written without
-        # zero-padding (14:05:07.042 -> "...14" "5" "7" "42").
-        return (
-            f"{moment.year}{moment.month}{moment.day}{moment.hour}{moment.minute}"
-            f"{moment.second}{millisecond}"
-        )
+        # D6, as the real rows show: yyyyMMddHHmm padded, seconds and milliseconds not
+        # (12:58:08.864 -> "...1258" "8" "864").
+        return f"{moment:%Y%m%d%H%M}{moment.second}{millisecond}"
     return f"{moment:%Y%m%d%H%M%S}{millisecond:03d}"
 
 

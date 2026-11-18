@@ -107,12 +107,13 @@ def test_generated_export_is_long_format_with_same_columns(tmp_path):
         assert marker not in path.read_text(encoding="utf-8")
 
 
-def test_datetime_check_tells_the_two_d6_readings_apart():
-    # 17-digit neighbours 17:30:40.040 and 17:30:40.100; the short cell "...4052" fits
-    # between them only as unpadded ms (52 ms), not as trailing-zeros-dropped (520 ms).
-    cells = ["20260916173040040", "2026091617304052", "20260916173040100", ""]
+def test_datetime_check_tells_the_d6_readings_apart():
+    # 17-digit neighbours 17:30:04.900 and 17:30:05.100; the short cell "...1730" "5" "52" fits
+    # between them only as unpadded seconds + ms (05.052) -- unpadded ms alone reads 55.002,
+    # trailing zeros dropped 55.200.
+    cells = ["20260916173004900", "202609161730552", "20260916173005100", ""]
     check = check_datetime_cells(cells)
-    assert check["digit_lengths"] == {"16": 1, "17": 2, "empty": 1}
+    assert check["digit_lengths"] == {"15": 1, "17": 2, "empty": 1}
     assert check["full_length_in_order"] == [1, 1]
-    assert check["decisive"] == {"unpadded_ms": 1}
+    assert check["decisive"] == {"seconds_ms_unpadded": 1}
     assert "2026" not in json.dumps(check)  # counts only, no values

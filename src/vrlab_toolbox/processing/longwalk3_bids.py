@@ -36,7 +36,6 @@ Output layout:
   decides an .acq's session. The legacy flat layout falls back to chronological order.
 """
 
-import itertools
 import logging
 import re
 from collections.abc import Hashable
@@ -389,57 +388,48 @@ ONSET_ALTERNATIVES_COLUMN = "onset_alternatives"
 
 
 _FULL_DATETIME_DIGITS = 17
-# Widths an unpadded field can take: month, day, hour, minute, second (1-2), millisecond (1-3).
-_UNPADDED_FIELD_WIDTHS = ((1, 2),) * 5 + ((1, 2, 3),)
-# How often an unpadded field comes out shorter than full width: minutes/seconds < 10 one time
-# in 6, ms < 100 one time in 10 (< 10 one in 100), days < 10 ~9 in 31, months < 10 9 in 12,
-# hours < 10 roughly 1 in 5 for lab hours.
-_SHORT_FIELD_ODDS = {
-    "month": 9 / 12,
-    "day": 9 / 31,
-    "hour": 0.2,
-    "minute": 1 / 6,
-    "second": 1 / 6,
-}
+# yyyyMMddHHmm is always zero-padded (12 digits); only seconds and milliseconds come out
+# unpadded (D6, confirmed on real rows 2026-11-18: "2026110612588864" = 12:58:08.864).
+_PADDED_PREFIX_DIGITS = 12
+_SECOND_WIDTHS = (1, 2)
+_MILLISECOND_WIDTHS = (1, 2, 3)
+# How often a field comes out short: seconds < 10 one time in 6; ms < 100 one in 10
+# (< 10 one in 100).
+_SHORT_SECOND_ODDS = 1 / 6
 
 
 def _reading_likelihood(moment: datetime) -> float:
     """How likely an unpadded writer is to produce this reading's field widths -- used to pick
     between readings that all fit the time order."""
-    likelihood = 1.0
-    for field_name, short_odds in _SHORT_FIELD_ODDS.items():
-        likelihood *= short_odds if getattr(moment, field_name) < 10 else 1 - short_odds
+    likelihood = _SHORT_SECOND_ODDS if moment.second < 10 else 1 - _SHORT_SECOND_ODDS
     millisecond = moment.microsecond // 1000
     likelihood *= 0.01 if millisecond < 10 else 0.09 if millisecond < 100 else 0.9
     return likelihood
 
 
 def unpadded_datetime_candidates(cell: str) -> list[datetime]:
-    """Every datetime a digit cell can be if each field after the 4-digit year was written
-    without zero-padding (D6): all ways to split the digits into month/day/hour/minute/
-    second/millisecond where no multi-digit field starts with "0" (an unpadded writer never
-    writes one) and the result is a real date. E.g. "202611181457742" ->
-    [2026-11-18 14:05:07.742, 14:05:07.042 ... whichever splits are valid]."""
-    if not cell.isdigit() or not 10 <= len(cell) <= _FULL_DATETIME_DIGITS:
+    """Every datetime a digit cell can be when its padded yyyyMMddHHmm is followed by seconds
+    and milliseconds written without zero-padding (D6): all splits of the remaining digits
+    into second (1-2 digits) and millisecond (1-3) where a 2+-digit field doesn't start with
+    "0" and the values are valid. E.g. "2026110612588864" -> [12:58:08.864]; "...17303241"
+    -> [17:30:03.241, 17:30:32.041]."""
+    if not cell.isdigit() or not 14 <= len(cell) <= _FULL_DATETIME_DIGITS:
         return []
-    year, rest = int(cell[:4]), cell[4:]
+    try:
+        minute_start = datetime.strptime(cell[:_PADDED_PREFIX_DIGITS], "%Y%m%d%H%M")
+    except ValueError:
+        return []
+    rest = cell[_PADDED_PREFIX_DIGITS:]
     candidates = set()
-    for widths in itertools.product(*_UNPADDED_FIELD_WIDTHS):
-        if sum(widths) != len(rest):
+    for second_width in _SECOND_WIDTHS:
+        second_part, ms_part = rest[:second_width], rest[second_width:]
+        if len(ms_part) not in _MILLISECOND_WIDTHS:
             continue
-        parts, position = [], 0
-        for width in widths:
-            part = rest[position : position + width]
-            position += width
-            if len(part) > 1 and part[0] == "0":
-                break
-            parts.append(int(part))
-        else:
-            month, day, hour, minute, second, millisecond = parts
-            try:
-                candidates.add(datetime(year, month, day, hour, minute, second, millisecond * 1000))
-            except ValueError:
-                continue
+        if any(len(part) > 1 and part[0] == "0" for part in (second_part, ms_part)):
+            continue
+        second, millisecond = int(second_part), int(ms_part)
+        if second < 60:
+            candidates.add(minute_start + timedelta(seconds=second, milliseconds=millisecond))
     return sorted(candidates)
 
 
@@ -472,8 +462,8 @@ def resolve_unreal_datetimes(
     values: pd.Series, run_date: datetime | None = None
 ) -> tuple[pd.Series, list[list[datetime]]]:
     """Unreal's digit timestamps, yyyyMMddHHmmssSSS -- except that (D6, settled 2026-11-18 from
-    the real data's shape: 17-digit cells perfectly in order, 21% of cells 16 digits, 1.3% 15)
-    the fields are written *without zero-padding*: 14:05:07.042 comes out as "...1457" + "42".
+    real rows) seconds and milliseconds are written *without zero-padding*: 12:58:08.864 comes
+    out as "...1258" + "8" + "864" (yyyyMMddHHmm itself is padded).
 
     Full-length cells read the standard way. A shorter one can split several ways
     (`unpadded_datetime_candidates`), so the rows' time order decides: cells with exactly one
@@ -484,7 +474,7 @@ def resolve_unreal_datetimes(
     a day away from it.
 
     Also returns, per row, the *other* readings an ambiguous cell could have had -- some cells
-    are genuinely ambiguous (e.g. "...35470" is 35:47.0 or 35:04.70), and for trigger rows the
+    are genuinely ambiguous (e.g. "...3241" is 03.241 or 32.041), and for trigger rows the
     Biopac edge can settle it later (see longwalk3_trial_intervals).
     """
     candidates = [_datetime_candidates(cell, run_date) for cell in values.astype(object).tolist()]

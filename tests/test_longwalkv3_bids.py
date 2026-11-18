@@ -37,25 +37,42 @@ def test_sub_prefix_in_raw_filenames_is_stripped():
     assert legacy is not None and legacy.subject_id == "P001"
 
 
-def test_unreal_datetimes_with_every_field_unpadded():
-    # 2026-11-18 14:05:06.900, then 14:05:07.042 written unpadded ("...14" "5" "7" "42"),
-    # then 14:05:12.100. The middle cell has several possible splits; time order picks one.
-    run_date = datetime(2026, 11, 18, 14, 0)
+def test_unreal_datetimes_with_unpadded_seconds_and_ms():
+    # Real-data shape: date and HH:MM padded, seconds/ms not. "2026110612588864" is
+    # 12:58:08.864 (the padded day "06" is fine); "...12583241" is 58:03.241 or 58:32.041,
+    # and time order decides.
+    run_date = datetime(2026, 11, 6, 12, 0)
     parsed = parse_unreal_datetimes(
-        pd.Series(["20261118140506900", "20261118145742", "20261118140512100", "junk", ""]),
+        pd.Series(
+            [
+                "20261106125806362",
+                "2026110612588864",
+                "2026110612583241",  # 58:03.241 or 58:32.041 -- only 32.041 keeps order
+                "20261106125840100",
+                "junk",
+                "",
+            ]
+        ),
         run_date,
     )
-    assert parsed[0] == pd.Timestamp("2026-11-18 14:05:06.900")
-    assert parsed[1] == pd.Timestamp("2026-11-18 14:05:07.042")
-    assert parsed[2] == pd.Timestamp("2026-11-18 14:05:12.100")
-    assert pd.isna(parsed[3]) and pd.isna(parsed[4])
+    assert parsed[0] == pd.Timestamp("2026-11-06 12:58:06.362")
+    assert parsed[1] == pd.Timestamp("2026-11-06 12:58:08.864")
+    assert parsed[2] == pd.Timestamp("2026-11-06 12:58:32.041")
+    assert parsed[3] == pd.Timestamp("2026-11-06 12:58:40.100")
+    assert pd.isna(parsed[4]) and pd.isna(parsed[5])
 
 
-def test_unpadded_reading_never_has_leading_zeros_and_stays_near_the_run_date():
-    # A month written "09" can't come from an unpadded writer.
-    assert unpadded_datetime_candidates("2026091617304052") == []
-    parsed = parse_unreal_datetimes(pd.Series(["2026111814"]), datetime(2026, 11, 18, 14, 0))
-    assert pd.isna(parsed[0])  # only reading is 2026-01-01 -- not this run's day
+def test_unpadded_reading_rules():
+    assert unpadded_datetime_candidates("2026110612588864") == [
+        datetime(2026, 11, 6, 12, 58, 8, 864000)
+    ]
+    # A 2+-digit seconds/ms field never starts with "0"; seconds stay below 60.
+    assert unpadded_datetime_candidates("2026110612580864") == [
+        datetime(2026, 11, 6, 12, 58, 0, 864000)
+    ]
+    assert unpadded_datetime_candidates("2026110612587") == []  # too short
+    parsed = parse_unreal_datetimes(pd.Series(["20261106125808864"]), datetime(2026, 11, 9, 12, 0))
+    assert pd.isna(parsed[0])  # more than a day from the run date
 
 
 def test_behaviour_hhmm_takes_the_day_from_the_run_date():

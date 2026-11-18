@@ -74,7 +74,7 @@ Answered 2026-11-18 unless marked open. Open ones stay placeholder-wired, marked
 | D3 | **Sessions in pipeline output** | **One wide row per subject** (sessions as column prefixes). |
 | D4 | **Debrief** | REDCap debrief is **long format: one row per subject per session**. Field details settled once the data JSONs (shape manifests) are updated with a real REDCap profile. |
 | D5 | **Rating scale** | **Likert 1–5** (Stress, Nausea, etc.). Generator updated (`LIKERT_RANGE`). |
-| D6 | **`datetime` padding** | **Settled 2026-11-18 from the real data's shape:** every field after the year is written without zero-padding (17-digit cells perfectly in order; 21% 16-digit, 1.3% 15-digit). Parser tries every no-leading-zero split and lets time order (and the run's date) pick. |
+| D6 | **`datetime` padding** | **Settled 2026-11-18 from real rows shown in the crosscheck:** `yyyyMMddHHmm` is zero-padded; only **seconds and milliseconds** are not (`2026110612588864` = 12:58:08.864). Parser splits the tail into seconds (1–2 digits) + ms (1–3), no leading zeros; time order and likelihood pick, Biopac edges settle trigger rows. |
 
 **Knock-on from D4:** `longwalk3_bids.py` currently writes *one* debrief file per subject
 anchored on `ses-01`. It has to split the long REDCap export by session instead (phase A1).
@@ -152,3 +152,10 @@ Biopac trigger channel, the same way Crane matches behaviour-based intervals to 
   Profiler has the matching `all_fields_unpadded` reading; generator writes unpadded fields.
   Synthetic: 0 of 59,422 onsets missing. **Your step:** re-run `--profile-shape` on the real
   folder to confirm `all_fields_unpadded` has ~0 out of order, then Refresh in the crosscheck.
+- 2026-11-18 — **D6 corrected.** Real rows (crosscheck examples) showed the date and HH:MM *are*
+  padded (`2026110612588864`: day `06`, so "every field unpadded" was wrong and rejected these
+  rows — the 82 missing onsets). Parser, generator and profiler (`seconds_ms_unpadded`) now
+  use padded `yyyyMMddHHmm` + unpadded seconds/ms. Also fixed: a single onset alternative
+  read back from the .tsv as a number was dropped, so the Biopac edges couldn't settle it.
+  Synthetic: 0 missing; clean sessions all `TrialIntervals=ok`. **Your step:** Refresh BIDS
+  in the crosscheck; the missing count should drop to ~0.

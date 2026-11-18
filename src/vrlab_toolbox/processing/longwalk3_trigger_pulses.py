@@ -43,6 +43,9 @@ ONSET_ALTERNATIVES_COLUMN = "onset_alternatives"  # see longwalk3_bids.ONSET_ALT
 
 
 def _alternatives(cell: object) -> tuple[float, ...]:
+    """';'-separated onsets -- a single one reads back from the .tsv as a number, not text."""
+    if isinstance(cell, int | float) and not isinstance(cell, bool):
+        return () if np.isnan(cell) else (float(cell),)
     if not isinstance(cell, str) or not cell.strip():
         return ()
     return tuple(float(part) for part in cell.split(";") if part)

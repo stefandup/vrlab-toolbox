@@ -113,3 +113,18 @@ def test_interval_labels_become_icons_with_instance_numbers():
     )
     assert instance_icon_label("BP_Phone_C_1") == ACTOR_CLASS_ICONS["BPPhoneC"] + "1"
     assert instance_icon_label("SomethingNew_C_1") == "SomethingNew_C_1"
+
+
+def test_single_onset_alternative_read_as_a_number_is_kept():
+    import pandas as pd
+
+    from vrlab_toolbox.processing.longwalk3_trigger_pulses import get_behaviour_pulses
+
+    df = pd.DataFrame(
+        {
+            "onset": [3.241, 16.0],
+            "onset_alternatives": [32.041, float("nan")],  # how pandas reads one value back
+            "trigger_BPNPCC": ["BP_NPC_C_0", "BP_NPC_C_0"],
+        }
+    )
+    assert get_behaviour_pulses(df)["alternatives"].tolist() == [(32.041,), ()]
