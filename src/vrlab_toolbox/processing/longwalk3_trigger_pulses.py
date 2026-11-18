@@ -181,3 +181,63 @@ def plot_trigger_locations(raw_behav_df: pd.DataFrame, title: str = "") -> Figur
         ax.legend(loc="upper left", bbox_to_anchor=(1.18, 1.0), fontsize=7, title="Triggers")
     fig.tight_layout()
     return fig
+
+
+# Icons for the interval-QC labels: one emoji per actor class, followed by the instance
+# number ("BP_PhoneAlerts_C_2" -> "📳2"). Most specific names first ("PhoneAlerts" before
+# "Phone").
+ACTOR_CLASS_ICONS: dict[str, str] = {
+    "BPAudioCueTriggerC": "🔊",
+    "BPBirdsFlyingC": "🐦",
+    "BPHeatmapManagerC": "🗺",
+    "BPNPCC": "🚶",
+    "BPPanicAttackManagerC": "💓",
+    "BPPanicCooldownTimersManagerC": "⏳",
+    "BPPanicTriggerC": "😱",
+    "BPPhoneAlertsC": "📳",
+    "BPPhoneC": "📱",
+    "BPSerialComManagerC": "🔌",
+    "ThreatLevelMarkerNewC": "⚠",
+}
+# Windows ships Segoe UI Emoji; matplotlib falls back per glyph through this list.
+ICON_FONT_FAMILIES = ["DejaVu Sans", "Segoe UI Emoji", "Noto Emoji", "Apple Color Emoji"]
+_INSTANCE_PATTERN = re.compile(r"^(?P<name>.+?)_(?P<number>\d+)(?:__(?P<repeat>\d+))?$")
+
+
+def actor_class_of_instance(instance: str) -> str:
+    """'BP_NPC_C_3' -> 'BPNPCC' (the trigger column's class name)."""
+    match = _INSTANCE_PATTERN.match(instance)
+    name = match["name"] if match else instance
+    return name.replace("_", "")
+
+
+def instance_icon_label(interval_name: str) -> str:
+    """An interval label (actor instance, maybe with a '__2' repeat suffix) as icon + instance
+    number, e.g. 'BP_PhoneAlerts_C_2__3' -> '📳2 #3'. Unknown classes keep their name."""
+    match = _INSTANCE_PATTERN.match(interval_name)
+    if match is None:
+        return interval_name
+    icon = ACTOR_CLASS_ICONS.get(match["name"].replace("_", ""))
+    if icon is None:
+        return interval_name
+    label = f"{icon}{match['number']}"
+    return f"{label} #{match['repeat']}" if match["repeat"] else label
+
+
+def icon_font_families() -> list[str]:
+    """ICON_FONT_FAMILIES limited to fonts installed here (avoids findfont warnings)."""
+    from matplotlib import font_manager
+
+    installed = {font.name for font in font_manager.fontManager.ttflist}
+    return [family for family in ICON_FONT_FAMILIES if family in installed]
+
+
+def icon_key_text(actor_classes: list[str]) -> str:
+    """'🔊 AudioCueTrigger   🚶 NPC ...' for the classes present -- the figure's icon key."""
+    parts = []
+    for actor_class in dict.fromkeys(actor_classes):
+        icon = ACTOR_CLASS_ICONS.get(actor_class)
+        if icon is not None:
+            short = re.sub(r"^BP|C$", "", actor_class)
+            parts.append(f"{icon} {short}")
+    return "    ".join(parts)

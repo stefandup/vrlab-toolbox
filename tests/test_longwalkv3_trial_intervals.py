@@ -99,3 +99,17 @@ def test_ambiguous_pulse_is_settled_by_its_biopac_edge():
     )
     assert status is ProcessingStatus.OK
     assert new_onsets[1] == 47.0 and new_times[1] == 57.0
+
+
+def test_interval_labels_become_icons_with_instance_numbers():
+    from vrlab_toolbox.processing.longwalk3_trigger_pulses import (
+        ACTOR_CLASS_ICONS,
+        instance_icon_label,
+    )
+
+    assert instance_icon_label("BP_NPC_C_3") == ACTOR_CLASS_ICONS["BPNPCC"] + "3"
+    assert (
+        instance_icon_label("BP_PhoneAlerts_C_2__4") == ACTOR_CLASS_ICONS["BPPhoneAlertsC"] + "2 #4"
+    )
+    assert instance_icon_label("BP_Phone_C_1") == ACTOR_CLASS_ICONS["BPPhoneC"] + "1"
+    assert instance_icon_label("SomethingNew_C_1") == "SomethingNew_C_1"

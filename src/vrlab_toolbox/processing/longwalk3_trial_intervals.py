@@ -28,9 +28,13 @@ from vrlab_toolbox.processing.longwalk3_behaviour import RawLongWalkV3BehaviourD
 from vrlab_toolbox.processing.longwalk3_trigger_pulses import (
     MATCH_ONLY_ACTOR_CLASSES,
     get_behaviour_pulses,
+    icon_font_families,
+    icon_key_text,
+    instance_icon_label,
 )
 from vrlab_toolbox.processing.processing_status import PipelineStatus, ProcessingStatus
 from vrlab_toolbox.processing.trial_intervals import (
+    IntervalLabelStyle,
     TrialIntervals,
     get_raw_biopac_trigger_intervals,
     plot_biopac_interval_qc,
@@ -240,5 +244,22 @@ class LongWalkV3GetTrialIntervalStrategyStep:
             raw_biopac_trigger_intervals=raw_biopac_triggers,
             behav_matched_trigger_intervals=trial_intervals_out,
             raw_behav_trial_intervals=behaviour_timeline_intervals,
+            label_style=IntervalLabelStyle(
+                formatter=instance_icon_label,
+                rotation=90,
+                fontfamily=icon_font_families() or None,
+                fontsize=9,
+            ),
         )
+        key = icon_key_text(pulses["actor_class"].astype(str).tolist())
+        if key:
+            interval_qc_figure_out.text(
+                0.5,
+                0.005,
+                key,
+                ha="center",
+                va="bottom",
+                fontsize=10,
+                fontfamily=icon_font_families() or None,
+            )
         return (trial_intervals_out, interval_qc_figure_out, status)

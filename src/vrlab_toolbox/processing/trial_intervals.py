@@ -1,5 +1,6 @@
 import logging
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import matplotlib.pyplot as plt
@@ -212,6 +213,7 @@ def plot_biopac_interval_qc(
     corrected_trigger_intervals: TrialIntervals | None = None,
     behav_matched_trigger_intervals: TrialIntervals | None = None,
     raw_behav_trial_intervals: TrialIntervals | None = None,
+    label_style: "IntervalLabelStyle | None" = None,
 ) -> Figure:
 
     if raw_biopac_trigger_intervals is None:
@@ -249,6 +251,7 @@ def plot_biopac_interval_qc(
         axes[1],
         raw_biopac_trigger_intervals,
         time_stamp_series,
+        label_style=label_style,
         color_nr=0,
         title="Raw",
         source_label="Raw biopac",
@@ -257,6 +260,7 @@ def plot_biopac_interval_qc(
         axes[1],
         raw_behav_trial_intervals,
         time_stamp_series,
+        label_style=label_style,
         color_nr=1,
         source_label="Raw behav",
         show_gaps=True,
@@ -268,6 +272,7 @@ def plot_biopac_interval_qc(
         axes[2],
         raw_behav_trial_intervals,
         time_stamp_series,
+        label_style=label_style,
         color_nr=1,
         source_label="Raw behav",
         show_gaps=True,
@@ -276,6 +281,7 @@ def plot_biopac_interval_qc(
         axes[2],
         corrected_trigger_intervals,
         time_stamp_series,
+        label_style=label_style,
         color_nr=2,
         source_label="Shrt Trigs Rmoved",
     )
@@ -285,6 +291,7 @@ def plot_biopac_interval_qc(
         axes[3],
         behav_matched_trigger_intervals,
         time_stamp_series,
+        label_style=label_style,
         color_nr=3,
         title="Matched with Behav",
         source_label="Matched with Behav",
@@ -292,6 +299,18 @@ def plot_biopac_interval_qc(
     )
 
     return fig
+
+
+@dataclass
+class IntervalLabelStyle:
+    """Optional look of the interval labels in plot_interval_ax (default: Crane's look).
+    `formatter` turns an interval name into its label (e.g. an icon); `rotation` in degrees;
+    `fontfamily` a font (fallback) list, e.g. an emoji font for icon labels."""
+
+    formatter: Callable[[str], str] | None = None
+    rotation: float = 0
+    fontfamily: list[str] | None = None
+    fontsize: float = 8
 
 
 def plot_interval_ax(
@@ -302,6 +321,7 @@ def plot_interval_ax(
     title: str | None = None,
     source_label: str | None = None,
     show_gaps: bool = False,
+    label_style: IntervalLabelStyle | None = None,
 ):
 
     if title is not None:
@@ -320,9 +340,18 @@ def plot_interval_ax(
             interval_end_min = (interval_end - time_stamp_series.iloc[0]) / 60
             bars.append((interval_start_min, interval_end_min - interval_start_min))
 
-            label_text = (
-                interval_name.replace("_", "\n") if len(interval_name) > 5 else interval_name
-            )
+            if label_style is not None and label_style.formatter is not None:
+                label_text = label_style.formatter(interval_name)
+            else:
+                label_text = (
+                    interval_name.replace("_", "\n") if len(interval_name) > 5 else interval_name
+                )
+            font_kwargs = {}
+            if label_style is not None:
+                font_kwargs["rotation"] = label_style.rotation
+                font_kwargs["fontsize"] = label_style.fontsize
+                if label_style.fontfamily:
+                    font_kwargs["fontfamily"] = label_style.fontfamily
             duration_seconds = interval_end - interval_start
 
             # One label per interval, centered on its own bar
@@ -334,7 +363,7 @@ def plot_interval_ax(
                 fontweight="bold",
                 va="center",
                 ha="center",
-                fontsize=8,
+                **{"fontsize": 8, **font_kwargs},
             )
 
             # Trial length in seconds, pinned to the bottom of the bar
