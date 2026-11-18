@@ -155,6 +155,7 @@ def plot_trigger_locations(raw_behav_df: pd.DataFrame, title: str = "") -> Figur
         )
 
     pulses = get_behaviour_pulses(raw_behav_df).dropna(subset=["x", "y"])
+    icon_fonts = icon_font_families() or None
     for color_nr, (actor_class, group) in enumerate(pulses.groupby("actor_class", sort=True)):
         ax.scatter(
             group["x"],
@@ -163,16 +164,17 @@ def plot_trigger_locations(raw_behav_df: pd.DataFrame, title: str = "") -> Figur
             color=f"C{color_nr % 10}",
             edgecolor="black",
             linewidth=0.5,
-            label=f"{actor_class} ({len(group)})",
+            label=f"{icon_key_text([str(actor_class)]) or actor_class} ({len(group)})",
             zorder=3,
         )
         for instance, x, y in zip(group["instance"], group["x"], group["y"], strict=True):
             ax.annotate(
-                str(instance),
+                instance_icon_label(str(instance), str(actor_class)),
                 (float(x), float(y)),
                 xytext=(4, 4),
                 textcoords="offset points",
-                fontsize=6,
+                fontsize=9,
+                fontfamily=icon_fonts,
                 zorder=4,
             )
 
@@ -181,7 +183,8 @@ def plot_trigger_locations(raw_behav_df: pd.DataFrame, title: str = "") -> Figur
     ax.set_ylabel("World Y (Unreal units)")
     ax.set_aspect("equal", adjustable="datalim")
     if ax.get_legend_handles_labels()[0]:
-        ax.legend(loc="upper left", bbox_to_anchor=(1.18, 1.0), fontsize=7, title="Triggers")
+        legend_font = {"size": 8, **({"family": icon_fonts} if icon_fonts else {})}
+        ax.legend(loc="upper left", bbox_to_anchor=(1.18, 1.0), prop=legend_font, title="Triggers")
     fig.tight_layout()
     return fig
 
@@ -214,17 +217,36 @@ def actor_class_of_instance(instance: str) -> str:
     return name.replace("_", "")
 
 
-def instance_icon_label(interval_name: str) -> str:
-    """An interval label (actor instance, maybe with a '__2' repeat suffix) as icon + instance
-    number, e.g. 'BP_PhoneAlerts_C_2__3' -> '📳2 #3'. Unknown classes keep their name."""
-    match = _INSTANCE_PATTERN.match(interval_name)
-    if match is None:
-        return interval_name
-    icon = ACTOR_CLASS_ICONS.get(match["name"].replace("_", ""))
-    if icon is None:
-        return interval_name
-    label = f"{icon}{match['number']}"
-    return f"{label} #{match['repeat']}" if match["repeat"] else label
+# Instance numbers longer than this are engine ids (e.g. "2147481935"), not a useful label.
+_MAX_INSTANCE_NUMBER_DIGITS = 3
+_REPEAT_SUFFIX = re.compile(r"^(?P<instance>.+?)(?:__(?P<repeat>\d+))?$")
+_TRAILING_NUMBER = re.compile(r"(?P<number>\d+)$")
+
+
+def short_actor_name(actor: str) -> str:
+    """'BP_PanicTrigger_C' / 'BPPanicTriggerC' -> 'PanicTrigger'."""
+    return re.sub(r"^BP|C$", "", actor.replace("_", ""))
+
+
+def instance_icon_label(interval_name: str, actor_class: str | None = None) -> str:
+    """An interval label (actor instance, maybe with a '__2' repeat suffix) as a short label:
+    the class icon (or short class name, if it has no icon) + the instance's own number.
+
+    The class is best given (`actor_class`, from the trigger column the pulse came from) --
+    real instance names vary ('ThreatLevelMarkerNew2', 'BP_NPC2', 'BP_Phone_C_2147481935').
+    Without it the class is guessed from the name. Engine-id numbers (> 3 digits) are dropped.
+    E.g. ('ThreatLevelMarkerNew2', 'ThreatLevelMarkerNewC') -> '⚠2';
+    ('BP_PhoneAlerts_C_2__3', None) -> '📳2 #3'."""
+    split = _REPEAT_SUFFIX.match(interval_name)
+    instance, repeat = (split["instance"], split["repeat"]) if split else (interval_name, None)
+    actor_class = actor_class or actor_class_of_instance(instance)
+    number_match = _TRAILING_NUMBER.search(instance)
+    number = number_match["number"] if number_match else ""
+    if len(number) > _MAX_INSTANCE_NUMBER_DIGITS:
+        number = ""
+    icon = ACTOR_CLASS_ICONS.get(actor_class)
+    label = f"{icon}{number}" if icon else f"{short_actor_name(actor_class)}{number}"
+    return f"{label} #{repeat}" if repeat else label
 
 
 def icon_font_families() -> list[str]:
@@ -241,6 +263,6 @@ def icon_key_text(actor_classes: list[str]) -> str:
     for actor_class in dict.fromkeys(actor_classes):
         icon = ACTOR_CLASS_ICONS.get(actor_class)
         if icon is not None:
-            short = re.sub(r"^BP|C$", "", actor_class)
+            short = short_actor_name(actor_class)
             parts.append(f"{icon} {short}")
     return "    ".join(parts)

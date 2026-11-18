@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 import pandera.pandas as pa
+from matplotlib.figure import Figure
 
 from vrlab_toolbox.processing import pipeline
 from vrlab_toolbox.processing.biopac import BiopacPhysiologyDataImportStartegy
@@ -21,6 +22,7 @@ from vrlab_toolbox.processing.longwalk3_debrief_behaviour import (
 from vrlab_toolbox.processing.longwalk3_trial_intervals import (
     LongWalkV3GetTrialIntervalStrategyStep,
 )
+from vrlab_toolbox.processing.longwalk3_trigger_pulses import plot_trigger_locations
 from vrlab_toolbox.processing.output_data import (
     PipelineOutputData,
     build_base_pipeline_output_schema,
@@ -157,8 +159,26 @@ def run_pipeline(
     longwalkV3_pipeline_output_data.subject_df_out = participant_pipeline_data_out.subject_df_out
     longwalkV3_pipeline_output_data.status = participant_pipeline_data_out.status
     longwalkV3_pipeline_output_data.figure_data_out = participant_pipeline_data_out.figure_data_out
+    trigger_map = _trigger_map_figure(participant_config, session_nr_in)
+    if trigger_map is not None:
+        longwalkV3_pipeline_output_data.figure_data_out["Trigger_map"] = trigger_map
 
     return longwalkV3_pipeline_output_data
+
+
+def _trigger_map_figure(participant_config: ParticipantConfig, session_nr: int) -> Figure | None:
+    """QC map of where this session's triggers happened (plot_trigger_locations). Reads the
+    events again rather than changing the shared pipeline template; a failure only loses the
+    map, never the session."""
+    try:
+        raw_behaviour = ImportLongWalkV3BehaviourDataStrategyStep().run(participant_config)
+        return plot_trigger_locations(
+            raw_behaviour.raw_behav_df,
+            title=f"Trigger locations -- ses-{session_nr:02d} (top-down, world X/Y)",
+        )
+    except Exception:
+        logger.warning("Could not draw the trigger location map", exc_info=True)
+        return None
 
 
 def run_pipeline_all_sessions(

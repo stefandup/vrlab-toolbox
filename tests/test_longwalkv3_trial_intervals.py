@@ -112,7 +112,14 @@ def test_interval_labels_become_icons_with_instance_numbers():
         instance_icon_label("BP_PhoneAlerts_C_2__4") == ACTOR_CLASS_ICONS["BPPhoneAlertsC"] + "2 #4"
     )
     assert instance_icon_label("BP_Phone_C_1") == ACTOR_CLASS_ICONS["BPPhoneC"] + "1"
-    assert instance_icon_label("SomethingNew_C_1") == "SomethingNew_C_1"
+    assert instance_icon_label("SomethingNew_C_1") == "SomethingNew1"
+    # Real instance names: class from the trigger column, engine ids dropped.
+    threat = ACTOR_CLASS_ICONS["ThreatLevelMarkerNewC"]
+    assert instance_icon_label("ThreatLevelMarkerNew2", "ThreatLevelMarkerNewC") == threat + "2"
+    assert instance_icon_label("ThreatLevelMarkerNew", "ThreatLevelMarkerNewC") == threat
+    assert instance_icon_label("BP_NPC2__3", "BPNPCC") == ACTOR_CLASS_ICONS["BPNPCC"] + "2 #3"
+    phone = ACTOR_CLASS_ICONS["BPPhoneC"]
+    assert instance_icon_label("BP_Phone_C_2147481935", "BPPhoneC") == phone
 
 
 def test_single_onset_alternative_read_as_a_number_is_kept():

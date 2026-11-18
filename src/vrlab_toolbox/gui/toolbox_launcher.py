@@ -95,6 +95,12 @@ GUI_TOOL_GROUPS = (
                 "longwalk_icon.png",
             ),
             (
+                "LongwalkV3 Process Results",
+                "vrlab_longwalk3_process_GUI.exe",
+                "vrlab_toolbox.gui.longwalk3_process_results_gui",
+                "longwalkv3_icon.png",
+            ),
+            (
                 "Spiral Process Results",
                 "vrlab_spiral_process_GUI.exe",
                 "vrlab_toolbox.gui.spiral_process_results_gui",
@@ -117,6 +123,7 @@ CLI_TOOLS = (
     "vrlab_spiral_process",
     "vrlab_longwalk3_convert_to_bids",
     "vrlab_longwalk3_generate_sample_data",
+    "vrlab_longwalk3_process",
     "vrlab_plot_target_data",
 )
 

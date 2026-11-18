@@ -149,3 +149,42 @@ class TestLongWalkV3ProcessCli(unittest.TestCase):
             self.assertEqual(df["Subject_ID"].tolist(), [CLEAN_ID])
             self.assertTrue(csv_path.with_suffix(".sav").exists())
             self.assertTrue(any(out.glob("*Interval_qc.png")))
+
+
+class TestLongWalkV3ResultsViewer(unittest.TestCase):
+    """Phase C: the results viewer's dashboard reads the batch CSV's wide columns."""
+
+    def test_dashboard_and_overhead_lines_from_a_wide_row(self):
+        from matplotlib.figure import Figure
+
+        from vrlab_toolbox.gui.longwalk3_process_results_gui import (
+            actor_class_label,
+            build_longwalk3_group_dashboard,
+            longwalk3_dashboard_overhead_lines,
+            subject_id_from_bids_path,
+        )
+
+        df = pd.DataFrame(
+            {
+                "Subject_ID": ["a", "b"],
+                "Processing_Status": ["X=ok", "X=corrected"],
+                "ses01_Processing_Status": ["X=ok", "TrialIntervals=corrected"],
+                "ses02_Processing_Status": ["X=ok", None],
+                "ses01_BP_NPC_C_SCR_per_min_1": [1.0, 2.0],
+                "ses02_BP_Phone_C_SCR_per_min": [3.0, None],
+            }
+        )
+        figure = Figure()
+        build_longwalk3_group_dashboard(figure, df, ["a", "b"])
+        self.assertEqual(len(figure.axes), 3)
+        lines = longwalk3_dashboard_overhead_lines(df, ["a", "b", "c"])
+        self.assertIn("no output yet", lines[0])
+        self.assertIn("range 1-2", lines[1])
+        self.assertIn("corrected): 1", lines[2])
+        self.assertEqual(actor_class_label("BP_NPC_C", with_icon=False), "NPC")
+        self.assertEqual(
+            subject_id_from_bids_path(
+                Path("bids/sub-007/ses-01/beh/sub-007_ses-01_task-longwalkv3_physio.acq")
+            ),
+            "007",
+        )

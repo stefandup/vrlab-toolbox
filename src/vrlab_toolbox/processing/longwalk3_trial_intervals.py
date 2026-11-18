@@ -198,6 +198,13 @@ def build_actor_instance_intervals(
     return TrialIntervals(intervals=intervals, physiology_file_format=PhysiologyFileFormat.BIOPAC)
 
 
+def _short_label(interval_name: str, class_by_instance: dict[str, str]) -> str:
+    """Icon label for a behaviour interval; anything else (the Biopac row's TP0, TP1, ...)
+    keeps its own name."""
+    actor_class = class_by_instance.get(interval_name.split("__")[0])
+    return instance_icon_label(interval_name, actor_class) if actor_class else interval_name
+
+
 class LongWalkV3GetTrialIntervalStrategyStep:
     input_bio_data_type: type[RawBioData] = RawBioData
     input_behaviour_data_type: type[RawLongWalkV3BehaviourData] = RawLongWalkV3BehaviourData
@@ -226,6 +233,9 @@ class LongWalkV3GetTrialIntervalStrategyStep:
             pulse_times = pulse_times[order]
         status.set(TrialIntervals, match_status)
         instances = pulses["instance"].astype(str).tolist()
+        class_by_instance = dict(
+            zip(instances, pulses["actor_class"].astype(str).tolist(), strict=True)
+        )
         ignored = pulses["actor_class"].isin(MATCH_ONLY_ACTOR_CLASSES).tolist()
         trial_intervals_out = build_actor_instance_intervals(pulse_times, instances, ignored)
         logger.info(
@@ -245,10 +255,10 @@ class LongWalkV3GetTrialIntervalStrategyStep:
             behav_matched_trigger_intervals=trial_intervals_out,
             raw_behav_trial_intervals=behaviour_timeline_intervals,
             label_style=IntervalLabelStyle(
-                formatter=instance_icon_label,
+                formatter=lambda name: _short_label(name, class_by_instance),
                 rotation=90,
                 fontfamily=icon_font_families() or None,
-                fontsize=9,
+                fontsize=12,
             ),
         )
         key = icon_key_text(pulses["actor_class"].astype(str).tolist())

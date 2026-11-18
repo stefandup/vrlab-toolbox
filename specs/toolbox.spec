@@ -101,6 +101,13 @@ TOOLS = [
         False,
         [(LONGWALKV3_ICON, "assets")],
     ),
+    ("vrlab_longwalk3_process", os.path.join("cli", "vrlab_longwalk3_process.py"), True, []),
+    (
+        "vrlab_longwalk3_process_GUI",
+        os.path.join("gui", "longwalk3_process_results_gui.py"),
+        False,
+        [(LONGWALKV3_ICON, "assets")],
+    ),
     (
         "vrlab_longwalk_process_GUI",
         os.path.join("gui", "longwalk_process_results_gui.py"),
