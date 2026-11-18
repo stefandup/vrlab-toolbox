@@ -36,6 +36,7 @@ Output layout:
   decides an .acq's session. The legacy flat layout falls back to chronological order.
 """
 
+import json
 import logging
 import re
 from collections.abc import Hashable
@@ -803,6 +804,65 @@ def _convert_subject_debrief(
     return written
 
 
+# Raw-layout problems found at conversion time, which the BIDS folder alone can no longer show
+# (e.g. a "ses_01" raw folder spelling) -- read back by the crosscheck GUI's subject issues.
+RAW_AUDIT_FILENAME = "longwalkv3_raw_audit.json"
+_RAW_RUN_FOLDER_PATTERN = re.compile(r"^run-\d+$", re.IGNORECASE)
+
+
+def audit_raw_subject_files(files: list[Path], input_folder: Path) -> list[str]:
+    """Problems with how one subject's raw files are laid out: a session folder not spelled
+    "ses-NN", a csv whose filename session disagrees with its folder, and restarted-run
+    subfolders (run-001/, run-002/) -- one aborted attempt the crosscheck should resolve."""
+    problems: list[str] = []
+
+    def add(problem: str) -> None:
+        if problem not in problems:
+            problems.append(problem)
+
+    for file in files:
+        try:
+            parts = file.relative_to(input_folder).parts[:-1]
+        except ValueError:
+            continue
+        folder_session_nr = None
+        for part in parts:
+            match = _RAW_SESSION_FOLDER_PATTERN.match(part)
+            if match:
+                folder_session_nr = int(match.group("session_nr"))
+                expected = _session_token(folder_session_nr)
+                if part != expected:
+                    add(f"Raw session folder '{part}' should be named '{expected}'")
+            elif _RAW_RUN_FOLDER_PATTERN.match(part) and folder_session_nr is not None:
+                add(
+                    f"{_session_token(folder_session_nr)}: raw data has restarted-run "
+                    "subfolders (run-00N) -- keep the complete run, remove the aborted one"
+                )
+        parsed = parse_raw_csv_filename(file) if file.suffix.lower() == ".csv" else None
+        if parsed and folder_session_nr is not None and parsed.session_nr != folder_session_nr:
+            add(
+                f"{file.name} sits in raw folder {_session_token(folder_session_nr)} but its "
+                f"name says {_session_token(parsed.session_nr)}"
+            )
+    return problems
+
+
+def load_raw_audit(bids_folder: Path) -> dict[str, list[str]]:
+    path = bids_folder / RAW_AUDIT_FILENAME
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        logger.warning("Could not read %s -- ignoring raw audit", path)
+        return {}
+
+
+def _save_raw_audit(bids_folder: Path, audit: dict[str, list[str]]) -> None:
+    path = bids_folder / RAW_AUDIT_FILENAME
+    path.write_text(json.dumps(audit, indent=2, sort_keys=True), encoding="utf-8")
+
+
 @dataclass
 class LongWalkV3ConversionSummary:
     """Everything a caller (the CLI's `main()`) needs to report what a
@@ -855,6 +915,19 @@ def convert_longwalkv3_to_bids(
 
     new_subject_ids = sorted(all_subject_ids - already_converted)
     skipped_subject_ids = sorted(all_subject_ids & already_converted)
+
+    raw_files_by_subject: dict[str, list[Path]] = {}
+    for file in discover_raw_files_for_review(input_folder):
+        subject_id = resolve_subject_id(file, input_folder, raw_filename_corrections)
+        if subject_id in new_subject_ids:
+            raw_files_by_subject.setdefault(subject_id, []).append(file)
+    raw_audit = load_raw_audit(output_folder)
+    for subject_id in new_subject_ids:
+        raw_audit[subject_id] = audit_raw_subject_files(
+            raw_files_by_subject.get(subject_id, []), input_folder
+        )
+    if new_subject_ids:
+        _save_raw_audit(output_folder, raw_audit)
 
     subject_physiology: dict[str, list[Path]] = {}
     subject_events: dict[str, list[Path]] = {}

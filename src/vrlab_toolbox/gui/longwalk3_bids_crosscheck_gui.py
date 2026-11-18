@@ -70,7 +70,7 @@ from vrlab_toolbox.processing.bids_crosscheck import (
 )
 from vrlab_toolbox.processing.biopac import clean_biopac_acq_label
 from vrlab_toolbox.processing.longwalk3_bids import (
-    DEBRIEF_SESSION_NR,
+    RAW_AUDIT_FILENAME,
     RAW_FILENAME_ID_CORRECTIONS_FILENAME,
     REDCAP_CROSSCHECK_ID,
     LongWalkV3ConversionSummary,
@@ -78,6 +78,7 @@ from vrlab_toolbox.processing.longwalk3_bids import (
     discover_raw_files_for_review,
     explain_unparseable_filename,
     find_debrief_export,
+    load_raw_audit,
     load_raw_filename_id_corrections,
     resolve_subject_id,
     save_raw_filename_id_corrections,
@@ -96,11 +97,14 @@ LONGWALKV3_DATASET_CONFIG = DatasetConfig(
     scan_types=(
         ScanTypeConfig(name=PHYSIOLOGY_SCAN_TYPE, glob_patterns=("*.acq",), allow_multiple=True),
         ScanTypeConfig(name=EVENTS_SCAN_TYPE, glob_patterns=("*_events.tsv",), allow_multiple=True),
-        # One REDCap debrief per subject for now, anchored on ses-01 (see longwalk3_bids.py's
-        # DEBRIEF_SESSION_NR). Will become one per session once the per-session REDCap forms
-        # exist -- at that point this needs allow_multiple=True and a per-session check in
-        # `LongwalkV3CandidateExtras.subject_issues` instead of the ses-01-only one.
-        ScanTypeConfig(name=DEBRIEF_SCAN_TYPE, glob_patterns=("*_acq-debrief_*_beh.tsv",)),
+        # One REDCap debrief per subject per session (the export is long format, one row per
+        # event -- see longwalk3_bids.py), checked per session in
+        # `LongwalkV3CandidateExtras.subject_issues`.
+        ScanTypeConfig(
+            name=DEBRIEF_SCAN_TYPE,
+            glob_patterns=("*_acq-debrief_*_beh.tsv",),
+            allow_multiple=True,
+        ),
     ),
     # No task_tag_task/task_tag_folder_name -- like crane/longwalk, longwalkV3 has no tagging
     # step: `processing/longwalk3_bids.py` already writes real BIDS suffixes (_physio/_events)
@@ -124,11 +128,26 @@ PLANNED_SESSION_COUNT = 3
 KNOWN_CITY_LABELS = ("city1", "city2", "city3")
 # The only physiology channel the longwalkV3 pipeline processes (see longwalk3_pipeline.py's
 # ProcessEdaPhysiologyDataStrategyStep), matched after the same label cleaning the pipeline's
-# own .acq import uses (biopac.clean_biopac_acq_label, e.g. "EDA - EDA100C" -> "EDA").
+# own .acq import uses (biopac.clean_biopac_acq_label, e.g. "EDA - EDA100C" -> "EDA"). The
+# current recordings name it just "EDA100C" (the BIOPAC module), so any label starting with
+# "EDA" counts.
 REQUIRED_PHYSIOLOGY_CHANNEL = "EDA"
+
+
+def is_eda_channel_label(label: str) -> bool:
+    return label.upper().startswith(REQUIRED_PHYSIOLOGY_CHANNEL)
+
+
 # Shorter than this is flagged as a likely aborted/truncated recording. The two real test
 # recordings in longwalkv3_examples/ run ~10.6 and ~12.9 minutes.
 MIN_PHYSIOLOGY_MINUTES = 5.0
+# behaviour.csv's rating columns, as they land in the combined events.tsv.
+RATING_COLUMNS = (
+    "Nausea_behaviour",
+    "Dizzy_behaviour",
+    "Stressed_behaviour",
+    "Anxious_behaviour",
+)
 
 _BIDS_ENTITY_PATTERN = re.compile(r"(?:^|_)(?P<key>ses|acq|run)-(?P<value>[A-Za-z0-9]+)")
 _NO_SESSION_LABEL = "(no session)"
@@ -142,7 +161,7 @@ INFO_CACHE_FILENAME = "crosscheck_info_cache.json"
 # Bumped whenever a parser's output shape or derivation changes, so a cached entry that still
 # matches the file's mtime/size (nothing to re-read) but was computed by older logic gets
 # reparsed anyway instead of silently serving stale info forever.
-INFO_SCHEMA_VERSION = 2
+INFO_SCHEMA_VERSION = 3
 
 
 def _bids_entities(file: Path) -> dict[str, str]:
@@ -201,6 +220,10 @@ class LongwalkV3EventsInfo:
     # Rows whose onset is missing or not a number -- e.g. what the Unreal-side export's
     # always-0.0 behaviour.csv TimeStamp turns into (see docs/pipeline_next_steps.md item 31).
     n_bad_onsets: int = 0
+    # Rows where some actor logged a trigger, and rows with behaviour ratings -- None when the
+    # file has no such columns at all.
+    n_trigger_rows: int | None = None
+    n_rating_rows: int | None = None
 
     def problems(self) -> list[str]:
         if self.n_rows is None:
@@ -213,6 +236,13 @@ class LongwalkV3EventsInfo:
         elif self.n_bad_onsets:
             problems.append(
                 f"{self.n_bad_onsets} of {self.n_rows} onset(s) missing or not a number"
+            )
+        if self.n_rows and not self.n_trigger_rows:
+            problems.append("No actor logged a trigger in this run -- aborted run?")
+        if self.n_rows and not self.n_rating_rows:
+            problems.append(
+                "No behaviour ratings (Nausea/Dizzy/Stressed/Anxious) in this run -- "
+                "behaviour.csv empty or missing"
             )
         return problems
 
@@ -261,7 +291,7 @@ def _parse_physiology_info(file: Path) -> LongwalkV3PhysiologyInfo:
         (
             int(channel.point_count or 0)
             for channel, label in zip(headers.channels, labels, strict=True)
-            if label == REQUIRED_PHYSIOLOGY_CHANNEL
+            if is_eda_channel_label(label)
         ),
         None,
     )
@@ -285,9 +315,23 @@ def _parse_events_info(file: Path) -> LongwalkV3EventsInfo:
     n_bad_onsets = (
         int(pd.Series(pd.to_numeric(df["onset"], errors="coerce")).isna().sum()) if has_onset else 0
     )
+    trigger_columns = [c for c in df.columns if str(c).startswith("trigger_")]
+    rating_columns = [c for c in df.columns if str(c) in RATING_COLUMNS]
     return LongwalkV3EventsInfo(
-        n_rows=len(df), n_columns=len(df.columns), has_onset=has_onset, n_bad_onsets=n_bad_onsets
+        n_rows=len(df),
+        n_columns=len(df.columns),
+        has_onset=has_onset,
+        n_bad_onsets=n_bad_onsets,
+        n_trigger_rows=_rows_with_any_value(df, trigger_columns),
+        n_rating_rows=_rows_with_any_value(df, rating_columns),
     )
+
+
+def _rows_with_any_value(df: pd.DataFrame, columns: list) -> int | None:
+    """Rows with a value in at least one of `columns`; None if there are no such columns."""
+    if not columns:
+        return None
+    return int(df[columns].notna().to_numpy().any(axis=1).sum())
 
 
 def _parse_debrief_info(file: Path) -> LongwalkV3DebriefInfo:
@@ -346,7 +390,8 @@ class LongwalkV3CandidateExtras(CandidateExtras):
     enough), events `.tsv` content (readable, has rows, every onset a number) and city label,
     debrief `.tsv` readable with at least one row. Per subject (see `subject_issues`): each
     session has exactly one physiology recording and events for exactly one city, no city is
-    repeated across sessions, and the debrief sits in ses-01.
+    repeated across sessions, one REDCap debrief per recorded session, and the raw-layout
+    problems the converter recorded (longwalk3_bids.RAW_AUDIT_FILENAME).
 
     Every file parse result is cached on disk (see INFO_CACHE_FILENAME), keyed by the file's
     path relative to the BIDS folder plus its mtime/size, same shape as crane's/longwalk's own
@@ -362,6 +407,8 @@ class LongwalkV3CandidateExtras(CandidateExtras):
         self._bids_folder: Path | None = None
         self._disk_cache: dict[str, dict] = {}
         self._dirty = False
+        self._raw_audit_cache: dict[str, list[str]] = {}
+        self._raw_audit_mtime: float | None = None
 
     def on_bids_folder_changed(self, bids_folder: Path) -> None:
         self._bids_folder = bids_folder
@@ -369,7 +416,7 @@ class LongwalkV3CandidateExtras(CandidateExtras):
         self._dirty = False
 
     def bidsignore_patterns(self) -> tuple[str, ...]:
-        return (INFO_CACHE_FILENAME,)
+        return (INFO_CACHE_FILENAME, RAW_AUDIT_FILENAME)
 
     def flush(self) -> None:
         if self._dirty and self._bids_folder is not None:
@@ -501,6 +548,14 @@ class LongwalkV3CandidateExtras(CandidateExtras):
             cities = self._session_cities(events)
             for city in cities:
                 city_sessions.setdefault(city, []).append(session)
+            for city in cities:
+                city_runs = [f for f in events if _bids_entities(f).get("acq") == city]
+                if len(city_runs) > 1:
+                    runs = ", ".join(f"run-{_bids_entities(f).get('run', '?')}" for f in city_runs)
+                    issues.append(
+                        f"{session}: {city} recorded in {len(city_runs)} runs ({runs}) -- a "
+                        "restarted run? Keep the complete run, remove the aborted one."
+                    )
             if len(cities) > 1:
                 runs = ", ".join(
                     f"{_bids_entities(f).get('acq', '?')} run-{_bids_entities(f).get('run', '?')}"
@@ -526,13 +581,30 @@ class LongwalkV3CandidateExtras(CandidateExtras):
         if _NO_SESSION_LABEL in sessions:
             issues.append("Some files have no ses-NN entity in their filename")
 
-        debrief_session = f"ses-{DEBRIEF_SESSION_NR:02d}"
-        for file in subject_scans[DEBRIEF_SCAN_TYPE].files:
-            if _session_label(file) != debrief_session:
-                issues.append(
-                    f"Debrief file is in {_session_label(file)}, expected {debrief_session}"
-                )
+        debrief_sessions = [_session_label(f) for f in subject_scans[DEBRIEF_SCAN_TYPE].files]
+        for session in real_sessions:
+            if session not in debrief_sessions:
+                issues.append(f"{session}: no REDCap debrief for this session")
+        for session in sorted(set(debrief_sessions)):
+            if session not in sessions:
+                issues.append(f"{session}: REDCap debrief, but no recording for this session")
+            if debrief_sessions.count(session) > 1:
+                issues.append(f"{session}: more than one REDCap debrief file")
+
+        issues += self._raw_audit().get(subject_id, [])
         return issues
+
+    def _raw_audit(self) -> dict[str, list[str]]:
+        """Raw-layout problems recorded by the converter (longwalk3_bids.RAW_AUDIT_FILENAME),
+        re-read only when the file changes."""
+        if self._bids_folder is None:
+            return {}
+        path = self._bids_folder / RAW_AUDIT_FILENAME
+        mtime = path.stat().st_mtime if path.exists() else None
+        if mtime != self._raw_audit_mtime:
+            self._raw_audit_cache = load_raw_audit(self._bids_folder)
+            self._raw_audit_mtime = mtime
+        return self._raw_audit_cache
 
     def subject_summary(self, subject_id: str, subject_scans: dict[str, SubjectScan]) -> str | None:
         sessions = self._files_by_session(subject_scans)
@@ -559,10 +631,10 @@ class LongwalkV3CandidateExtras(CandidateExtras):
             )
 
         debrief_files = subject_scans[DEBRIEF_SCAN_TYPE].files
+        debrief_sessions = sorted({_session_label(f) for f in debrief_files})
         lines.append(
-            _status_span(True, f"Debrief ({_session_label(debrief_files[0])})")
-            if debrief_files
-            else _status_span(False, "Debrief missing")
+            _status_span(set(real_sessions) <= set(debrief_sessions), "REDCap debrief: ")
+            + (", ".join(debrief_sessions) or "none")
         )
         return "<br>".join(lines)
 

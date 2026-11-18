@@ -106,3 +106,13 @@ Biopac trigger channel, the same way Crane matches behaviour-based intervals to 
   with identifying REDCap columns (names, DOB, signatures, survey identifier) dropped. Synthetic
   set (5 clean + 6 error scenarios) converts to 35 events + 33 debrief files.
   Tests: `tests/test_longwalkv3_bids.py`.
+- 2026-11-18 — **A2 + A3 done: crosscheck MVP.** New checks in `longwalk3_bids_crosscheck_gui.py`:
+  EDA channel matched as `EDA*` (real `EDA100C`), restarted run (same city in >1 run of a
+  session), run with no actor triggers (aborted?), run with no behaviour ratings, one REDCap
+  debrief per recorded session (missing / extra / duplicate), plus raw-layout problems the
+  converter now records in `longwalkv3_raw_audit.json` (session folder spelled `ses_NN`, csv
+  name vs folder session, restarted-run subfolders). Existing checks kept (physiology per
+  session, mislabeled date, multiple cities, city repeated, sessions > 3, empty/bad-onset
+  events). `tests/test_longwalkv3_crosscheck.py` is the definition of done: clean participants
+  → no problems; every `SHAPE_ERROR_TYPES` scenario flagged — **passes**. Skipped where the
+  (gitignored) shape manifest isn't present.
