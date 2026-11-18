@@ -1,5 +1,6 @@
 import csv
 import datetime as dt
+import fnmatch
 import json
 import logging
 import random
@@ -13,7 +14,11 @@ import numpy as np
 import pandas as pd
 from bioread.reader import Reader
 
-from vrlab_toolbox.processing.longwalk3_bids import DATESTR_FORMAT
+from vrlab_toolbox.processing.longwalk3_bids import (
+    DATESTR_FORMAT,
+    DEBRIEF_ID_COLUMN,
+    REDCAP_PULL_GLOB,
+)
 from vrlab_toolbox.processing.longwalk_dummy_data import (
     TRIGGER_BASELINE_VOLTS,
     TRIGGER_HIGH_VOLTS,
@@ -937,7 +942,9 @@ def generate_dummy_longwalkv3_dataset(
 # subject's id, or a name typed into a filename by mistake.
 
 SHAPE_MANIFEST_FILENAME = "longwalkv3_shape.json"
-SHAPE_MANIFEST_VERSION = 1
+# 2: adds "redcap_exports" (see profile_redcap_export). Version-1 manifests still load -- the
+# key is just absent, so no dummy REDCap file is written.
+SHAPE_MANIFEST_VERSION = 2
 
 _SUBJECT_FOLDER_PATTERN = re.compile(r"^sub-(?P<id>[A-Za-z0-9]+)$")
 _SESSION_FOLDER_PATTERN = re.compile(r"^ses[-_ ]?\d+$", re.IGNORECASE)
@@ -1172,14 +1179,23 @@ def _acq_schema_key(acq_profile: dict) -> str:
     )
 
 
-def profile_longwalkv3_shape(data_folder: Path) -> dict:
+def profile_longwalkv3_shape(data_folder: Path, redcap_export: Path | None = None) -> dict:
     """Walks data_folder recursively and returns the structure-only manifest described at the
     top of this section. Expected layout is the real export's sub-<id>/<session folder>/files;
     each sub- folder is searched recursively for .csv and .acq files, and files sitting directly
     in data_folder are profiled under their own key. Other top-level folders (e.g. an ID-mapping
     folder) are listed by name and file count only -- never opened.
+
+    REDCap exports sitting directly in data_folder (see is_redcap_export_filename), plus
+    `redcap_export` if given, are profiled with profile_redcap_export into "redcap_exports"
+    instead of as generic CSVs.
     """
     data_folder = Path(data_folder)
+    redcap_paths = sorted(
+        p for p in data_folder.iterdir() if p.is_file() and is_redcap_export_filename(p.name)
+    )
+    if redcap_export is not None and Path(redcap_export) not in redcap_paths:
+        redcap_paths.append(Path(redcap_export))
     subject_folders = sorted(
         p for p in data_folder.iterdir() if p.is_dir() and _SUBJECT_FOLDER_PATTERN.match(p.name)
     )
@@ -1196,7 +1212,8 @@ def profile_longwalkv3_shape(data_folder: Path) -> dict:
             if path.is_file():
                 found_files.append((f"sub-{subject_number:03d}", raw_subject_id, path))
     for path in sorted(p for p in data_folder.iterdir() if p.is_file()):
-        found_files.append((_NO_SUBJECT_FOLDER, None, path))
+        if path not in redcap_paths:
+            found_files.append((_NO_SUBJECT_FOLDER, None, path))
 
     masker = _FilenameTokenMasker(min_subjects=min(2, max(len(subject_folders), 1)))
     for subject_key, raw_subject_id, path in found_files:
@@ -1286,8 +1303,9 @@ def profile_longwalkv3_shape(data_folder: Path) -> dict:
         "manifest_version": SHAPE_MANIFEST_VERSION,
         "contains": (
             "Structure only: folder layout, filename patterns, CSV headers, column cell kinds "
-            "and row counts, .acq channel layout. No data values, subject ids, dates or times "
-            "of day. Review before sharing."
+            "and row counts, .acq channel layout, REDCap export layout (rows per record and "
+            "REDCap's own event/repeat labels). No data values, answers, subject ids, dates or "
+            "times of day. Review before sharing."
         ),
         "n_subjects": len(subject_folders),
         "other_top_level_folders": [
@@ -1300,17 +1318,211 @@ def profile_longwalkv3_shape(data_folder: Path) -> dict:
             for key, counts in sorted(csv_schemas.items())
         },
         "acq_schemas": [{**json.loads(k), "n_files": n} for k, n in acq_schemas.most_common()],
+        "redcap_exports": [_profile_redcap_export_safely(p) for p in redcap_paths],
     }
 
 
-def write_longwalkv3_shape_manifest(data_folder: Path, output_folder: Path) -> Path:
+def write_longwalkv3_shape_manifest(
+    data_folder: Path, output_folder: Path, redcap_export: Path | None = None
+) -> Path:
     """Profiles data_folder (see profile_longwalkv3_shape) and writes the manifest to
     output_folder/SHAPE_MANIFEST_FILENAME. Returns the written path."""
-    manifest = profile_longwalkv3_shape(data_folder)
+    manifest = profile_longwalkv3_shape(data_folder, redcap_export)
     output_folder.mkdir(parents=True, exist_ok=True)
     manifest_path = output_folder / SHAPE_MANIFEST_FILENAME
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return manifest_path
+
+
+# --- REDCap shape -----------------------------------------------------------------------------
+#
+# The REDCap debrief export is long format: one row per record per event / repeat instance (one
+# per session for longwalkV3), so a subject has several rows. Same rule as the rest of the
+# profiler: structure only -- header, how many rows each record has and of which "row type",
+# and per column the *kind* of cells per row type, never an answer. The one exception is
+# REDCap's own structural columns (_REDCAP_ROW_TYPE_COLUMNS): their values are project-design
+# labels like "session_1_arm_1" and repeat-instance numbers, not answers, and generation needs
+# them to rebuild the long layout. They're still in the manifest a human reviews.
+
+REDCAP_EVENT_COLUMN = "redcap_event_name"
+REDCAP_REPEAT_INSTRUMENT_COLUMN = "redcap_repeat_instrument"
+REDCAP_REPEAT_INSTANCE_COLUMN = "redcap_repeat_instance"
+_REDCAP_ROW_TYPE_COLUMNS = (
+    REDCAP_EVENT_COLUMN,
+    REDCAP_REPEAT_INSTRUMENT_COLUMN,
+    REDCAP_REPEAT_INSTANCE_COLUMN,
+)
+REDCAP_DUMMY_PROJECT_NAME = "LongWalkV3Dummy"
+_REDCAP_CHECKBOX_MARKER = "___"  # REDCap checkbox columns are "<field>___<code>", valued 0/1
+_ISO_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_ISO_DATETIME_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$")
+
+
+def is_redcap_export_filename(name: str) -> bool:
+    """A manual REDCap export ("<Project>_DATA_<date>_<time>.csv") or a crosscheck API pull
+    (longwalk3_bids.REDCAP_PULL_GLOB)."""
+    return bool(_REDCAP_EXPORT_PATTERN.match(name)) or fnmatch.fnmatch(name, REDCAP_PULL_GLOB)
+
+
+def _redcap_cell_kind(value: str) -> str:
+    """_cell_kind plus REDCap's ISO date/datetime text formats."""
+    if _ISO_DATE_PATTERN.match(value):
+        return "date"
+    if _ISO_DATETIME_PATTERN.match(value):
+        return "datetime"
+    return _cell_kind(value)
+
+
+def profile_redcap_export(csv_path: Path) -> dict:
+    """Structure-only profile of one long-format REDCap export -- see the section comment."""
+    with Path(csv_path).open(newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        header = [name.strip() for name in reader.fieldnames or []]
+        rows = [
+            {key.strip(): (value or "").strip() for key, value in row.items() if key is not None}
+            for row in reader
+        ]
+
+    id_column = DEBRIEF_ID_COLUMN if DEBRIEF_ID_COLUMN in header else (header[:1] or [None])[0]
+    row_type_columns = [c for c in _REDCAP_ROW_TYPE_COLUMNS if c in header]
+
+    row_type_counts: Counter = Counter()
+    row_types_by_record: dict[str, list[tuple[str, ...]]] = {}
+    kinds_by_column: dict[str, dict[tuple[str, ...], Counter]] = {name: {} for name in header}
+    for row in rows:
+        row_type = tuple(row.get(c, "") for c in row_type_columns)
+        row_type_counts[row_type] += 1
+        record = row.get(id_column, "") if id_column else ""
+        row_types_by_record.setdefault(record, []).append(row_type)
+        for name in header:
+            kinds_by_column[name].setdefault(row_type, Counter())[
+                _redcap_cell_kind(row.get(name, ""))
+            ] += 1
+
+    # Opaque keys, so record patterns don't repeat the structural values over and over.
+    row_type_keys = {
+        row_type: f"row_type_{n}" for n, row_type in enumerate(sorted(row_type_counts), start=1)
+    }
+    record_patterns = Counter(
+        tuple(row_type_keys[rt] for rt in record_row_types)
+        for record_row_types in row_types_by_record.values()
+    )
+    export_match = _REDCAP_EXPORT_PATTERN.match(Path(csv_path).name)
+    skipped_columns = {id_column, *row_type_columns}
+
+    return {
+        "source": "manual_export" if export_match else "api_pull",
+        "project_name": export_match.group("project_name") if export_match else None,
+        "id_column": id_column,
+        "header": header,
+        "n_records": len(row_types_by_record),
+        "row_types": [
+            {
+                "key": key,
+                "structural_values": dict(zip(row_type_columns, row_type, strict=True)),
+                "n_rows": row_type_counts[row_type],
+            }
+            for row_type, key in row_type_keys.items()
+        ],
+        "record_row_patterns": [
+            {"row_types": list(pattern), "n_records": n}
+            for pattern, n in record_patterns.most_common()
+        ],
+        "columns": [
+            {
+                "name": name,
+                "cell_kinds_by_row_type": {
+                    row_type_keys[rt]: dict(sorted(counts.items()))
+                    for rt, counts in kinds_by_column[name].items()
+                },
+            }
+            for name in header
+            if name not in skipped_columns
+        ],
+    }
+
+
+def _profile_redcap_export_safely(csv_path: Path) -> dict:
+    try:
+        return profile_redcap_export(csv_path)
+    except Exception as error:  # an unreadable export shouldn't stop the whole profile
+        # Only the exception type -- messages can quote file contents.
+        logger.warning("Could not profile REDCap export (%s)", type(error).__name__)
+        return {"error": type(error).__name__}
+
+
+def _dummy_redcap_cell(
+    column: str, kinds: dict[str, int], subject_id: str, day: dt.datetime, rng: random.Random
+) -> str:
+    """One synthetic cell of the kind the profile saw for this column and row type (picked by
+    observed frequency, so a mostly-empty column stays mostly empty)."""
+    if not kinds:
+        return ""
+    kind = rng.choices(list(kinds), weights=list(kinds.values()))[0]
+    if kind == "empty":
+        return ""
+    if kind == "date":
+        return f"{day:%Y-%m-%d}"
+    if kind == "datetime":
+        return f"{day:%Y-%m-%d %H:%M}"
+    if kind == "int":
+        if column.endswith("_complete"):
+            return "2"
+        if _REDCAP_CHECKBOX_MARKER in column:
+            return str(rng.randint(0, 1))
+        return str(rng.randint(*LIKERT_RANGE))
+    if kind == "float":
+        return f"{rng.uniform(*LIKERT_RANGE):.1f}"
+    if kind == "digit_timestamp":
+        return _format_shape_datetime(day, unpadded_ms=False)
+    if kind == "fvector":
+        return _random_fvector(rng)
+    return _dummy_redcap_value(column, subject_id)
+
+
+def generate_dummy_redcap_from_shape(
+    redcap_profile: dict,
+    output_folder: Path,
+    subject_ids: list[str],
+    rng: random.Random,
+) -> Path:
+    """Writes a long-format dummy REDCap export (one row per record per row type, following a
+    record pattern sampled from the profile) for subject_ids, in dataset order -- the n-th row
+    of the n-th subject is dated on that subject's n-th session day (_session_day), so REDCap
+    and physiology dates line up for clean participants."""
+    header = redcap_profile["header"]
+    id_column = redcap_profile["id_column"]
+    structural_by_key = {rt["key"]: rt["structural_values"] for rt in redcap_profile["row_types"]}
+    kinds_by_column = {c["name"]: c["cell_kinds_by_row_type"] for c in redcap_profile["columns"]}
+    patterns = redcap_profile["record_row_patterns"]
+    project_name = redcap_profile.get("project_name") or REDCAP_DUMMY_PROJECT_NAME
+
+    output_path = (
+        output_folder / f"{project_name}_DATA_{REDCAP_DEBRIEF_TIMESTAMP:%Y-%m-%d_%H%M}.csv"
+    )
+    with output_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(header)
+        for subject_index, subject_id in enumerate(subject_ids):
+            if not patterns:
+                break
+            pattern = rng.choices(patterns, weights=[p["n_records"] for p in patterns])[0]
+            for row_index, key in enumerate(pattern["row_types"]):
+                structural = structural_by_key[key]
+                day = _session_day(subject_index, row_index)
+                writer.writerow(
+                    [
+                        subject_id
+                        if name == id_column
+                        else structural[name]
+                        if name in structural
+                        else _dummy_redcap_cell(
+                            name, kinds_by_column.get(name, {}).get(key, {}), subject_id, day, rng
+                        )
+                        for name in header
+                    ]
+                )
+    return output_path
 
 
 # --- Shape-driven generation ------------------------------------------------------------------
@@ -1345,7 +1557,9 @@ _NON_PULSE_SUFFIXES: tuple[str, ...] = ()
 # same session, each run in its own run-00N subfolder, with the .acq started at the restart.
 _ABORTED_RUN_RESTART_DELAY = dt.timedelta(minutes=4)
 _CSV_LEAD_IN_SECONDS = 5.0
-_RATING_RANGE = (0, 10)  # real scale unknown -- the manifest only says "int"
+# Likert scale for behaviour.csv ratings (Nausea/Dizzy/Stressed/Anxious) and REDCap int answers
+# -- 1 to 5, confirmed 2026-11-18 (docs/longwalk3_plan.md, D5).
+LIKERT_RANGE = (1, 5)
 _PHONE_MESSAGES = (
     "New message",
     "Battery low",
@@ -1602,7 +1816,7 @@ def _synthesize_behaviour(
         cells = [
             f"{moment:%H%M}"
             if name.lower().startswith("timestamp")
-            else str(rng.randint(*_RATING_RANGE))
+            else str(rng.randint(*LIKERT_RANGE))
             for name in header
         ]
         lines.append(",".join(cells))
@@ -1867,7 +2081,8 @@ def generate_dummy_longwalkv3_dataset_from_shape(
 ) -> DummyLongWalkV3DatasetResult:
     """Synthetic dataset modelled on a shape manifest: `n_clean` well-formed participants,
     plus one per SHAPE_ERROR_TYPES entry if `with_errors`."""
-    model = shape_model_from_manifest(load_shape_manifest(manifest_path))
+    manifest = load_shape_manifest(manifest_path)
+    model = shape_model_from_manifest(manifest)
     output_folder.mkdir(parents=True, exist_ok=True)
     rng = random.Random(seed)
     scenarios: list[str | None] = [None] * n_clean
@@ -1887,4 +2102,13 @@ def generate_dummy_longwalkv3_dataset_from_shape(
                 model, output_folder, subject_id, index, city_labels, error_type, rng
             )
         )
-    return DummyLongWalkV3DatasetResult(results, None)
+
+    redcap_path: Path | None = None
+    redcap_profiles = [p for p in manifest.get("redcap_exports", []) if "error" not in p]
+    if redcap_profiles:
+        if len(redcap_profiles) > 1:
+            logger.info("Manifest has %d REDCap profiles -- using the first", len(redcap_profiles))
+        redcap_path = generate_dummy_redcap_from_shape(
+            redcap_profiles[0], output_folder, [r.subject_id for r in results], rng
+        )
+    return DummyLongWalkV3DatasetResult(results, redcap_path)

@@ -62,21 +62,35 @@ Phases A–B are the Friday must-haves; C–D are the stretch.
 9. User docs page for processing, `mkdocs.yml` nav, and a `vibe_list.md` update for every
    shared file touched.
 
-## Major decisions — yours (BUILD stops here)
+## Major decisions
 
-Each one is placeholder-wired so the build keeps moving, and marked `# DECISION Dn` in code.
+Answered 2026-11-18 unless marked open. Open ones stay placeholder-wired, marked
+`# DECISION Dn` in code.
 
-| # | Decision | Placeholder until decided |
+| # | Decision | Answer |
 | --- | --- | --- |
-| D1 | **Behaviour output metrics.** What per-participant numbers does LongwalkV3 report (Crane's `BEHAVIOUR_OUTPUT_METRICS` equivalent)? E.g. mean ratings per city, threat-marker counts, phone alerts? | mean `Nausea/Dizzy/Stressed/Anxious` per city |
-| D2 | **What an interval is.** Per city/run? Per actor event? Which classes send a Biopac pulse (item 32 says unknown)? | one interval per city run, bounded by first/last trigger |
-| D3 | **Sessions in output.** Up to 3 sessions: one row per subject×session (long), or wide with a `ses-N_` prefix? | long: one row per subject×session |
-| D4 | **Debrief source.** Which REDCap instrument/fields, and is debrief per session or per subject? | debrief skipped (status `SKIPPED`) |
-| D5 | **Rating scale** for `behaviour.csv` (generator assumes 0–10). | 0–10, values outside range flagged by schema |
-| D6 | **`datetime` ms padding.** Confirm against the Unreal export code. | treat short values as unpadded ms |
+| D1 | **Behaviour output metrics** | **Open — later.** For now the goal is *valid and analyzable* data, not metrics: schemas + crosscheck, no metric columns. |
+| D2 | **What an interval is** | An interval **starts at the first pulse from an actor instance and ends when a pulse arrives from a different actor instance**; label = the actor instance name. |
+| D3 | **Sessions in pipeline output** | **One wide row per subject** (sessions as column prefixes). |
+| D4 | **Debrief** | REDCap debrief is **long format: one row per subject per session**. Field details settled once the data JSONs (shape manifests) are updated with a real REDCap profile. |
+| D5 | **Rating scale** | **Likert 1–5** (Stress, Nausea, etc.). Generator updated (`LIKERT_RANGE`). |
+| D6 | **`datetime` ms padding** | **Open — later**, checked against the student's new example data. Placeholder: treat short values as unpadded ms. |
 
-D1–D4 are scientific/analysis choices. D5–D6 are facts to confirm with the student.
+**Knock-on from D4:** `longwalk3_bids.py` currently writes *one* debrief file per subject
+anchored on `ses-01`. It has to split the long REDCap export by session instead (phase A1).
+How a REDCap row maps to a session (`redcap_event_name` or `redcap_repeat_instance`) is read off
+the profiled manifest once a real one exists.
+
+**Knock-on from D2:** an actor instance's pulses are only identifiable from the behaviour/actor
+logs (which instance logged each row), so intervals are built from the CSVs and matched to the
+Biopac trigger channel, the same way Crane matches behaviour-based intervals to triggers.
 
 ## Progress log
 
 - 2026-11-18 — plan written; BUILD rule committed (`d06bb7b`).
+- 2026-11-18 — D1–D6 answered (above). Dummy generator extended for REDCap: `--profile-shape`
+  now profiles REDCap exports (found at the data folder's top level, or via `--redcap-export`)
+  into the manifest's `redcap_exports` (manifest version 2, structure only), and shape mode
+  writes a long-format dummy REDCap export from it. Tests: `tests/test_longwalkv3_dummy_data.py`.
+  **Your step:** re-profile the real folder with the REDCap export included, review the JSON,
+  and copy it to `longwalkv3_examples/shape/`.

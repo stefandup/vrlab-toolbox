@@ -45,6 +45,12 @@ Examples:
   shape_out/{SHAPE_MANIFEST_FILENAME} -- structure only, no data values; review it before
   sharing:
   longwalk3_generate_sample_data --profile-shape path/to/longwalkv3_data shape_out
+
+\b
+  Same, also profiling a REDCap debrief export kept outside the data folder (exports sitting
+  directly in the data folder are picked up automatically):
+  longwalk3_generate_sample_data --profile-shape path/to/longwalkv3_data shape_out \\
+    --redcap-export path/to/Project_DATA_2026-11-18_1200.csv
 """
 
 
@@ -80,6 +86,13 @@ Examples:
     f"{SHAPE_MANIFEST_FILENAME} describing its structure only (no data values). "
     "--n-clean/--with-errors/--cities/--seed are ignored.",
 )
+@click.option(
+    "--redcap-export",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=None,
+    help="With --profile-shape: also profile this REDCap debrief export (.csv) into the "
+    "manifest's redcap_exports. REDCap exports directly in TEMPLATE_FOLDER are found anyway.",
+)
 def main(
     template_folder: Path,
     output_folder: Path,
@@ -88,6 +101,7 @@ def main(
     cities: tuple[str, ...],
     seed: int | None,
     profile_shape: bool,
+    redcap_export: Path | None,
 ) -> None:
     """Generate synthetic longwalkV3 participant data, or profile real data's shape. Three modes,
     picked by the first argument and flags:
@@ -99,7 +113,9 @@ def main(
        one behaviour.csv and the actor logs per run (run-00N/ subfolders when a run was
        restarted). Headers, header repeats, row counts, actor counts, time spans, which actor
        logs each city has, ragged rows, and the .acq channels/rate/duration all follow the
-       manifest; cell values, EDA signal and Trigger pulses are synthetic. No REDCap file.
+       manifest; cell values, EDA signal and Trigger pulses are synthetic. If the manifest has
+       a REDCap profile, also writes a long-format dummy REDCap debrief export (one row per
+       subject per event/session, same columns; answers synthetic, Likert 1-5).
     2. Legacy template mode -- TEMPLATE_FOLDER holds old raw files to clone (see below).
     3. --profile-shape -- profile real data (see below).
 
@@ -136,6 +152,9 @@ def main(
       cells (empty/int/float/digit_timestamp/fvector/text) -- never a value
     - per .acq (headers only, no samples or journal): channel names/units, sample rate,
       duration
+    - per REDCap export (long format): header, number of records, rows per record and which
+      event/repeat instance each row is (REDCap's own labels, e.g. "session_1_arm_1"), and
+      per column the kind of cells per event -- never an answer
 
     Read the manifest yourself before sharing it with anyone or any tool.
 
@@ -171,7 +190,7 @@ def main(
     """
 
     if profile_shape:
-        _profile_shape(template_folder, output_folder)
+        _profile_shape(template_folder, output_folder, redcap_export)
         return
 
     output_folder.mkdir(parents=True, exist_ok=True)
@@ -217,8 +236,8 @@ def main(
         )
 
 
-def _profile_shape(data_folder: Path, output_folder: Path) -> None:
-    manifest_path = write_longwalkv3_shape_manifest(data_folder, output_folder)
+def _profile_shape(data_folder: Path, output_folder: Path, redcap_export: Path | None) -> None:
+    manifest_path = write_longwalkv3_shape_manifest(data_folder, output_folder, redcap_export)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
     table = Table(title="longwalkV3 data shape (structure only)")
@@ -244,6 +263,16 @@ def _profile_shape(data_folder: Path, output_folder: Path) -> None:
         console.print(
             f"[yellow]Not profiled (not a sub- folder):[/yellow] {folder['name']} "
             f"({folder['n_files']} files)"
+        )
+    for redcap in manifest.get("redcap_exports", []):
+        if "error" in redcap:
+            console.print(f"[red]REDCap export could not be profiled:[/red] {redcap['error']}")
+            continue
+        rows_per_record = sorted({len(p["row_types"]) for p in redcap["record_row_patterns"]})
+        console.print(
+            f"[green]REDCap export profiled:[/green] {redcap['n_records']} records, "
+            f"{len(redcap['header'])} columns, {len(redcap['row_types'])} row types, "
+            f"rows per record: {rows_per_record}"
         )
     console.print(f"[green]Shape manifest written:[/green] {manifest_path}")
     console.print(
