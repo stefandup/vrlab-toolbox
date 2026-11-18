@@ -1495,3 +1495,80 @@ Already fixed in newer exports, kept for reference: the `testEDA01` export split
 `year,month,...,millisecond` columns with `millisecond` always `0`, and location into
 `worldLocationX/Y/Z`. The `Test 1` export writes a single 17-digit `datetime` with real
 milliseconds, plus a single `worldLocation` column.
+
+### 32. LongWalkV3: synthetic demo data from real-data *shape*, then an MVP crosscheck
+
+**Deadline: end of Friday 2026-11-20** (before leave). Added 2026-11-18.
+
+**Why:** the student changed the Unreal export, so the old `longwalkv3_examples/` templates
+may no longer match what real recordings look like. The real data is patient data and must not be
+opened by an AI assistant (AGENTS.md data guardrail). `longwalk3_dummy_data.py` can't just be
+pointed at the real folder either: it copies **template rows** into its output, so real values
+would end up in the "dummy" dataset.
+
+**Plan: two stages. The human runs stage 1; only the stage-1 output crosses the line.**
+
+1. **Shape profiler (run by a human, on the real BIDS-organised folder).** Walks
+   `sub-*/ses-*/` and writes one `longwalkv3_shape.json` manifest that holds **no data values**,
+   only structure:
+   - folder tree: subject count (IDs replaced by `sub-001`…), sessions per subject, raw
+     session-folder spellings (e.g. `ses_01` vs `ses-02`), and stray top-level folders
+     (e.g. `longwalkv3_generateIDs`)
+   - per session: filename *patterns* with IDs/timestamps replaced by placeholders, which actor-log
+     suffixes are present, runs/cities per session
+   - per CSV: header columns, how many times the header repeats, data-row count (or a bucket for it)
+   - per `.acq`: channel names, sample rate, duration (no samples)
+   The human reviews the JSON before sharing it; it should be readable in one sitting.
+2. **Manifest-driven dummy generation.** Teach `longwalk3_dummy_data.py` to build files from the
+   manifest (headers/structure from JSON, values synthesised in code) instead of copying template
+   rows. Keep the existing error-injection scenarios (`ERROR_TYPES`) so the crosscheck has known
+   faults to find.
+3. **MVP crosscheck** (`longwalk3_bids_crosscheck_gui.py` / `bids_crosscheck.py`), coded against
+   the synthetic set. Minimum checks: session-folder naming, expected file set per run present,
+   CSV headers match the manifest, acq present per session, acq/CSV timestamp agreement, empty
+   (header-only) logs flagged. Done = it runs clean on clean dummy data and flags each injected error.
+
+**Open decisions:**
+- Where the profiler lives: a new `processing/` file needs OVERRIDE (not on `vibe_list.md`)
+  unless it's added to the allow-list. Folding it into `longwalk3_dummy_data.py` + a thin CLI keeps
+  it BYPASS-eligible.
+- Whether the manifest may carry coarse value info (e.g. rating scale min/max, set of NPC/actor
+  names). Default: no. Add per field only after a human signs off.
+
+**Already visible from the anonymised folder listing (no data opened):** one subject has
+`ses_01` next to `ses-02` (mixed separator), the acq is named `..._longwalkv3out.acq` with no
+`ses-`/`task-` entities, and `longwalkv3_generateIDs/` sits next to the `sub-*` folders. The
+crosscheck should handle or flag all three.
+
+**Progress 2026-11-18:** steps 1 and 2 done. The profiler is
+`longwalk3_generate_sample_data --profile-shape`; a reviewed manifest from the 4 real subjects is
+in `longwalkv3_examples/shape/`. The generator now takes that manifest
+(`longwalk3_generate_sample_data longwalkv3_examples/shape/longwalkv3_shape.json
+longwalkv3_examples/dummy_data --n-clean 5 --with-errors --seed 1`) and writes the real layout
+(`sub-dummyNN/ses-NN/[run-00N/]`), writing `.acq` files from scratch (no template needed).
+Re-profiling the synthetic set reproduces the real headers, header-repeat/row-count
+combinations, ragged rows and `.acq` channel layout. Next: step 3, the MVP crosscheck.
+
+**Found in the real manifest; the crosscheck and pipeline need to deal with these:**
+- `.acq` channels are now just `Trigger` + `EDA100C` (no ECG, no `"EDA - "` prefix).
+  `biopac.clean_biopac_acq_label` leaves `"EDA100C"`, but `REQUIRED_PHYSIOLOGY_CHANNEL` in
+  `longwalk3_bids_crosscheck_gui.py` and `eda.py` look for `"EDA"`, so real files fail the EDA
+  check and EDA processing would miss the channel.
+- About 1 in 4 `datetime` cells in every actor log is shorter than 17 digits, which breaks
+  `DATESTR_FORMAT` parsing (`NaT` onsets). Best guess: milliseconds not zero-padded. The
+  generator reproduces it that way; confirm against the Unreal export code.
+- `behaviour.csv` changed: columns are now `TimeStampHHmm, Nausea, Dizzy, Stressed, Anxious`
+  (hours and minutes only, no date). Rating scale unknown (the generator assumes 0-10).
+- `BP_PhoneAlerts_C` `message` cells contain unquoted commas (rows wider than the header).
+- `BP_HeatmapManager_C` fills its 4 corner-vector columns on the first row only; later rows
+  are 4 columns wide.
+- New actor logs: `BP_BirdsFlying_C` (city2 only, ~359 rows in ~4 s),
+  `BP_SerialComManager_C` (2 rows: start/stop), `BP_PhoneAlerts_C`. Phone logs are missing in
+  some runs.
+- Header rows are repeated once per actor instance (e.g. 11 for `ThreatLevelMarkerNew_C`),
+  always at the top.
+- `run-` counter now counts up (`run-1`, `run-2`). A restarted run puts each attempt in its own
+  `run-001/`/`run-002/` subfolder, and the `.acq` starts at the restart.
+- Which classes send a Biopac pulse is unknown. Working assumption: every class, on every row
+  (`_NON_PULSE_SUFFIXES` is empty). Under that assumption the birds' rows (~11 ms apart) merge
+  into one long Trigger-high stretch, and the heatmap pulses at ~2 Hz throughout.
