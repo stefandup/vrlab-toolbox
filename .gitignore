@@ -37,3 +37,4 @@ longwalk_examples/
 crane_examples/dist/
 longwalkv3_examples/
 *.ipynb
+longwalkv3_test/
