@@ -3,9 +3,9 @@
 This is step 3: once your data has been [processed](processing.md), check
 the QC plots it produced before you trust the numbers. This page covers
 EDA processing — relevant whichever experiment your data is from — and how
-to read its QC plot. FOH and Crane each also have their own extra check on
-top of this one: see [FOH Output Checks](foh-output.md) and [Crane Output
-Checks](interval-qc.md).
+to read its QC plot. FOH, Crane and LongwalkV3 each also have their own extra checks on
+top of this one: see [FOH Output Checks](foh-output.md), [Crane Output
+Checks](interval-qc.md) and [LongwalkV3 Output Checks](longwalkv3-output.md).
 
 ## What is EDA, and what's an SCR?
 

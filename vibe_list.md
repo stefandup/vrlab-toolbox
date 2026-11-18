@@ -1,3 +1,4 @@
+<!-- --8<-- [start:table] -->
 | Area | Files | Human-checked ([@stefandup](https://github.com/stefandup)) |
 | --- | --- | --- |
 | BIDS conversion | `src/vrlab_toolbox/processing/bids.py`, `crane_bids.py`, `longwalk_bids.py`, `longwalk3_bids.py` | [ ] |
@@ -10,4 +11,5 @@
 | Docs | everything under `docs/`, plus `mkdocs.yml` — already covered by [AI Use Guidelines](docs/ai-use.md)'s docs exception | [ ] |
 | Root README | `README.md` | [ ] |
 | CI workflows | `.github/workflows/*.yml` | [ ] |
-| LongwalkV3 (BUILD `longwalk3` LIKE `crane`) | every LongwalkV3-specific file: `src/vrlab_toolbox/processing/longwalk3_*.py`, `src/vrlab_toolbox/cli/*longwalk3*.py`, `src/vrlab_toolbox/gui/longwalk3_*.py`, `tests/test_longwalkv3_*.py`, plus shared files touched by that BUILD: `src/vrlab_toolbox/processing/biopac.py` (BIOPAC module channel labels), `src/vrlab_toolbox/processing/trial_intervals.py` (optional `IntervalLabelStyle` for the interval QC labels; Crane's default unchanged), `docs/longwalkv3-crosscheck.md`, `src/vrlab_toolbox/gui/toolbox_launcher.py` + `specs/toolbox.spec` (LongwalkV3 process/results-viewer entries only), `pyproject.toml` (LongwalkV3 entry points only) — see [BUILD mode](docs/ai-style-guide.md#build-mode) | [ ] |
+| LongwalkV3 (BUILD `longwalk3` LIKE `crane`) | every LongwalkV3-specific file: `src/vrlab_toolbox/processing/longwalk3_*.py`, `src/vrlab_toolbox/cli/*longwalk3*.py`, `src/vrlab_toolbox/gui/longwalk3_*.py`, `tests/test_longwalkv3_*.py`, plus shared files touched by that BUILD: `src/vrlab_toolbox/processing/biopac.py` (BIOPAC module channel labels), `src/vrlab_toolbox/processing/trial_intervals.py` (optional `IntervalLabelStyle` for the interval QC labels; Crane's default unchanged), `docs/longwalkv3-crosscheck.md`, `docs/longwalkv3-output.md`, `docs/assets/images/longwalkv3-*-example.png` (synthetic data), `docs/processing.md` (LongwalkV3 section), `docs/eda.md` + `mkdocs.yml` (links/nav only), `src/vrlab_toolbox/gui/toolbox_launcher.py` + `specs/toolbox.spec` (LongwalkV3 process/results-viewer entries only), `pyproject.toml` (LongwalkV3 entry points only) — see [BUILD mode](docs/ai-style-guide.md#build-mode) | [ ] |
+<!-- --8<-- [end:table] -->

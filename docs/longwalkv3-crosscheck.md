@@ -50,8 +50,9 @@ way there is for Crane or FOH.
 ### 1. Open the tool
 
 With the toolbox installed (see [Getting
-Started](getting-started.md) if you haven't done this yet), open a
-terminal and type:
+Started](getting-started.md) if you haven't done this yet), click
+**LongwalkV3 BIDS Crosscheck** in the VR Lab Toolbox launcher (desktop
+shortcut), or open a terminal and type:
 
 ```bash
 vrlab_longwalk3_bids_crosscheck
@@ -223,8 +224,10 @@ is quick even for long recordings):
 
 - It opens, and has at least one row (not just a header).
 - It has an `onset` column, and **every** onset is a number. Missing
-  onsets are shown in red. Real exports will fail this until the
-  Unreal-side `TimeStamp` fix lands (see item 31 in `pipeline_next_steps.md`).
+  onsets are shown in red; after a **Refresh BIDS** with the current
+  version there should be none or almost none. See [Rows without an
+  onset](#6-remove-a-wrong-session-or-run-or-fix-a-wrong-date) in step 6
+  if some remain.
 - Its city (the `acq-cityN` part of the filename) is one of city1, city2
   or city3.
 
@@ -312,7 +315,8 @@ runs by date** in **Subject Actions** to put it back in the right session.
 Debrief Data** in the **Debrief Data** panel. Every REDCap row is listed
 (one per subject per session). Type a corrected subject id where the
 export's `study_id` is wrong, or tick **Leave out** to keep that row out
-of BIDS. Your fixes are saved in the BIDS folder and applied the next
+of BIDS. If a row's **Session date** is missing or wrong, type the right
+date there: it's how each REDCap row is matched to a recorded session. Your fixes are saved in the BIDS folder and applied the next
 time you click **Refresh BIDS** — the REDCap export itself is never
 changed.
 
@@ -327,9 +331,10 @@ how many are on rows that send a Biopac trigger. Only those affect the
 processing: interval matching fills them in from their neighbours and
 marks the session *corrected*. The rest only lose their own timing.
 
-**Ambiguous timestamps:** Unreal writes its timestamps without leading
-zeros, so some can be read more than one way (e.g. `...17303241` is
-17:30:03.241 or 17:30:32.041). The subject summary shows, per run, how
+**Ambiguous timestamps:** Unreal writes the seconds and milliseconds of
+its timestamps without leading zeros (12:58:**08**.864 comes out as
+`...1258`**`8`**`864`), so some can be read more than one way (e.g.
+`...17303241` is 17:30:03.241 or 17:30:32.041). The subject summary shows, per run, how
 many timestamps are missing and how many are ambiguous (and how many of
 each are on trigger rows). Click a run's events file to see examples: the
 raw cell and every possible reading, with the one used in **bold**.

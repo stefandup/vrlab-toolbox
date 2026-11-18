@@ -168,3 +168,9 @@ Biopac trigger channel, the same way Crane matches behaviour-based intervals to 
   segment (3 missing → no 2→3 and no 3→4); a marker passed twice keeps its first pass. The
   actor-instance intervals (D2) stay on the interval QC plot. LongwalkV3 has its own EDA step
   that skips `eda.correct_order` so the real names survive.
+- 2026-11-18 — **Phase D (user docs).** New `docs/longwalkv3-output.md` (status meanings, interval
+  QC, trigger map, EDA QC, threat-marker segments, Summary Stats; example images from synthetic
+  data). `docs/processing.md` gets a LongwalkV3 section (viewer + CLI, output columns).
+  `docs/longwalkv3-crosscheck.md` brought up to date (launcher, onsets, D6 wording, debrief
+  session date). Also restored the `vibe_list.md` snippet markers removed in 962aa60, which
+  had broken the docs build (and so the docs deploy) since September.

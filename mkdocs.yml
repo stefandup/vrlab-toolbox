@@ -30,6 +30,7 @@ nav:
           - EDA & SCRs: eda.md
           - FOH Output Checks: foh-output.md
           - Crane Output Checks (Interval QC): interval-qc.md
+          - LongwalkV3 Output Checks: longwalkv3-output.md
   - For Contributors:
       - AI Use Guidelines: ai-use.md
       - Development Setup: dev-setup.md
