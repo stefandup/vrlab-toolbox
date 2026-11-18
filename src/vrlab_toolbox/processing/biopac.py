@@ -31,8 +31,14 @@ def clean_biopac_mat_labels(labels_in: np.ndarray) -> list[str]:
     return [label.strip().split(" ")[0] for label in labels_in.flatten()]
 
 
+# When a channel has no "EDA - ..." style label set, AcqKnowledge names it after the BIOPAC
+# amplifier module instead (seen in longwalkV3's recordings: just "EDA100C").
+BIOPAC_MODULE_LABELS = {"EDA100C": "EDA", "ECG100C": "ECG"}
+
+
 def clean_biopac_acq_label(label_in: str) -> str:
-    return label_in.strip().split(" ")[0]
+    label = label_in.strip().split(" ")[0]
+    return BIOPAC_MODULE_LABELS.get(label.upper(), label)
 
 
 def import_biopac_acq(physiology_fn) -> dict[str, pd.DataFrame]:

@@ -1558,6 +1558,7 @@ _FIRST_ROW_PULSE_SUFFIXES: tuple[str, ...] = ("BP_HeatmapManager_C.csv",)
 # same session, each run in its own run-00N subfolder, with the .acq started at the restart.
 _ABORTED_RUN_RESTART_DELAY = dt.timedelta(minutes=4)
 _CSV_LEAD_IN_SECONDS = 5.0
+_ACQ_LEAD_OUT_SECONDS = 5.0
 # Likert scale for behaviour.csv ratings (Nausea/Dizzy/Stressed/Anxious) and REDCap int answers
 # -- 1 to 5, confirmed 2026-11-18 (docs/longwalk3_plan.md, D5).
 LIKERT_RANGE = (1, 5)
@@ -1768,13 +1769,22 @@ def _synthesize_actor_log(
     n_distinct_flags = int(columns.get("isFearCue", {}).get("n_distinct_text", 2))
 
     lines = [",".join(header)] * n_header_rows
-    for row_index, (moment, actor) in enumerate(zip(times, row_actors, strict=True)):
+    times = list(times)
+    for row_index, actor in enumerate(row_actors):
+        moment = times[row_index]
+        unpadded = "datetime" in header and rng.random() < unpadded_fraction
+        if unpadded:
+            # D6 hypothesis: a short cell is milliseconds written without zero-padding, which
+            # only happens for ms < 100 -- so give this row such a time (and pulse at it),
+            # keeping the CSV and the Biopac pulse in agreement.
+            moment = moment.replace(microsecond=(moment.microsecond // 1000 % 100) * 1000)
+            times[row_index] = moment
         cells = []
         for name in header:
             if name in first_row_only and row_index > 0:
                 continue  # ragged like the real export: later rows stop short
             if name == "datetime":
-                cells.append(_format_shape_datetime(moment, rng.random() < unpadded_fraction))
+                cells.append(_format_shape_datetime(moment, unpadded))
             elif name in ("actor", TRIGGER_COLUMN):
                 cells.append(actor)
             elif name == "isFearCue":
@@ -2047,7 +2057,6 @@ def generate_shape_participant(
             actor_log_paths += logs
             pulse_times += pulses
 
-        n_samples = int(duration * model.acq_samples_per_second)
         # Biopac and Unreal clocks drift apart over a session, the same way crane's do: each
         # session gets one drift rate, so pulses land progressively later than the CSV says.
         drift_ms_per_minute = rng.uniform(*TRIGGER_DRIFT_MS_PER_MINUTE_RANGE)
@@ -2055,6 +2064,10 @@ def generate_shape_participant(
             seconds + (seconds / 60.0) * drift_ms_per_minute / 1000.0
             for seconds in ((t - acq_start).total_seconds() for t in pulse_times)
         ]
+        # The recording keeps running a little after the last pulse (drift can push it past
+        # the CSV-based duration), so a clean session has every pulse on the Trigger channel.
+        duration = max([duration, *(s + _ACQ_LEAD_OUT_SECONDS for s in pulse_seconds)])
+        n_samples = int(duration * model.acq_samples_per_second)
         channels = []
         for name, units in model.acq_channels:
             if name == ACQ_TRIGGER_CHANNEL_NAME:

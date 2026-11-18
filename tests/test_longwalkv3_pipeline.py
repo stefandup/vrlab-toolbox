@@ -19,6 +19,8 @@ from vrlab_toolbox.processing.longwalk3_bids import (
 from vrlab_toolbox.processing.longwalk3_debrief_behaviour import RawLongWalkV3DebriefBehaviourData
 from vrlab_toolbox.processing.longwalk3_pipeline import (
     FindLongWalkV3ParticipantFilesStrategyStep,
+    build_longwalkv3_participant_output_schema,
+    run_pipeline_all_sessions,
 )
 from vrlab_toolbox.processing.longwalk3_trial_intervals import (
     LongWalkV3GetTrialIntervalStrategyStep,
@@ -112,3 +114,19 @@ class TestLongWalkV3(unittest.TestCase):
                 self.raw_biodata_list[session], self.raw_behaviour_list[session]
             )
             trial_interval_list.append(trial_interval)
+
+
+class TestLongWalkV3AllSessions(unittest.TestCase):
+    """D3: one wide row per subject, every session's columns prefixed sesNN_."""
+
+    def test_clean_subject_gives_one_wide_row_with_every_session_ok(self):
+        output = run_pipeline_all_sessions(CLEAN_ID, BIDS_FOLDER)
+        df = output.subject_df_out
+        self.assertEqual(len(df), 1)
+        self.assertEqual(df["Subject_ID"].iloc[0], CLEAN_ID)
+        session_statuses = [c for c in df.columns if c.endswith("_Processing_Status")]
+        self.assertEqual(session_statuses, [f"ses0{n}_Processing_Status" for n in (1, 2, 3)])
+        for column in session_statuses:
+            self.assertIn("TrialIntervals=ok", df[column].iloc[0])
+        self.assertTrue(any(c.startswith("ses01_") and "SCR_per_min" in c for c in df.columns))
+        build_longwalkv3_participant_output_schema().validate(df)

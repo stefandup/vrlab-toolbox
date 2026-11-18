@@ -495,8 +495,12 @@ def build_longwalkv3_raw_session_events_behav_file_schema() -> pa.DataFrameSchem
             f"trigger_{BP_ACTOR_ID}": pandera_defaults.optional_str_col()
             for BP_ACTOR_ID in BP_ACTOR_IDS
         },
+        # Not every actor class logs in every run (birds: city2 only; phone logs missing in
+        # some runs), so each actor's location columns are optional.
         **{
-            f"^worldLocation_{BP_ACTOR_ID}_[xyz]$": pandera_defaults.coord_axis_col()
+            f"^worldLocation_{BP_ACTOR_ID}_[xyz]$": pa.Column(
+                float, nullable=True, coerce=True, regex=True, required=False
+            )
             for BP_ACTOR_ID in BP_ACTOR_IDS
         },
     }
