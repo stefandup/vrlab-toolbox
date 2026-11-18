@@ -142,7 +142,7 @@ class ParsedPhysiologyFilename:
     date: datetime
 
 
-def _normalize_subject_id(raw_subject_id: str) -> str:
+def normalize_subject_id(raw_subject_id: str) -> str:
     """The current export writes "sub-<id>" into raw filenames (older exports wrote a bare
     "<id>"); BIDS filenames add their own "sub-" prefix, so it's stripped here once."""
     if raw_subject_id.lower().startswith("sub-"):
@@ -155,7 +155,7 @@ def parse_physiology_filename(file: Path) -> ParsedPhysiologyFilename | None:
     if match is None:
         return None
     return ParsedPhysiologyFilename(
-        subject_id=_normalize_subject_id(match.group("subject_id")),
+        subject_id=normalize_subject_id(match.group("subject_id")),
         date=datetime.strptime(match.group("date"), FILENAME_DATESTR_FORMAT),
     )
 
@@ -174,7 +174,7 @@ def parse_raw_csv_filename(file: Path) -> ParsedRawCsvFilename | None:
     if match is None:
         return None
     return ParsedRawCsvFilename(
-        subject_id=_normalize_subject_id(match.group("subject_id")),
+        subject_id=normalize_subject_id(match.group("subject_id")),
         date=datetime.strptime(match.group("date"), FILENAME_DATESTR_FORMAT),
         session_nr=int(match.group("session_nr")),
         city_label=match.group("city_label"),
@@ -780,8 +780,10 @@ def apply_debrief_fixes(debrief_df: pd.DataFrame, bids_folder: Path) -> pd.DataF
     excluded = load_debrief_excluded_rows(bids_folder)
     keys = debrief_row_keys(debrief_df)
     fixed = debrief_df.copy()
+    # Same id normalisation as the raw filenames: REDCap may hold "sub-<id>" (as the real
+    # export does), BIDS subject ids never carry the prefix.
     fixed[DEBRIEF_ID_COLUMN] = [
-        corrections.get(key, study_id)
+        normalize_subject_id((corrections.get(key) or study_id).strip())
         for key, study_id in zip(keys, debrief_df[DEBRIEF_ID_COLUMN].astype(str), strict=True)
     ]
     keep = [key not in excluded for key in keys]

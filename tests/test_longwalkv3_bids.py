@@ -179,3 +179,10 @@ def test_debrief_written_per_session_without_identifying_columns(tmp_path):
         assert "first_name" not in df.columns
         assert "icf_pt_date_sign" not in df.columns
         assert {"study_id", "redcap_event_name", "ipq_q1"} <= set(df.columns)
+
+
+def test_redcap_ids_with_sub_prefix_match_bids_subjects(tmp_path):
+    df = _debrief_df()
+    df["study_id"] = "sub-d01"
+    fixed = apply_debrief_fixes(df, tmp_path)
+    assert set(fixed["study_id"]) == {"d01"}

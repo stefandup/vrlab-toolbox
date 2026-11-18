@@ -91,6 +91,7 @@ from vrlab_toolbox.processing.longwalk3_bids import (
     load_debrief_export,
     load_debrief_id_corrections,
     load_raw_filename_id_corrections,
+    normalize_subject_id,
     plan_renumber_by_date,
     resolve_subject_id,
     save_debrief_excluded_rows,
@@ -1166,7 +1167,8 @@ class DebriefRecordIdCorrectionDialog(QDialog):
         corrected = self.table.item(row, self._CORRECTED_COLUMN)
         original = self.table.item(row, 0)
         corrected_text = corrected.text().strip() if corrected is not None else ""
-        return corrected_text or (original.text().strip() if original is not None else "")
+        effective = corrected_text or (original.text().strip() if original is not None else "")
+        return normalize_subject_id(effective)
 
     def _update_match_icon(self, row: int) -> None:
         match_item = self.table.item(row, 3)
