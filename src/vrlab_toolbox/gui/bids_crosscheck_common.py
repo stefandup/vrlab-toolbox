@@ -1015,7 +1015,6 @@ class BidsCrosscheckWindow(QMainWindow):
         root_layout.addWidget(splitter, 1)
 
         left_panel = QWidget()
-        self._focus_hidden_left_panel = left_panel
         left_layout = QVBoxLayout(left_panel)
         self.issues_only_checkbox = QCheckBox("Issues only")
         self.issues_only_checkbox.stateChanged.connect(self._refresh_subject_list)
@@ -1047,8 +1046,9 @@ class BidsCrosscheckWindow(QMainWindow):
         self.focus_button.setShortcut("F11")
         self.focus_button.setToolTip(
             wrap_tooltip(
-                "Hide the folder/actions area and the subject list so the selected subject's "
-                "details get the whole window (F11). Click again to show everything."
+                "Hide the folder/actions area at the top so the subject list and the selected "
+                "subject's details get the whole window height (F11). Click again to show "
+                "everything."
             )
         )
         self.focus_button.toggled.connect(self._on_focus_toggled)
@@ -1973,7 +1973,8 @@ class BidsCrosscheckWindow(QMainWindow):
                 widget.deleteLater()
 
     def _on_focus_toggled(self, focused: bool) -> None:
-        """Show only the detail pane (focused) or everything (not). Each hidden widget's own
+        """Hide the folder/actions area at the top (focused) or show everything (not); the
+        subject list and details stay. Each hidden widget's own
         visibility is remembered and put back exactly, so widgets that were hidden on purpose
         stay hidden."""
 
@@ -1989,7 +1990,6 @@ class BidsCrosscheckWindow(QMainWindow):
 
         if focused:
             widgets = [w for item in self._focus_hidden_items for w in top_level_widgets(item)]
-            widgets.append(self._focus_hidden_left_panel)
             self._focus_restore_visibility = {w: w.isVisible() for w in widgets}
             for widget in widgets:
                 widget.setVisible(False)

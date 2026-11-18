@@ -176,7 +176,7 @@ INFO_CACHE_FILENAME = "crosscheck_info_cache.json"
 # Bumped whenever a parser's output shape or derivation changes, so a cached entry that still
 # matches the file's mtime/size (nothing to re-read) but was computed by older logic gets
 # reparsed anyway instead of silently serving stale info forever.
-INFO_SCHEMA_VERSION = 3
+INFO_SCHEMA_VERSION = 4
 
 
 def _bids_entities(file: Path) -> dict[str, str]:
@@ -239,6 +239,12 @@ class LongwalkV3EventsInfo:
     # file has no such columns at all.
     n_trigger_rows: int | None = None
     n_rating_rows: int | None = None
+    # Where the bad onsets come from, by *shape* only (never a value): "<source> -- <what its
+    # raw timestamp looks like>" -> row count, e.g. "BPNPCC -- 13 digits": 4. Plus how many
+    # of them are on rows that send a Biopac trigger -- those are the ones the interval
+    # matching needs (the rest only lose their own timing).
+    bad_onset_sources: dict[str, int] = field(default_factory=dict)
+    n_bad_trigger_onsets: int = 0
 
     def problems(self) -> list[str]:
         if self.n_rows is None:
@@ -249,8 +255,14 @@ class LongwalkV3EventsInfo:
         if not self.has_onset:
             problems.append("Missing the expected 'onset' column")
         elif self.n_bad_onsets:
+            impact = (
+                f" -- {self.n_bad_trigger_onsets} on rows that send a Biopac trigger (interval "
+                "matching interpolates those)"
+                if self.n_bad_trigger_onsets
+                else " -- none on trigger rows, so intervals aren't affected"
+            )
             problems.append(
-                f"{self.n_bad_onsets} of {self.n_rows} onset(s) missing or not a number"
+                f"{self.n_bad_onsets} of {self.n_rows} onset(s) missing or not a number{impact}"
             )
         if self.n_rows and not self.n_trigger_rows:
             problems.append("No actor logged a trigger in this run -- aborted run?")
@@ -321,15 +333,21 @@ def _parse_physiology_info(file: Path) -> LongwalkV3PhysiologyInfo:
 
 def _parse_events_info(file: Path) -> LongwalkV3EventsInfo:
     try:
-        df = pd.read_csv(file, sep="\t")
+        # Timestamps as text, so their shape (digit count) survives -- a 17-digit number read
+        # as a float would lose it.
+        df = pd.read_csv(file, sep="\t", dtype=str)
     except Exception:
         logger.warning("Could not read events data from %s", file, exc_info=True)
         return LongwalkV3EventsInfo(n_rows=None, n_columns=None, has_onset=False)
 
     has_onset = "onset" in df.columns
-    n_bad_onsets = (
-        int(pd.Series(pd.to_numeric(df["onset"], errors="coerce")).isna().sum()) if has_onset else 0
+    bad_rows = (
+        pd.Series(pd.to_numeric(df["onset"], errors="coerce")).isna()
+        if has_onset
+        else pd.Series(False, index=df.index)
     )
+    n_bad_onsets = int(bad_rows.sum())
+    bad_onset_sources, n_bad_trigger_onsets = _bad_onset_breakdown(df.loc[bad_rows])
     trigger_columns = [c for c in df.columns if str(c).startswith("trigger_")]
     rating_columns = [c for c in df.columns if str(c) in RATING_COLUMNS]
     return LongwalkV3EventsInfo(
@@ -339,7 +357,52 @@ def _parse_events_info(file: Path) -> LongwalkV3EventsInfo:
         n_bad_onsets=n_bad_onsets,
         n_trigger_rows=_rows_with_any_value(df, trigger_columns),
         n_rating_rows=_rows_with_any_value(df, rating_columns),
+        bad_onset_sources=bad_onset_sources,
+        n_bad_trigger_onsets=n_bad_trigger_onsets,
     )
+
+
+_TIME_COLUMN_PREFIXES = ("time_stamp_", "TimeStampHHmm_")
+
+
+def _timestamp_shape(value: object) -> str:
+    """What a raw timestamp cell looks like, without its value."""
+    if not isinstance(value, str) or not value.strip():
+        return "empty"
+    text = value.strip()
+    if text.isdigit():
+        return f"{len(text)} digits"
+    return "not all digits"
+
+
+def _bad_onset_breakdown(bad_df: pd.DataFrame) -> tuple[dict[str, int], int]:
+    """For rows without an onset: which actor class / behaviour.csv each came from and the
+    shape of its raw timestamp, counted; and how many send a Biopac trigger."""
+    sources: dict[str, int] = {}
+    n_trigger = 0
+    time_columns = [c for c in bad_df.columns if str(c).startswith(_TIME_COLUMN_PREFIXES)]
+    for record in bad_df.to_dict("records"):
+        cells = {str(column): value for column, value in record.items()}
+
+        def filled(column: str, cells: dict[str, object] = cells) -> bool:
+            value = cells.get(column)
+            return isinstance(value, str) and bool(value.strip())
+
+        source = next((str(c) for c in time_columns if filled(str(c))), None)
+        if source is None:
+            # No timestamp at all -- which class logged the row shows in its other columns.
+            actor_column = next((c for c in cells if c.startswith("actor_") and filled(c)), None)
+            actor_class = actor_column.split("_", 1)[1] if actor_column else "unknown source"
+            key = f"{actor_class} -- timestamp empty"
+        else:
+            actor_class = (
+                source.split("_", 2)[-1] if source.startswith("time_stamp_") else "behaviour.csv"
+            )
+            key = f"{actor_class} -- {_timestamp_shape(cells[source])}"
+        sources[key] = sources.get(key, 0) + 1
+        if filled(f"trigger_{actor_class}"):
+            n_trigger += 1
+    return dict(sorted(sources.items(), key=lambda item: -item[1])), n_trigger
 
 
 def _rows_with_any_value(df: pd.DataFrame, columns: list) -> int | None:
@@ -497,6 +560,12 @@ class LongwalkV3CandidateExtras(CandidateExtras):
             info = self._events_info(file)
             if info.n_rows is not None:
                 lines.append(f"{info.n_rows} row(s), {info.n_columns} column(s)")
+            if info.bad_onset_sources:
+                lines.append("Rows without an onset (source -- raw timestamp shape):")
+                lines += [
+                    f"&nbsp;&nbsp;{source}: {count}"
+                    for source, count in info.bad_onset_sources.items()
+                ]
         else:
             info = self._debrief_info(file)
             if info.n_rows is not None:

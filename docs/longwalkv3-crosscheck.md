@@ -317,8 +317,15 @@ time you click **Refresh BIDS** — the REDCap export itself is never
 changed.
 
 **Need more room?** Click **⤢ Focus on details** (or press F11) to hide
-everything except the selected subject's details. Click it again to show
-everything. You can also drag the divider between the subject list and
+the folder and actions area at the top, so the subject list and the
+selected subject's details get the whole window height. Click it again to
+show everything.
+
+**Rows without an onset:** the events details list where they come from
+(which actor, and what its raw timestamp looks like, e.g. "13 digits") and
+how many are on rows that send a Biopac trigger. Only those affect the
+processing: interval matching fills them in from their neighbours and
+marks the session *corrected*. The rest only lose their own timing. You can also drag the divider between the subject list and
 the details.
 
 ### 7. Mark a subject as reviewed (optional)
