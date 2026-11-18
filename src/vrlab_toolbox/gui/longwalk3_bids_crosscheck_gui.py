@@ -78,6 +78,7 @@ from vrlab_toolbox.processing.longwalk3_bids import (
     DEBRIEF_EXCLUDED_ROWS_FILENAME,
     DEBRIEF_ID_COLUMN,
     DEBRIEF_ID_CORRECTIONS_FILENAME,
+    ONSET_ALTERNATIVES_COLUMN,
     RAW_FILENAME_ID_CORRECTIONS_FILENAME,
     REDCAP_CROSSCHECK_ID,
     REDCAP_EVENT_COLUMN,
@@ -100,7 +101,9 @@ from vrlab_toolbox.processing.longwalk3_bids import (
     save_debrief_excluded_rows,
     save_debrief_id_corrections,
     save_raw_filename_id_corrections,
+    unpadded_datetime_candidates,
 )
+from vrlab_toolbox.processing.longwalk3_trigger_pulses import NON_PULSE_ACTOR_CLASSES
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +182,7 @@ INFO_CACHE_FILENAME = "crosscheck_info_cache.json"
 # Bumped whenever a parser's output shape or derivation changes, so a cached entry that still
 # matches the file's mtime/size (nothing to re-read) but was computed by older logic gets
 # reparsed anyway instead of silently serving stale info forever.
-INFO_SCHEMA_VERSION = 4
+INFO_SCHEMA_VERSION = 5
 
 
 def _bids_entities(file: Path) -> dict[str, str]:
@@ -248,6 +251,11 @@ class LongwalkV3EventsInfo:
     # matching needs (the rest only lose their own timing).
     bad_onset_sources: dict[str, int] = field(default_factory=dict)
     n_bad_trigger_onsets: int = 0
+    # Rows whose unpadded Unreal timestamp (D6) could be read more than one way -- the
+    # converter picked the likeliest reading and kept the others in `onset_alternatives`.
+    # On trigger rows the interval step settles them against the Biopac edges.
+    n_ambiguous_onsets: int = 0
+    n_ambiguous_trigger_onsets: int = 0
 
     def problems(self) -> list[str]:
         if self.n_rows is None:
@@ -352,6 +360,12 @@ def _parse_events_info(file: Path) -> LongwalkV3EventsInfo:
     n_bad_onsets = int(bad_rows.sum())
     bad_onset_sources, n_bad_trigger_onsets = _bad_onset_breakdown(df.loc[bad_rows])
     trigger_columns = [c for c in df.columns if str(c).startswith("trigger_")]
+    ambiguous = (
+        df[ONSET_ALTERNATIVES_COLUMN].notna()
+        if ONSET_ALTERNATIVES_COLUMN in df.columns
+        else pd.Series(False, index=df.index)
+    )
+    pulse_rows = _pulse_rows(df)
     rating_columns = [c for c in df.columns if str(c) in RATING_COLUMNS]
     return LongwalkV3EventsInfo(
         n_rows=len(df),
@@ -362,7 +376,97 @@ def _parse_events_info(file: Path) -> LongwalkV3EventsInfo:
         n_rating_rows=_rows_with_any_value(df, rating_columns),
         bad_onset_sources=bad_onset_sources,
         n_bad_trigger_onsets=n_bad_trigger_onsets,
+        n_ambiguous_onsets=int(ambiguous.sum()),
+        n_ambiguous_trigger_onsets=int((ambiguous & pulse_rows).sum()),
     )
+
+
+def _pulse_rows(df: pd.DataFrame) -> pd.Series:
+    """Rows that send a Biopac pulse (a filled trigger_ cell of a pulsing class)."""
+    columns = [
+        c
+        for c in df.columns
+        if str(c).startswith("trigger_")
+        and str(c)[len("trigger_") :] not in NON_PULSE_ACTOR_CLASSES
+    ]
+    if not columns:
+        return pd.Series(False, index=df.index)
+    return pd.Series(df[columns].notna().to_numpy().any(axis=1), index=df.index)
+
+
+def _row_source(record: dict[str, object]) -> tuple[str, str | None]:
+    """(actor class or 'behaviour.csv', its raw timestamp cell) for one events row."""
+    for column, value in record.items():
+        if str(column).startswith(_TIME_COLUMN_PREFIXES) and isinstance(value, str) and value:
+            name = str(column)
+            source = name.split("_", 2)[-1] if name.startswith("time_stamp_") else "behaviour.csv"
+            return source, value.strip()
+    actor = next(
+        (str(c) for c, v in record.items() if str(c).startswith("actor_") and isinstance(v, str)),
+        None,
+    )
+    return (actor.split("_", 1)[1] if actor else "unknown source"), None
+
+
+def _clock(moment: datetime) -> str:
+    return f"{moment:%d %b %H:%M:%S}.{moment.microsecond // 1000:03d}"
+
+
+def _readings_html(cell: str, onset: float, alternatives: list[float]) -> str:
+    """'14:55:07.000 (chosen) | 14:05:57.000' -- each way the cell can be read, as a clock
+    time, the converter's pick in bold. The pick is the reading whose run start puts every
+    other reading on one of the alternatives."""
+    readings = unpadded_datetime_candidates(cell)
+    chosen = None
+    for candidate in readings:
+        run_start = candidate.timestamp() - onset
+        others = [r.timestamp() - run_start for r in readings if r is not candidate]
+        if all(any(abs(o - a) < 0.002 for a in alternatives) for o in others):
+            chosen = candidate
+            break
+    return " &nbsp;|&nbsp; ".join(
+        f"<b>{_clock(r)} (used)</b>" if r is chosen else _clock(r) for r in readings
+    )
+
+
+def onset_issue_examples(file: Path, limit: int = 8) -> list[str]:
+    """HTML lines showing real rows behind the onset counts, so the problem can be seen:
+    rows without an onset (their raw cell), then ambiguous timestamps (each possible reading,
+    the one used in bold) -- trigger rows first. Read on demand, never cached."""
+    try:
+        df = pd.read_csv(file, sep="\t", dtype=str)
+    except Exception:
+        return []
+    if "onset" not in df.columns:
+        return []
+    onsets = pd.Series(pd.to_numeric(df["onset"], errors="coerce"))
+    pulse_rows = _pulse_rows(df)
+    lines: list[str] = []
+
+    missing = df.index[onsets.isna()]
+    for index in sorted(missing, key=lambda i: not pulse_rows[i])[:limit]:
+        source, cell = _row_source(df.loc[index].to_dict())
+        trigger = " &nbsp;<b>[trigger]</b>" if pulse_rows[index] else ""
+        lines.append(
+            f"&nbsp;&nbsp;row {index + 2}: {source} &nbsp;raw <code>{cell or '(empty)'}</code>"
+            f" &rarr; no onset{trigger}"
+        )
+
+    if ONSET_ALTERNATIVES_COLUMN in df.columns:
+        ambiguous = df.index[df[ONSET_ALTERNATIVES_COLUMN].notna() & onsets.notna()]
+        for index in sorted(ambiguous, key=lambda i: not pulse_rows[i])[:limit]:
+            source, cell = _row_source(df.loc[index].to_dict())
+            if cell is None:
+                continue
+            alternatives = [
+                float(a) for a in str(df.at[index, ONSET_ALTERNATIVES_COLUMN]).split(";") if a
+            ]
+            trigger = " &nbsp;<b>[trigger]</b>" if pulse_rows[index] else ""
+            lines.append(
+                f"&nbsp;&nbsp;row {index + 2}: {source} &nbsp;raw <code>{cell}</code> &rarr; "
+                f"{_readings_html(cell, float(onsets[index]), alternatives)}{trigger}"
+            )
+    return lines
 
 
 _TIME_COLUMN_PREFIXES = ("time_stamp_", "TimeStampHHmm_")
@@ -569,6 +673,16 @@ class LongwalkV3CandidateExtras(CandidateExtras):
                     f"&nbsp;&nbsp;{source}: {count}"
                     for source, count in info.bad_onset_sources.items()
                 ]
+            if info.n_ambiguous_onsets:
+                lines.append(
+                    f"{info.n_ambiguous_onsets} timestamp(s) could be read more than one way "
+                    f"(Unreal drops leading zeros) -- {info.n_ambiguous_trigger_onsets} on "
+                    "trigger rows, which the Biopac edges settle when processing"
+                )
+            examples = onset_issue_examples(file)
+            if examples:
+                lines.append("<b>Examples</b> (row = line in the events .tsv):")
+                lines += examples
         else:
             info = self._debrief_info(file)
             if info.n_rows is not None:
@@ -712,6 +826,10 @@ class LongwalkV3CandidateExtras(CandidateExtras):
                 f"{session}: <b>{', '.join(cities)}</b> &nbsp;·&nbsp; physiology "
                 f"{', '.join(physiology) or 'missing'}"
             )
+            for events_file in files[EVENTS_SCAN_TYPE]:
+                onset_line = self._onset_summary(events_file)
+                if onset_line:
+                    lines.append(f"&nbsp;&nbsp;&nbsp;&nbsp;{onset_line}")
 
         debrief_files = subject_scans[DEBRIEF_SCAN_TYPE].files
         debrief_sessions = sorted({_session_label(f) for f in debrief_files})
@@ -720,6 +838,30 @@ class LongwalkV3CandidateExtras(CandidateExtras):
             + (", ".join(debrief_sessions) or "none")
         )
         return "<br>".join(lines)
+
+    def _onset_summary(self, events_file: Path) -> str | None:
+        """'city1 run-001 timestamps: 3 missing (1 trigger) · 120 ambiguous (14 trigger)'."""
+        info = self._events_info(events_file)
+        if not info.n_bad_onsets and not info.n_ambiguous_onsets:
+            return None
+        entities = _bids_entities(events_file)
+        parts = []
+        if info.n_bad_onsets:
+            parts.append(
+                _status_span(
+                    False, f"{info.n_bad_onsets} missing ({info.n_bad_trigger_onsets} trigger)"
+                )
+            )
+        if info.n_ambiguous_onsets:
+            parts.append(
+                f'<span style="color:{MUTED_COLOR}">{info.n_ambiguous_onsets} ambiguous '
+                f"({info.n_ambiguous_trigger_onsets} trigger)</span>"
+            )
+        return (
+            f"{entities.get('acq', '?')} run-{entities.get('run', '?')} timestamps: "
+            + " &nbsp;·&nbsp; ".join(parts)
+            + " -- click the events file for examples"
+        )
 
     def removable_groups(
         self, subject_id: str, subject_scans: dict[str, SubjectScan]

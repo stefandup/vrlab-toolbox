@@ -325,8 +325,18 @@ show everything.
 (which actor, and what its raw timestamp looks like, e.g. "13 digits") and
 how many are on rows that send a Biopac trigger. Only those affect the
 processing: interval matching fills them in from their neighbours and
-marks the session *corrected*. The rest only lose their own timing. You can also drag the divider between the subject list and
-the details.
+marks the session *corrected*. The rest only lose their own timing.
+
+**Ambiguous timestamps:** Unreal writes its timestamps without leading
+zeros, so some can be read more than one way (e.g. `...17303241` is
+17:30:03.241 or 17:30:32.041). The subject summary shows, per run, how
+many timestamps are missing and how many are ambiguous (and how many of
+each are on trigger rows). Click a run's events file to see examples: the
+raw cell and every possible reading, with the one used in **bold**.
+Ambiguous trigger rows are settled against the Biopac trigger edges when
+processing, so they don't affect the intervals.
+
+You can also drag the divider between the subject list and the details.
 
 ### 7. Mark a subject as reviewed (optional)
 
