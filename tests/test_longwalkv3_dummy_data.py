@@ -14,6 +14,7 @@ import pandas as pd
 from vrlab_toolbox.processing.longwalk3_dummy_data import (
     LIKERT_RANGE,
     REDCAP_EVENT_COLUMN,
+    check_datetime_cells,
     generate_dummy_redcap_from_shape,
     is_redcap_export_filename,
     profile_longwalkv3_shape,
@@ -104,3 +105,14 @@ def test_generated_export_is_long_format_with_same_columns(tmp_path):
     assert (df["debrief_complete"] == "2").all()
     for marker in ("SECRETANSWER", "OTHERSECRET", "THIRDSECRET"):
         assert marker not in path.read_text(encoding="utf-8")
+
+
+def test_datetime_check_tells_the_two_d6_readings_apart():
+    # 17-digit neighbours 17:30:40.040 and 17:30:40.100; the short cell "...4052" fits
+    # between them only as unpadded ms (52 ms), not as trailing-zeros-dropped (520 ms).
+    cells = ["20260916173040040", "2026091617304052", "20260916173040100", ""]
+    check = check_datetime_cells(cells)
+    assert check["digit_lengths"] == {"16": 1, "17": 2, "empty": 1}
+    assert check["full_length_in_order"] == [1, 1]
+    assert check["decisive"] == {"unpadded_ms": 1}
+    assert "2026" not in json.dumps(check)  # counts only, no values

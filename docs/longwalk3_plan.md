@@ -137,3 +137,13 @@ Biopac trigger channel, the same way Crane matches behaviour-based intervals to 
   rebuilt on every Refresh BIDS and matched to sessions by `session_date_time` (event order when
   undated). Old Remove-by-dialog buttons removed. **⤢ Focus on details** (F11) in every
   crosscheck tool.
+- 2026-11-18 — Trigger classes confirmed by the Unreal side: all pulse except
+  `BP_HeatmapManager_C`; the birds' burst is kept for matching but never starts an interval.
+  REDCap session dates can be fixed per row in "Fix Record IDs in Debrief Data".
+  **D6 check:** `--profile-shape` now records, per actor-log `datetime` column, digit-length
+  counts and whether each short cell keeps time order as *unpadded ms* vs *trailing zeros
+  dropped* (counts only; summary printed and stored as `datetime_summary`). Verified on
+  synthetic data built under the unpadded hypothesis: 0 out of order, 3399 decisive. Under
+  unpadded ms, only ~10% of cells can be short (ms < 100) — the real ~25% is a hint something
+  else is going on. **Your step:** re-run `--profile-shape` on the real folder and share the
+  printed D6 summary.

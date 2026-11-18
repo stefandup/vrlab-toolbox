@@ -1,3 +1,4 @@
+import bisect
 import csv
 import datetime as dt
 import fnmatch
@@ -993,6 +994,117 @@ def _cell_kind(value: str) -> str:
     return "text"
 
 
+# D6 (docs/longwalk3_plan.md): some real `datetime` cells are shorter than the 17-digit
+# yyyyMMddHHmmssSSS. Two readings of a short cell's digits after the 14 seconds digits:
+# milliseconds written without zero-padding ("52" = 52 ms), or trailing zeros dropped
+# ("52" = 520 ms). check_datetime_cells tests which one keeps each short cell in time order
+# between its full-length neighbours -- counts only, never a value.
+DATETIME_HYPOTHESES = ("unpadded_ms", "trailing_zeros_dropped")
+_SECONDS_DIGITS = 14
+
+
+def _datetime_under(cell: str, hypothesis: str) -> dt.datetime | None:
+    try:
+        seconds = dt.datetime.strptime(cell[:_SECONDS_DIGITS], "%Y%m%d%H%M%S")
+    except ValueError:
+        return None
+    rest = cell[_SECONDS_DIGITS:]
+    if hypothesis == "unpadded_ms":
+        milliseconds = int(rest) if rest else 0
+    else:
+        milliseconds = int(rest.ljust(3, "0")) if rest else 0
+    return seconds + dt.timedelta(milliseconds=milliseconds)
+
+
+def check_datetime_cells(cells: list[str]) -> dict:
+    """Shape-only evidence for D6 from one `datetime` column, in file order:
+
+    - `digit_lengths`: how many cells have each digit count (plus "not digits", "empty")
+    - `full_length_in_order`: of consecutive 17-digit cells, how many pairs are in time order
+      (if this is low, rows aren't chronological and the order test can't decide anything)
+    - per hypothesis, for 15-16 digit cells between two 17-digit neighbours: how many land in
+      order (`in_order`) or not (`out_of_order`)
+    - `decisive`: cells where exactly one hypothesis keeps the order -- which one, counted.
+      These are the cells that settle D6.
+    """
+    lengths: Counter = Counter()
+    for cell in cells:
+        if not cell:
+            lengths["empty"] += 1
+        elif cell.isdigit():
+            lengths[str(len(cell))] += 1
+        else:
+            lengths["not digits"] += 1
+
+    full_times: list[tuple[int, dt.datetime]] = [
+        (index, stamp)
+        for index, cell in enumerate(cells)
+        if cell.isdigit()
+        and len(cell) == _DIGIT_TIMESTAMP_LENGTH
+        and (stamp := _datetime_under(cell, "unpadded_ms")) is not None
+    ]
+    in_order_pairs = sum(a[1] <= b[1] for a, b in zip(full_times, full_times[1:], strict=False))
+
+    results = {h: {"in_order": 0, "out_of_order": 0} for h in DATETIME_HYPOTHESES}
+    decisive: Counter = Counter()
+    n_without_neighbours = 0
+    full_indices = [index for index, _ in full_times]
+    for index, cell in enumerate(cells):
+        if not (cell.isdigit() and _SECONDS_DIGITS < len(cell) < _DIGIT_TIMESTAMP_LENGTH):
+            continue
+        position = bisect.bisect_left(full_indices, index)
+        if position == 0 or position == len(full_times):
+            n_without_neighbours += 1
+            continue
+        before, after = full_times[position - 1][1], full_times[position][1]
+        in_order_by_hypothesis = {}
+        for hypothesis in DATETIME_HYPOTHESES:
+            stamp = _datetime_under(cell, hypothesis)
+            ok = stamp is not None and before <= stamp <= after
+            in_order_by_hypothesis[hypothesis] = ok
+            results[hypothesis]["in_order" if ok else "out_of_order"] += 1
+        winners = [h for h, ok in in_order_by_hypothesis.items() if ok]
+        if len(winners) == 1:
+            decisive[winners[0]] += 1
+
+    return {
+        "digit_lengths": dict(sorted(lengths.items())),
+        "full_length_in_order": [in_order_pairs, max(len(full_times) - 1, 0)],
+        "short_cells_without_full_neighbours": n_without_neighbours,
+        "hypotheses": results,
+        "decisive": dict(decisive),
+    }
+
+
+def summarize_datetime_checks(manifest: dict) -> dict:
+    """All `datetime_check`s in a manifest added up -- the one-glance D6 answer."""
+    total: dict = {
+        "digit_lengths": Counter(),
+        "full_length_in_order": [0, 0],
+        "hypotheses": {h: Counter() for h in DATETIME_HYPOTHESES},
+        "decisive": Counter(),
+    }
+    for subject in manifest.get("subjects", []):
+        for session in subject["sessions"]:
+            for file_entry in session["files"]:
+                for column in file_entry.get("csv", {}).get("columns", []):
+                    check = column.get("datetime_check")
+                    if not check:
+                        continue
+                    total["digit_lengths"].update(check["digit_lengths"])
+                    total["full_length_in_order"][0] += check["full_length_in_order"][0]
+                    total["full_length_in_order"][1] += check["full_length_in_order"][1]
+                    for hypothesis, counts in check["hypotheses"].items():
+                        total["hypotheses"][hypothesis].update(counts)
+                    total["decisive"].update(check["decisive"])
+    return {
+        "digit_lengths": dict(sorted(total["digit_lengths"].items())),
+        "full_length_in_order": total["full_length_in_order"],
+        "hypotheses": {h: dict(c) for h, c in total["hypotheses"].items()},
+        "decisive": dict(total["decisive"]),
+    }
+
+
 def _profile_csv(csv_path: Path) -> dict:
     """Header, header-repeat count, row counts and per-column cell kinds of one CSV -- never a
     cell value. If the first row looks like data rather than a header (a headerless file), its
@@ -1033,6 +1145,8 @@ def _profile_csv(csv_path: Path) -> dict:
         ]
         if len(stamps) > 1:
             column["span_seconds"] = round((max(stamps) - min(stamps)).total_seconds(), 3)
+        if not header_looks_like_data and name.lower() in _COMBINED_DATETIME_COLUMN_NAMES:
+            column["datetime_check"] = check_datetime_cells(cells)
         columns.append(column)
 
     return {
@@ -1299,13 +1413,13 @@ def profile_longwalkv3_shape(data_folder: Path, redcap_export: Path | None = Non
             )
         subject_entries.append({"subject": subject_key, "sessions": session_entries})
 
-    return {
+    manifest = {
         "manifest_version": SHAPE_MANIFEST_VERSION,
         "contains": (
             "Structure only: folder layout, filename patterns, CSV headers, column cell kinds "
             "and row counts, .acq channel layout, REDCap export layout (rows per record and "
-            "REDCap's own event/repeat labels). No data values, answers, subject ids, dates or "
-            "times of day. Review before sharing."
+            "REDCap's own event/repeat labels), datetime digit-length and time-order counts. "
+            "No data values, answers, subject ids, dates or times of day. Review before sharing."
         ),
         "n_subjects": len(subject_folders),
         "other_top_level_folders": [
@@ -1320,6 +1434,8 @@ def profile_longwalkv3_shape(data_folder: Path, redcap_export: Path | None = Non
         "acq_schemas": [{**json.loads(k), "n_files": n} for k, n in acq_schemas.most_common()],
         "redcap_exports": [_profile_redcap_export_safely(p) for p in redcap_paths],
     }
+    manifest["datetime_summary"] = summarize_datetime_checks(manifest)
+    return manifest
 
 
 def write_longwalkv3_shape_manifest(
@@ -1559,6 +1675,7 @@ _FIRST_ROW_PULSE_SUFFIXES: tuple[str, ...] = ()
 _ABORTED_RUN_RESTART_DELAY = dt.timedelta(minutes=4)
 _CSV_LEAD_IN_SECONDS = 5.0
 _ACQ_LEAD_OUT_SECONDS = 5.0
+_UNPADDED_MS_LIMIT = 100
 # Likert scale for behaviour.csv ratings (Nausea/Dizzy/Stressed/Anxious) and REDCap int answers
 # -- 1 to 5, confirmed 2026-11-18 (docs/longwalk3_plan.md, D5).
 LIKERT_RANGE = (1, 5)
@@ -1772,13 +1889,14 @@ def _synthesize_actor_log(
     times = list(times)
     for row_index, actor in enumerate(row_actors):
         moment = times[row_index]
-        unpadded = "datetime" in header and rng.random() < unpadded_fraction
-        if unpadded:
-            # D6 hypothesis: a short cell is milliseconds written without zero-padding, which
-            # only happens for ms < 100 -- so give this row such a time (and pulse at it),
-            # keeping the CSV and the Biopac pulse in agreement.
-            moment = moment.replace(microsecond=(moment.microsecond // 1000 % 100) * 1000)
-            times[row_index] = moment
+        # D6 hypothesis: milliseconds written without zero-padding -- so a cell is short
+        # exactly when its ms is under 100 (about 1 in 10), never by moving a row's time.
+        # Only applied when the real export has short cells at all.
+        unpadded = (
+            "datetime" in header
+            and unpadded_fraction > 0
+            and moment.microsecond // 1000 < _UNPADDED_MS_LIMIT
+        )
         cells = []
         for name in header:
             if name in first_row_only and row_index > 0:

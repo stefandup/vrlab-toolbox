@@ -274,6 +274,17 @@ def _profile_shape(data_folder: Path, output_folder: Path, redcap_export: Path |
             f"{len(redcap['header'])} columns, {len(redcap['row_types'])} row types, "
             f"rows per record: {rows_per_record}"
         )
+    d6 = manifest.get("datetime_summary")
+    if d6:
+        console.print("[bold]datetime cells (D6):[/bold]")
+        console.print(f"  digit lengths: {d6['digit_lengths']}")
+        in_order, pairs = d6["full_length_in_order"]
+        console.print(f"  17-digit cells in time order: {in_order} of {pairs} consecutive pairs")
+        for hypothesis, counts in d6["hypotheses"].items():
+            console.print(f"  {hypothesis}: {counts}")
+        console.print(
+            f"  decisive (only this reading keeps time order): {d6['decisive'] or 'none'}"
+        )
     console.print(f"[green]Shape manifest written:[/green] {manifest_path}")
     console.print(
         "[bold yellow]Review it before sharing -- it should hold no values, ids, dates or "
