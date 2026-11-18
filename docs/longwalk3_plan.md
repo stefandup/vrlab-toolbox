@@ -116,3 +116,15 @@ Biopac trigger channel, the same way Crane matches behaviour-based intervals to 
   events). `tests/test_longwalkv3_crosscheck.py` is the definition of done: clean participants
   → no problems; every `SHAPE_ERROR_TYPES` scenario flagged — **passes**. Skipped where the
   (gitignored) shape manifest isn't present.
+- 2026-11-18 — Crosscheck GUIs (all of them): visible, remembered splitter between subject
+  list and details.
+- 2026-11-18 — **Phase B done.** `longwalk3_trial_intervals.py` implements D2 with
+  drift-tracking pulse↔edge matching (offset re-anchored every match; unmatched pulses
+  interpolated → CORRECTED). `run_pipeline_all_sessions` gives D3's wide row (`sesNN_`
+  prefixes, SPSS-safe). `vrlab_longwalk3_process` CLI writes QC plots, CSV and SAV. On the
+  synthetic set every clean session is `TrialIntervals=ok`; the aborted-run (error) and
+  wrong-city (corrected) scenarios surface in the status columns, as they should until the
+  crosscheck resolves them. Output has EDA (SCR/min per actor-instance interval) only —
+  behaviour metrics wait for D1.
+  **Open for later:** interval QC plot labels get crowded with ~40 intervals; the EDA module
+  renumbers instance labels per class (`..._C_SCR_per_min_1..n`) — revisit with D1.
