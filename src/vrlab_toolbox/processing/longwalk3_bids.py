@@ -384,11 +384,34 @@ def csv_to_df_compress_header(csv_fn_in: Path) -> pd.DataFrame:
 
 
 BEHAVIOUR_HHMM_COLUMN = "TimeStampHHmm"
+# Events column: the other onsets an ambiguous (unpadded) timestamp could mean, ";"-separated.
+ONSET_ALTERNATIVES_COLUMN = "onset_alternatives"
 
 
 _FULL_DATETIME_DIGITS = 17
 # Widths an unpadded field can take: month, day, hour, minute, second (1-2), millisecond (1-3).
 _UNPADDED_FIELD_WIDTHS = ((1, 2),) * 5 + ((1, 2, 3),)
+# How often an unpadded field comes out shorter than full width: minutes/seconds < 10 one time
+# in 6, ms < 100 one time in 10 (< 10 one in 100), days < 10 ~9 in 31, months < 10 9 in 12,
+# hours < 10 roughly 1 in 5 for lab hours.
+_SHORT_FIELD_ODDS = {
+    "month": 9 / 12,
+    "day": 9 / 31,
+    "hour": 0.2,
+    "minute": 1 / 6,
+    "second": 1 / 6,
+}
+
+
+def _reading_likelihood(moment: datetime) -> float:
+    """How likely an unpadded writer is to produce this reading's field widths -- used to pick
+    between readings that all fit the time order."""
+    likelihood = 1.0
+    for field_name, short_odds in _SHORT_FIELD_ODDS.items():
+        likelihood *= short_odds if getattr(moment, field_name) < 10 else 1 - short_odds
+    millisecond = moment.microsecond // 1000
+    likelihood *= 0.01 if millisecond < 10 else 0.09 if millisecond < 100 else 0.9
+    return likelihood
 
 
 def unpadded_datetime_candidates(cell: str) -> list[datetime]:
@@ -441,6 +464,13 @@ def _datetime_candidates(cell: object, run_date: datetime | None) -> list[dateti
 
 
 def parse_unreal_datetimes(values: pd.Series, run_date: datetime | None = None) -> pd.Series:
+    """See `resolve_unreal_datetimes` -- just the chosen readings."""
+    return resolve_unreal_datetimes(values, run_date)[0]
+
+
+def resolve_unreal_datetimes(
+    values: pd.Series, run_date: datetime | None = None
+) -> tuple[pd.Series, list[list[datetime]]]:
     """Unreal's digit timestamps, yyyyMMddHHmmssSSS -- except that (D6, settled 2026-11-18 from
     the real data's shape: 17-digit cells perfectly in order, 21% of cells 16 digits, 1.3% 15)
     the fields are written *without zero-padding*: 14:05:07.042 comes out as "...1457" + "42".
@@ -452,16 +482,14 @@ def parse_unreal_datetimes(values: pd.Series, run_date: datetime | None = None) 
     the crosscheck's missing-onset breakdown. Rows must be in file order (they're logged
     chronologically). `run_date` (the raw filename's date), given, rules out readings more than
     a day away from it.
+
+    Also returns, per row, the *other* readings an ambiguous cell could have had -- some cells
+    are genuinely ambiguous (e.g. "...35470" is 35:47.0 or 35:04.70), and for trigger rows the
+    Biopac edge can settle it later (see longwalk3_trial_intervals).
     """
     candidates = [_datetime_candidates(cell, run_date) for cell in values.astype(object).tolist()]
     resolved: list[datetime | None] = [c[0] if len(c) == 1 else None for c in candidates]
 
-    previous_anchor: list[datetime | None] = []
-    last = None
-    for value in resolved:
-        previous_anchor.append(last)
-        if value is not None:
-            last = value
     next_anchor: list[datetime | None] = [None] * len(resolved)
     last = None
     for index in range(len(resolved) - 1, -1, -1):
@@ -469,18 +497,32 @@ def parse_unreal_datetimes(values: pd.Series, run_date: datetime | None = None) 
         if resolved[index] is not None:
             last = resolved[index]
 
+    # Walk the rows in order: each ambiguous cell takes its earliest reading that isn't before
+    # the previous row's time (the run's start time for the first row) and isn't after the
+    # next unambiguous cell. Works even when no cell is full length (e.g. any month < 10).
+    previous = run_date.replace(second=0, microsecond=0) if run_date is not None else None
     for index, options in enumerate(candidates):
-        if len(options) < 2:
-            continue
-        low, high = previous_anchor[index], next_anchor[index]
-        fitting = [
-            option
-            for option in options
-            if (low is None or option >= low) and (high is None or option <= high)
-        ]
-        resolved[index] = fitting[0] if fitting else None
+        if len(options) >= 2:
+            high = next_anchor[index]
+            fitting = [
+                option
+                for option in options
+                if (previous is None or option >= previous) and (high is None or option <= high)
+            ]
+            # Several readings can fit: take the likeliest.
+            resolved[index] = (
+                max(fitting, key=lambda option: (_reading_likelihood(option), -option.timestamp()))
+                if fitting
+                else None
+            )
+        if resolved[index] is not None:
+            previous = resolved[index]
 
-    return pd.Series(pd.to_datetime(resolved), index=values.index)
+    alternatives = [
+        [option for option in options if option != chosen] if len(options) > 1 else []
+        for options, chosen in zip(candidates, resolved, strict=True)
+    ]
+    return pd.Series(pd.to_datetime(resolved), index=values.index), alternatives
 
 
 def parse_behaviour_hhmm(values: pd.Series, run_date: datetime) -> pd.Series:
@@ -607,15 +649,30 @@ def combine_events_df_files(
                 cast(pd.Series, df[BEHAVIOUR_HHMM_COLUMN]), df.attrs["date"]
             )
         else:
-            event_times = parse_unreal_datetimes(
+            event_times, alternatives = resolve_unreal_datetimes(
                 cast(pd.Series, df["time_stamp"]), df.attrs["date"]
             )
+            if any(alternatives):
+                # Other possible onsets of an ambiguous timestamp, ";"-separated -- lets the
+                # interval step pick the one a Biopac edge confirms.
+                df[ONSET_ALTERNATIVES_COLUMN] = [
+                    ";".join(f"{(a - df.attrs['date']).total_seconds():.3f}" for a in alts)
+                    if alts
+                    else np.nan
+                    for alts in alternatives
+                ]
         df["onset"] = (event_times - df.attrs["date"]).dt.total_seconds()
         df = df.add_suffix(f"_{df.attrs['bp_id']}")
 
         # Rename all cols according the class ID
 
-        df.rename(columns={f"onset_{df.attrs['bp_id']}": "onset"}, inplace=True)
+        df.rename(
+            columns={
+                f"onset_{df.attrs['bp_id']}": "onset",
+                f"{ONSET_ALTERNATIVES_COLUMN}_{df.attrs['bp_id']}": ONSET_ALTERNATIVES_COLUMN,
+            },
+            inplace=True,
+        )
 
         # Extract float values from Unreal world location
         for BP_ACTOR_ID in BP_ACTOR_IDS:

@@ -8,6 +8,7 @@ from vrlab_toolbox.processing.longwalk3_trial_intervals import (
     build_actor_instance_intervals,
     get_behaviour_pulses,
     map_pulses_to_biopac_time,
+    resolve_ambiguous_pulses,
 )
 from vrlab_toolbox.processing.processing_status import ProcessingStatus
 
@@ -84,3 +85,17 @@ def test_no_edges_is_an_error():
     times, status = map_pulses_to_biopac_time(np.array([1.0]), np.array([]))
     assert status is ProcessingStatus.ERROR
     assert np.isnan(times).all()
+
+
+def test_ambiguous_pulse_is_settled_by_its_biopac_edge():
+    # Pulse 1's timestamp was ambiguous: read as 20.0 s, but it could also be 47.0 s -- and the
+    # Biopac has an edge where 47.0 s would land (offset +10 s), none near 20.0 s.
+    onsets = np.array([0.0, 20.0, 60.0])
+    edges = np.array([10.0, 57.0, 70.0])
+    times, status = map_pulses_to_biopac_time(onsets, edges)
+    assert status is ProcessingStatus.CORRECTED
+    new_onsets, new_times, status = resolve_ambiguous_pulses(
+        onsets, [(), (47.0,), ()], times, edges
+    )
+    assert status is ProcessingStatus.OK
+    assert new_onsets[1] == 47.0 and new_times[1] == 57.0

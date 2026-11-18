@@ -38,13 +38,21 @@ HEATMAP_CORNER_COLUMNS = tuple(
 )
 _FVECTOR_PATTERN = re.compile(r"X=(?P<x>[-\d.]+)\s+Y=(?P<y>[-\d.]+)")
 
-_PULSE_COLUMNS = ("onset", "instance", "actor_class", "x", "y")
+_PULSE_COLUMNS = ("onset", "instance", "actor_class", "x", "y", "alternatives")
+ONSET_ALTERNATIVES_COLUMN = "onset_alternatives"  # see longwalk3_bids.ONSET_ALTERNATIVES_COLUMN
+
+
+def _alternatives(cell: object) -> tuple[float, ...]:
+    if not isinstance(cell, str) or not cell.strip():
+        return ()
+    return tuple(float(part) for part in cell.split(";") if part)
 
 
 def get_behaviour_pulses(raw_behav_df: pd.DataFrame) -> pd.DataFrame:
     """One row per Biopac pulse the run should have sent, in time order: `onset` (seconds,
-    behaviour timeline), `instance` (the actor instance that sent it), `actor_class`, and the
-    instance's world position `x`/`y` at that moment (NaN if the class logs none)."""
+    behaviour timeline), `instance` (the actor instance that sent it), `actor_class`, the
+    instance's world position `x`/`y` at that moment (NaN if the class logs none), and
+    `alternatives` -- other onsets its timestamp could mean, if it was ambiguous."""
     pulses = []
     for column in raw_behav_df.columns:
         if not str(column).startswith(TRIGGER_COLUMN_PREFIX):
@@ -64,6 +72,11 @@ def get_behaviour_pulses(raw_behav_df: pd.DataFrame) -> pd.DataFrame:
                     "actor_class": actor_class,
                     "x": _location_column(rows, actor_class, "x"),
                     "y": _location_column(rows, actor_class, "y"),
+                    "alternatives": (
+                        rows[ONSET_ALTERNATIVES_COLUMN].map(_alternatives)
+                        if ONSET_ALTERNATIVES_COLUMN in rows.columns
+                        else pd.Series([()] * len(rows), index=rows.index, dtype=object)
+                    ),
                 }
             )
         )

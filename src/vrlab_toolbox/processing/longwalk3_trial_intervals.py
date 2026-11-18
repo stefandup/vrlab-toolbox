@@ -123,6 +123,49 @@ def map_pulses_to_biopac_time(
     return np.where(is_matched, best_matched, interpolated), ProcessingStatus.CORRECTED
 
 
+def resolve_ambiguous_pulses(
+    onsets: np.ndarray,
+    alternatives: list[tuple[float, ...]],
+    pulse_times: np.ndarray,
+    biopac_edges: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, ProcessingStatus]:
+    """Second pass after `map_pulses_to_biopac_time`: an unmatched pulse whose timestamp was
+    ambiguous (D6, `alternatives`) tries its other possible onsets -- if one predicts an unused
+    Biopac edge (within MATCH_TOLERANCE_SECONDS, using the neighbouring matches' clock offset),
+    that reading was the right one. Returns updated onsets and times (still-unmatched pulses
+    re-interpolated) and the status: OK once every pulse has its edge."""
+    onsets, times = onsets.astype(float).copy(), pulse_times.astype(float).copy()
+    matched = np.isin(times, biopac_edges)
+    if matched.sum() < 2:
+        return onsets, times, ProcessingStatus.ERROR
+    used = set(times[matched].tolist())
+
+    def offset_at(onset: float) -> float:
+        order = np.argsort(onsets[matched])
+        return float(np.interp(onset, onsets[matched][order], (times - onsets)[matched][order]))
+
+    for index in np.flatnonzero(~matched):
+        best: tuple[float, float, float] | None = None  # (distance, onset, edge)
+        for alternative in alternatives[index]:
+            predicted = alternative + offset_at(alternative)
+            free = [edge for edge in biopac_edges if edge not in used]
+            if not free:
+                break
+            edge = min(free, key=lambda e: abs(e - predicted))
+            distance = abs(edge - predicted)
+            if distance <= MATCH_TOLERANCE_SECONDS and (best is None or distance < best[0]):
+                best = (distance, alternative, edge)
+        if best is not None:
+            _, onsets[index], times[index] = best
+            used.add(best[2])
+            matched[index] = True
+
+    for index in np.flatnonzero(~matched):
+        times[index] = onsets[index] + offset_at(onsets[index])
+    status = ProcessingStatus.OK if matched.all() else ProcessingStatus.CORRECTED
+    return onsets, times, status
+
+
 def build_actor_instance_intervals(
     pulse_times: np.ndarray, instances: list[str], ignored: list[bool] | None = None
 ) -> TrialIntervals:
@@ -166,9 +209,17 @@ class LongWalkV3GetTrialIntervalStrategyStep:
         biopac_edges = get_biopac_pulse_times(trigger_df)
         pulses = get_behaviour_pulses(raw_behaviour_data_in.raw_behav_df)
 
-        pulse_times, match_status = map_pulses_to_biopac_time(
-            pulses["onset"].to_numpy(dtype=float), biopac_edges
-        )
+        onsets = pulses["onset"].to_numpy(dtype=float)
+        pulse_times, match_status = map_pulses_to_biopac_time(onsets, biopac_edges)
+        if match_status is ProcessingStatus.CORRECTED:
+            onsets, pulse_times, match_status = resolve_ambiguous_pulses(
+                onsets, pulses["alternatives"].tolist(), pulse_times, biopac_edges
+            )
+            # A re-read timestamp can move a pulse: keep everything in time order.
+            order = np.argsort(pulse_times, kind="stable")
+            pulses = pulses.iloc[order].reset_index(drop=True)
+            pulses["onset"] = onsets[order]
+            pulse_times = pulse_times[order]
         status.set(TrialIntervals, match_status)
         instances = pulses["instance"].astype(str).tolist()
         ignored = pulses["actor_class"].isin(MATCH_ONLY_ACTOR_CLASSES).tolist()
