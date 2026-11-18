@@ -1,0 +1,2417 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../crane-crosscheck/">
+      
+      
+        <link rel="next" href="../processing/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/vrlab_icon.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>LongwalkV3 Crosscheck - VRLab Toolbox</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#longwalkv3-crosscheck" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="VRLab Toolbox" class="md-header__button md-logo" aria-label="VRLab Toolbox" data-md-component="logo">
+      
+  <img src="../assets/images/vrlab_icon.ico" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            VRLab Toolbox
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              LongwalkV3 Crosscheck
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="VRLab Toolbox" class="md-nav__button md-logo" aria-label="VRLab Toolbox" data-md-component="logo">
+      
+  <img src="../assets/images/vrlab_icon.ico" alt="logo">
+
+    </a>
+    VRLab Toolbox
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why This Toolbox Exists
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For Users
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    For Users
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3_2" id="__nav_3_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    1. Prepare Your Data
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    1. Prepare Your Data
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crosschecking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crosschecking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../foh-crosscheck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FOH Crosscheck
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane-crosscheck/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crane Crosscheck
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LongwalkV3 Crosscheck
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LongwalkV3 Crosscheck
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-longwalkv3-is-different-from-cranefoh-crosscheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why LongwalkV3 is different from Crane/FOH crosscheck
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-do-a-crosscheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to do a crosscheck
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How to do a crosscheck">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-open-the-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Open the tool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-point-it-at-your-raw-folder-and-import" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Point it at your raw folder and import
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Point it at your raw folder and import">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#debrief-data-from-redcap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Debrief data from REDCap
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Debrief data from REDCap">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#setting-up-redcap-the-first-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setting up REDCap the first time
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-point-it-at-your-bids-folder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Point it at your BIDS folder
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-read-the-subject-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Read the subject list
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Read the subject list">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-gets-checked" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What gets checked
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-click-a-subject-to-see-its-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Click a subject to see its details
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-remove-a-wrong-session-or-run-or-fix-a-wrong-date" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Remove a wrong session or run, or fix a wrong date
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-mark-a-subject-as-reviewed-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Mark a subject as reviewed (optional)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#8-scanstsv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. scans.tsv
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#9-activity-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Activity Log
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-about-remove-non-selected-files-from-bids" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What about "Remove non-selected files from BIDS"?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#working-with-several-subjects-at-once" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Working with several subjects at once
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#backing-up-and-rebuilding-after-a-lost-bids-folder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backing up, and rebuilding after a lost BIDS folder
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    2. Process Your Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3. Check Your Output
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    3. Check Your Output
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../eda/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    EDA & SCRs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../foh-output/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FOH Output Checks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interval-qc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crane Output Checks (Interval QC)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../longwalkv3-output/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LongwalkV3 Output Checks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    For Contributors
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    For Contributors
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-use/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Use Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dev-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../code-organization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Organization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../golden-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Golden Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline-concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lab-streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lab Streaming (LSL/XDF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-stores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Stores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core-classes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Data Classes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids-crosscheck-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Crosscheck Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitHub Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building & Releasing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Project Notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline_next_steps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Next Steps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane_milestones/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Milestones
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../clock_drift_error/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clock Drift Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crane_interactive_qc_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interactive QC Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids_crosscheck_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Crosscheck Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bids_converter_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BIDS Converter Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-style-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Style Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-longwalkv3-is-different-from-cranefoh-crosscheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why LongwalkV3 is different from Crane/FOH crosscheck
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-do-a-crosscheck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to do a crosscheck
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How to do a crosscheck">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-open-the-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Open the tool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-point-it-at-your-raw-folder-and-import" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Point it at your raw folder and import
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Point it at your raw folder and import">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#debrief-data-from-redcap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Debrief data from REDCap
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Debrief data from REDCap">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#setting-up-redcap-the-first-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setting up REDCap the first time
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-point-it-at-your-bids-folder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Point it at your BIDS folder
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-read-the-subject-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Read the subject list
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Read the subject list">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-gets-checked" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What gets checked
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-click-a-subject-to-see-its-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Click a subject to see its details
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-remove-a-wrong-session-or-run-or-fix-a-wrong-date" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Remove a wrong session or run, or fix a wrong date
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-mark-a-subject-as-reviewed-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Mark a subject as reviewed (optional)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#8-scanstsv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. scans.tsv
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#9-activity-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Activity Log
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-about-remove-non-selected-files-from-bids" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What about "Remove non-selected files from BIDS"?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#working-with-several-subjects-at-once" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Working with several subjects at once
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#backing-up-and-rebuilding-after-a-lost-bids-folder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backing up, and rebuilding after a lost BIDS folder
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="longwalkv3-crosscheck">LongwalkV3 Crosscheck</h1>
+<p><img alt="LongwalkV3 icon" src="../assets/images/longwalkv3_icon.png" width="72" /></p>
+<p>This is step 1: before your data can be <a href="../processing/">processed</a>, your
+raw recordings need to be converted into BIDS and crosschecked. This page
+is for anyone using the LongwalkV3 Crosscheck tool to do that — no coding
+background needed. If you haven't already, read
+<a href="../crosschecking/">Crosschecking</a> first — it covers what crosschecking
+means and why it matters in general; this page picks up from there with
+what's specific to LongwalkV3 and the actual walkthrough.</p>
+<div class="admonition info">
+<p class="admonition-title">The raw folder is never changed — not once, not ever</p>
+<p>Worth repeating here: nothing on this page ever writes to, renames, or
+deletes anything in your <strong>raw folder</strong>. See
+<a href="../crosschecking/#what-is-crosschecking">Crosschecking</a> for the full
+explanation of why that's safe.</p>
+</div>
+<h2 id="why-longwalkv3-is-different-from-cranefoh-crosscheck">Why LongwalkV3 is different from Crane/FOH crosscheck</h2>
+<p>If you've used <a href="../crane-crosscheck/">Crane Crosscheck</a> or <a href="../foh-crosscheck/">FOH
+Crosscheck</a> before, there's one important difference:
+those tools expect <strong>exactly one</strong> recording per subject per file type, so
+finding two counts as a problem — a duplicate you have to resolve by
+picking the real one and discarding the rest.</p>
+<p>LongwalkV3 doesn't work that way. A participant can do up to <strong>3 real
+sessions</strong> (separate real-world days), and within a session there can be
+<strong>several real events files</strong> — one per city/run combination. Finding
+several physiology recordings or several events files for one subject is
+completely normal, not a duplicate. So this tool treats every physiology
+and events file it finds as legitimate and shows you all of them side by
+side — there's no "pick the right one, delete the others" step here the
+way there is for Crane or FOH.</p>
+<div class="admonition warning">
+<p class="admonition-title">This means the tool can't catch an accidental raw duplicate on its own</p>
+<p>Because every matching file is treated as legitimate, if a session
+genuinely got exported twice by mistake, the tool won't flag it as a
+problem the way it would for Crane/FOH — it'll just show up as one
+more normal-looking recording. If you suspect that's happened for a
+subject, use <strong>"Fix Filenames in Raw Folder"</strong> (below) or <strong>Reveal</strong>
+to look at the raw files yourself before running <strong>Refresh BIDS</strong>.</p>
+</div>
+<h2 id="how-to-do-a-crosscheck">How to do a crosscheck</h2>
+<div class="admonition tip">
+<p class="admonition-title">Not sure what a button or icon does?</p>
+<p>Hover your cursor over any icon or button in the tool — a short
+tooltip explains what it does before you click it.</p>
+</div>
+<h3 id="1-open-the-tool">1. Open the tool</h3>
+<p>With the toolbox installed (see <a href="../getting-started/">Getting
+Started</a> if you haven't done this yet), click
+<strong>LongwalkV3 BIDS Crosscheck</strong> in the VR Lab Toolbox launcher (desktop
+shortcut), or open a terminal and type:</p>
+<pre><code class="language-bash">vrlab_longwalk3_bids_crosscheck
+</code></pre>
+<p>The tool remembers the last BIDS folder you had open, so after your first
+time using it, it'll usually open straight to where you left off.</p>
+<h3 id="2-point-it-at-your-raw-folder-and-import">2. Point it at your raw folder and import</h3>
+<p>Click <strong>Browse...</strong> next to <strong>Raw Folder</strong> and select the folder your raw
+LongwalkV3 recordings actually land in, then click <strong>Refresh BIDS</strong>. This
+copies every subject not already in your BIDS folder across; subjects
+already imported are never re-copied, overwritten, or even looked at
+again, so a crosscheck decision you've already made can never be
+clobbered by re-running this. Nothing in the raw folder is ever changed
+or deleted by this step. Safe to click any time, including repeatedly.</p>
+<p><strong>Reveal</strong> next to the raw folder opens it in your system's file browser
+(Explorer on Windows, Finder on macOS) — handy if you want to look at
+what's actually in there yourself.</p>
+<h4 id="debrief-data-from-redcap">Debrief data from REDCap</h4>
+<p>Each subject's debrief comes from REDCap, and you can get it in one of
+two ways:</p>
+<ul>
+<li><strong>Pull it (recommended).</strong> Click <strong>Setup REDCap</strong> once for your Study ID
+  and enter the REDCap project details. After that, every <strong>Refresh BIDS</strong>
+  pulls the latest data first and saves it into the raw folder as
+  <code>redcap_&lt;study&gt;_longwalkv3.csv</code>. If REDCap can't be reached, the last
+  pulled file is used instead. <strong>Pull REDCap Data</strong> fetches it without
+  converting anything.</li>
+<li><strong>Use a manual export.</strong> A REDCap export saved into the raw folder
+  (<code>&lt;Project&gt;_DATA_&lt;date&gt;_&lt;time&gt;.csv</code>) is picked up automatically when
+  there's no pulled file. You can also choose any csv with the <strong>Debrief
+  Data</strong> picker.</li>
+</ul>
+<p>The <strong>Debrief Data</strong> panel always shows which file will be used. A subject
+that's already in BIDS without a debrief gets one added on the next
+Refresh BIDS, once REDCap has their row. Nothing else about that subject
+changes.</p>
+<h5 id="setting-up-redcap-the-first-time">Setting up REDCap the first time</h5>
+<p><strong>Setup REDCap</strong> asks for three things. The URL is already filled in; the
+other two come from your REDCap project.</p>
+<p><strong>Report ID</strong> — the number of a saved report in your REDCap project. The
+pull downloads exactly what that report contains. REDCap's two built-in
+reports ("A: All data" and "B: Selected instruments") have no Report ID,
+so you need to make your own:</p>
+<ol>
+<li>In the REDCap project, open <strong>Data Exports, Reports, and Stats</strong> in the
+   left menu and click <strong>+ Create New Report</strong>.</li>
+<li>Name it something the lab will recognise as belonging to the crosscheck
+   (e.g. <code>Longwalk data for crosscheck</code>), so nobody edits or deletes it by
+   accident.</li>
+<li>Under <strong>Fields to include</strong>, add <code>study_id</code> first — it's how each
+   debrief row is matched to a subject — then the debrief fields. The
+   "add all fields from instrument" dropdown is the quickest way.</li>
+<li>Leave the filters empty so every record is included.</li>
+<li>Under <strong>Additional report options</strong>: tick <em>Include the survey identifier
+   and survey timestamp fields</em> (records when the debrief was done), leave
+   <em>Combine checkbox options</em> unticked (keeps one 0/1 column per option),
+   and keep <em>Remove line breaks</em> ticked (a line break inside a free-text
+   answer can split a row in two). The two display dropdowns only affect
+   REDCap's own screen, not the pull.</li>
+<li>Save. Back in <strong>My Reports &amp; Exports</strong>, copy the number from the
+   <strong>Report ID</strong> column (e.g. <code>15195</code>) — not the "Unique report name" next
+   to it. The crosscheck can only find a report by this number, not by its
+   name.</li>
+</ol>
+<p><strong>API token</strong> — a long code that lets the crosscheck read this one project
+as you. To get one:</p>
+<ol>
+<li>Your REDCap user needs <strong>API Export</strong> rights on the project (project
+   owner: <strong>User Rights</strong> → your user → tick <em>API Export</em>).</li>
+<li>Click <strong>API</strong> in the project's left menu and request a token. Depending
+   on your REDCap install, an administrator may need to approve it first.</li>
+<li>Once issued, copy the token from that same <strong>API</strong> page.</li>
+</ol>
+<p>The token is personal and gives access to the project's data, so treat it
+like a password. The crosscheck stores it in your operating system's
+credential store, never in a file in the BIDS or raw folder. Tokens are
+per project: one from a different REDCap project won't be able to see this
+report.</p>
+<p>After saving, click <strong>Pull REDCap Data</strong> and check the csv that appears in
+the raw folder: it should have a <code>study_id</code> column whose values match the
+subject ids in your filenames (e.g. <code>dummy01</code>). Values are exported raw, so
+multiple-choice answers arrive as codes (<code>1</code>, <code>2</code>, …) — REDCap's codebook
+says what each code means.</p>
+<p>Every raw physiology (<code>.acq</code>) or behaviour/actor-log (<code>.csv</code>) file's
+subject id is normally read straight from its filename. Occasionally that
+fails outright, or it succeeds but lands on the wrong id. Click <strong>"Fix
+Filenames in Raw Folder"</strong> to see every raw file of either kind in one
+table, with a <strong>"Currently resolves to"</strong> column showing the subject id
+it currently maps to (or <strong>"(unparseable)"</strong>, in red, if it doesn't
+resolve at all). Click a row to see, in the details pane below the table,
+plain-English reasoning for why it failed (or what it resolves to if it
+didn't), plus any matching line from the last time you ran <strong>Refresh
+BIDS</strong>. Type the correct subject id into <strong>"Corrected subject id"</strong> for
+any row that's wrong, then click <strong>Save</strong>. This never renames the raw
+file itself — only what the <em>next</em> Refresh BIDS run resolves that
+filename to.</p>
+<h3 id="3-point-it-at-your-bids-folder">3. Point it at your BIDS folder</h3>
+<p>If nothing loads automatically, click <strong>Browse...</strong> in the <strong>BIDS
+Folder</strong> panel and select your LongwalkV3 BIDS folder — the destination
+folder from step 2 above, not the raw one. This is the folder every step
+from here on actually works with. <strong>Reveal</strong> opens it in your system's
+file browser, same as the raw folder's.</p>
+<p><strong>Study ID</strong> is a short label for this study, saved inside the BIDS
+folder and remembered next time you open it — it's what names your saved
+crosscheck data (see <a href="#backing-up-and-rebuilding-after-a-lost-bids-folder">Backing up</a>
+below), so a backup stays identifiable. Pick an existing one from the
+dropdown if you're pointing the tool at a different copy of a study
+you've already worked on.</p>
+<h3 id="4-read-the-subject-list">4. Read the subject list</h3>
+<p>The <strong>BIDS folder summary</strong> panel gives you the folder's overall state at
+a glance — total subject count, how many physiology/events/debrief files
+were found — and, in <strong>bold red</strong>, how many subjects still need crosschecking
+(i.e. haven't been marked ☑). That count disappears once everyone's been
+reviewed.</p>
+<p>The left-hand panel lists every subject, with a small icon (or icons)
+next to each one telling you, at a glance, whether it needs your
+attention. There's one icon per file type, in the order <strong>physiology,
+events, debrief</strong>, then an optional ⚑ for the subject as a whole:</p>
+<table>
+<thead>
+<tr>
+<th>Icon</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>●</td>
+<td>Fine — one or more files found (normal for LongwalkV3, see above), nothing missing.</td>
+</tr>
+<tr>
+<td>○</td>
+<td>Missing — no file found at all for this scan type.</td>
+</tr>
+<tr>
+<td>☑</td>
+<td>You've personally reviewed and approved this one.</td>
+</tr>
+<tr>
+<td>❗</td>
+<td>A file has a problem — see <a href="#what-gets-checked">What gets checked</a> below. Hover it in the detail panel for the exact reason.</td>
+</tr>
+<tr>
+<td>⚑</td>
+<td>A problem with the subject's <strong>sessions</strong> as a whole, not one file — e.g. a session with no physiology, or two cities in one session. The <strong>Overview</strong> at the top of the detail panel spells it out.</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">No ⚠ (duplicate) or 🏷 (needs tagging) icons here</p>
+<p>You won't see either of these for LongwalkV3. ⚠ doesn't apply because
+this tool never treats multiple physiology/events files as a
+duplicate needing a pick (see <a href="#why-longwalkv3-is-different-from-cranefoh-crosscheck">above</a>).
+🏷 doesn't apply either — LongwalkV3's raw-to-BIDS step already writes
+real BIDS filenames itself, so there's no separate tagging step the
+way FOH has.</p>
+</div>
+<p>Tick <strong>Issues only</strong> above the list to hide every subject that's already
+fine, so you only see the ones missing data or flagged with ❗ or ⚑.</p>
+<h4 id="what-gets-checked">What gets checked</h4>
+<p><strong>Each physiology <code>.acq</code> file</strong> (only the file's header is read, so this
+is quick even for long recordings):</p>
+<ul>
+<li>It opens as a real AcqKnowledge file.</li>
+<li>It has an <strong>EDA</strong> channel, and that channel isn't empty. EDA is the
+  only signal LongwalkV3 processes, so ECG/Trigger are listed but not
+  required.</li>
+<li>It's at least <strong>5 minutes</strong> long. Anything shorter is probably an
+  aborted or truncated recording.</li>
+</ul>
+<p><strong>Each events file:</strong></p>
+<ul>
+<li>It opens, and has at least one row (not just a header).</li>
+<li>It has an <code>onset</code> column, and <strong>every</strong> onset is a number. Missing
+  onsets are shown in red; after a <strong>Refresh BIDS</strong> with the current
+  version there should be none or almost none. See <a href="#6-remove-a-wrong-session-or-run-or-fix-a-wrong-date">Rows without an
+  onset</a> in step 6
+  if some remain.</li>
+<li>Its city (the <code>acq-cityN</code> part of the filename) is one of city1, city2
+  or city3.</li>
+</ul>
+<p><strong>The debrief files:</strong> one REDCap debrief per session (REDCap stores one
+row per subject per session). Each opens and has at least one row. A
+subject without any shows ○ in the debrief column.</p>
+<p><strong>Each subject's sessions as a whole (⚑):</strong></p>
+<ul>
+<li>Every session has exactly <strong>one</strong> physiology recording and at least
+  one events file.</li>
+<li>Every session has exactly <strong>one city</strong>. Each participant walks the
+  cities in their own random order, so any city can turn up in any
+  session. Two cities in one session usually means the wrong city was
+  started by mistake and then restarted. Tick the wrong run under
+  <strong>events</strong> and click <strong>Remove</strong> (see step 6).</li>
+<li>No city is walked in more than one session.</li>
+<li>No more than 3 sessions.</li>
+<li>Every recorded session has its REDCap debrief, and no debrief belongs to
+  a session that wasn't recorded.</li>
+</ul>
+<p><strong>How sessions are numbered:</strong> by date. All of a subject's raw files are
+found wherever they sit in the raw folder, and each calendar day becomes
+a session — the earliest is <code>ses-01</code>. How the raw session folders are
+named (<code>ses-01</code>, <code>ses_01</code>, ...) doesn't matter. Within a session, runs
+are numbered by time.</p>
+<p>Fewer than 3 sessions is <strong>not</strong> flagged. A participant who hasn't done
+all their sessions yet is normal, so the Overview just shows the missing
+ones as "not recorded yet".</p>
+<h3 id="5-click-a-subject-to-see-its-details">5. Click a subject to see its details</h3>
+<p>The right-hand panel shows full detail for whichever subject is selected
+on the left. At the top, an <strong>Overview</strong> box shows how many of the 3
+planned sessions were found, which city and how long a physiology
+recording each session has, whether the debrief is there, and any ⚑
+session-level problems in red. Below that you'll see every physiology,
+events and debrief file found for them, each listed with its own info and
+individually correctable (see step 6). You can also select more than one subject at once (Ctrl-click or
+Shift-click) for the bulk actions in <a href="#working-with-several-subjects-at-once">Working with several subjects at
+once</a> below.</p>
+<p>The <strong>Physiology</strong> panel lists one row per <code>.acq</code> file found — normally
+one per real session — showing its session, length and a ✓/✗ for the
+EDA checks above. The details under it list the sample rate and every
+channel in the recording.</p>
+<p>The <strong>Events</strong> panel lists one row per events file found — one per
+session/city/run. Each row shows its session, city, row count and a ✓/✗
+for the events checks above. Hover the ✓/✗ for the exact reason.</p>
+<p>The <strong>Debrief</strong> panel shows the subject's REDCap debrief file, if there
+is one.</p>
+<h3 id="6-remove-a-wrong-session-or-run-or-fix-a-wrong-date">6. Remove a wrong session or run, or fix a wrong date</h3>
+<p><strong>Remove a whole session:</strong> in the <strong>Overview</strong>, tick the session and
+click the <strong>Remove</strong> button next to it. Its physiology, events and
+debrief are removed from BIDS (the raw folder is never touched), and the
+remaining sessions are renumbered by date — remove <code>ses-01</code> and the old
+<code>ses-02</code> becomes <code>ses-01</code>.</p>
+<p><strong>Remove one run or recording:</strong> in the <strong>physiology</strong> or <strong>events</strong>
+panel, tick the file and click <strong>Remove</strong> next to it — e.g. an aborted
+run that was restarted, or a wrong city started by mistake. The remaining
+runs in that session are renumbered by time.</p>
+<p>Every removal asks you to confirm first, and is recorded so it can be
+replayed if BIDS ever needs rebuilding. To bring a removed file back, use
+<strong>Restore from raw...</strong> (step 7).</p>
+<p>Click <strong>"Reveal subject folder"</strong> next to any file to open that
+subject's folder — inside your <strong>BIDS folder</strong>, not the raw one — in
+your system's file browser.</p>
+<p><strong>Fix a wrong date:</strong> if a file's recorded date is wrong, click
+<strong>"Correct date..."</strong> next to it and type the right one — this rewrites
+the date in that session's <code>scans.tsv</code> (see step 8), not the filename.
+A recording with a wrong date usually shows up as a session of its own
+(physiology, no events). After correcting it, click <strong>Sort sessions &amp;
+runs by date</strong> in <strong>Subject Actions</strong> to put it back in the right session.</p>
+<p><strong>Fix REDCap IDs, or leave a REDCap row out:</strong> click <strong>Fix Record IDs in
+Debrief Data</strong> in the <strong>Debrief Data</strong> panel. Every REDCap row is listed
+(one per subject per session). Type a corrected subject id where the
+export's <code>study_id</code> is wrong, or tick <strong>Leave out</strong> to keep that row out
+of BIDS. If a row's <strong>Session date</strong> is missing or wrong, type the right
+date there: it's how each REDCap row is matched to a recorded session. Your fixes are saved in the BIDS folder and applied the next
+time you click <strong>Refresh BIDS</strong> — the REDCap export itself is never
+changed.</p>
+<p><strong>Need more room?</strong> Click <strong>⤢ Focus on details</strong> (or press F11) to hide
+the folder and actions area at the top, so the subject list and the
+selected subject's details get the whole window height. Click it again to
+show everything.</p>
+<p><strong>Rows without an onset:</strong> the events details list where they come from
+(which actor, and what its raw timestamp looks like, e.g. "13 digits") and
+how many are on rows that send a Biopac trigger. Only those affect the
+processing: interval matching fills them in from their neighbours and
+marks the session <em>corrected</em>. The rest only lose their own timing.</p>
+<p><strong>Ambiguous timestamps:</strong> Unreal writes the seconds and milliseconds of
+its timestamps without leading zeros (12:58:<strong>08</strong>.864 comes out as
+<code>...1258</code><strong><code>8</code></strong><code>864</code>), so some can be read more than one way (e.g.
+<code>...17303241</code> is 17:30:03.241 or 17:30:32.041). The subject summary shows, per run, how
+many timestamps are missing and how many are ambiguous (and how many of
+each are on trigger rows). Click a run's events file to see examples: the
+raw cell and every possible reading, with the one used in <strong>bold</strong>.
+Ambiguous trigger rows are settled against the Biopac trigger edges when
+processing, so they don't affect the intervals.</p>
+<p>You can also drag the divider between the subject list and the details.</p>
+<h3 id="7-mark-a-subject-as-reviewed-optional">7. Mark a subject as reviewed (optional)</h3>
+<p>Above the file details, the <strong>Subject Actions</strong> panel holds actions that
+apply to the whole subject: marking it reviewed, renaming its ID,
+re-reading its info from disk if a file has changed since the tool last
+looked (<strong>Refresh</strong>), undoing crosscheck bookkeeping (<strong>Restore from
+raw...</strong>), and removing it from BIDS entirely. It stays visible at a
+fixed spot regardless of what's selected — blank when nothing is
+selected, and titled with the subject's ID when exactly one is.</p>
+<p>Click <strong>"Mark crosschecked"</strong> to record that you've personally looked at
+this subject and approved it — shown afterwards as a ☑ next to its name
+in the subject list. This is a manual note for your own or your team's
+reference; it doesn't change anything else. Click the same button again
+("Un-mark crosschecked") to remove the mark.</p>
+<ul>
+<li><strong>Sort sessions &amp; runs by date</strong> — renumbers this subject's sessions by
+  date and runs by time, e.g. after <strong>Correct date...</strong>. Shows the
+  changes before doing anything.</li>
+<li><strong>Rename subject ID...</strong> — corrects a wrong subject id, renaming the
+  <code>sub-&lt;id&gt;</code> folder and every file inside it to match.</li>
+<li><strong>Restore from raw...</strong> — clears this subject's crosscheck bookkeeping,
+  so the next <strong>Refresh BIDS</strong> re-derives their whole record fresh from
+  the raw folder. Any other decision already made for them (a corrected
+  date, a crosschecked mark) goes with it and needs redoing too.</li>
+<li><strong>Remove Subject Folder from BIDS...</strong> — deletes the subject's entire
+  folder from BIDS (their raw recording is untouched) and asks for an
+  optional reason first. This one has no in-app undo — your raw folder,
+  untouched by this tool, is the only way back.</li>
+</ul>
+<h3 id="8-scanstsv">8. scans.tsv</h3>
+<p>Below the file details, the <strong>scans.tsv</strong> panel lists every scan this
+subject's BIDS bookkeeping currently knows about, with its recorded date.
+<strong>Edit date...</strong> next to any row lets you correct that scan's date
+directly, without needing to find its file in the panels above first.</p>
+<h3 id="9-activity-log">9. Activity Log</h3>
+<p>A running record of everything the tool has done this session — what
+<strong>Refresh BIDS</strong> found, when auto-save last ran, and so on.</p>
+<h2 id="what-about-remove-non-selected-files-from-bids">What about "Remove non-selected files from BIDS"?</h2>
+<p>You'll see this button near the top of the window, same as Crane/FOH
+Crosscheck — but for LongwalkV3 it will almost always stay disabled or
+show "0 picks." That's expected: this button commits a <em>duplicate pick</em>,
+and, as explained above, physiology and events files are never treated
+as duplicates here. Wrong sessions and runs are removed with their own
+tick-and-<strong>Remove</strong> buttons instead (step 6).</p>
+<h2 id="working-with-several-subjects-at-once">Working with several subjects at once</h2>
+<p>Select more than one subject in the list and <strong>Subject Actions</strong> switches
+to a <strong>Group Actions</strong> panel: bulk versions of the same buttons, scoped
+to your selection — <strong>Refresh</strong>, <strong>Mark selected crosschecked</strong> /
+<strong>Un-mark selected crosschecked</strong>, <strong>Restore selected from raw...</strong>, and
+<strong>Remove selected from BIDS...</strong>.</p>
+<p><strong>Renaming a subject's ID</strong> stays single-subject only, on purpose —
+renaming several different subjects to the same new ID wouldn't make
+sense.</p>
+<h2 id="backing-up-and-rebuilding-after-a-lost-bids-folder">Backing up, and rebuilding after a lost BIDS folder</h2>
+<p>This is the payoff of the rule at the top of this page — <strong>the raw folder
+is never touched</strong> — spelled out concretely: everything in your BIDS
+folder is either raw data (already safe, and reproducible any time by
+re-running <strong>Refresh BIDS</strong>) or bookkeeping this tool writes as you work.
+Only that bookkeeping is unique and worth backing up on its own — use
+<strong>Save Crosscheck Data</strong> / <strong>Restore Saved Crosscheck Data</strong> in the
+<strong>General Actions</strong> panel, keyed automatically to this BIDS folder's
+Study ID. <strong>Save</strong>/<strong>Restore Crosscheck Data</strong> for LongwalkV3 also cover
+the raw-filename correction file from step 2 (<strong>Fix Filenames in Raw
+Folder</strong>) automatically, since a rebuild needs it in place <em>before</em>
+Refresh BIDS runs, not just the decisions made afterward.</p>
+<hr />
+<p><strong>Next: <a href="../processing/">Process Your Data</a></strong> — step 2, once your data's
+the right files in the right place.</p>
+<p><strong>Also see:</strong> <a href="../crosschecking/">Crosschecking</a> for what crosschecking
+means in general, <a href="../crane-crosscheck/">Crane Crosscheck</a> and <a href="../foh-crosscheck/">FOH
+Crosscheck</a> for the equivalent tools for other
+datasets, and <a href="../bids-crosscheck-architecture/">BIDS Crosscheck: Architecture</a>
+if you're looking to change how the tool works rather than just use it.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../crane-crosscheck/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Crane Crosscheck">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Crane Crosscheck
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../processing/" class="md-footer__link md-footer__link--next" aria-label="Next: 2. Process Your Data">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                2. Process Your Data
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.footer"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>
