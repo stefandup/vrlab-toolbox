@@ -707,11 +707,11 @@ def _format_conversion_summary(summary: LongWalkV3ConversionSummary) -> str:
     for subject_id in summary.new_subject_ids:
         physiology = ", ".join(p.name for p in summary.subject_physiology.get(subject_id, []))
         events = ", ".join(p.name for p in summary.subject_events.get(subject_id, []))
-        debrief = summary.subject_debrief.get(subject_id)
+        debrief = ", ".join(p.name for p in summary.subject_debrief.get(subject_id, []))
         lines.append(f"sub-{subject_id}")
         lines.append(f"    physiology: {physiology or '(missing)'}")
         lines.append(f"    events:     {events or '(missing)'}")
-        lines.append(f"    debrief:    {debrief.name if debrief else '(missing)'}")
+        lines.append(f"    debrief:    {debrief or '(missing)'}")
 
     if summary.backfilled_debrief_ids:
         lines.append("")

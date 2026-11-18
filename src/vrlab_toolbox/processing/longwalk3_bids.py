@@ -26,13 +26,14 @@ Output layout:
   (the real Unreal-side export always writes the same placeholder), so it's ignored for
   numbering and the city label plus a real run number are carried as `acq-<city>`/`run-NNN`
   entities instead.
-- One debrief file per subject -- like crane's, but anchored on `ses-01` (a subject's earliest
-  real session) since the REDCap debrief form isn't tied to any one of a subject's VR sessions.
-  Named with the same `acq-debrief`/`_beh.tsv` convention as crane, matching
-  longwalk3_debrief_behaviour.py's `filename_glob`. Unlike crane, the export's columns aren't
-  filtered against a raw debrief schema yet -- longwalk3_debrief_behaviour.py's is still an
-  empty stub (see its own module), so every column the export has is kept as-is until that
-  schema is filled in.
+- One debrief file per subject per session. The REDCap export is long format (one row per
+  subject per event); each event maps to a session (REDCAP_EVENT_SESSION_ORDER), and empty
+  event rows are skipped. Named with the same `acq-debrief`/`_beh.tsv` convention as crane,
+  matching longwalk3_debrief_behaviour.py's `filename_glob`. Identifying columns (names, date
+  of birth, signatures) are dropped; every other column is kept as-is until
+  longwalk3_debrief_behaviour.py's raw debrief schema is filled in.
+- Raw files from the current export sit in `sub-<id>/ses-NN/[run-00N/]`; the session folder
+  decides an .acq's session. The legacy flat layout falls back to chronological order.
 """
 
 import logging
@@ -84,12 +85,23 @@ TASK_TOKEN = "task-longwalkv3"
 # Physiology has no repeated-run concept (one recording per session) -- fixed placeholder run
 # entity, same as crane's PHYSIOLOGY suffix.
 PHYSIOLOGY_RUN_TOKEN = "run-001"
-# Debrief likewise has no repeated-run concept -- one form per subject, not per session.
+# Debrief has no repeated-run concept -- one REDCap row per subject per session.
 DEBRIEF_RUN_TOKEN = "run-001"
-# Debrief is anchored on the subject's earliest real session -- it isn't tied to any one VR
-# session, and every subject with any converted data has a ses-01 by definition (see
-# _convert_subject_physiology/_convert_subject_events).
+# Session for a REDCap row without an event name (an export with no event column).
 DEBRIEF_SESSION_NR = 1
+# The REDCap export is long format: one row per subject per event. Events map to sessions in
+# this order (from the reviewed shape manifest, 2026-11-18): baseline = ses-01, ...
+REDCAP_EVENT_COLUMN = "redcap_event_name"
+REDCAP_EVENT_SESSION_ORDER = (
+    "baseline_arm_1",
+    "followup_session_1_arm_1",
+    "followup_session_2_arm_1",
+)
+# Identifying REDCap fields that are never copied into BIDS: names (participant, researcher),
+# date of birth, consent signature dates, and REDCap's survey identifier (can be an email).
+_DEBRIEF_IDENTIFYING_COLUMN_PATTERN = re.compile(
+    r"(name|^dob$|_sign$|survey_identifier)", re.IGNORECASE
+)
 # Raw filenames carry a minute-precision date/time prefix (e.g. "202609161752") -- distinct
 # from the separate, seconds+milliseconds format used by the "date"/"onset" column *inside*
 # each behaviour/actor-log csv (see DATESTR_FORMAT).
@@ -130,12 +142,20 @@ class ParsedPhysiologyFilename:
     date: datetime
 
 
+def _normalize_subject_id(raw_subject_id: str) -> str:
+    """The current export writes "sub-<id>" into raw filenames (older exports wrote a bare
+    "<id>"); BIDS filenames add their own "sub-" prefix, so it's stripped here once."""
+    if raw_subject_id.lower().startswith("sub-"):
+        return raw_subject_id[len("sub-") :]
+    return raw_subject_id
+
+
 def parse_physiology_filename(file: Path) -> ParsedPhysiologyFilename | None:
     match = _PHYSIOLOGY_FILENAME_PATTERN.match(file.stem)
     if match is None:
         return None
     return ParsedPhysiologyFilename(
-        subject_id=match.group("subject_id"),
+        subject_id=_normalize_subject_id(match.group("subject_id")),
         date=datetime.strptime(match.group("date"), FILENAME_DATESTR_FORMAT),
     )
 
@@ -154,7 +174,7 @@ def parse_raw_csv_filename(file: Path) -> ParsedRawCsvFilename | None:
     if match is None:
         return None
     return ParsedRawCsvFilename(
-        subject_id=match.group("subject_id"),
+        subject_id=_normalize_subject_id(match.group("subject_id")),
         date=datetime.strptime(match.group("date"), FILENAME_DATESTR_FORMAT),
         session_nr=int(match.group("session_nr")),
         city_label=match.group("city_label"),
@@ -319,41 +339,82 @@ def explain_unparseable_filename(file: Path) -> str:
 
 
 def is_header(fields):
-    return fields[0].strip().lower() in {"date", "timestamp", "datetime"}
+    return fields[0].strip().lower() in {"date", "timestamp", "datetime", "timestamphhmm"}
+
+
+def _fit_row_to_header(fields: list[str], width: int) -> list[str]:
+    """Ragged rows seen in the real export: BP_PhoneAlerts_C's free-text `message` holds
+    unquoted commas (row wider than the header -- the overflow is joined back into the last
+    column), and BP_HeatmapManager_C fills its corner-vector columns on the first row only
+    (row narrower -- padded with empty cells)."""
+    if len(fields) > width:
+        return [*fields[: width - 1], ",".join(fields[width - 1 :])]
+    return fields + [""] * (width - len(fields))
 
 
 def csv_to_df_compress_header(csv_fn_in: Path) -> pd.DataFrame:
-    chunks = []
-    current_header = None
-    current_rows = []
+    """The first non-blank line is the header. The current export repeats it once per actor
+    instance at the top of the file -- identical repeats are dropped wherever they appear. A
+    *different* header line further down (older exports) starts a new chunk. A header-only
+    file gives an empty dataframe with that header's columns."""
+    with open(csv_fn_in, encoding="utf-8-sig") as f:
+        lines = [line.strip() for line in f if line.strip()]
+    if not lines:
+        logger.error("Empty datafile %s", csv_fn_in)
+        raise ValueError(f"Empty datafile {csv_fn_in}")
 
-    with open(csv_fn_in, encoding="utf-8") as f:
-        raw_lines = f.readlines()  # list of strings, each ending in "\n"
-        for line in raw_lines:
-            line = line.strip()
+    chunks: list[pd.DataFrame] = []
+    header = [cell.strip() for cell in lines[0].split(",")]
+    rows: list[list[str]] = []
+    for line in lines[1:]:
+        raw_fields = line.split(",")
+        fields = [cell.strip() for cell in raw_fields]
+        if fields == header:
+            continue
+        if is_header(fields):
+            chunks.append(pd.DataFrame(rows, columns=pd.Index(header)))
+            header, rows = fields, []
+            continue
+        # Fit before stripping, so an overflow joined back keeps its own spacing.
+        rows.append([cell.strip() for cell in _fit_row_to_header(raw_fields, len(header))])
+    chunks.append(pd.DataFrame(rows, columns=pd.Index(header)))
 
-            if not line:
-                continue
+    return pd.concat(chunks, ignore_index=True) if len(chunks) > 1 else chunks[0]
 
-            fields = line.split(",")
 
-            if is_header(fields):
-                if current_header is not None:
-                    chunks.append(pd.DataFrame(current_rows, columns=current_header))
-                current_header = fields
-                current_rows = []
-            else:
-                current_rows.append(fields)
+_UNREAL_SECONDS_DIGITS = 14  # yyyyMMddHHmmss
+BEHAVIOUR_HHMM_COLUMN = "TimeStampHHmm"
 
-        if current_header is None:
-            logger.error(f"Error: empty datafile {csv_fn_in}")
-            raise ValueError
 
-        chunks.append(pd.DataFrame(current_rows, columns=current_header))
+def parse_unreal_datetimes(values: pd.Series) -> pd.Series:
+    """Unreal's digit timestamps: yyyyMMddHHmmss followed by milliseconds.
 
-        df = pd.concat(chunks, ignore_index=True)
+    DECISION D6 (open, docs/longwalk3_plan.md): about 1 in 4 real cells is shorter than 17
+    digits. Working assumption: milliseconds are written without zero-padding, so whatever
+    follows the 14 seconds digits is read as an integer number of milliseconds ("...52" is
+    52 ms, not 520 ms as a plain `%f` parse would give). Anything else becomes NaT.
+    """
+    text = values.astype("string").str.strip()
+    valid = text.str.fullmatch(r"\d{14,17}").fillna(False).astype(bool)
+    seconds = pd.to_datetime(
+        text.str[:_UNREAL_SECONDS_DIGITS], format="%Y%m%d%H%M%S", errors="coerce"
+    )
+    milliseconds = pd.Series(
+        pd.to_numeric(text.str[_UNREAL_SECONDS_DIGITS:], errors="coerce"), index=text.index
+    ).fillna(0)
+    parsed = seconds + pd.to_timedelta(milliseconds, unit="ms")
+    return parsed.where(valid)
 
-    return df
+
+def parse_behaviour_hhmm(values: pd.Series, run_date: datetime) -> pd.Series:
+    """behaviour.csv's `TimeStampHHmm` carries hours and minutes only -- the day comes from
+    the run's raw filename date. Anything not 3-4 digits becomes NaT."""
+    text = values.astype("string").str.strip().str.zfill(4)
+    valid = text.str.fullmatch(r"\d{4}").fillna(False).astype(bool)
+    parsed = pd.to_datetime(
+        f"{run_date:%Y%m%d}" + text.where(valid, ""), format="%Y%m%d%H%M", errors="coerce"
+    )
+    return parsed.where(valid)
 
 
 def get_all_dfs(
@@ -406,12 +467,15 @@ def get_all_dfs(
 
 BP_ACTOR_IDS = [
     "BPAudioCueTriggerC",
+    "BPBirdsFlyingC",
     "BPHeatmapManagerC",
     "BPNPCC",
     "BPPanicAttackManagerC",
     "BPPanicCooldownTimersManagerC",
     "BPPanicTriggerC",
+    "BPPhoneAlertsC",
     "BPPhoneC",
+    "BPSerialComManagerC",
     "ThreatLevelMarkerNewC",
 ]
 
@@ -454,10 +518,13 @@ def combine_events_df_files(
             inplace=True,
         )
 
-        df["onset"] = (
-            pd.to_datetime(df["time_stamp"], format=DATESTR_FORMAT, errors="coerce")
-            - df.attrs["date"]
-        ).dt.total_seconds()
+        if BEHAVIOUR_HHMM_COLUMN in df.columns:
+            event_times = parse_behaviour_hhmm(
+                cast(pd.Series, df[BEHAVIOUR_HHMM_COLUMN]), df.attrs["date"]
+            )
+        else:
+            event_times = parse_unreal_datetimes(cast(pd.Series, df["time_stamp"]))
+        df["onset"] = (event_times - df.attrs["date"]).dt.total_seconds()
         df = df.add_suffix(f"_{df.attrs['bp_id']}")
 
         # Rename all cols according the class ID
@@ -477,7 +544,7 @@ def combine_events_df_files(
             parts.columns = [f"{col_name}_x", f"{col_name}_y", f"{col_name}_z"]
             parts = parts.astype(float)
             df[parts.columns] = parts
-            df = df.drop(columns=col_name)
+            df = df.drop(columns=[str(col_name)])
             break
 
         run_key = (df.attrs["session_nr"], df.attrs["date"])
@@ -518,6 +585,23 @@ def _session_nr_from_events_filename(filename: str) -> int:
     return int(match.group("session_nr"))
 
 
+_RAW_SESSION_FOLDER_PATTERN = re.compile(r"^ses[-_ ]?(?P<session_nr>\d+)$", re.IGNORECASE)
+
+
+def _session_nr_from_raw_folder(file: Path, input_folder: Path) -> int | None:
+    """Session number of the raw session folder `file` sits in ("ses-01", "ses_01", ...), or
+    None for a file outside any session folder (legacy flat layout)."""
+    try:
+        parts = file.relative_to(input_folder).parts[:-1]
+    except ValueError:
+        return None
+    for part in parts:
+        match = _RAW_SESSION_FOLDER_PATTERN.match(part)
+        if match:
+            return int(match.group("session_nr"))
+    return None
+
+
 # TODO: Move to BIDS??
 def _session_token(session_nr: int) -> str:
     return f"ses-{session_nr:02d}"
@@ -548,19 +632,34 @@ def _convert_subject_physiology(
         and parsed.subject_id == subject_id
     }
     ordered_files = sorted(parsed_by_file, key=lambda file: parsed_by_file[file].date)
+    # Current export: each .acq sits in its raw session folder ("ses-02", or "ses_01" as seen
+    # in real data), so that folder decides the session. Legacy flat layout (no session
+    # folders): fall back to chronological order, as before.
+    folder_session_nrs = [_session_nr_from_raw_folder(f, input_folder) for f in ordered_files]
+    if all(nr is not None for nr in folder_session_nrs):
+        session_nrs = cast(list[int], folder_session_nrs)
+    else:
+        session_nrs = list(range(1, len(ordered_files) + 1))
 
     written: list[Path] = []
-    for session_nr, acq_file in enumerate(ordered_files, start=1):
+    for session_nr, acq_file in zip(session_nrs, ordered_files, strict=True):
         parsed = parsed_by_file[acq_file]
-        destination = _datatype_folder(output_folder, subject_id, session_nr) / (
-            bids.build_bids_filename(
-                subject_id,
-                _session_token(session_nr),
-                TASK_TOKEN,
-                PHYSIOLOGY_RUN_TOKEN,
-                "physio",
-                ".acq",
-            )
+        folder = _datatype_folder(output_folder, subject_id, session_nr)
+        # Two .acq files in one session folder are both kept ("-dup2"), for the crosscheck to
+        # resolve -- never silently overwritten.
+        destination = bids.resolve_collision(
+            lambda suffix, folder=folder, session_nr=session_nr: (
+                folder
+                / bids.build_bids_filename(
+                    subject_id,
+                    _session_token(session_nr),
+                    TASK_TOKEN,
+                    PHYSIOLOGY_RUN_TOKEN,
+                    suffix,
+                    ".acq",
+                )
+            ),
+            "physio",
         )
         bids.copy_scan(
             acq_file,
@@ -602,49 +701,106 @@ def _convert_subject_events(
     return written
 
 
+DEBRIEF_FILENAME_GLOB = "*_acq-debrief_*_beh.tsv"
+
+
 def _has_debrief_file(output_folder: Path, subject_id: str) -> bool:
-    folder = _datatype_folder(output_folder, subject_id, DEBRIEF_SESSION_NR)
-    return folder.is_dir() and any(folder.glob("*_beh.tsv"))
+    subject_folder = output_folder / f"sub-{subject_id}"
+    return subject_folder.is_dir() and any(subject_folder.rglob(DEBRIEF_FILENAME_GLOB))
 
 
-def _debrief_acq_date(output_folder: Path, subject_id: str) -> str:
-    """Best-effort acquisition date for a subject's debrief file -- ses-01's own first scan
-    date if there is one, "nodate" otherwise (e.g. a subject whose only converted data is the
-    debrief form itself). Same fallback contract as crane_bids._existing_acq_date.
+def _debrief_acq_date(output_folder: Path, subject_id: str, session_nr: int) -> str:
+    """Best-effort acquisition date for a session's debrief file -- that session's own first
+    scan date if there is one, "nodate" otherwise. Same fallback contract as
+    crane_bids._existing_acq_date.
     """
-    rows = bids.read_scans_tsv_rows(_scans_tsv_path(output_folder, subject_id, DEBRIEF_SESSION_NR))
+    rows = bids.read_scans_tsv_rows(_scans_tsv_path(output_folder, subject_id, session_nr))
     return rows[0]["acq_time"] if rows else "nodate"
+
+
+def debrief_session_nrs(debrief_df: pd.DataFrame) -> dict[str, int]:
+    """REDCap event name -> session number. The export is long format, one row per subject per
+    event, and events map to sessions in the order REDCAP_EVENT_SESSION_ORDER lists them;
+    events not listed there follow, in order of first appearance in the export. An export
+    without an event column is treated as one row per subject for ses-01."""
+    if REDCAP_EVENT_COLUMN not in debrief_df.columns:
+        return {}
+    seen = list(dict.fromkeys(debrief_df[REDCAP_EVENT_COLUMN].dropna().astype(str)))
+    ordered = [e for e in REDCAP_EVENT_SESSION_ORDER if e in seen]
+    ordered += [e for e in seen if e not in ordered]
+    return {event: n for n, event in enumerate(ordered, start=1)}
+
+
+def _is_identifying_debrief_column(column: str) -> bool:
+    if column in (DEBRIEF_ID_COLUMN, REDCAP_EVENT_COLUMN):
+        return False
+    return bool(_DEBRIEF_IDENTIFYING_COLUMN_PATTERN.search(column))
+
+
+def _debrief_answer_columns(debrief_df: pd.DataFrame) -> list[str]:
+    """Columns that hold actual answers -- not the id/event columns or a "<form>_complete"
+    status. A REDCap event row with none of these filled was never filled in."""
+    structural = {DEBRIEF_ID_COLUMN, REDCAP_EVENT_COLUMN}
+    return [
+        c
+        for c in debrief_df.columns
+        if c not in structural
+        and not c.endswith("_complete")
+        and not _is_identifying_debrief_column(c)
+    ]
+
+
+def _is_blank(value: object) -> bool:
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return True
+    return not str(value).strip()
 
 
 def _convert_subject_debrief(
     subject_id: str, debrief_df: pd.DataFrame, output_folder: Path
-) -> Path | None:
-    """Writes this subject's row(s) from the REDCap debrief export as one individual
-    `sub-XXX_ses-01_task-longwalkv3_acq-debrief_run-001_beh.tsv`, the same acq-debrief/`_beh`
-    convention crane_bids.py uses. Returns None if the export has no row for this subject.
+) -> list[Path]:
+    """Writes this subject's REDCap rows as one
+    `sub-XXX_ses-NN_task-longwalkv3_acq-debrief_run-001_beh.tsv` per session (the same
+    acq-debrief/`_beh` convention crane_bids.py uses), session taken from the row's REDCap event
+    (see debrief_session_nrs). Rows with no answers at all are skipped, and identifying columns
+    (names, date of birth, signatures, survey identifier) are never copied into BIDS. Returns
+    the written paths -- empty if the export has no filled-in row for this subject.
     """
     subject_rows = debrief_df[debrief_df[DEBRIEF_ID_COLUMN] == subject_id]
     if subject_rows.empty:
-        return None
+        return []
 
-    destination = _datatype_folder(output_folder, subject_id, DEBRIEF_SESSION_NR) / (
-        bids.build_bids_filename(
-            subject_id,
-            _session_token(DEBRIEF_SESSION_NR),
-            TASK_TOKEN,
-            DEBRIEF_RUN_TOKEN,
-            "beh",
-            ".tsv",
-            acq="debrief",
+    session_by_event = debrief_session_nrs(debrief_df)
+    answer_columns = _debrief_answer_columns(debrief_df)
+    kept_columns = [c for c in debrief_df.columns if not _is_identifying_debrief_column(c)]
+
+    written: list[Path] = []
+    for _, row in subject_rows.iterrows():
+        if all(_is_blank(row[c]) for c in answer_columns):
+            continue
+        event = row.get(REDCAP_EVENT_COLUMN)
+        session_nr = session_by_event.get(str(event), DEBRIEF_SESSION_NR)
+        destination = _datatype_folder(output_folder, subject_id, session_nr) / (
+            bids.build_bids_filename(
+                subject_id,
+                _session_token(session_nr),
+                TASK_TOKEN,
+                DEBRIEF_RUN_TOKEN,
+                "beh",
+                ".tsv",
+                acq="debrief",
+            )
         )
-    )
-    subject_rows.to_csv(destination, sep="\t", index=False)
+        pd.DataFrame([[row[c] for c in kept_columns]], columns=pd.Index(kept_columns)).to_csv(
+            destination, sep="\t", index=False
+        )
 
-    scans_tsv_path = _scans_tsv_path(output_folder, subject_id, DEBRIEF_SESSION_NR)
-    relative_name = destination.relative_to(scans_tsv_path.parent).as_posix()
-    acq_date = _debrief_acq_date(output_folder, subject_id)
-    bids.append_scan_row(scans_tsv_path, relative_name, acq_date)
-    return destination
+        scans_tsv_path = _scans_tsv_path(output_folder, subject_id, session_nr)
+        relative_name = destination.relative_to(scans_tsv_path.parent).as_posix()
+        acq_date = _debrief_acq_date(output_folder, subject_id, session_nr)
+        bids.append_scan_row(scans_tsv_path, relative_name, acq_date)
+        written.append(destination)
+    return written
 
 
 @dataclass
@@ -657,7 +813,7 @@ class LongWalkV3ConversionSummary:
     new_subject_ids: list[str] = field(default_factory=list)
     subject_physiology: dict[str, list[Path]] = field(default_factory=dict)
     subject_events: dict[str, list[Path]] = field(default_factory=dict)
-    subject_debrief: dict[str, Path] = field(default_factory=dict)
+    subject_debrief: dict[str, list[Path]] = field(default_factory=dict)
     already_converted: set[str] = field(default_factory=set)
     unparseable_files: list[Path] = field(default_factory=list)
     unmatched_debrief: list[str] = field(default_factory=list)
@@ -725,13 +881,13 @@ def convert_longwalkv3_to_bids(
     )
     debrief_candidate_ids = sorted(set(new_subject_ids) | set(backfill_candidate_ids))
 
-    subject_debrief: dict[str, Path] = {}
+    subject_debrief: dict[str, list[Path]] = {}
     backfilled_debrief_ids: list[str] = []
     if debrief_df is not None:
         for subject_id in debrief_candidate_ids:
-            destination = _convert_subject_debrief(subject_id, debrief_df, output_folder)
-            if destination is not None:
-                subject_debrief[subject_id] = destination
+            destinations = _convert_subject_debrief(subject_id, debrief_df, output_folder)
+            if destinations:
+                subject_debrief[subject_id] = destinations
                 if subject_id in backfill_candidate_ids:
                     backfilled_debrief_ids.append(subject_id)
 
@@ -760,7 +916,7 @@ def convert_longwalkv3_to_bids(
         output_folder,
         sum(len(paths) for paths in subject_physiology.values()),
         sum(len(paths) for paths in subject_events.values()),
-        len(subject_debrief),
+        sum(len(paths) for paths in subject_debrief.values()),
         len(backfilled_debrief_ids),
     )
 

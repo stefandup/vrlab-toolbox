@@ -93,4 +93,16 @@ Biopac trigger channel, the same way Crane matches behaviour-based intervals to 
   into the manifest's `redcap_exports` (manifest version 2, structure only), and shape mode
   writes a long-format dummy REDCap export from it. Tests: `tests/test_longwalkv3_dummy_data.py`.
   **Your step:** re-profile the real folder with the REDCap export included, review the JSON,
-  and copy it to `longwalkv3_examples/shape/`.
+  and copy it to `longwalkv3_examples/shape/`. *(Done — reviewed manifest with REDCap profile
+  in place.)*
+- 2026-11-18 — D2/D4 refined: heatmap pulses on its first row only, birds don't pulse
+  (`_NON_PULSE_SUFFIXES` / `_FIRST_ROW_PULSE_SUFFIXES` in the generator); same clock drift as
+  crane is now simulated per session in shape mode. Debrief: one raw REDCap file, sessions as
+  rows; BIDS gets one `acq-debrief` file per subject per session.
+- 2026-11-18 — **A1 done.** `longwalk3_bids.py` converts the current export layout:
+  `sub-` prefix in raw names, session from the raw `ses-NN`/`ses_NN` folder (duplicates kept as
+  `-dup2` for the crosscheck), `behaviour.csv`'s `TimeStampHHmm`, repeated headers, ragged rows,
+  unpadded-ms datetimes (D6 placeholder), the three new actor classes, and per-session debrief
+  with identifying REDCap columns (names, DOB, signatures, survey identifier) dropped. Synthetic
+  set (5 clean + 6 error scenarios) converts to 35 events + 33 debrief files.
+  Tests: `tests/test_longwalkv3_bids.py`.

@@ -1534,8 +1534,8 @@ def generate_dummy_redcap_from_shape(
 # count, time span, column kinds, the ragged rows the real export writes, and the .acq channel
 # set, sample rate and duration. Everything is resampled from whole observed file profiles, so
 # combinations stay realistic. What it can't know, and therefore makes up: every cell value
-# (ratings 0-10, positions, actor names, phone messages), EDA signal shape, and which classes send
-# a Biopac pulse (see _NON_PULSE_SUFFIXES).
+# (ratings 1-5, positions, actor names, phone messages), EDA signal shape, and which classes send
+# a Biopac pulse (see _NON_PULSE_SUFFIXES), and the Biopac/Unreal clock drift.
 
 SHAPE_ERROR_TYPES = (
     "aborted_run_restarted",
@@ -1548,11 +1548,12 @@ SHAPE_ERROR_TYPES = (
 SHAPE_SUBJECT_ID_PREFIX = "dummy"
 # Real exports name the physiology file "<timestamp>_sub-<id>_longwalkv3out.acq".
 SHAPE_ACQ_SUFFIX = "longwalkv3out"
-# Classes that do *not* send a TTL per logged row. Working assumption (2026-11-18): every class
-# pulses on every row, so this is empty. Unconfirmed -- likely candidates to add once the Unreal
-# side documents it: "BP_HeatmapManager_C.csv" (logs at ~2 Hz), "BP_BirdsFlying_C.csv" (hundreds
-# of rows in ~4 s, so its pulses merge into one long high stretch), "BP_SerialComManager_C.csv".
-_NON_PULSE_SUFFIXES: tuple[str, ...] = ()
+# Which classes send a Biopac pulse (D2, docs/longwalk3_plan.md, 2026-11-18): every class pulses
+# on every logged row, except the heatmap (logs at ~2 Hz) which only pulses on its first row,
+# and the birds (hundreds of rows in ~4 s), which don't pulse at all. Still a working
+# assumption until the Unreal side confirms it -- adjust these two tuples, not the code.
+_NON_PULSE_SUFFIXES: tuple[str, ...] = ("BP_BirdsFlying_C.csv",)
+_FIRST_ROW_PULSE_SUFFIXES: tuple[str, ...] = ("BP_HeatmapManager_C.csv",)
 # Seen in the real data: an aborted first attempt, then a restart a few minutes later in the
 # same session, each run in its own run-00N subfolder, with the .acq started at the restart.
 _ABORTED_RUN_RESTART_DELAY = dt.timedelta(minutes=4)
@@ -1790,11 +1791,15 @@ def _synthesize_actor_log(
                 cells.append("")
         lines.append(",".join(cells))
 
-    pulse_times = (
-        []
-        if suffix in _NON_PULSE_SUFFIXES
-        else [t + dt.timedelta(milliseconds=rng.randint(*TRIGGER_LAG_MS_RANGE)) for t in times]
-    )
+    if suffix in _NON_PULSE_SUFFIXES:
+        pulse_rows = []
+    elif suffix in _FIRST_ROW_PULSE_SUFFIXES:
+        pulse_rows = times[:1]
+    else:
+        pulse_rows = times
+    pulse_times = [
+        t + dt.timedelta(milliseconds=rng.randint(*TRIGGER_LAG_MS_RANGE)) for t in pulse_rows
+    ]
     return lines, pulse_times
 
 
@@ -2043,7 +2048,13 @@ def generate_shape_participant(
             pulse_times += pulses
 
         n_samples = int(duration * model.acq_samples_per_second)
-        pulse_seconds = [(t - acq_start).total_seconds() for t in pulse_times]
+        # Biopac and Unreal clocks drift apart over a session, the same way crane's do: each
+        # session gets one drift rate, so pulses land progressively later than the CSV says.
+        drift_ms_per_minute = rng.uniform(*TRIGGER_DRIFT_MS_PER_MINUTE_RANGE)
+        pulse_seconds = [
+            seconds + (seconds / 60.0) * drift_ms_per_minute / 1000.0
+            for seconds in ((t - acq_start).total_seconds() for t in pulse_times)
+        ]
         channels = []
         for name, units in model.acq_channels:
             if name == ACQ_TRIGGER_CHANNEL_NAME:
