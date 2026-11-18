@@ -170,8 +170,8 @@ class TestLongWalkV3ResultsViewer(unittest.TestCase):
                 "Processing_Status": ["X=ok", "X=corrected"],
                 "ses01_Processing_Status": ["X=ok", "TrialIntervals=corrected"],
                 "ses02_Processing_Status": ["X=ok", None],
-                "ses01_BP_NPC_C_SCR_per_min_1": [1.0, 2.0],
-                "ses02_BP_Phone_C_SCR_per_min": [3.0, None],
+                "ses01_ThreatLevelMarkerNew_SCR_per_min": [1.0, 2.0],
+                "ses02_ThreatLevelMarkerNew2_SCR_per_min": [3.0, None],
             }
         )
         figure = Figure()

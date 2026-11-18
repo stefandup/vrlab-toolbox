@@ -159,3 +159,12 @@ Biopac trigger channel, the same way Crane matches behaviour-based intervals to 
   read back from the .tsv as a number was dropped, so the Biopac edges couldn't settle it.
   Synthetic: 0 missing; clean sessions all `TrialIntervals=ok`. **Your step:** Refresh BIDS
   in the crosscheck; the missing count should drop to ~0.
+- 2026-11-18 — **Phase C + EDA export (D7).** Results viewer `vrlab_longwalk3_process_GUI`
+  (launcher row, pyproject, PyInstaller spec). Per-session `Trigger_map` QC figure. Icons on
+  figures only, never in CSV/SAV. **D7 (decided):** the CSV/SPSS EDA columns are threat-marker
+  segments only: from one ThreatLevelMarker pulse to the next-numbered marker's pulse,
+  labelled with the starting marker's real name (`sesNN_ThreatLevelMarkerNew2_SCR_per_min` =
+  marker 2 → 3; the unnumbered first marker counts as 1). Only consecutive numbers make a
+  segment (3 missing → no 2→3 and no 3→4); a marker passed twice keeps its first pass. The
+  actor-instance intervals (D2) stay on the interval QC plot. LongwalkV3 has its own EDA step
+  that skips `eda.correct_order` so the real names survive.

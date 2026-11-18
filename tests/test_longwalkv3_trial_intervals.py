@@ -135,3 +135,30 @@ def test_single_onset_alternative_read_as_a_number_is_kept():
         }
     )
     assert get_behaviour_pulses(df)["alternatives"].tolist() == [(32.041,), ()]
+
+
+def test_threat_marker_segments_use_real_names_and_consecutive_numbers_only():
+    import numpy as np
+
+    from vrlab_toolbox.processing.longwalk3_trial_intervals import (
+        THREAT_MARKER_CLASS,
+        build_threat_marker_segments,
+    )
+
+    threat, npc = THREAT_MARKER_CLASS, "BPNPCC"
+    rows = [
+        (10.0, "ThreatLevelMarkerNew", threat),  # marker 1
+        (15.0, "BP_NPC2", npc),  # ignored
+        (20.0, "ThreatLevelMarkerNew2", threat),
+        (30.0, "ThreatLevelMarkerNew3", threat),
+        (35.0, "ThreatLevelMarkerNew2", threat),  # passed again: first pass counts
+        (40.0, "ThreatLevelMarkerNew5", threat),  # 4 missing: no 3 -> 5 segment
+        (50.0, "ThreatLevelMarkerNew6", threat),
+    ]
+    times, instances, classes = zip(*rows, strict=True)
+    segments = build_threat_marker_segments(np.array(times), list(instances), list(classes))
+    assert segments.intervals == {
+        "ThreatLevelMarkerNew": (10.0, 20.0),
+        "ThreatLevelMarkerNew2": (20.0, 30.0),
+        "ThreatLevelMarkerNew5": (40.0, 50.0),
+    }

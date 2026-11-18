@@ -8,8 +8,14 @@ import pandera.pandas as pa
 from matplotlib.figure import Figure
 
 from vrlab_toolbox.processing import pipeline
+from vrlab_toolbox.processing.biodata import RawBioData
 from vrlab_toolbox.processing.biopac import BiopacPhysiologyDataImportStartegy
-from vrlab_toolbox.processing.eda import ProcessEdaPhysiologyDataStrategyStep
+from vrlab_toolbox.processing.eda import (
+    EdaPhysiologyOutputData,
+    ProcessEdaPhysiologyDataStrategyStep,
+    run_eda_intervals,
+    run_eda_qc,
+)
 from vrlab_toolbox.processing.input_data import ParticipantConfig, PhysiologyFileFormat
 from vrlab_toolbox.processing.longwalk3_behaviour import (
     ImportLongWalkV3BehaviourDataStrategyStep,
@@ -27,6 +33,7 @@ from vrlab_toolbox.processing.output_data import (
     PipelineOutputData,
     build_base_pipeline_output_schema,
 )
+from vrlab_toolbox.processing.trial_intervals import TrialIntervals
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +109,27 @@ class LongWalkV3PipelineOutputData(PipelineOutputData):
         return build_longwalkv3_participant_output_schema().validate(self.subject_df_out)
 
 
+@dataclass
+class ProcessLongWalkV3EdaStrategyStep(ProcessEdaPhysiologyDataStrategyStep):
+    """The shared EDA step, minus `eda.correct_order` -- that strips digits from interval
+    names (fine for crane's trial names), but LongwalkV3's columns must keep the real
+    threat-marker names ("ThreatLevelMarkerNew2_SCR_per_min")."""
+
+    def run(
+        self,
+        config_in: ParticipantConfig,
+        biodata_in: RawBioData,
+        trial_interval_data: TrialIntervals,
+    ) -> EdaPhysiologyOutputData:
+        scr_df = run_eda_intervals(biodata_in.raw_data["EDA"], trial_interval_data.intervals)
+        eda_pipeline_out = EdaPhysiologyOutputData(config_in.subject_id)
+        eda_pipeline_out.append_dataframe(scr_df, {})
+        eda_pipeline_out.figure_data_out["eda_qc"] = run_eda_qc(
+            biodata_in.raw_data["EDA"], scr_df, trial_interval_data.intervals
+        )
+        return eda_pipeline_out
+
+
 def run_pipeline(
     participant_id_in: str,
     data_folder_in: Path,
@@ -135,7 +163,7 @@ def run_pipeline(
         ]
     )
     process_physiology_steps = pipeline.SequentialPhysiologyProcessingSteps(
-        steps=[ProcessEdaPhysiologyDataStrategyStep()]
+        steps=[ProcessLongWalkV3EdaStrategyStep()]
     )
 
     longwalkV3_pipeline = pipeline.PipelineTemplate(

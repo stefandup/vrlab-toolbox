@@ -17,6 +17,7 @@ no recorded edge (recording started late / stopped early) get their neighbours' 
 """
 
 import logging
+import re
 
 import numpy as np
 import pandas as pd
@@ -205,6 +206,51 @@ def _short_label(interval_name: str, class_by_instance: dict[str, str]) -> str:
     return instance_icon_label(interval_name, actor_class) if actor_class else interval_name
 
 
+THREAT_MARKER_CLASS = "ThreatLevelMarkerNewC"
+_TRAILING_NUMBER = re.compile(r"(\d+)$")
+
+
+def threat_marker_number(instance: str) -> int:
+    """'ThreatLevelMarkerNew7' -> 7; the first marker has no number ('ThreatLevelMarkerNew')
+    and counts as 1."""
+    match = _TRAILING_NUMBER.search(instance)
+    return int(match.group(1)) if match else 1
+
+
+def build_threat_marker_segments(
+    pulse_times: np.ndarray, instances: list[str], actor_classes: list[str]
+) -> TrialIntervals:
+    """The intervals exported to the CSV/SPSS (decided 2026-11-18): from one threat-level
+    marker's pulse to the *next-numbered* marker's pulse, labelled with the starting marker's
+    real instance name (e.g. "ThreatLevelMarkerNew2" = marker 2 -> marker 3). Other triggers
+    in between are ignored. Only consecutive numbers make a segment: if marker 3 is missing,
+    2 -> 4 is skipped (logged). A marker passed twice: its first pass counts (logged)."""
+    first_pass: dict[int, tuple[str, float]] = {}
+    for time, instance, actor_class in zip(pulse_times, instances, actor_classes, strict=True):
+        if actor_class != THREAT_MARKER_CLASS or np.isnan(time):
+            continue
+        number = threat_marker_number(instance)
+        if number in first_pass:
+            logger.warning("Threat marker %s passed again -- keeping its first pass", instance)
+            continue
+        first_pass[number] = (instance, float(time))
+
+    intervals: dict[str, tuple[float, float]] = {}
+    for number, (name, start) in sorted(first_pass.items()):
+        following = first_pass.get(number + 1)
+        if following is None:
+            if any(n > number for n in first_pass):
+                logger.warning(
+                    "Threat marker %d is missing -- no segment from %s", number + 1, name
+                )
+            continue
+        if following[1] <= start:
+            logger.warning("%s was reached before %s -- segment skipped", following[0], name)
+            continue
+        intervals[name] = (start, following[1])
+    return TrialIntervals(intervals=intervals, physiology_file_format=PhysiologyFileFormat.BIOPAC)
+
+
 class LongWalkV3GetTrialIntervalStrategyStep:
     input_bio_data_type: type[RawBioData] = RawBioData
     input_behaviour_data_type: type[RawLongWalkV3BehaviourData] = RawLongWalkV3BehaviourData
@@ -237,11 +283,20 @@ class LongWalkV3GetTrialIntervalStrategyStep:
             zip(instances, pulses["actor_class"].astype(str).tolist(), strict=True)
         )
         ignored = pulses["actor_class"].isin(MATCH_ONLY_ACTOR_CLASSES).tolist()
-        trial_intervals_out = build_actor_instance_intervals(pulse_times, instances, ignored)
+        actor_instance_intervals = build_actor_instance_intervals(pulse_times, instances, ignored)
+        # What the EDA step (and so the CSV/SPSS) uses: the threat-marker segments. The
+        # actor-instance intervals stay on the QC plot.
+        trial_intervals_out = build_threat_marker_segments(
+            pulse_times, instances, pulses["actor_class"].astype(str).tolist()
+        )
+        if not trial_intervals_out.intervals:
+            logger.warning("No consecutive threat-level markers -- no EDA segments to export")
         logger.info(
-            "%d behaviour pulses, %d Biopac edges -> %d actor-instance intervals (%s)",
+            "%d behaviour pulses, %d Biopac edges -> %d actor-instance intervals, "
+            "%d threat-marker segments (%s)",
             len(pulses),
             len(biopac_edges),
+            len(actor_instance_intervals),
             len(trial_intervals_out),
             match_status.name,
         )
@@ -252,7 +307,7 @@ class LongWalkV3GetTrialIntervalStrategyStep:
         interval_qc_figure_out = plot_biopac_interval_qc(
             trigger_df,
             raw_biopac_trigger_intervals=raw_biopac_triggers,
-            behav_matched_trigger_intervals=trial_intervals_out,
+            behav_matched_trigger_intervals=actor_instance_intervals,
             raw_behav_trial_intervals=behaviour_timeline_intervals,
             label_style=IntervalLabelStyle(
                 formatter=lambda name: _short_label(name, class_by_instance),

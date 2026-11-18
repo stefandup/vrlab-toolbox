@@ -4,8 +4,8 @@ Built like crane_process_results_gui.py: the shared window lives in process_resu
 this file only supplies LongwalkV3's config -- the "Process BIDS Folder" callback (the CLI's own
 `run_batch`), how a subject id is read from a BIDS physiology path, and a LongwalkV3 Summary
 Stats dashboard built from the column names the LongwalkV3 pipeline writes (D3: one wide row
-per subject, every session's columns prefixed "sesNN_"; SCR per actor-instance interval,
-"sesNN_<ActorClass>_SCR_per_min_<n>").
+per subject, every session's columns prefixed "sesNN_"; SCR per threat-marker segment,
+"sesNN_<marker name>_SCR_per_min").
 
 Icons (emoji) appear only on the figures, never in the CSV/SAV -- the same icon set as the
 interval QC plot (longwalk3_trigger_pulses.ACTOR_CLASS_ICONS).
@@ -28,17 +28,20 @@ from vrlab_toolbox.gui.process_results_common import (
     run_process_results_app,
     worst_status,
 )
+from vrlab_toolbox.processing.longwalk3_trial_intervals import (
+    THREAT_MARKER_CLASS,
+    threat_marker_number,
+)
 from vrlab_toolbox.processing.longwalk3_trigger_pulses import (
     ACTOR_CLASS_ICONS,
     icon_font_families,
 )
 from vrlab_toolbox.processing.processing_status import ProcessingStatus
 
-# "ses01_BP_NPC_C_SCR_per_min_2" -> session "01", actor class "BP_NPC_C".
+# "ses01_ThreatLevelMarkerNew2_SCR_per_min" -> session "01", segment
+# "ThreatLevelMarkerNew2" (threat marker 2 -> 3, see longwalk3_trial_intervals).
 SCR_COLUMN_PATTERN = re.compile(r"^ses(?P<session>\d+)_(?P<actor>.+?)_SCR_per_min(?:_\d+)?$")
 SESSION_STATUS_PATTERN = re.compile(r"^ses(?P<session>\d+)_Processing_Status$")
-# Every actor class shares one colour per class across panels.
-_CLASS_COLORS = [f"C{nr}" for nr in range(10)]
 
 
 def _process_bids_folder(
@@ -104,26 +107,33 @@ def _bar(axes: Axes, labels: list[str], values: list[pd.Series], individual: boo
     axes.tick_params(axis="y", labelsize=8)
 
 
-def _draw_scr_by_class(axes: Axes, subset: pd.DataFrame, individual: bool) -> None:
-    by_class: dict[str, list[str]] = {}
-    for (_session, actor), columns in _scr_columns(subset).items():
-        by_class.setdefault(actor, []).extend(columns)
-    actors = sorted(by_class)
-    if not actors:
-        axes.text(0.5, 0.5, "No SCR intervals in the output yet", ha="center", va="center")
+def _segment_sort_key(segment: str) -> tuple[int, str]:
+    return (threat_marker_number(segment), segment)
+
+
+def _draw_scr_by_segment(axes: Axes, subset: pd.DataFrame, individual: bool) -> None:
+    """SCR/min per threat-marker segment (marker N -> N+1), all sessions pooled per subject."""
+    by_segment: dict[str, list[str]] = {}
+    for (_session, segment), columns in _scr_columns(subset).items():
+        by_segment.setdefault(segment, []).extend(columns)
+    segments = sorted(by_segment, key=_segment_sort_key)
+    if not segments:
+        axes.text(0.5, 0.5, "No threat-marker segments in the output yet", ha="center")
         axes.set_axis_off()
         return
+    icon = ACTOR_CLASS_ICONS.get(THREAT_MARKER_CLASS, "")
     _bar(
         axes,
-        [actor_class_label(a) for a in actors],
-        [_per_subject_mean(subset, by_class[a]) for a in actors],
+        [f"{icon}{threat_marker_number(s)}→{threat_marker_number(s) + 1}" for s in segments],
+        [_per_subject_mean(subset, by_segment[s]) for s in segments],
         individual,
-        [_CLASS_COLORS[i % len(_CLASS_COLORS)] for i in range(len(actors))],
+        "#de2d26",
     )
-    axes.tick_params(axis="x", labelrotation=30)
-    for label in axes.get_xticklabels():
-        label.set_ha("right")
-    axes.set_title("EDA: SCR per minute by trigger (actor class), all sessions", fontsize=11)
+    axes.tick_params(axis="x", labelrotation=90)
+    axes.set_title(
+        "EDA: SCR per minute by threat-marker segment (marker N → N+1), all sessions",
+        fontsize=11,
+    )
     axes.set_ylabel("SCR/min" + ("" if individual else " (mean)"), fontsize=8)
 
 
@@ -180,13 +190,13 @@ def _draw_session_status(axes: Axes, subset: pd.DataFrame) -> None:
 def build_longwalk3_group_dashboard(
     figure: Figure, batch_df: pd.DataFrame, subject_ids: list[str]
 ) -> None:
-    """`ProcessResultsConfig.build_group_dashboard` for LongwalkV3: SCR per minute by trigger
-    class (icons on the axis), SCR per minute by session, and per-session processing status.
+    """`ProcessResultsConfig.build_group_dashboard` for LongwalkV3: SCR per minute by
+    threat-marker segment, SCR per minute by session, and per-session processing status.
     Behaviour/debrief metrics come later (D1)."""
     gridspec = figure.add_gridspec(2, 2, height_ratios=[1.3, 1])
     subset = batch_df.loc[batch_df["Subject_ID"].isin(subject_ids)]
     individual = len(subject_ids) == 1
-    _draw_scr_by_class(figure.add_subplot(gridspec[0, :]), subset, individual)
+    _draw_scr_by_segment(figure.add_subplot(gridspec[0, :]), subset, individual)
     _draw_scr_by_session(figure.add_subplot(gridspec[1, 0]), subset, individual)
     _draw_session_status(figure.add_subplot(gridspec[1, 1]), subset)
 
