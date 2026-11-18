@@ -10,4 +10,4 @@
 | Docs | everything under `docs/`, plus `mkdocs.yml` — already covered by [AI Use Guidelines](docs/ai-use.md)'s docs exception | [ ] |
 | Root README | `README.md` | [ ] |
 | CI workflows | `.github/workflows/*.yml` | [ ] |
-| LongwalkV3 (BUILD `longwalk3` LIKE `crane`) | every LongwalkV3-specific file: `src/vrlab_toolbox/processing/longwalk3_*.py`, `src/vrlab_toolbox/cli/*longwalk3*.py`, `src/vrlab_toolbox/gui/longwalk3_*.py`, `tests/test_longwalkv3_*.py`, plus shared files touched by that BUILD: `src/vrlab_toolbox/processing/biopac.py` (BIOPAC module channel labels) — see [BUILD mode](docs/ai-style-guide.md#build-mode) | [ ] |
+| LongwalkV3 (BUILD `longwalk3` LIKE `crane`) | every LongwalkV3-specific file: `src/vrlab_toolbox/processing/longwalk3_*.py`, `src/vrlab_toolbox/cli/*longwalk3*.py`, `src/vrlab_toolbox/gui/longwalk3_*.py`, `tests/test_longwalkv3_*.py`, plus shared files touched by that BUILD: `src/vrlab_toolbox/processing/biopac.py` (BIOPAC module channel labels), `pyproject.toml` (LongwalkV3 entry points only) — see [BUILD mode](docs/ai-style-guide.md#build-mode) | [ ] |

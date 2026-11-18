@@ -130,3 +130,22 @@ class TestLongWalkV3AllSessions(unittest.TestCase):
             self.assertIn("TrialIntervals=ok", df[column].iloc[0])
         self.assertTrue(any(c.startswith("ses01_") and "SCR_per_min" in c for c in df.columns))
         build_longwalkv3_participant_output_schema().validate(df)
+
+
+class TestLongWalkV3ProcessCli(unittest.TestCase):
+    def test_run_batch_writes_one_wide_row_per_subject(self):
+        import shutil
+        import tempfile
+
+        from vrlab_toolbox.cli.vrlab_longwalk3_process import find_subject_ids, run_batch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            bids, out = Path(tmp) / "bids", Path(tmp) / "out"
+            shutil.copytree(BIDS_FOLDER / f"sub-{CLEAN_ID}", bids / f"sub-{CLEAN_ID}")
+            out.mkdir()
+            self.assertEqual(find_subject_ids(bids), [CLEAN_ID])
+            csv_path = run_batch(bids, out)
+            df = pd.read_csv(csv_path, index_col=0, dtype={"Subject_ID": str})
+            self.assertEqual(df["Subject_ID"].tolist(), [CLEAN_ID])
+            self.assertTrue(csv_path.with_suffix(".sav").exists())
+            self.assertTrue(any(out.glob("*Interval_qc.png")))
