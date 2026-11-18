@@ -17,6 +17,7 @@ from vrlab_toolbox.processing.longwalk3_bids import (
     parse_raw_csv_filename,
     parse_unreal_datetimes,
     plan_renumber_by_date,
+    save_debrief_date_corrections,
     save_debrief_excluded_rows,
     save_debrief_id_corrections,
     subject_session_by_day,
@@ -186,3 +187,12 @@ def test_redcap_ids_with_sub_prefix_match_bids_subjects(tmp_path):
     df["study_id"] = "sub-d01"
     fixed = apply_debrief_fixes(df, tmp_path)
     assert set(fixed["study_id"]) == {"d01"}
+
+
+def test_debrief_date_correction_fills_a_missing_session_date(tmp_path):
+    df = _debrief_df()
+    keys = debrief_row_keys(df)
+    save_debrief_date_corrections(tmp_path, {keys[2]: "2026-09-18"})
+    fixed = apply_debrief_fixes(df, tmp_path)
+    assert fixed.loc[2, "session_date_time"] == "2026-09-18"
+    assert pd.isna(fixed.loc[0, "session_date_time"])

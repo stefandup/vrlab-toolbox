@@ -74,6 +74,7 @@ from vrlab_toolbox.processing.bids_crosscheck import (
 )
 from vrlab_toolbox.processing.biopac import clean_biopac_acq_label
 from vrlab_toolbox.processing.longwalk3_bids import (
+    DEBRIEF_DATE_CORRECTIONS_FILENAME,
     DEBRIEF_EXCLUDED_ROWS_FILENAME,
     DEBRIEF_ID_COLUMN,
     DEBRIEF_ID_CORRECTIONS_FILENAME,
@@ -87,6 +88,7 @@ from vrlab_toolbox.processing.longwalk3_bids import (
     discover_raw_files_for_review,
     explain_unparseable_filename,
     find_debrief_export,
+    load_debrief_date_corrections,
     load_debrief_excluded_rows,
     load_debrief_export,
     load_debrief_id_corrections,
@@ -94,6 +96,7 @@ from vrlab_toolbox.processing.longwalk3_bids import (
     normalize_subject_id,
     plan_renumber_by_date,
     resolve_subject_id,
+    save_debrief_date_corrections,
     save_debrief_excluded_rows,
     save_debrief_id_corrections,
     save_raw_filename_id_corrections,
@@ -1131,7 +1134,8 @@ def _sort_by_date_action(
 
 class DebriefRecordIdCorrectionDialog(QDialog):
     """Per-row fixes for the long-format REDCap export (one row per subject per session):
-    type a corrected subject id, and/or tick "Leave out" to keep a row out of BIDS -- e.g. a
+    type a corrected subject id, fix a missing/wrong session date (which decides the row's
+    session), and/or tick "Leave out" to keep a row out of BIDS -- e.g. a
     record entered under the wrong id, or a session that shouldn't count. Same shape as
     crane's dialog of the same name: every export row listed in export order, the raw export
     never edited, fixes saved in the BIDS folder (`longwalk3_bids.save_debrief_id_corrections`
@@ -1148,6 +1152,7 @@ class DebriefRecordIdCorrectionDialog(QDialog):
         "Corrected subject id",
         "Leave out",
     )
+    _DATE_COLUMN = 2
     _CORRECTED_COLUMN = 4
     _LEAVE_OUT_COLUMN = 5
 
@@ -1174,9 +1179,10 @@ class DebriefRecordIdCorrectionDialog(QDialog):
 
         info = QLabel(
             "One line per REDCap row (a subject has one row per session). Type a corrected "
-            "subject id where the export's study_id is wrong, or tick <b>Leave out</b> to keep "
-            "that row out of BIDS. Fixes are saved in the BIDS folder and applied on the next "
-            "<b>Refresh BIDS</b>; the raw export is never changed."
+            "subject id where the export's study_id is wrong, fill in or fix the "
+            "<b>Session date</b> so the row lands in the right session, or tick <b>Leave "
+            "out</b> to keep that row out of BIDS. Fixes are saved in the BIDS folder and "
+            "applied on the next <b>Refresh BIDS</b>; the raw export is never changed."
         )
         info.setWordWrap(True)
         info.setTextFormat(Qt.TextFormat.RichText)
@@ -1199,19 +1205,22 @@ class DebriefRecordIdCorrectionDialog(QDialog):
                 "" if value is None or (isinstance(value, float) and value != value) else str(value)
             )
 
+        date_corrections = load_debrief_date_corrections(bids_folder)
         for index, ((_, row), key) in enumerate(
             zip(debrief_df.iterrows(), self._keys, strict=True)
         ):
             for column, value in enumerate(
-                (
-                    text(row, DEBRIEF_ID_COLUMN),
-                    text(row, REDCAP_EVENT_COLUMN),
-                    text(row, REDCAP_SESSION_DATE_COLUMN),
-                )
+                (text(row, DEBRIEF_ID_COLUMN), text(row, REDCAP_EVENT_COLUMN))
             ):
                 item = QTableWidgetItem(value)
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.table.setItem(index, column, item)
+            # Editable: a missing/wrong session date is what puts a row in the wrong session.
+            original_date = text(row, REDCAP_SESSION_DATE_COLUMN)
+            date_item = QTableWidgetItem(date_corrections.get(key, original_date))
+            date_item.setData(Qt.ItemDataRole.UserRole, original_date)
+            self.table.setItem(index, self._DATE_COLUMN, date_item)
+            self._mark_date(date_item)
             match_item = QTableWidgetItem("")
             match_item.setFlags(match_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.table.setItem(index, 3, match_item)
@@ -1252,11 +1261,47 @@ class DebriefRecordIdCorrectionDialog(QDialog):
             else "No subject with this id in the BIDS folder -- correct it, or leave it out"
         )
 
+    @staticmethod
+    def _mark_date(item: QTableWidgetItem) -> None:
+        """Highlight a session date that differs from the export, original in the tooltip."""
+        original = item.data(Qt.ItemDataRole.UserRole) or ""
+        corrected = item.text().strip() != original
+        item.setForeground(QBrush(QColor(CHECK_COLOR)) if corrected else QBrush())
+        item.setToolTip(
+            f"Corrected -- the export says: {original or '(empty)'}"
+            if corrected
+            else "The REDCap session date that matches this row to its BIDS session. Edit it "
+            "(YYYY-MM-DD, optionally HH:MM) if it's missing or wrong."
+        )
+
     def _on_item_changed(self, item: QTableWidgetItem) -> None:
         if item.column() == self._CORRECTED_COLUMN:
             self._update_match_icon(item.row())
+        elif item.column() == self._DATE_COLUMN:
+            self.table.blockSignals(True)
+            self._mark_date(item)
+            self.table.blockSignals(False)
 
     def _on_save(self) -> None:
+        date_corrections: dict[str, str] = {}
+        for row, key in enumerate(self._keys):
+            item = self.table.item(row, self._DATE_COLUMN)
+            if item is None:
+                continue
+            typed = item.text().strip()
+            if typed == (item.data(Qt.ItemDataRole.UserRole) or ""):
+                continue
+            if typed and pd.isna(pd.to_datetime(typed, errors="coerce")):
+                QMessageBox.warning(
+                    self,
+                    "Not a date",
+                    f"Row {row + 1}: {typed!r} isn't a date -- use YYYY-MM-DD (optionally "
+                    "followed by HH:MM).",
+                )
+                return
+            date_corrections[key] = typed
+        save_debrief_date_corrections(self.bids_folder, date_corrections)
+
         corrections = load_debrief_id_corrections(self.bids_folder)
         excluded = load_debrief_excluded_rows(self.bids_folder)
         for row, key in enumerate(self._keys):
@@ -1350,6 +1395,7 @@ def main() -> None:
             RAW_FILENAME_ID_CORRECTIONS_FILENAME,
             DEBRIEF_ID_CORRECTIONS_FILENAME,
             DEBRIEF_EXCLUDED_ROWS_FILENAME,
+            DEBRIEF_DATE_CORRECTIONS_FILENAME,
         ),
         enable_redcap=True,
         extra_subject_actions=[

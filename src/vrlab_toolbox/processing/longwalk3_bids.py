@@ -746,6 +746,19 @@ def save_debrief_id_corrections(bids_folder: Path, corrections: dict[str, str]) 
     bids.save_json_map(bids_folder / DEBRIEF_ID_CORRECTIONS_FILENAME, corrections)
 
 
+DEBRIEF_DATE_CORRECTIONS_FILENAME = "debrief_date_corrections.json"
+
+
+def load_debrief_date_corrections(bids_folder: Path) -> dict[str, str]:
+    """Row key -> corrected REDCAP_SESSION_DATE_COLUMN value ("YYYY-MM-DD[ HH:MM]") -- for a
+    REDCap row whose session date is missing or wrong, so it lands in the right session."""
+    return bids.load_json_map(bids_folder / DEBRIEF_DATE_CORRECTIONS_FILENAME)
+
+
+def save_debrief_date_corrections(bids_folder: Path, corrections: dict[str, str]) -> None:
+    bids.save_json_map(bids_folder / DEBRIEF_DATE_CORRECTIONS_FILENAME, corrections)
+
+
 def load_debrief_excluded_rows(bids_folder: Path) -> dict[str, str]:
     """Row key -> reason (may be empty) for every REDCap row left out of BIDS."""
     return bids.load_json_map(bids_folder / DEBRIEF_EXCLUDED_ROWS_FILENAME)
@@ -775,11 +788,23 @@ def debrief_row_keys(debrief_df: pd.DataFrame) -> list[str]:
 
 def apply_debrief_fixes(debrief_df: pd.DataFrame, bids_folder: Path) -> pd.DataFrame:
     """The export with the human's per-row fixes applied: excluded rows dropped, corrected
-    subject ids written into DEBRIEF_ID_COLUMN."""
+    subject ids written into DEBRIEF_ID_COLUMN, corrected session dates into
+    REDCAP_SESSION_DATE_COLUMN."""
     corrections = load_debrief_id_corrections(bids_folder)
+    date_corrections = load_debrief_date_corrections(bids_folder)
     excluded = load_debrief_excluded_rows(bids_folder)
     keys = debrief_row_keys(debrief_df)
     fixed = debrief_df.copy()
+    if date_corrections:
+        original_dates = (
+            fixed[REDCAP_SESSION_DATE_COLUMN].astype(object).tolist()
+            if REDCAP_SESSION_DATE_COLUMN in fixed.columns
+            else [None] * len(fixed)
+        )
+        fixed[REDCAP_SESSION_DATE_COLUMN] = [
+            date_corrections.get(key, original)
+            for key, original in zip(keys, original_dates, strict=True)
+        ]
     # Same id normalisation as the raw filenames: REDCap may hold "sub-<id>" (as the real
     # export does), BIDS subject ids never carry the prefix.
     fixed[DEBRIEF_ID_COLUMN] = [
