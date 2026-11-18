@@ -381,7 +381,7 @@ def record_subject_excluded(bids_folder: Path, subject_id: str, reason: str | No
 
 # Decisions that deleted files outright from a subject's folder -- undoing either means
 # re-deriving the whole subject from raw (see `_restore_subjects`).
-_SUBJECT_RESTORE_DECISION_TYPES = ("selected_run", "files_removed")
+_SUBJECT_RESTORE_DECISION_TYPES = ("selected_run", "files_removed", "files_moved")
 
 
 def _restore_subjects(
@@ -543,6 +543,101 @@ def record_files_removed(
     for file in files:
         _remove_scans_tsv_row(bids_folder, file)
         file.unlink()
+
+
+def record_files_moved(
+    bids_folder: Path,
+    subject_id: str,
+    moves: list[tuple[Path, Path]],
+    reason: str | None = None,
+) -> None:
+    """Move/rename files within one subject's folder -- e.g. longwalkV3 renumbering its
+    sessions and runs by date after one is removed, which moves files between `ses-NN`
+    folders. Each file's `scans.tsv` row moves with it (into the destination session's
+    `scans.tsv`, created if needed), and folders left empty are removed.
+
+    Recorded as a `files_moved` decision (paths relative to `bids_folder`) before touching the
+    filesystem, so `rebuild_from_raw` can replay it. Moves go through temporary names first,
+    so a renumbering that swaps two names can't collide with itself.
+    """
+    moves = [(old, new) for old, new in moves if old != new]
+    if not moves:
+        return
+    missing = [old.name for old, _ in moves if not old.is_file()]
+    if missing:
+        raise BidsCrosscheckError(f"Not found: {', '.join(missing)}")
+
+    decisions = load_decisions(bids_folder)
+    _append_decision(
+        decisions,
+        _decision_key(subject_id, "files_moved"),
+        {
+            "type": "files_moved",
+            "subject_id": subject_id,
+            "moves": [
+                [old.relative_to(bids_folder).as_posix(), new.relative_to(bids_folder).as_posix()]
+                for old, new in moves
+            ],
+            "reason": reason,
+        },
+    )
+    _write_decisions_atomic(bids_folder, decisions)
+    _apply_file_moves(bids_folder, moves)
+
+
+def _apply_file_moves(bids_folder: Path, moves: list[tuple[Path, Path]]) -> None:
+    staged: list[tuple[Path, Path, str | None]] = []
+    for index, (old, new) in enumerate(moves):
+        acq_time = read_scans_tsv_date(bids_folder, old)
+        _remove_scans_tsv_row(bids_folder, old)
+        temporary = old.with_name(f".moving-{index}-{old.name}")
+        old.rename(temporary)
+        staged.append((temporary, new, acq_time))
+    for temporary, new, acq_time in staged:
+        if new.exists():
+            raise BidsCrosscheckError(f"{new.name} already exists -- resolve manually")
+        new.parent.mkdir(parents=True, exist_ok=True)
+        temporary.rename(new)
+        _add_scans_tsv_row(bids_folder, new, acq_time)
+    for old, _ in moves:
+        _remove_empty_folders(bids_folder, old.parent)
+
+
+def _add_scans_tsv_row(bids_folder: Path, file: Path, acq_time: str | None) -> None:
+    """Give `file` a row in its session's `scans.tsv` -- the existing one, or a new
+    `sub-XX[_ses-NN]_scans.tsv` in the folder above its datatype folder. Skipped when the
+    file had no scans.tsv row to begin with (`acq_time` None)."""
+    if acq_time is None:
+        return
+    scans_tsv = _find_scans_tsv(bids_folder, file)
+    if scans_tsv is None:
+        session_folder = file.parent.parent
+        prefix = "_".join(
+            part
+            for part in (session_folder.parent.name, session_folder.name)
+            if part.startswith(("sub-", "ses-"))
+        )
+        scans_tsv = session_folder / f"{prefix}_scans.tsv"
+        _write_scans_tsv_rows(scans_tsv, [])
+    rows = _read_scans_tsv_rows(scans_tsv)
+    rows.append({"filename": file.relative_to(scans_tsv.parent).as_posix(), "acq_time": acq_time})
+    _write_scans_tsv_rows(scans_tsv, rows)
+
+
+def _remove_empty_folders(bids_folder: Path, folder: Path) -> None:
+    """Remove `folder` and its parents up to (not including) the subject folder while they're
+    empty -- a `scans.tsv` with no rows left counts as empty."""
+    while folder != bids_folder and not folder.name.startswith(SUBJECT_FOLDER_PREFIX):
+        if not folder.is_dir():
+            folder = folder.parent
+            continue
+        for scans_tsv in folder.glob("*_scans.tsv"):
+            if not _read_scans_tsv_rows(scans_tsv):
+                scans_tsv.unlink()
+        if any(folder.iterdir()):
+            return
+        folder.rmdir()
+        folder = folder.parent
 
 
 def record_date_correction(
@@ -1532,6 +1627,13 @@ def _replay_decision(bids_folder: Path, entry: dict) -> str | None:
                 if removed is not None:
                     _remove_scans_tsv_row(bids_folder, removed)
                     removed.unlink()
+            return None
+        if entry_type == "files_moved":
+            moves = [(bids_folder / old, bids_folder / new) for old, new in entry["moves"]]
+            missing = [old.name for old, _ in moves if not old.is_file()]
+            if missing:
+                return f"{', '.join(missing)} not found"
+            _apply_file_moves(bids_folder, moves)
             return None
         if entry_type == "id_correction":
             original_folder = bids_folder / f"{SUBJECT_FOLDER_PREFIX}{entry['original_id']}"

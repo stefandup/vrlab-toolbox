@@ -1,20 +1,25 @@
 """LongwalkV3 raw -> BIDS conversion pieces (longwalk3_bids.py), on small hand-written inputs."""
 
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 import pandas as pd
-import pytest
 
+from vrlab_toolbox.processing.bids_crosscheck import record_files_moved
 from vrlab_toolbox.processing.longwalk3_bids import (
     _convert_subject_debrief,
-    _session_nr_from_raw_folder,
+    apply_debrief_fixes,
     csv_to_df_compress_header,
+    debrief_row_keys,
     debrief_session_nrs,
     parse_behaviour_hhmm,
     parse_physiology_filename,
     parse_raw_csv_filename,
     parse_unreal_datetimes,
+    plan_renumber_by_date,
+    save_debrief_excluded_rows,
+    save_debrief_id_corrections,
+    subject_session_by_day,
 )
 
 
@@ -70,12 +75,72 @@ def test_header_only_file_gives_empty_frame(tmp_path):
     assert df.empty and list(df.columns) == ["TimeStampHHmm", "Nausea"]
 
 
-@pytest.mark.parametrize(
-    ("relative", "expected"),
-    [("sub-01/ses-02/x.acq", 2), ("sub-01/ses_01/run-001/x.acq", 1), ("x.acq", None)],
-)
-def test_session_from_raw_folder(tmp_path, relative, expected):
-    assert _session_nr_from_raw_folder(tmp_path / relative, tmp_path) == expected
+def _touch(path: Path) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("x", encoding="utf-8")
+    return path
+
+
+def test_sessions_come_from_dates_not_raw_folder_names(tmp_path):
+    # Folder names are inconsistent (ses_01 next to ses-02) and even wrong; dates decide.
+    _touch(tmp_path / "sub-d01/ses-02/202609171730_sub-d01_longwalkv3out.acq")
+    _touch(tmp_path / "sub-d01/ses_01/202609161730_sub-d01_longwalkv3out.acq")
+    _touch(tmp_path / "sub-d01/ses_01/202609161731_sub-d01_ses-01_task-city1_run-1_behaviour.csv")
+    sessions = subject_session_by_day("d01", tmp_path, {})
+    assert sessions == {date(2026, 9, 16): 1, date(2026, 9, 17): 2}
+
+
+def _scans(folder: Path, rows: list[tuple[str, str]]) -> None:
+    folder.mkdir(parents=True, exist_ok=True)
+    lines = ["filename\tacq_time", *(f"{name}\t{when}" for name, when in rows)]
+    (folder / f"sub-d01_{folder.name}_scans.tsv").write_text("\n".join(lines) + "\n", "utf-8")
+
+
+def test_renumber_after_removing_a_session_and_a_run(tmp_path):
+    sub = tmp_path / "sub-d01"
+    # ses-01 was removed; ses-02 has two runs, the earlier one removed (run-002 left).
+    _touch(sub / "ses-02/beh/sub-d01_ses-02_task-longwalkv3_run-001_physio.acq")
+    _touch(sub / "ses-02/beh/sub-d01_ses-02_task-longwalkv3_acq-city2_run-002_events.tsv")
+    _touch(sub / "ses-03/beh/sub-d01_ses-03_task-longwalkv3_run-001_physio-dup2.acq")
+    _scans(
+        sub / "ses-02",
+        [
+            ("beh/sub-d01_ses-02_task-longwalkv3_run-001_physio.acq", "202609171730"),
+            ("beh/sub-d01_ses-02_task-longwalkv3_acq-city2_run-002_events.tsv", "202609171734"),
+        ],
+    )
+    _scans(
+        sub / "ses-03",
+        [("beh/sub-d01_ses-03_task-longwalkv3_run-001_physio-dup2.acq", "202609181730")],
+    )
+
+    moves = plan_renumber_by_date(tmp_path, "d01")
+    record_files_moved(tmp_path, "d01", moves)
+
+    files = sorted(p.relative_to(sub).as_posix() for p in sub.rglob("*") if p.is_file())
+    assert files == [
+        "ses-01/beh/sub-d01_ses-01_task-longwalkv3_acq-city2_run-001_events.tsv",
+        "ses-01/beh/sub-d01_ses-01_task-longwalkv3_run-001_physio.acq",
+        "ses-01/sub-d01_ses-01_scans.tsv",
+        "ses-02/beh/sub-d01_ses-02_task-longwalkv3_run-001_physio.acq",
+        "ses-02/sub-d01_ses-02_scans.tsv",
+    ]
+    assert "202609181730" in (sub / "ses-02/sub-d01_ses-02_scans.tsv").read_text("utf-8")
+    assert plan_renumber_by_date(tmp_path, "d01") == []
+
+
+def test_debrief_fixes_correct_ids_and_leave_rows_out(tmp_path):
+    df = _debrief_df()
+    keys = debrief_row_keys(df)
+    assert keys[0] == "d01|followup_session_1_arm_1"
+    save_debrief_id_corrections(tmp_path, {keys[0]: "d99"})
+    save_debrief_excluded_rows(tmp_path, {keys[1]: ""})
+    fixed = apply_debrief_fixes(df, tmp_path)
+    assert fixed["study_id"].tolist() == ["d99", "d01"]
+    assert fixed["redcap_event_name"].tolist() == [
+        "followup_session_1_arm_1",
+        "followup_session_2_arm_1",
+    ]
 
 
 def _debrief_df() -> pd.DataFrame:

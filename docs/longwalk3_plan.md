@@ -128,3 +128,12 @@ Biopac trigger channel, the same way Crane matches behaviour-based intervals to 
   behaviour metrics wait for D1.
   **Open for later:** interval QC plot labels get crowded with ~40 intervals; the EDA module
   renumbers instance labels per class (`..._C_SCR_per_min_1..n`) — revisit with D1.
+- 2026-11-18 — **Crosscheck rework (your review).** Sessions are numbered by calendar day
+  across all of a subject's raw files (raw folder names ignored; the raw audit is gone).
+  Sessions (Overview), runs and physiology recordings get a tickbox + **Remove**; what's left
+  is renumbered by date (`plan_renumber_by_date` + new shared `files_moved` decision, replayable,
+  swap-safe). **Sort sessions & runs by date** after a date correction. **Fix Record IDs in
+  Debrief Data**: per REDCap row (study_id + event), corrected id or **Leave out**; debrief is
+  rebuilt on every Refresh BIDS and matched to sessions by `session_date_time` (event order when
+  undated). Old Remove-by-dialog buttons removed. **⤢ Focus on details** (F11) in every
+  crosscheck tool.

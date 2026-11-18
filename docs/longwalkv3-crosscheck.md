@@ -228,9 +228,9 @@ is quick even for long recordings):
 - Its city (the `acq-cityN` part of the filename) is one of city1, city2
   or city3.
 
-**The debrief file:** it opens and has at least one row. It's one REDCap
-debrief per subject for now, in `ses-01`. A subject without one shows ○
-in the debrief column. Per-session debriefs will come later.
+**The debrief files:** one REDCap debrief per session (REDCap stores one
+row per subject per session). Each opens and has at least one row. A
+subject without any shows ○ in the debrief column.
 
 **Each subject's sessions as a whole (⚑):**
 
@@ -239,10 +239,18 @@ in the debrief column. Per-session debriefs will come later.
 - Every session has exactly **one city**. Each participant walks the
   cities in their own random order, so any city can turn up in any
   session. Two cities in one session usually means the wrong city was
-  started by mistake and then restarted. Keep the real run and remove the
-  wrong one.
+  started by mistake and then restarted. Tick the wrong run under
+  **events** and click **Remove** (see step 6).
 - No city is walked in more than one session.
-- No more than 3 sessions, and the debrief sits in `ses-01`.
+- No more than 3 sessions.
+- Every recorded session has its REDCap debrief, and no debrief belongs to
+  a session that wasn't recorded.
+
+**How sessions are numbered:** by date. All of a subject's raw files are
+found wherever they sit in the raw folder, and each calendar day becomes
+a session — the earliest is `ses-01`. How the raw session folders are
+named (`ses-01`, `ses_01`, ...) doesn't matter. Within a session, runs
+are numbered by time.
 
 Fewer than 3 sessions is **not** flagged. A participant who hasn't done
 all their sessions yet is normal, so the Overview just shows the missing
@@ -272,15 +280,46 @@ for the events checks above. Hover the ✓/✗ for the exact reason.
 The **Debrief** panel shows the subject's REDCap debrief file, if there
 is one.
 
-### 6. Look at the files, or fix a wrong date
+### 6. Remove a wrong session or run, or fix a wrong date
+
+**Remove a whole session:** in the **Overview**, tick the session and
+click the **Remove** button next to it. Its physiology, events and
+debrief are removed from BIDS (the raw folder is never touched), and the
+remaining sessions are renumbered by date — remove `ses-01` and the old
+`ses-02` becomes `ses-01`.
+
+**Remove one run or recording:** in the **physiology** or **events**
+panel, tick the file and click **Remove** next to it — e.g. an aborted
+run that was restarted, or a wrong city started by mistake. The remaining
+runs in that session are renumbered by time.
+
+Every removal asks you to confirm first, and is recorded so it can be
+replayed if BIDS ever needs rebuilding. To bring a removed file back, use
+**Restore from raw...** (step 7).
 
 Click **"Reveal subject folder"** next to any file to open that
 subject's folder — inside your **BIDS folder**, not the raw one — in
 your system's file browser.
 
-If a file's recorded acquisition date is wrong, click **"Correct
-date..."** next to it and type the right one — this rewrites the date in
-that session's `scans.tsv` (see step 8), not the filename itself.
+**Fix a wrong date:** if a file's recorded date is wrong, click
+**"Correct date..."** next to it and type the right one — this rewrites
+the date in that session's `scans.tsv` (see step 8), not the filename.
+A recording with a wrong date usually shows up as a session of its own
+(physiology, no events). After correcting it, click **Sort sessions &
+runs by date** in **Subject Actions** to put it back in the right session.
+
+**Fix REDCap IDs, or leave a REDCap row out:** click **Fix Record IDs in
+Debrief Data** in the **Debrief Data** panel. Every REDCap row is listed
+(one per subject per session). Type a corrected subject id where the
+export's `study_id` is wrong, or tick **Leave out** to keep that row out
+of BIDS. Your fixes are saved in the BIDS folder and applied the next
+time you click **Refresh BIDS** — the REDCap export itself is never
+changed.
+
+**Need more room?** Click **⤢ Focus on details** (or press F11) to hide
+everything except the selected subject's details. Click it again to show
+everything. You can also drag the divider between the subject list and
+the details.
 
 ### 7. Mark a subject as reviewed (optional)
 
@@ -298,6 +337,9 @@ in the subject list. This is a manual note for your own or your team's
 reference; it doesn't change anything else. Click the same button again
 ("Un-mark crosschecked") to remove the mark.
 
+- **Sort sessions & runs by date** — renumbers this subject's sessions by
+  date and runs by time, e.g. after **Correct date...**. Shows the
+  changes before doing anything.
 - **Rename subject ID...** — corrects a wrong subject id, renaming the
   `sub-<id>` folder and every file inside it to match.
 - **Restore from raw...** — clears this subject's crosscheck bookkeeping,
@@ -327,10 +369,8 @@ You'll see this button near the top of the window, same as Crane/FOH
 Crosscheck — but for LongwalkV3 it will almost always stay disabled or
 show "0 picks." That's expected: this button commits a *duplicate pick*,
 and, as explained above, physiology and events files are never treated
-as duplicates here. The one exception is the **debrief**. Only one
-debrief per subject is allowed, so if a subject somehow ends up with two,
-you'll see ⚠ and "Please select correct file". Pick the right one, and
-this button removes the other.
+as duplicates here. Wrong sessions and runs are removed with their own
+tick-and-**Remove** buttons instead (step 6).
 
 ## Working with several subjects at once
 

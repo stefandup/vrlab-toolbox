@@ -9,8 +9,12 @@ are configured with `ScanTypeConfig.allow_multiple=True` (see
 `processing/bids_crosscheck.py`) so the shared framework treats several matching files per
 subject as normal, not a "duplicate" needing one to be picked and the rest deleted.
 
-A third scan type, the REDCap debrief (`acq-debrief`/`_beh.tsv`, one per subject in ses-01
-for now), is crosschecked alongside physiology/events.
+A third scan type, the REDCap debrief (`acq-debrief`/`_beh.tsv`, one per subject per
+session), is crosschecked alongside physiology/events. Sessions are numbered by date (see
+`longwalk3_bids.subject_session_by_day`): a wrong session or run is ticked and removed right in
+the detail pane, and what's left is renumbered by date (`plan_renumber_by_date`). A wrong date
+is fixed with "Correct date...", then "Sort sessions & runs by date". REDCap rows are fixed --
+corrected id, or left out -- in "Fix Record IDs in Debrief Data".
 
 `LongwalkV3CandidateExtras` reads each physiology `.acq`'s *headers* only (via bioread --
 channel names, sample counts, rate; never the signal itself) to check there's a non-empty EDA
@@ -19,8 +23,8 @@ plain pandas -- rows present and every `onset` a number, not a per-column schema
 since `longwalk3_bids.combine_events_df_files` suffixes almost every column with its source
 `bp_id`, which varies per raw file and isn't something this GUI tries to predict. On top of
 those per-file checks, `subject_issues` checks each subject's session layout as a whole (one
-physiology recording and one city per session, no city repeated across sessions, debrief in
-ses-01) -- see the shared `CandidateExtras.subject_issues` hook.
+physiology recording and one city per session, no city repeated across sessions, one
+debrief per session) -- see the shared `CandidateExtras.subject_issues` hook.
 """
 
 import json
@@ -37,14 +41,12 @@ import pandas as pd
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QFont
 from PySide6.QtWidgets import (
-    QComboBox,
+    QCheckBox,
     QDialog,
     QDialogButtonBox,
-    QFormLayout,
     QGroupBox,
     QHeaderView,
     QLabel,
-    QLineEdit,
     QMessageBox,
     QTableWidget,
     QTableWidgetItem,
@@ -55,6 +57,7 @@ from PySide6.QtWidgets import (
 
 from vrlab_toolbox.gui.bids_crosscheck_common import (
     DEFAULT_CONVERT_BUTTON_TOOLTIP,
+    EXTRA_RAW_ACTION_GROUP_OVERRIDE,
     EXTRA_RAW_ACTION_GROUP_RAW,
     CandidateExtras,
     run_bids_crosscheck_app,
@@ -66,21 +69,32 @@ from vrlab_toolbox.processing.bids_crosscheck import (
     SubjectScan,
     parse_scans_tsv_date,
     read_scans_tsv_date,
+    record_files_moved,
     record_files_removed,
 )
 from vrlab_toolbox.processing.biopac import clean_biopac_acq_label
 from vrlab_toolbox.processing.longwalk3_bids import (
-    RAW_AUDIT_FILENAME,
+    DEBRIEF_EXCLUDED_ROWS_FILENAME,
+    DEBRIEF_ID_COLUMN,
+    DEBRIEF_ID_CORRECTIONS_FILENAME,
     RAW_FILENAME_ID_CORRECTIONS_FILENAME,
     REDCAP_CROSSCHECK_ID,
+    REDCAP_EVENT_COLUMN,
+    REDCAP_SESSION_DATE_COLUMN,
     LongWalkV3ConversionSummary,
     convert_longwalkv3_to_bids,
+    debrief_row_keys,
     discover_raw_files_for_review,
     explain_unparseable_filename,
     find_debrief_export,
-    load_raw_audit,
+    load_debrief_excluded_rows,
+    load_debrief_export,
+    load_debrief_id_corrections,
     load_raw_filename_id_corrections,
+    plan_renumber_by_date,
     resolve_subject_id,
+    save_debrief_excluded_rows,
+    save_debrief_id_corrections,
     save_raw_filename_id_corrections,
 )
 
@@ -390,8 +404,9 @@ class LongwalkV3CandidateExtras(CandidateExtras):
     enough), events `.tsv` content (readable, has rows, every onset a number) and city label,
     debrief `.tsv` readable with at least one row. Per subject (see `subject_issues`): each
     session has exactly one physiology recording and events for exactly one city, no city is
-    repeated across sessions, one REDCap debrief per recorded session, and the raw-layout
-    problems the converter recorded (longwalk3_bids.RAW_AUDIT_FILENAME).
+    repeated across sessions, and one REDCap debrief per recorded session. Sessions and
+    physiology/events files can be ticked and removed in the detail pane (`removable_groups`,
+    `file_removal_available`, `remove_files`); what's left is renumbered by date.
 
     Every file parse result is cached on disk (see INFO_CACHE_FILENAME), keyed by the file's
     path relative to the BIDS folder plus its mtime/size, same shape as crane's/longwalk's own
@@ -407,8 +422,6 @@ class LongwalkV3CandidateExtras(CandidateExtras):
         self._bids_folder: Path | None = None
         self._disk_cache: dict[str, dict] = {}
         self._dirty = False
-        self._raw_audit_cache: dict[str, list[str]] = {}
-        self._raw_audit_mtime: float | None = None
 
     def on_bids_folder_changed(self, bids_folder: Path) -> None:
         self._bids_folder = bids_folder
@@ -416,7 +429,7 @@ class LongwalkV3CandidateExtras(CandidateExtras):
         self._dirty = False
 
     def bidsignore_patterns(self) -> tuple[str, ...]:
-        return (INFO_CACHE_FILENAME, RAW_AUDIT_FILENAME)
+        return (INFO_CACHE_FILENAME,)
 
     def flush(self) -> None:
         if self._dirty and self._bids_folder is not None:
@@ -536,10 +549,19 @@ class LongwalkV3CandidateExtras(CandidateExtras):
                 issues.append(f"{session}: no physiology recording")
             elif len(physiology) > 1:
                 issues.append(
-                    f"{session}: {len(physiology)} physiology recordings (expected one per session)"
+                    f"{session}: {len(physiology)} physiology recordings (expected one per "
+                    "session) -- tick the wrong one under physiology and Remove it"
                 )
             if not events:
-                issues.append(f"{session}: no events files")
+                issues.append(
+                    f"{session}: no events files"
+                    + (
+                        " -- if this recording's date is wrong, Correct date... it, then "
+                        '"Sort sessions & runs by date"'
+                        if physiology
+                        else ""
+                    )
+                )
             for physiology_file in physiology:
                 date_problem = self._physiology_date_problem(physiology_file)
                 if date_problem:
@@ -554,7 +576,7 @@ class LongwalkV3CandidateExtras(CandidateExtras):
                     runs = ", ".join(f"run-{_bids_entities(f).get('run', '?')}" for f in city_runs)
                     issues.append(
                         f"{session}: {city} recorded in {len(city_runs)} runs ({runs}) -- a "
-                        "restarted run? Keep the complete run, remove the aborted one."
+                        "restarted run? Tick the aborted run under events and Remove it."
                     )
             if len(cities) > 1:
                 runs = ", ".join(
@@ -563,7 +585,8 @@ class LongwalkV3CandidateExtras(CandidateExtras):
                 )
                 issues.append(
                     f"{session}: more than one city ({runs}) -- a wrong-city start that was "
-                    "restarted? Only one city belongs in a session; remove the wrong run."
+                    "restarted? Only one city belongs in a session; tick the wrong run under "
+                    "events and Remove it."
                 )
 
         for city, city_session_list in sorted(city_sessions.items()):
@@ -591,20 +614,7 @@ class LongwalkV3CandidateExtras(CandidateExtras):
             if debrief_sessions.count(session) > 1:
                 issues.append(f"{session}: more than one REDCap debrief file")
 
-        issues += self._raw_audit().get(subject_id, [])
         return issues
-
-    def _raw_audit(self) -> dict[str, list[str]]:
-        """Raw-layout problems recorded by the converter (longwalk3_bids.RAW_AUDIT_FILENAME),
-        re-read only when the file changes."""
-        if self._bids_folder is None:
-            return {}
-        path = self._bids_folder / RAW_AUDIT_FILENAME
-        mtime = path.stat().st_mtime if path.exists() else None
-        if mtime != self._raw_audit_mtime:
-            self._raw_audit_cache = load_raw_audit(self._bids_folder)
-            self._raw_audit_mtime = mtime
-        return self._raw_audit_cache
 
     def subject_summary(self, subject_id: str, subject_scans: dict[str, SubjectScan]) -> str | None:
         sessions = self._files_by_session(subject_scans)
@@ -637,6 +647,84 @@ class LongwalkV3CandidateExtras(CandidateExtras):
             + (", ".join(debrief_sessions) or "none")
         )
         return "<br>".join(lines)
+
+    def removable_groups(
+        self, subject_id: str, subject_scans: dict[str, SubjectScan]
+    ) -> list[tuple[str, list[tuple[str, Path]]]]:
+        """One tick-to-remove row per session, covering its physiology, events and debrief."""
+        groups = []
+        debrief_by_session: dict[str, list[Path]] = {}
+        for file in subject_scans[DEBRIEF_SCAN_TYPE].files:
+            debrief_by_session.setdefault(_session_label(file), []).append(file)
+        sessions = self._files_by_session(subject_scans)
+        for session in sorted(set(sessions) | set(debrief_by_session)):
+            files = sessions.get(session, {PHYSIOLOGY_SCAN_TYPE: [], EVENTS_SCAN_TYPE: []})
+            cities = self._session_cities(files[EVENTS_SCAN_TYPE]) or ["no city"]
+            dates = sorted(
+                {
+                    f"{when:%Y-%m-%d}"
+                    for f in (*files[PHYSIOLOGY_SCAN_TYPE], *files[EVENTS_SCAN_TYPE])
+                    if (when := self._scans_tsv_datetime(f)) is not None
+                }
+            )
+            label = (
+                f"Remove whole <b>{session}</b> ({', '.join(dates) or 'no date'} &nbsp;·&nbsp; "
+                f"{', '.join(cities)} &nbsp;·&nbsp; {len(files[PHYSIOLOGY_SCAN_TYPE])} physiology, "
+                f"{len(files[EVENTS_SCAN_TYPE])} events, "
+                f"{len(debrief_by_session.get(session, []))} debrief)"
+            )
+            members = [
+                *((PHYSIOLOGY_SCAN_TYPE, f) for f in files[PHYSIOLOGY_SCAN_TYPE]),
+                *((EVENTS_SCAN_TYPE, f) for f in files[EVENTS_SCAN_TYPE]),
+                *((DEBRIEF_SCAN_TYPE, f) for f in debrief_by_session.get(session, [])),
+            ]
+            groups.append((label, members))
+        return groups
+
+    def file_removal_available(self, scan_type: str) -> bool:
+        return scan_type in (PHYSIOLOGY_SCAN_TYPE, EVENTS_SCAN_TYPE)
+
+    def remove_files(
+        self,
+        bids_folder: Path,
+        subject_id: str,
+        files: list[tuple[str, Path]],
+        parent: QWidget,
+    ) -> bool:
+        """Confirm, remove (`record_files_removed`, per scan type), then renumber what's left
+        by date (`plan_renumber_by_date` + `record_files_moved`)."""
+        if not files:
+            return False
+        names = "\n".join(f"  {file.name}" for _, file in files)
+        confirm = QMessageBox.question(
+            parent,
+            "Remove from BIDS",
+            f"Remove {len(files)} file(s) of sub-{subject_id} from BIDS?\n\n{names}\n\n"
+            "The raw folder is never touched -- they come back only via "
+            '"Restore from raw...". Remaining sessions and runs are renumbered by date.',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return False
+        by_scan_type: dict[str, list[Path]] = {}
+        for scan_type, file in files:
+            by_scan_type.setdefault(scan_type, []).append(file)
+        try:
+            for scan_type, scan_files in by_scan_type.items():
+                record_files_removed(
+                    bids_folder, subject_id, scan_type, scan_files, "removed in crosscheck"
+                )
+            record_files_moved(
+                bids_folder,
+                subject_id,
+                plan_renumber_by_date(bids_folder, subject_id),
+                "renumbered by date after removal",
+            )
+        except (BidsCrosscheckError, OSError) as error:
+            QMessageBox.warning(parent, "Could not remove", str(error))
+            return True  # something may have changed already -- rescan either way
+        return True
 
     def _files_by_session(
         self, subject_scans: dict[str, SubjectScan]
@@ -935,132 +1023,197 @@ class RawFilenameCorrectionDialog(QDialog):
         self.accept()
 
 
-class RemoveSubjectFileDialog(QDialog):
-    """Pick one of a subject's files of one scan type to remove from BIDS: a session dropdown
-    (only sessions that actually have a file of this type), then a second dropdown with that
-    session's files -- labelled by run for events (e.g. "run-002 (city3)"), by filename
-    otherwise. Removal itself is `bids_crosscheck.record_files_removed`, done by the caller.
+def _sort_by_date_action(
+    bids_folder: Path,
+    subject_id: str,
+    subject_scans: dict[str, SubjectScan],
+    parent: QWidget,
+) -> bool:
+    """The "Sort sessions & runs by date" subject action: renumber this subject's sessions by
+    calendar day and runs by time (e.g. after "Correct date..."), showing the moves first."""
+    moves = plan_renumber_by_date(bids_folder, subject_id)
+    if not moves:
+        QMessageBox.information(
+            parent, "Sort by date", f"sub-{subject_id} is already in date order."
+        )
+        return False
+    subject_folder = bids_folder / f"sub-{subject_id}"
+    listing = "\n".join(
+        f"  {old.relative_to(subject_folder).as_posix()}  ->  "
+        f"{new.relative_to(subject_folder).as_posix()}"
+        for old, new in moves
+    )
+    confirm = QMessageBox.question(
+        parent,
+        "Sort by date",
+        f"Renumber sub-{subject_id} by date?\n\n{listing}",
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        QMessageBox.StandardButton.Yes,
+    )
+    if confirm != QMessageBox.StandardButton.Yes:
+        return False
+    try:
+        record_files_moved(bids_folder, subject_id, moves, "sorted by date")
+    except (BidsCrosscheckError, OSError) as error:
+        QMessageBox.warning(parent, "Could not sort by date", str(error))
+    return True
+
+
+class DebriefRecordIdCorrectionDialog(QDialog):
+    """Per-row fixes for the long-format REDCap export (one row per subject per session):
+    type a corrected subject id, and/or tick "Leave out" to keep a row out of BIDS -- e.g. a
+    record entered under the wrong id, or a session that shouldn't count. Same shape as
+    crane's dialog of the same name: every export row listed in export order, the raw export
+    never edited, fixes saved in the BIDS folder (`longwalk3_bids.save_debrief_id_corrections`
+    / `save_debrief_excluded_rows`) and applied on the next "Refresh BIDS", which rebuilds
+    every subject's debrief files. Rows are keyed by study_id + REDCap event
+    (`debrief_row_keys`), so each session's row is fixed on its own.
     """
 
-    def __init__(
-        self, bids_folder: Path, scan_type: str, files: list[Path], parent: QWidget | None = None
-    ):
+    _COLUMNS = (
+        "study_id (export)",
+        "REDCap event",
+        "Session date",
+        "Matched",
+        "Corrected subject id",
+        "Leave out",
+    )
+    _CORRECTED_COLUMN = 4
+    _LEAVE_OUT_COLUMN = 5
+
+    def __init__(self, raw_folder: Path, bids_folder: Path, parent: QWidget | None = None):
         super().__init__(parent)
         self.bids_folder = bids_folder
-        self.scan_type = scan_type
-        self._files_by_session: dict[str, list[Path]] = {}
-        for file in sorted(files, key=lambda f: (_session_label(f), _run_sort_key(f))):
-            self._files_by_session.setdefault(_session_label(file), []).append(file)
-
-        self.setWindowTitle(f"Remove {scan_type}")
-        self.resize(560, 0)
+        self.setWindowTitle("Fix Record IDs in Debrief Data")
+        self.resize(900, 600)
         layout = QVBoxLayout(self)
+        self._keys: list[str] = []
+        self._known_subject_ids = {
+            folder.name.removeprefix("sub-")
+            for folder in bids_folder.glob("sub-*")
+            if folder.is_dir()
+        }
 
-        info_label = QLabel(
-            f"Removes the chosen {scan_type} file from BIDS, together with its scans.tsv row. "
-            "The raw folder is never touched, so it can be brought back with "
-            '"Restore from raw..." (which re-derives this whole subject from raw).'
+        debrief_df = load_debrief_export(raw_folder)
+        if debrief_df is None:
+            layout.addWidget(QLabel("No REDCap debrief export found in the raw folder."))
+            buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+            buttons.rejected.connect(self.reject)
+            layout.addWidget(buttons)
+            return
+
+        info = QLabel(
+            "One line per REDCap row (a subject has one row per session). Type a corrected "
+            "subject id where the export's study_id is wrong, or tick <b>Leave out</b> to keep "
+            "that row out of BIDS. Fixes are saved in the BIDS folder and applied on the next "
+            "<b>Refresh BIDS</b>; the raw export is never changed."
         )
-        info_label.setWordWrap(True)
-        layout.addWidget(info_label)
+        info.setWordWrap(True)
+        info.setTextFormat(Qt.TextFormat.RichText)
+        layout.addWidget(info)
 
-        form = QFormLayout()
-        self.session_combo = QComboBox()
-        self.session_combo.addItems(list(self._files_by_session))
-        form.addRow("Session:", self.session_combo)
-        self.file_combo = QComboBox()
-        form.addRow("Run:" if scan_type == EVENTS_SCAN_TYPE else "File:", self.file_combo)
-        self.reason_edit = QLineEdit()
-        self.reason_edit.setPlaceholderText("e.g. wrong city started by mistake (optional)")
-        form.addRow("Reason:", self.reason_edit)
-        layout.addLayout(form)
+        corrections = load_debrief_id_corrections(bids_folder)
+        excluded = load_debrief_excluded_rows(bids_folder)
+        self._keys = debrief_row_keys(debrief_df)
 
-        self.file_detail_label = QLabel()
-        self.file_detail_label.setWordWrap(True)
-        self.file_detail_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        layout.addWidget(self.file_detail_label)
+        self.table = QTableWidget(len(debrief_df), len(self._COLUMNS))
+        self.table.setHorizontalHeaderLabels(list(self._COLUMNS))
+        self.table.verticalHeader().setVisible(False)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(self._CORRECTED_COLUMN, QHeaderView.ResizeMode.Stretch)
+
+        def text(row: pd.Series, column: str) -> str:
+            value = row.get(column, "")
+            return (
+                "" if value is None or (isinstance(value, float) and value != value) else str(value)
+            )
+
+        for index, ((_, row), key) in enumerate(
+            zip(debrief_df.iterrows(), self._keys, strict=True)
+        ):
+            for column, value in enumerate(
+                (
+                    text(row, DEBRIEF_ID_COLUMN),
+                    text(row, REDCAP_EVENT_COLUMN),
+                    text(row, REDCAP_SESSION_DATE_COLUMN),
+                )
+            ):
+                item = QTableWidgetItem(value)
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self.table.setItem(index, column, item)
+            match_item = QTableWidgetItem("")
+            match_item.setFlags(match_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.table.setItem(index, 3, match_item)
+            self.table.setItem(
+                index, self._CORRECTED_COLUMN, QTableWidgetItem(corrections.get(key, ""))
+            )
+            leave_out = QCheckBox()
+            leave_out.setChecked(key in excluded)
+            self.table.setCellWidget(index, self._LEAVE_OUT_COLUMN, leave_out)
+            self._update_match_icon(index)
+        self.table.itemChanged.connect(self._on_item_changed)
+        layout.addWidget(self.table, 1)
 
         buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
-        ok_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
-        ok_button.setText("Remove")
-        buttons.accepted.connect(self.accept)
+        buttons.accepted.connect(self._on_save)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
-        self.session_combo.currentTextChanged.connect(self._on_session_changed)
-        self.file_combo.currentIndexChanged.connect(self._on_file_changed)
-        self._on_session_changed(self.session_combo.currentText())
+    def _effective_id(self, row: int) -> str:
+        corrected = self.table.item(row, self._CORRECTED_COLUMN)
+        original = self.table.item(row, 0)
+        corrected_text = corrected.text().strip() if corrected is not None else ""
+        return corrected_text or (original.text().strip() if original is not None else "")
 
-    def _file_label(self, file: Path) -> str:
-        if self.scan_type == EVENTS_SCAN_TYPE:
-            entities = _bids_entities(file)
-            return f"run-{entities.get('run', '?')} ({entities.get('acq', '?')})"
-        return file.name
-
-    def _on_session_changed(self, session: str) -> None:
-        self.file_combo.clear()
-        for file in self._files_by_session.get(session, []):
-            self.file_combo.addItem(self._file_label(file), file)
-        self._on_file_changed()
-
-    def _on_file_changed(self) -> None:
-        file = self.selected_file()
-        if file is None:
-            self.file_detail_label.setText("")
+    def _update_match_icon(self, row: int) -> None:
+        match_item = self.table.item(row, 3)
+        if match_item is None:
             return
-        date = read_scans_tsv_date(self.bids_folder, file) or "no date"
-        self.file_detail_label.setText(f"{file.name}\nscans.tsv date: {date}")
-
-    def selected_file(self) -> Path | None:
-        return self.file_combo.currentData()
-
-    def reason(self) -> str | None:
-        return self.reason_edit.text().strip() or None
-
-
-def _remove_subject_file_action(scan_type: str):
-    """Builds the `extra_subject_actions` callback that opens `RemoveSubjectFileDialog` for
-    `scan_type` and, once confirmed, removes the chosen file via `record_files_removed`."""
-
-    def callback(
-        bids_folder: Path,
-        subject_id: str,
-        subject_scans: dict[str, SubjectScan],
-        parent: QWidget,
-    ) -> bool:
-        files = list(subject_scans[scan_type].files)
-        if not files:
-            QMessageBox.information(
-                parent, f"Remove {scan_type}", f"sub-{subject_id} has no {scan_type} files."
-            )
-            return False
-        dialog = RemoveSubjectFileDialog(bids_folder, scan_type, files, parent)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return False
-        file = dialog.selected_file()
-        if file is None:
-            return False
-        confirm = QMessageBox.question(
-            parent,
-            f"Remove {scan_type}",
-            f"Remove this file from BIDS?\n\n{file.name}\n\n"
-            "The raw folder is untouched -- the file comes back only via "
-            '"Restore from raw...".',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
+        matched = self._effective_id(row) in self._known_subject_ids
+        match_item.setText(CHECK if matched else CROSS)
+        match_item.setForeground(QBrush(QColor(CHECK_COLOR if matched else CROSS_COLOR)))
+        match_item.setToolTip(
+            "Matches a subject in the BIDS folder"
+            if matched
+            else "No subject with this id in the BIDS folder -- correct it, or leave it out"
         )
-        if confirm != QMessageBox.StandardButton.Yes:
-            return False
-        try:
-            record_files_removed(bids_folder, subject_id, scan_type, [file], dialog.reason())
-        except (BidsCrosscheckError, OSError) as error:
-            QMessageBox.warning(parent, f"Could not remove {scan_type}", str(error))
-            return False
-        return True
 
-    return callback
+    def _on_item_changed(self, item: QTableWidgetItem) -> None:
+        if item.column() == self._CORRECTED_COLUMN:
+            self._update_match_icon(item.row())
+
+    def _on_save(self) -> None:
+        corrections = load_debrief_id_corrections(self.bids_folder)
+        excluded = load_debrief_excluded_rows(self.bids_folder)
+        for row, key in enumerate(self._keys):
+            item = self.table.item(row, self._CORRECTED_COLUMN)
+            corrected_id = item.text().strip() if item is not None else ""
+            if corrected_id:
+                corrections[key] = corrected_id
+            else:
+                corrections.pop(key, None)
+            leave_out = self.table.cellWidget(row, self._LEAVE_OUT_COLUMN)
+            if isinstance(leave_out, QCheckBox) and leave_out.isChecked():
+                excluded[key] = excluded.get(key, "")
+            else:
+                excluded.pop(key, None)
+        save_debrief_id_corrections(self.bids_folder, corrections)
+        save_debrief_excluded_rows(self.bids_folder, excluded)
+        QMessageBox.information(
+            self,
+            "Saved",
+            'Saved. Click "Refresh BIDS" to rebuild the debrief files with these fixes.',
+        )
+        self.accept()
+
+
+def _on_fix_debrief_record_ids(raw_folder: Path, bids_folder: Path, parent: QWidget) -> None:
+    """The longwalkV3 `extra_raw_actions` callback for "Fix Record IDs in Debrief Data" --
+    see `DebriefRecordIdCorrectionDialog`."""
+    DebriefRecordIdCorrectionDialog(raw_folder, bids_folder, parent).exec()
 
 
 def _on_fix_raw_filenames(raw_folder: Path, bids_folder: Path, parent: QWidget) -> None:
@@ -1105,6 +1258,14 @@ def main() -> None:
         override_file_autodetect=find_debrief_export,
         extra_raw_actions=[
             (
+                "Fix Record IDs in Debrief Data",
+                "Per REDCap row (one per subject per session): declare a corrected subject id, "
+                "or leave the row out of BIDS. Saved separately -- never edits the raw export; "
+                'applied on the next "Refresh BIDS".',
+                _on_fix_debrief_record_ids,
+                EXTRA_RAW_ACTION_GROUP_OVERRIDE,
+            ),
+            (
                 "Fix Filenames in Raw Folder",
                 "Review every raw physiology/behaviour/actor-log filename and, if needed, "
                 "declare its correct subject id. Saved separately -- never renames the raw "
@@ -1114,26 +1275,19 @@ def main() -> None:
             ),
         ],
         convert_button_tooltip=DEFAULT_CONVERT_BUTTON_TOOLTIP,
-        extra_backup_filenames=(RAW_FILENAME_ID_CORRECTIONS_FILENAME,),
+        extra_backup_filenames=(
+            RAW_FILENAME_ID_CORRECTIONS_FILENAME,
+            DEBRIEF_ID_CORRECTIONS_FILENAME,
+            DEBRIEF_EXCLUDED_ROWS_FILENAME,
+        ),
         enable_redcap=True,
         extra_subject_actions=[
             (
-                "Remove events by run...",
-                "Pick a session and one of its runs to remove from BIDS -- e.g. a wrong city "
-                "that was started by mistake and then restarted.",
-                _remove_subject_file_action(EVENTS_SCAN_TYPE),
-                True,
-            ),
-            (
-                "Remove physiology...",
-                "Pick a session's physiology recording to remove from BIDS.",
-                _remove_subject_file_action(PHYSIOLOGY_SCAN_TYPE),
-                False,
-            ),
-            (
-                "Remove debrief...",
-                "Remove this subject's debrief file from BIDS.",
-                _remove_subject_file_action(DEBRIEF_SCAN_TYPE),
+                "Sort sessions && runs by date",
+                "Renumber this subject's sessions by calendar day and runs by time -- e.g. "
+                'after "Correct date..." moved a recording to another day. Shows the changes '
+                "first.",
+                _sort_by_date_action,
                 False,
             ),
         ],

@@ -16,7 +16,6 @@ from vrlab_toolbox.gui.longwalk3_bids_crosscheck_gui import (
 from vrlab_toolbox.processing.bids_crosscheck import scan_bids_folder
 from vrlab_toolbox.processing.longwalk3_bids import convert_longwalkv3_to_bids
 from vrlab_toolbox.processing.longwalk3_dummy_data import (
-    SHAPE_ERROR_TYPES,
     generate_dummy_longwalkv3_dataset_from_shape,
 )
 
@@ -24,14 +23,18 @@ MANIFEST = Path(__file__).parents[1] / "longwalkv3_examples/shape/longwalkv3_sha
 N_CLEAN = 2
 
 # What each scenario should be flagged with, as a fragment of an issue/problem message.
+# "session_folder_underscore" isn't an error any more: sessions come from dates, so a raw
+# "ses_01" folder spelling doesn't matter -- that participant must come out clean.
+# A mislabeled physiology date puts the recording on a day of its own: a session with
+# physiology but no events.
 EXPECTED_FLAG = {
     "aborted_run_restarted": "restarted",
-    "session_folder_underscore": "should be named 'ses-",
     "multiple_cities_per_session": "more than one city",
     "malformed_subject_id_in_physiology_filename": "no physiology recording",
     "missing_subject_id_in_physiology_filename": "no physiology recording",
-    "mislabeled_physiology_date": "mislabeled physiology date",
+    "mislabeled_physiology_date": "Correct date",
 }
+CLEAN_SCENARIOS = ("clean", "session_folder_underscore")
 
 pytestmark = pytest.mark.skipif(not MANIFEST.exists(), reason="shape manifest not present")
 
@@ -61,11 +64,12 @@ def crosschecked(tmp_path_factory):
 
 def test_clean_participants_have_no_problems(crosschecked):
     dataset, _, flags = crosschecked
-    for result in dataset.participant_results[:N_CLEAN]:
-        assert flags[result.subject_id] == [], result.subject_id
+    for result in dataset.participant_results:
+        if result.scenario in CLEAN_SCENARIOS:
+            assert flags[result.subject_id] == [], (result.subject_id, result.scenario)
 
 
-@pytest.mark.parametrize("scenario", SHAPE_ERROR_TYPES)
+@pytest.mark.parametrize("scenario", sorted(EXPECTED_FLAG))
 def test_each_error_scenario_is_flagged(crosschecked, scenario):
     dataset, _, flags = crosschecked
     result = next(r for r in dataset.participant_results if r.scenario == scenario)

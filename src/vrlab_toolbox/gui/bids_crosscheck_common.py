@@ -406,6 +406,33 @@ class CandidateExtras:
         """
         return None
 
+    def removable_groups(
+        self, subject_id: str, subject_scans: dict[str, SubjectScan]
+    ) -> list[tuple[str, list[tuple[str, Path]]]]:
+        """Groups of files that can be removed together from the Overview -- e.g. longwalkV3's
+        sessions. Each is `(rich-text label, [(scan_type, file), ...])` and gets a tickbox plus
+        a "Remove" button that only becomes available once ticked; removing calls
+        `remove_files`. None by default."""
+        return []
+
+    def file_removal_available(self, scan_type: str) -> bool:
+        """Whether each file of `scan_type` gets its own tickbox + "Remove" button in the
+        detail pane (e.g. longwalkV3's runs and physiology recordings). False by default."""
+        return False
+
+    def remove_files(
+        self,
+        bids_folder: Path,
+        subject_id: str,
+        files: list[tuple[str, Path]],
+        parent: QWidget,
+    ) -> bool:
+        """Remove `files` (`(scan_type, file)` pairs) from BIDS -- asking the human to confirm
+        -- and tidy up after (e.g. renumber what's left). Returns True if anything changed, so
+        the window rescans. Only called when `removable_groups`/`file_removal_available` offer
+        it."""
+        return False
+
 
 class BidsCrosscheckWindow(QMainWindow):
     def __init__(
@@ -981,10 +1008,14 @@ class BidsCrosscheckWindow(QMainWindow):
         self.progress_bar.setVisible(False)
         root_layout.addWidget(self.progress_bar)
 
+        # Everything above the subject list / detail split -- hidden by "Focus on details".
+        self._focus_hidden_items = [root_layout.itemAt(i) for i in range(root_layout.count())]
+
         splitter = QSplitter()
         root_layout.addWidget(splitter, 1)
 
         left_panel = QWidget()
+        self._focus_hidden_left_panel = left_panel
         left_layout = QVBoxLayout(left_panel)
         self.issues_only_checkbox = QCheckBox("Issues only")
         self.issues_only_checkbox.stateChanged.connect(self._refresh_subject_list)
@@ -1008,6 +1039,21 @@ class BidsCrosscheckWindow(QMainWindow):
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(0, 0, 0, 0)
+
+        focus_row = QHBoxLayout()
+        focus_row.addStretch(1)
+        self.focus_button = QPushButton("⤢ Focus on details")
+        self.focus_button.setCheckable(True)
+        self.focus_button.setShortcut("F11")
+        self.focus_button.setToolTip(
+            wrap_tooltip(
+                "Hide the folder/actions area and the subject list so the selected subject's "
+                "details get the whole window (F11). Click again to show everything."
+            )
+        )
+        self.focus_button.toggled.connect(self._on_focus_toggled)
+        focus_row.addWidget(self.focus_button)
+        right_layout.addLayout(focus_row)
 
         # Persistent, fixed in place regardless of selection -- populated in place by
         # _refresh_subject_actions_group() rather than rebuilt/reinserted on every selection
@@ -1926,6 +1972,33 @@ class BidsCrosscheckWindow(QMainWindow):
                 widget.setParent(None)
                 widget.deleteLater()
 
+    def _on_focus_toggled(self, focused: bool) -> None:
+        """Show only the detail pane (focused) or everything (not). Each hidden widget's own
+        visibility is remembered and put back exactly, so widgets that were hidden on purpose
+        stay hidden."""
+
+        def top_level_widgets(item) -> list[QWidget]:
+            if item is None:
+                return []
+            if item.widget() is not None:
+                return [item.widget()]
+            layout = item.layout()
+            if layout is None:
+                return []
+            return [w for i in range(layout.count()) for w in top_level_widgets(layout.itemAt(i))]
+
+        if focused:
+            widgets = [w for item in self._focus_hidden_items for w in top_level_widgets(item)]
+            widgets.append(self._focus_hidden_left_panel)
+            self._focus_restore_visibility = {w: w.isVisible() for w in widgets}
+            for widget in widgets:
+                widget.setVisible(False)
+        else:
+            for widget, was_visible in getattr(self, "_focus_restore_visibility", {}).items():
+                widget.setVisible(was_visible)
+            self._focus_restore_visibility = {}
+        self.focus_button.setText("⤡ Show everything" if focused else "⤢ Focus on details")
+
     def _render_detail(self, subject_ids: list[str]) -> None:
         self._clear_detail_layout()
         self.detail_extra_layout = None
@@ -2354,7 +2427,8 @@ class BidsCrosscheckWindow(QMainWindow):
             return None
         summary_html = self.extras.subject_summary(subject_id, self.scan.scans[subject_id])
         issues = self._subject_issues(subject_id)
-        if not summary_html and not issues:
+        removable_groups = self.extras.removable_groups(subject_id, self.scan.scans[subject_id])
+        if not summary_html and not issues and not removable_groups:
             return None
 
         group = QGroupBox("Overview")
@@ -2364,6 +2438,8 @@ class BidsCrosscheckWindow(QMainWindow):
             summary_label.setTextFormat(Qt.TextFormat.RichText)
             summary_label.setWordWrap(True)
             layout.addWidget(summary_label)
+        for label_html, files in removable_groups:
+            layout.addWidget(self._build_removable_row(subject_id, label_html, files))
         for issue in issues:
             issue_label = QLabel(
                 f'<span style="color:{UNCROSSCHECKED_COLOR}">{SUBJECT_ISSUE_ICON} {issue}</span>'
@@ -2372,6 +2448,40 @@ class BidsCrosscheckWindow(QMainWindow):
             issue_label.setWordWrap(True)
             layout.addWidget(issue_label)
         return group
+
+    def _build_removable_row(
+        self, subject_id: str, label_html: str, files: list[tuple[str, Path]]
+    ) -> QWidget:
+        """Tickbox + label + a "Remove" button that only becomes available once ticked -- see
+        CandidateExtras.removable_groups / file_removal_available."""
+        row = QWidget()
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        tick = QCheckBox()
+        tick.setToolTip("Tick to make this removable")
+        row_layout.addWidget(tick)
+        label = QLabel(label_html)
+        label.setTextFormat(Qt.TextFormat.RichText)
+        row_layout.addWidget(label)
+        remove_button = QPushButton("Remove")
+        remove_button.setEnabled(False)
+        remove_button.setToolTip(
+            wrap_tooltip(
+                "Remove these files from BIDS (the raw folder is never touched); what's left is "
+                "renumbered by date."
+            )
+        )
+        tick.toggled.connect(remove_button.setEnabled)
+        remove_button.clicked.connect(lambda: self._on_remove_files(subject_id, files))
+        row_layout.addWidget(remove_button)
+        row_layout.addStretch(1)
+        return row
+
+    def _on_remove_files(self, subject_id: str, files: list[tuple[str, Path]]) -> None:
+        if self.bids_folder is None or self.scan is None:
+            return
+        if self.extras.remove_files(self.bids_folder, subject_id, files, self):
+            self._rescan(reload_pending=True)
 
     def _build_scan_type_group(self, subject_id: str, subject_scan: SubjectScan) -> QGroupBox:
         file_word = "file" if len(subject_scan.files) == 1 else "files"
@@ -2419,6 +2529,24 @@ class BidsCrosscheckWindow(QMainWindow):
             # its still-unresolved duplicate siblings would silently act on a file nobody's
             # confirmed is correct, so those buttons aren't shown until this row is the pick.
             is_effective_candidate = pending == file
+        elif self.extras.file_removal_available(scan_type):
+            tick = QCheckBox(file.name)
+            tick.setToolTip("Tick to make this file removable")
+            row_layout.addWidget(tick)
+            remove_button = QPushButton("Remove")
+            remove_button.setEnabled(False)
+            remove_button.setToolTip(
+                wrap_tooltip(
+                    "Remove this file from BIDS (the raw folder is never touched); what's left "
+                    "is renumbered by date."
+                )
+            )
+            tick.toggled.connect(remove_button.setEnabled)
+            remove_button.clicked.connect(
+                lambda: self._on_remove_files(subject_id, [(scan_type, file)])
+            )
+            row_layout.addWidget(remove_button)
+            is_effective_candidate = True
         else:
             row_layout.addWidget(QLabel(f"✓ {file.name}"))
             is_effective_candidate = True

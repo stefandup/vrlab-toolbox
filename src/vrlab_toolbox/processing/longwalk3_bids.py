@@ -36,12 +36,11 @@ Output layout:
   decides an .acq's session. The legacy flat layout falls back to chronological order.
 """
 
-import json
 import logging
 import re
 from collections.abc import Hashable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, TypedDict, cast
 
@@ -509,10 +508,13 @@ def build_longwalkv3_raw_session_events_behav_file_schema() -> pa.DataFrameSchem
 
 
 def combine_events_df_files(
-    subject_id_in, dfs_by_date: list[pd.DataFrame]
+    subject_id_in,
+    dfs_by_date: list[pd.DataFrame],
+    session_by_day: dict[date, int] | None = None,
 ) -> dict[str, pd.DataFrame]:
     """One events.tsv per (session, city, run) -- see module docstring for how a "run" is
-    identified and numbered.
+    identified and numbered. `session_by_day` (see `subject_session_by_day`) numbers sessions
+    by calendar day; without it, the raw filename's own ses- token is used.
     """
     runs: dict[tuple[int, datetime], list[pd.DataFrame]] = {}
     city_label_by_run: dict[tuple[int, datetime], str] = {}
@@ -552,7 +554,12 @@ def combine_events_df_files(
             df = df.drop(columns=[str(col_name)])
             break
 
-        run_key = (df.attrs["session_nr"], df.attrs["date"])
+        session_nr = (
+            session_by_day[df.attrs["date"].date()]
+            if session_by_day is not None
+            else df.attrs["session_nr"]
+        )
+        run_key = (session_nr, df.attrs["date"])
         runs.setdefault(run_key, []).append(df)
         city_label_by_run.setdefault(run_key, df.attrs["city_label"])
 
@@ -590,21 +597,23 @@ def _session_nr_from_events_filename(filename: str) -> int:
     return int(match.group("session_nr"))
 
 
-_RAW_SESSION_FOLDER_PATTERN = re.compile(r"^ses[-_ ]?(?P<session_nr>\d+)$", re.IGNORECASE)
-
-
-def _session_nr_from_raw_folder(file: Path, input_folder: Path) -> int | None:
-    """Session number of the raw session folder `file` sits in ("ses-01", "ses_01", ...), or
-    None for a file outside any session folder (legacy flat layout)."""
-    try:
-        parts = file.relative_to(input_folder).parts[:-1]
-    except ValueError:
-        return None
-    for part in parts:
-        match = _RAW_SESSION_FOLDER_PATTERN.match(part)
-        if match:
-            return int(match.group("session_nr"))
-    return None
+def subject_session_by_day(
+    subject_id: str, input_folder: Path, corrections: dict[str, str]
+) -> dict[date, int]:
+    """Calendar day -> session number for one subject: every raw .acq and csv that resolves to
+    this subject, wherever it sits under `input_folder`, grouped by the date in its filename;
+    the earliest day is ses-01. Raw session-folder names are never used -- they're
+    inconsistent in real data ("ses_01" next to "ses-02"), the dates aren't."""
+    days: set[date] = set()
+    for file in discover_raw_files_for_review(input_folder):
+        parsed: ParsedPhysiologyFilename | ParsedRawCsvFilename | None
+        if file.suffix.lower() == ".acq":
+            parsed = resolve_physiology_filename(file, input_folder, corrections)
+        else:
+            parsed = resolve_raw_csv_filename(file, input_folder, corrections)
+        if parsed is not None and parsed.subject_id == subject_id:
+            days.add(parsed.date.date())
+    return {day: nr for nr, day in enumerate(sorted(days), start=1)}
 
 
 # TODO: Move to BIDS??
@@ -623,12 +632,16 @@ def _scans_tsv_path(output_folder: Path, subject_id: str, session_nr: int) -> Pa
 
 
 def _convert_subject_physiology(
-    subject_id: str, input_folder: Path, output_folder: Path, corrections: dict[str, str]
+    subject_id: str,
+    input_folder: Path,
+    output_folder: Path,
+    corrections: dict[str, str],
+    session_by_day: dict[date, int],
 ) -> list[Path]:
-    """Copies one .acq per session, session number inferred from chronological order across
-    this subject's physiology files -- see module docstring. `corrections` (see
-    `load_raw_filename_id_corrections`) lets a human-declared subject id override a raw
-    filename's own parse for this subject, same as `get_all_dfs` does for events.
+    """Copies every .acq of this subject into the session of its filename date
+    (`session_by_day`). Two recordings on one day are both kept, as run-001/run-002 in time
+    order, for the crosscheck to resolve. `corrections` (see `load_raw_filename_id_corrections`)
+    lets a human-declared subject id override a raw filename's own parse.
     """
     parsed_by_file = {
         file: parsed
@@ -637,34 +650,22 @@ def _convert_subject_physiology(
         and parsed.subject_id == subject_id
     }
     ordered_files = sorted(parsed_by_file, key=lambda file: parsed_by_file[file].date)
-    # Current export: each .acq sits in its raw session folder ("ses-02", or "ses_01" as seen
-    # in real data), so that folder decides the session. Legacy flat layout (no session
-    # folders): fall back to chronological order, as before.
-    folder_session_nrs = [_session_nr_from_raw_folder(f, input_folder) for f in ordered_files]
-    if all(nr is not None for nr in folder_session_nrs):
-        session_nrs = cast(list[int], folder_session_nrs)
-    else:
-        session_nrs = list(range(1, len(ordered_files) + 1))
 
     written: list[Path] = []
-    for session_nr, acq_file in zip(session_nrs, ordered_files, strict=True):
+    runs_in_session: dict[int, int] = {}
+    for acq_file in ordered_files:
         parsed = parsed_by_file[acq_file]
-        folder = _datatype_folder(output_folder, subject_id, session_nr)
-        # Two .acq files in one session folder are both kept ("-dup2"), for the crosscheck to
-        # resolve -- never silently overwritten.
-        destination = bids.resolve_collision(
-            lambda suffix, folder=folder, session_nr=session_nr: (
-                folder
-                / bids.build_bids_filename(
-                    subject_id,
-                    _session_token(session_nr),
-                    TASK_TOKEN,
-                    PHYSIOLOGY_RUN_TOKEN,
-                    suffix,
-                    ".acq",
-                )
-            ),
-            "physio",
+        session_nr = session_by_day[parsed.date.date()]
+        run_nr = runs_in_session[session_nr] = runs_in_session.get(session_nr, 0) + 1
+        destination = _datatype_folder(output_folder, subject_id, session_nr) / (
+            bids.build_bids_filename(
+                subject_id,
+                _session_token(session_nr),
+                TASK_TOKEN,
+                f"run-{run_nr:03d}",
+                "physio",
+                ".acq",
+            )
         )
         bids.copy_scan(
             acq_file,
@@ -678,10 +679,14 @@ def _convert_subject_physiology(
 
 
 def _convert_subject_events(
-    subject_id: str, input_folder: Path, output_folder: Path, corrections: dict[str, str]
+    subject_id: str,
+    input_folder: Path,
+    output_folder: Path,
+    corrections: dict[str, str],
+    session_by_day: dict[date, int],
 ) -> list[Path]:
     dfs = get_all_dfs(subject_id, input_folder, corrections)
-    events_by_filename = combine_events_df_files(subject_id, dfs)
+    events_by_filename = combine_events_df_files(subject_id, dfs, session_by_day)
 
     written: list[Path] = []
     for filename, events_df in events_by_filename.items():
@@ -721,6 +726,94 @@ def _debrief_acq_date(output_folder: Path, subject_id: str, session_nr: int) -> 
     """
     rows = bids.read_scans_tsv_rows(_scans_tsv_path(output_folder, subject_id, session_nr))
     return rows[0]["acq_time"] if rows else "nodate"
+
+
+# Per-row REDCap fixes made in the crosscheck GUI's "Fix debrief record IDs..." dialog, saved in
+# the BIDS folder and applied on every "Refresh BIDS": a corrected subject id, or the row left
+# out of BIDS altogether. A row's key is "<study_id>|<redcap_event_name>" (plus "#<n>" for a
+# repeat of the same pair) -- see debrief_row_keys.
+DEBRIEF_ID_CORRECTIONS_FILENAME = "debrief_id_corrections.json"
+DEBRIEF_EXCLUDED_ROWS_FILENAME = "debrief_excluded_rows.json"
+# REDCap's own date of the VR session a row belongs to -- matched against BIDS session dates.
+REDCAP_SESSION_DATE_COLUMN = "session_date_time"
+
+
+def load_debrief_id_corrections(bids_folder: Path) -> dict[str, str]:
+    return bids.load_json_map(bids_folder / DEBRIEF_ID_CORRECTIONS_FILENAME)
+
+
+def save_debrief_id_corrections(bids_folder: Path, corrections: dict[str, str]) -> None:
+    bids.save_json_map(bids_folder / DEBRIEF_ID_CORRECTIONS_FILENAME, corrections)
+
+
+def load_debrief_excluded_rows(bids_folder: Path) -> dict[str, str]:
+    """Row key -> reason (may be empty) for every REDCap row left out of BIDS."""
+    return bids.load_json_map(bids_folder / DEBRIEF_EXCLUDED_ROWS_FILENAME)
+
+
+def save_debrief_excluded_rows(bids_folder: Path, excluded: dict[str, str]) -> None:
+    bids.save_json_map(bids_folder / DEBRIEF_EXCLUDED_ROWS_FILENAME, excluded)
+
+
+def debrief_row_keys(debrief_df: pd.DataFrame) -> list[str]:
+    """A stable key per export row: "<study_id>|<event>", plus "#<n>" for the n-th repeat of
+    the same pair (two people who typed the same id into the same event)."""
+    seen: dict[str, int] = {}
+    keys = []
+    events = (
+        debrief_df[REDCAP_EVENT_COLUMN].astype(str).tolist()
+        if REDCAP_EVENT_COLUMN in debrief_df.columns
+        else [""] * len(debrief_df)
+    )
+    for study_id, event in zip(debrief_df[DEBRIEF_ID_COLUMN].astype(str), events, strict=True):
+        base = f"{study_id}|{event}"
+        n = seen.get(base, 0)
+        seen[base] = n + 1
+        keys.append(base if n == 0 else f"{base}#{n}")
+    return keys
+
+
+def apply_debrief_fixes(debrief_df: pd.DataFrame, bids_folder: Path) -> pd.DataFrame:
+    """The export with the human's per-row fixes applied: excluded rows dropped, corrected
+    subject ids written into DEBRIEF_ID_COLUMN."""
+    corrections = load_debrief_id_corrections(bids_folder)
+    excluded = load_debrief_excluded_rows(bids_folder)
+    keys = debrief_row_keys(debrief_df)
+    fixed = debrief_df.copy()
+    fixed[DEBRIEF_ID_COLUMN] = [
+        corrections.get(key, study_id)
+        for key, study_id in zip(keys, debrief_df[DEBRIEF_ID_COLUMN].astype(str), strict=True)
+    ]
+    keep = [key not in excluded for key in keys]
+    return fixed.loc[keep].reset_index(drop=True)
+
+
+def bids_session_by_day(output_folder: Path, subject_id: str) -> dict[date, int]:
+    """Calendar day -> BIDS session number, from each session's scans.tsv recording dates
+    (debrief rows ignored)."""
+    session_by_day: dict[date, int] = {}
+    subject_folder = output_folder / f"sub-{subject_id}"
+    for session_folder in sorted(subject_folder.glob("ses-*")):
+        match = re.fullmatch(r"ses-(\d+)", session_folder.name)
+        if not match:
+            continue
+        for scans_tsv in session_folder.glob("*_scans.tsv"):
+            for row in bids.read_scans_tsv_rows(scans_tsv):
+                if "acq-debrief" in row.get("filename", ""):
+                    continue
+                try:
+                    day = datetime.strptime(row.get("acq_time", ""), SCANS_TSV_DATE_FORMAT).date()
+                except ValueError:
+                    continue
+                session_by_day.setdefault(day, int(match.group(1)))
+    return session_by_day
+
+
+def _redcap_row_day(value: object) -> date | None:
+    if _is_blank(value):
+        return None
+    parsed = pd.to_datetime(str(value), errors="coerce")
+    return None if pd.isna(parsed) else parsed.date()
 
 
 def debrief_session_nrs(debrief_df: pd.DataFrame) -> dict[str, int]:
@@ -766,16 +859,19 @@ def _convert_subject_debrief(
 ) -> list[Path]:
     """Writes this subject's REDCap rows as one
     `sub-XXX_ses-NN_task-longwalkv3_acq-debrief_run-001_beh.tsv` per session (the same
-    acq-debrief/`_beh` convention crane_bids.py uses), session taken from the row's REDCap event
-    (see debrief_session_nrs). Rows with no answers at all are skipped, and identifying columns
-    (names, date of birth, signatures, survey identifier) are never copied into BIDS. Returns
-    the written paths -- empty if the export has no filled-in row for this subject.
+    acq-debrief/`_beh` convention crane_bids.py uses). The session is the BIDS session recorded
+    on the row's REDCAP_SESSION_DATE_COLUMN day; a row with no date falls back to its REDCap
+    event's order (debrief_session_nrs), and a dated row with no BIDS session on that day is
+    skipped (its session was removed, or never recorded). Rows with no answers at all are
+    skipped, and identifying columns (names, date of birth, signatures, survey identifier) are
+    never copied into BIDS. Returns the written paths.
     """
     subject_rows = debrief_df[debrief_df[DEBRIEF_ID_COLUMN] == subject_id]
     if subject_rows.empty:
         return []
 
     session_by_event = debrief_session_nrs(debrief_df)
+    session_by_day = bids_session_by_day(output_folder, subject_id)
     answer_columns = _debrief_answer_columns(debrief_df)
     kept_columns = [c for c in debrief_df.columns if not _is_identifying_debrief_column(c)]
 
@@ -783,8 +879,18 @@ def _convert_subject_debrief(
     for _, row in subject_rows.iterrows():
         if all(_is_blank(row[c]) for c in answer_columns):
             continue
-        event = row.get(REDCAP_EVENT_COLUMN)
-        session_nr = session_by_event.get(str(event), DEBRIEF_SESSION_NR)
+        row_day = _redcap_row_day(row.get(REDCAP_SESSION_DATE_COLUMN))
+        if row_day is not None:
+            if row_day not in session_by_day:
+                logger.info(
+                    "sub-%s: REDCap row dated %s has no BIDS session that day -- skipped",
+                    subject_id,
+                    row_day,
+                )
+                continue
+            session_nr = session_by_day[row_day]
+        else:
+            session_nr = session_by_event.get(str(row.get(REDCAP_EVENT_COLUMN)), DEBRIEF_SESSION_NR)
         destination = _datatype_folder(output_folder, subject_id, session_nr) / (
             bids.build_bids_filename(
                 subject_id,
@@ -796,6 +902,13 @@ def _convert_subject_debrief(
                 acq="debrief",
             )
         )
+        if destination in written:
+            logger.warning(
+                "sub-%s: more than one REDCap row for %s -- keeping the first",
+                subject_id,
+                _session_token(session_nr),
+            )
+            continue
         pd.DataFrame([[row[c] for c in kept_columns]], columns=pd.Index(kept_columns)).to_csv(
             destination, sep="\t", index=False
         )
@@ -808,63 +921,93 @@ def _convert_subject_debrief(
     return written
 
 
-# Raw-layout problems found at conversion time, which the BIDS folder alone can no longer show
-# (e.g. a "ses_01" raw folder spelling) -- read back by the crosscheck GUI's subject issues.
-RAW_AUDIT_FILENAME = "longwalkv3_raw_audit.json"
-_RAW_RUN_FOLDER_PATTERN = re.compile(r"^run-\d+$", re.IGNORECASE)
-
-
-def audit_raw_subject_files(files: list[Path], input_folder: Path) -> list[str]:
-    """Problems with how one subject's raw files are laid out: a session folder not spelled
-    "ses-NN", a csv whose filename session disagrees with its folder, and restarted-run
-    subfolders (run-001/, run-002/) -- one aborted attempt the crosscheck should resolve."""
-    problems: list[str] = []
-
-    def add(problem: str) -> None:
-        if problem not in problems:
-            problems.append(problem)
-
-    for file in files:
-        try:
-            parts = file.relative_to(input_folder).parts[:-1]
-        except ValueError:
-            continue
-        folder_session_nr = None
-        for part in parts:
-            match = _RAW_SESSION_FOLDER_PATTERN.match(part)
-            if match:
-                folder_session_nr = int(match.group("session_nr"))
-                expected = _session_token(folder_session_nr)
-                if part != expected:
-                    add(f"Raw session folder '{part}' should be named '{expected}'")
-            elif _RAW_RUN_FOLDER_PATTERN.match(part) and folder_session_nr is not None:
-                add(
-                    f"{_session_token(folder_session_nr)}: raw data has restarted-run "
-                    "subfolders (run-00N) -- keep the complete run, remove the aborted one"
+def _remove_subject_debrief(output_folder: Path, subject_id: str) -> dict[str, bytes]:
+    """Deletes this subject's debrief files (and their scans.tsv rows) so they can be rebuilt
+    from the current export; returns each removed file's content by name, so the caller can
+    tell whether the rebuild changed anything. Folders left empty are removed."""
+    subject_folder = output_folder / f"sub-{subject_id}"
+    removed: dict[str, bytes] = {}
+    for file in sorted(subject_folder.rglob(DEBRIEF_FILENAME_GLOB)):
+        removed[file.name] = file.read_bytes()
+        session_folder = file.parent.parent
+        for scans_tsv in session_folder.glob("*_scans.tsv"):
+            rows = bids.read_scans_tsv_rows(scans_tsv)
+            remaining = [r for r in rows if not r.get("filename", "").endswith(file.name)]
+            if remaining:
+                pd.DataFrame(remaining, columns=pd.Index(["filename", "acq_time"])).to_csv(
+                    scans_tsv, sep="\t", index=False
                 )
-        parsed = parse_raw_csv_filename(file) if file.suffix.lower() == ".csv" else None
-        if parsed and folder_session_nr is not None and parsed.session_nr != folder_session_nr:
-            add(
-                f"{file.name} sits in raw folder {_session_token(folder_session_nr)} but its "
-                f"name says {_session_token(parsed.session_nr)}"
-            )
-    return problems
+            else:
+                scans_tsv.unlink()
+        file.unlink()
+        for folder in (file.parent, session_folder):
+            if folder.is_dir() and not any(folder.iterdir()):
+                folder.rmdir()
+    return removed
 
 
-def load_raw_audit(bids_folder: Path) -> dict[str, list[str]]:
-    path = bids_folder / RAW_AUDIT_FILENAME
-    if not path.exists():
-        return {}
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        logger.warning("Could not read %s -- ignoring raw audit", path)
-        return {}
+_SESSION_ENTITY_PATTERN = re.compile(r"_ses-\d+_")
+_RUN_ENTITY_PATTERN = re.compile(r"_run-\d+")
+_DUPLICATE_MARKER_PATTERN = re.compile(r"-dup\d+(?=\.[^.]+$)")
 
 
-def _save_raw_audit(bids_folder: Path, audit: dict[str, list[str]]) -> None:
-    path = bids_folder / RAW_AUDIT_FILENAME
-    path.write_text(json.dumps(audit, indent=2, sort_keys=True), encoding="utf-8")
+def plan_renumber_by_date(bids_folder: Path, subject_id: str) -> list[tuple[Path, Path]]:
+    """The moves that put one subject's BIDS files back in date order: sessions numbered by
+    calendar day (from scans.tsv), ses-01 the earliest; within a session, events and
+    physiology runs numbered by time, run-001 the earliest (any "-dupN" marker dropped).
+    Debrief files follow their session. A file with no usable date keeps its session and goes
+    after the dated runs. Returns only the files whose path changes -- apply them with
+    `bids_crosscheck.record_files_moved`, which handles swaps safely.
+    """
+    subject_folder = bids_folder / f"sub-{subject_id}"
+    entries: list[tuple[Path, datetime | None]] = []
+    for scans_tsv in sorted(subject_folder.glob("ses-*/*_scans.tsv")):
+        for row in bids.read_scans_tsv_rows(scans_tsv):
+            file = scans_tsv.parent / row.get("filename", "")
+            if not file.is_file():
+                continue
+            try:
+                when = datetime.strptime(row.get("acq_time", ""), SCANS_TSV_DATE_FORMAT)
+            except ValueError:
+                when = None
+            entries.append((file, when))
+
+    def is_debrief(file: Path) -> bool:
+        return "_acq-debrief_" in file.name
+
+    days = sorted({when.date() for file, when in entries if when and not is_debrief(file)})
+    session_by_day = {day: nr for nr, day in enumerate(days, start=1)}
+
+    def current_session(file: Path) -> int:
+        match = re.fullmatch(r"ses-(\d+)", file.parent.parent.name)
+        return int(match.group(1)) if match else DEBRIEF_SESSION_NR
+
+    def new_session(file: Path, when: datetime | None) -> int:
+        if when is not None and when.date() in session_by_day:
+            return session_by_day[when.date()]
+        return current_session(file)
+
+    def run_kind(file: Path) -> str:
+        if is_debrief(file):
+            return "debrief"
+        return "physio" if "_physio" in file.name else "events"
+
+    by_run_group: dict[tuple[int, str], list[tuple[Path, datetime | None]]] = {}
+    for file, when in entries:
+        by_run_group.setdefault((new_session(file, when), run_kind(file)), []).append((file, when))
+
+    moves: list[tuple[Path, Path]] = []
+    for (session_nr, kind), files in by_run_group.items():
+        files.sort(key=lambda item: (item[1] is None, item[1] or datetime.min, item[0].name))
+        for run_nr, (file, _) in enumerate(files, start=1):
+            name = _SESSION_ENTITY_PATTERN.sub(f"_{_session_token(session_nr)}_", file.name, 1)
+            if kind != "debrief":
+                name = _RUN_ENTITY_PATTERN.sub(f"_run-{run_nr:03d}", name, 1)
+            name = _DUPLICATE_MARKER_PATTERN.sub("", name)
+            destination = subject_folder / _session_token(session_nr) / file.parent.name / name
+            if destination != file:
+                moves.append((file, destination))
+    return moves
 
 
 @dataclass
@@ -920,27 +1063,15 @@ def convert_longwalkv3_to_bids(
     new_subject_ids = sorted(all_subject_ids - already_converted)
     skipped_subject_ids = sorted(all_subject_ids & already_converted)
 
-    raw_files_by_subject: dict[str, list[Path]] = {}
-    for file in discover_raw_files_for_review(input_folder):
-        subject_id = resolve_subject_id(file, input_folder, raw_filename_corrections)
-        if subject_id in new_subject_ids:
-            raw_files_by_subject.setdefault(subject_id, []).append(file)
-    raw_audit = load_raw_audit(output_folder)
-    for subject_id in new_subject_ids:
-        raw_audit[subject_id] = audit_raw_subject_files(
-            raw_files_by_subject.get(subject_id, []), input_folder
-        )
-    if new_subject_ids:
-        _save_raw_audit(output_folder, raw_audit)
-
     subject_physiology: dict[str, list[Path]] = {}
     subject_events: dict[str, list[Path]] = {}
     for subject_id in new_subject_ids:
+        session_by_day = subject_session_by_day(subject_id, input_folder, raw_filename_corrections)
         subject_physiology[subject_id] = _convert_subject_physiology(
-            subject_id, input_folder, output_folder, raw_filename_corrections
+            subject_id, input_folder, output_folder, raw_filename_corrections, session_by_day
         )
         subject_events[subject_id] = _convert_subject_events(
-            subject_id, input_folder, output_folder, raw_filename_corrections
+            subject_id, input_folder, output_folder, raw_filename_corrections, session_by_day
         )
 
     if skipped_subject_ids:
@@ -950,27 +1081,27 @@ def convert_longwalkv3_to_bids(
             ", ".join(skipped_subject_ids),
         )
 
-    # Debrief backfill: an already-converted subject still gets reconsidered for debrief
-    # specifically if they don't have one yet (e.g. a previous run's export didn't match
-    # them) -- same philosophy as crane_bids.convert_crane_to_bids.
-    backfill_candidate_ids = sorted(
-        sid for sid in already_converted if not _has_debrief_file(output_folder, sid)
-    )
-    debrief_candidate_ids = sorted(set(new_subject_ids) | set(backfill_candidate_ids))
-
+    # Debrief is rebuilt for every subject on every refresh -- it's derived from the REDCap
+    # export plus the human's per-row fixes (apply_debrief_fixes) and the current BIDS session
+    # dates, all of which can change after a subject was first converted. An already-converted
+    # subject counts as "updated" only when its debrief content actually changed.
+    debrief_candidate_ids = sorted(set(new_subject_ids) | already_converted)
     subject_debrief: dict[str, list[Path]] = {}
     backfilled_debrief_ids: list[str] = []
     if debrief_df is not None:
+        debrief_df = apply_debrief_fixes(debrief_df, output_folder)
         for subject_id in debrief_candidate_ids:
+            previous = _remove_subject_debrief(output_folder, subject_id)
             destinations = _convert_subject_debrief(subject_id, debrief_df, output_folder)
             if destinations:
                 subject_debrief[subject_id] = destinations
-                if subject_id in backfill_candidate_ids:
-                    backfilled_debrief_ids.append(subject_id)
+            current = {path.name: path.read_bytes() for path in destinations}
+            if subject_id in already_converted and current != previous:
+                backfilled_debrief_ids.append(subject_id)
 
     if backfilled_debrief_ids:
         logger.info(
-            "Backfilled debrief for %d already-converted subject(s) that didn't have one yet: %s",
+            "Updated debrief for %d already-converted subject(s): %s",
             len(backfilled_debrief_ids),
             ", ".join(backfilled_debrief_ids),
         )
